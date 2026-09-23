@@ -49476,3 +49476,64 @@ reconnect the install returned `USER_RESTRICTED` (needs VLL to confirm) — will
 writer to `notesOffBySong` exists that neither of us found. I've re-asked him.
 
 — Mobile
+
+## 2026-09-24 — Mobile: A77 started — Stage 1 foundation FOR REVIEW; Stage 2 seam + wording for a GO before I build
+
+A77 (armed note auto-upload) staged like A70. **Stage 1 is built + tested** on `task/a77-armed-upload`
+(`1ebb4d41`); Stages 2–3 I want a read on before building, because the seam and the strings are the parts a
+spec can't fully pin.
+
+### Stage 1 — the armed state machine (foundation, inert on main)
+
+The tablet-side twin of live mode's three properties. Nothing reads `armedUntil` yet, so main is unchanged.
+
+- `ARMED_UPLOAD_WINDOW_MS = 3 h`, the Kotlin mirror of Go `app.LiveModeWindow`, with the "one concept, two
+  copies — change one, change the other" cross-reference ⟨D1⟩ asked for. On the **monotonic** clock
+  (deep-sleep-safe): a paused rehearsal does not burn the window.
+- `armed(now)`; NOT preserved across `applyUpdate`, so a bake disarms by construction (⟨D4⟩), and the update
+  notice gains "· auto-upload disarmed (the page changed)" when it does.
+- VM `arm/disarm(notice)/setArmed/expireArmIfDue/isArmed` off the existing injected `monotonicNow`, so the
+  clock-injected expiry test (acceptance §8) runs without sleeping — the Go `WithClock` idiom.
+- `shouldMirrorClear(page, now)` = armed AND a live page (⟨D5⟩ — orphans and the unarmed case stay local).
+- `StageArmedUploadTest`: deadline set; window lapses at the exclusive boundary on an injected clock;
+  `setArmed` toggles; bake-while-armed disarms and says why; bake-while-unarmed carries no disarm word;
+  mirror-clear only when armed + live. `:shared:testDebugUnitTest` green.
+
+### ⟨D1⟩ spec nit — the 3 h/2 h leftover
+
+§3's heading and your CORRECTED note both say **3 h** (and cite the `LiveModeWindow = 3 * time.Hour` constant),
+but the bullet under it still reads *"the window ends on its own after **2 hours**"* — a survivor of the same
+2→3 correction. I built to **3 h**. Flagging so the doc gets swept (I can fix it in this branch).
+
+### Stage 2 — the coalesced-send SEAM I propose (want a GO before building the host wiring)
+
+The send lives in the host (`HttpTransport.sendRehearsalNote`, androidApp); the commit happens in shared
+(`NotePad.persist()` → the local `RehearsalNotes` port); "armed" is Stage state. So the auto-send must cross
+that boundary. Proposed seam, mirroring the existing `onIndexChanged`/`onBumpRevision` callbacks:
+
+- **`NotePad` emits `onNoteCommitted(NoteEntry)`** at each pen-up save (it already has the entry + concertId).
+- **The host owns a coalescing sender** (a `rememberCoroutineScope` debounce keyed by note key) gated by
+  `vm.isArmed()`: debounce after the last stroke; **flush on page turn, on leaving note mode, on disarm, on
+  expiry** (§7). Each auto-send passes `overwrite = true` — it is replacing *its own* prior auto-send — and a
+  **409 that is not from our prior send** ⇒ `disarm(notice)` + report, never clobber (§7, the `bulkNoteOutcome`
+  distinction).
+- **Mirror-delete (§5):** add `HttpTransport.deleteRehearsalNote` (the server `DELETE …/rehearsal-notes/{page}`
+  exists, unused by the app today); the clear paths call it only when `state.shouldMirrorClear(page, now)`.
+
+Two questions on this seam: (a) OK to put the debounce/flush loop in the **host** (it owns the transport +
+lifecycle) rather than shared? (b) The **flush-on-disarm/expiry** needs the host to observe those transitions
+— fine to collect `vm.state` for `armedUntil` edges, or do you want an explicit `onDisarm` callback?
+
+### Stage 3 — wording (product words; your/VLL's call, not mine to invent)
+
+The spec gives the Studio strings; the tablet ones are new. Drafts, mirroring the Studio precedent:
+
+- ⚙ row: **"Auto-upload notes to Studio"**, subtitle *"Arms for 3 h · notes send as you draw"* (Switch, sits
+  by Auto-update — its push twin).
+- Banner (the `editor-live-banner` shape): **"AUTO-UPLOAD ARMED — your notes are sending to Studio"**.
+- Delete-while-armed visible difference (§5): status **"Removed here and in Studio"** vs the plain
+  **"Removed"** — so the same gesture doesn't silently mean two things.
+
+Confirm or replace the three strings and I'll build Stages 2–3 in one pass.
+
+— Mobile
