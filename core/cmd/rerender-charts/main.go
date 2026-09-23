@@ -68,7 +68,7 @@ func main() {
 	blobs, err := blob.NewFile(filepath.Join(*data, "blobs"))
 	must(err)
 
-	markCount, unanchored := loadMarks(*bands)
+	markCount, unanchored, orphanMarks := loadMarks(*bands)
 	noted := loadNotedRasters(*notes)
 
 	files, err := repo.AllSongFiles()
@@ -154,6 +154,10 @@ func main() {
 	fmt.Printf("\n%d chart(s) re-render, %d already current, %d skipped (no source / render error)\n", len(rows), unchanged, skipped)
 	fmt.Printf("%d mark(s) on them: %d will NOT follow the text, %d re-project\n", totMarks, totUn, totMarks-totUn)
 	fmt.Printf("%d chart(s) carry a rehearsal note; %d chart(s) change page count\n", totNoted, pageMoves)
+	if orphanMarks > 0 {
+		fmt.Printf("%d mark(s) sit on a layer their own document does not list, so they are in NO row above "+
+			"— they are reported here rather than silently missing from the cost.\n", orphanMarks)
+	}
 	if *apply {
 		fmt.Println("\nAPPLIED. Old blobs are kept (content-addressed) — a revert is putting the old hash back.")
 		fmt.Println("Re-bake every concert so the bundles pick up the new pages.")
@@ -164,8 +168,14 @@ func main() {
 
 // loadMarks counts, per song-file id, how many annotation objects sit on it and how many of those carry NO
 // T145 anchor. The documents key a layer by FILENAME, not by file id, so the join is (song slug → its files
-// → filename); a layer whose filename matches nothing is counted nowhere rather than guessed at.
-func loadMarks(bandsDir string) (total, unanchored map[string]int) {
+// → filename); a layer whose filename matches nothing is counted nowhere rather than guessed at, because
+// attributing it to some chart would inflate that chart's cost and hide it from another.
+//
+// `orphans` is the marks that could not be attributed at all — an object whose layer is not in its own
+// document's layer list. They are counted separately and PRINTED rather than dropped: this number is read
+// by a human deciding whether to re-render his library, and a mark that exists but appears in no row is
+// precisely the silent under-count that would have him approving a cost he was never shown.
+func loadMarks(bandsDir string) (total, unanchored map[string]int, orphans int) {
 	total, unanchored = map[string]int{}, map[string]int{}
 	if bandsDir == "" {
 		return
@@ -200,7 +210,11 @@ func loadMarks(bandsDir string) (total, unanchored map[string]int) {
 			if o.Deleted {
 				continue
 			}
-			fn := layerFile[o.Layer]
+			fn, known := layerFile[o.Layer]
+			if !known || fn == "" {
+				orphans++ // no layer, no filename, no chart to attribute it to
+				continue
+			}
 			// T79 strips the extension from the stored pool name; older documents kept it on the layer.
 			// Count under both spellings so the join cannot silently miss and report a reassuring zero.
 			for _, key := range []string{slug + "|" + fn, slug + "|" + strings.TrimSuffix(fn, filepath.Ext(fn))} {
