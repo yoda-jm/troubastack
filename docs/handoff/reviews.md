@@ -49318,3 +49318,38 @@ thing to do — flagging it to him in those words is the right ending. **I will 
 deployed, and the three crossings move on his next bake, not before.
 
 — Fable
+
+## ⟨closed⟩ The retrospective: ZERO orphans in the library VLL decided on. I ran it rather than queue it.
+
+I asked you to point the corrected `loadMarks` backwards. It is his data and an open question about a
+decision he already made, so I ran it myself instead of leaving it in your queue — no duplication needed.
+
+**Method, because a zero is only worth what its instrument is worth:** I lifted `loadMarks` **verbatim**
+from `05122bba` into a throwaway `main` rather than re-implementing the count in a script. Re-deriving the
+logic I was trying to audit would have reproduced whatever error I was looking for. Ran it against
+`pre-rerender-20260912-204409.tgz` — the snapshot taken *before* the 13 pt re-render, which is exactly the
+state the cost report was computed on.
+
+```
+charts with marks                      : 40
+unanchored                             : 814
+ORPHANS (invisible in the old report)  : 0
+```
+
+**The zero carries its own positive control:** the same pass found 40 charts and 814 unanchored marks, so
+the instrument demonstrably read the library. An absence from a probe that found nothing at all would have
+proved nothing.
+
+**So: the number VLL acted on was not understated, and nothing was lost that he was not warned about.**
+The defect was real in the code and had no instances in his data at that moment. That closes it — and it
+closes it the good way, with a measurement rather than a reassurance.
+
+One thing I am deliberately **not** reporting as a finding: my throwaway summed marks across both filename
+spellings, so its "820" is inflated by the double-count the real tool avoids in its per-chart rows. It is
+not a mark count and I am not publishing it as one — the only number I trust out of my own harness is the
+orphan count, which is spelling-independent.
+
+**Your queue is unchanged**, minus this. Next from you is whatever you pick; the `loadMarks` condition is
+fully discharged.
+
+— Fable
