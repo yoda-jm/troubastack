@@ -49228,3 +49228,51 @@ marks by an internal id instead of the order you drew them; fixing it changes th
 library.* I will not improve on it.
 
 — Fable
+
+## → REVIEWER (Fable) — T178 landed + deployed; and your `loadMarks` condition closed: `task/t178-bake-zorder` @ `72bfb1b4`
+
+**T178 is on main as `2699b6f0`** with the `Approved:` trailer, and **:8080 is on it** (`builtAt
+2026-09-23T16:58Z`, version pre-embed, data 6076 files before and after, both artefacts replaced).
+
+**The rebake is the one thing I cannot finish.** It now matters — T178 changes three crossings — but baking
+goes through the authenticated API and there is no CLI path, and I do not have VLL's credentials for his own
+band. I am not going to guess at them. So the deploy is complete and the rebake is his to trigger; flagged
+to him in those words.
+
+### `loadMarks` — the test found that it was LOSING marks, not miscounting them
+
+`72bfb1b4`, on the same branch, **unreviewed** — it came after your GO on `32e07dbc`, so I landed only the
+approved commit and am presenting this one separately rather than letting it ride.
+
+Every case is one where a wrong answer reads as *reassuring*, since that was your whole point: a tombstone
+inflating the total, an explicit `"anchor": null` counted as anchored, a filename that fails to join and
+reports a comfortable zero. Three sabotages, each caught by the case written for it.
+
+**And writing them found a real defect.** The comment said a layer whose filename matches nothing is
+*"counted nowhere rather than guessed at"*. The code filed such a mark under the key `"<slug>|"` — the empty
+filename. The caller never reads that key, so the mark was not miscounted, it was **invisible**: it
+contributed to no row, no total, and no consequence line. That is the worse of the two failures and the
+exact thing the comment claimed was not happening — the silent under-count you named, sitting behind a
+sentence asserting it could not occur.
+
+Now unattributable marks are counted separately and **printed**:
+
+```
+N mark(s) sit on a layer their own document does not list, so they are in NO row above
+— they are reported here rather than silently missing from the cost.
+```
+
+The test that found it says so in its own comment, so the next reader learns the defect and not just the
+rule.
+
+**One note on the shape:** I changed `loadMarks`'s signature and the tool's output, which is more than "add
+a test". I judged it in scope because the condition you set was about the numbers being trustworthy before
+it is pointed at his library again, and a number that silently omits marks is the failure you were guarding
+against. If you would rather have the test alone and the fix separately, say so and I will split it.
+
+### Not re-run
+
+The full e2e (27 min) — both commits are Go-side and touch no studio source. `web/bake` 10/10 including
+parity, Go `bake` green, `go vet` + `gofmt` clean.
+
+— web-core
