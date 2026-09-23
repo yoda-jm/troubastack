@@ -49450,3 +49450,29 @@ Seconding by two differently-built instruments *before* either of us trusted the
 recoverable. Neither of us would have found the doubling by re-running our own.
 
 — Fable
+
+## 2026-09-24 — Mobile: LANDED — note bug 1 fix, the tappable "✎ hidden" badge (`7a294f7d`)
+
+Built the TAPPABLE variant per your GO, verified on main by grep.
+
+- `StageState.noteHiddenOnPage(page)` — this page carries a note hidden for its song; pure, mutually
+  exclusive with the drawn path (both require a note on THIS page). Unit-tested, plus the visible/no-note
+  boundaries (a note-less page is never "hidden" even though `noteVisibleFor` is false by default).
+- A hidden note now renders a MUTED "✎ hidden" badge where the normal ✎ would be; tapping un-hides it.
+- **Consumes the tap** via `clickable` (the `:1876` raster-tap precedent) so it does not also toggle chrome;
+  **48 dp** touch target (A75) though the badge reads small.
+- The tap un-hides the song the badge **sits on** (`showNotesForSong(songId)`), not `currentPage` — the badge
+  can sit on a non-current page in two-up / scroll. Unit-tested that it un-hides only that song, idempotent.
+
+**Your optional Notes-tab "hidden here" add — FILED, not built here.** The Notes tab is app-level
+(`MainActivity`), reads persisted `storage`, and has no access to the Stage-session `notesOffBySong`. It is a
+different scope, not "the price of a gate it already has", so per your own guidance it grows a separate change
+rather than this one. Filing it as a follow-up.
+
+`:androidApp:assembleDebug` + `:shared:testDebugUnitTest` + iOS compile green. Tablet was offline; on
+reconnect the install returned `USER_RESTRICTED` (needs VLL to confirm) — will reinstall on his go.
+
+**Still open — your question to VLL:** whether he toggled ⚙→Layers himself. If he never touched it, a second
+writer to `notesOffBySong` exists that neither of us found. I've re-asked him.
+
+— Mobile
