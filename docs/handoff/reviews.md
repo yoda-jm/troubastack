@@ -48567,3 +48567,63 @@ the answer decides whether anything else needs looking at: if he says he never t
 writer exists that neither of us has found, and *that* would be a different bug.
 
 — Fable
+
+## ⟨dispatch⟩ A77 (mobile) — armed auto-upload, three rulings; and T177 (web-core) — line styles and ends
+
+### A77 — `docs/tasks/A77-armed-note-auto-upload.md`
+
+VLL landed on the shape after we talked the unconditional version out of existence. Worth stating why,
+because it is a method and not just an outcome: every draft of "auto-send always" turned into machinery for
+a **moving background** — a note is keyed on the page's raster hash, live mode re-bakes, a re-bake detaches
+the note being drawn. **His version does not solve that, it makes it not apply**: the user asserts the
+precondition. It also leaves the case that no server feature can serve — *no network* — exactly as it is.
+
+**The friction stays, by his explicit instruction:** the note remains a bitmap, never travels back, still
+gets recopied by hand. Only the send is automated. This is not a step toward notes becoming annotations, and
+the task says so.
+
+**Copy P201's shape, not its prose** (the mistake I made on T175): live mode is already opt-in, prominently
+banner'd and **self-expiring**. A77 is its tablet-side twin and takes all three.
+
+The three he asked me to settle:
+
+- **⟨D1⟩ a fixed 2-hour window, no picker** — P201 already treats a rehearsal as ~2 hours, and a chooser
+  makes him decide the same thing every time for nothing. **Plus leaving Stage disarms**, so two independent
+  expiries make "I forgot" nearly unreachable. Test the expiry on an injected clock, as P201 does.
+- **⟨D2⟩ armed from the ⚙ sheet, not the note bar.** A75 measured his panel at **686 dp** and spent the
+  whole task getting buttons off the note rows; a mode switch there would undo it. Arming is a deliberate
+  act, not a drawing act.
+- **⟨D3⟩ clearing a page clears Studio too — while armed, and on live pages only.** Outside the window,
+  T170 §7's two lifetimes stand. **An orphan is outside the mirror**: without that sentence, "Studio mirrors
+  my tablet" gets read later as "including orphans" and reopens everything this shape avoids.
+
+**And ⟨D4⟩, which he did not ask for but follows:** a bake arriving while armed **disarms, visibly**. His
+precondition can be falsified by someone else, and a silent continue would push pixels tied to a background
+that is gone.
+
+### T177 — `docs/tasks/T177-line-styles-and-end-decorations.md`
+
+**Read §1 before designing:** `domain.Style` has no dash, cap or end; the only arrow is `web/ink`'s
+**dev-only** T07 type behind `localStorage.devArrow`; and Studio's jump tie draws its dash and arrowhead in
+**CSS**, which is chrome and does not survive a bake. Prior art to read and then not follow.
+
+**⟨D1⟩ it is a style, never a new object type.** As a type, every line already drawn can never become an
+arrow, the palette grows per combination, and every mirror learns a case. As a style, an existing line grows
+an end.
+
+**⟨D2⟩ a named closed set for `dash`** (solid/dashed/dotted), not an arbitrary dash-array — an open numeric
+array is a migration surface and a place for Studio and the baker to differ. **Absent must mean exactly
+today's drawing**, and presence should be structural rather than an in-band sentinel (T172's lesson: a flat
+underline was legitimately zero-height, so "0 = none" was unsafe).
+
+**⟨D3⟩** the arrowhead is geometry: pin its scale to `Width` in **ink**, and decide the degenerate cases —
+a zero-length line and a line shorter than its own head, which a musician creates with a stray tap.
+
+**⟨D4⟩** `Style` crosses `bandio_v2.go`, `sync/mapping.go` and `httpapi/annotations.go` field-by-field. Those
+guards have already caught `Anchor`, `PointsRenderHash` and stylus `Pressure` going missing. Extend them —
+and if `ends` is nested, make them walk **into** it.
+
+**Acceptance is the baked raster, not the editor canvas**, for both tasks' visual claims. The bake is what he
+reads on stage.
+
+— Fable
