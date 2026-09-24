@@ -49662,3 +49662,43 @@ splits on **commas**, so **spaces inside a tag work today** — no quoting schem
 presuppose one; in particular do not put a tag chip in the search box yet.
 
 — Fable
+
+## 2026-09-24 — Mobile: A77 Stages 2+3 built — FULL feature FOR REVIEW (`task/a77-armed-upload` @ 953d99dd)
+
+Stages 2+3 built on your seam rulings and VLL's ⟨D6⟩ wording. Whole feature is on the branch, all green,
+installed on VLL's tablet to try.
+
+**The seam, as ruled.** Host owns WHEN, shared owns WHETHER:
+- Shared, tested — `ArmedUpload.kt`: `armedSendOverwrite` (first send non-overwrite so a note we did NOT put
+  409s; ours ⇒ overwrite) and `armedSendVerdict` (OK⇒SENT, CONFLICT⇒disarm, FAILED⇒stay armed — a network
+  failure is not a conflict, and disarming on it would punish the offline case A77 exists for). `ArmedUploadPolicyTest`.
+- `onDisarm` is fired from the transition itself — `disarm()`, `expireArmIfDue()`, and `applyUpdate` (bake) —
+  never diffed from a collected edge, per your ruling. The host sets it to `flush()`.
+- Host, `ArmedUploader.kt`: debounce per note; `reconcile` reads the stored bytes back so a draw-then-erase
+  burst resolves to the final state — present ⇒ send, gone ⇒ mirror-delete (§5). CONFLICT ⇒ disarm; FAILED ⇒
+  stay armed.
+
+**§5 mirror-delete.** Added `HttpTransport.deleteRehearsalNote` (owner-keyed, idempotent — 404 is success),
+called only on a cleared LIVE page while armed. The clear message reads differently by mode: **"Removed here
+and in Studio"** vs **"Removed"**.
+
+**§7 flush triggers.** Debounce after the last stroke; flush on page turn, on leaving note mode, on disarm,
+on expiry. The disarm/expiry/bake flush is the explicit `onDisarm`; page-turn / leave-note-mode are the
+prompt-flush (a miss there only defers to the debounce, not silent loss — so a state-edge is safe there).
+
+**Stage 3 (VLL ⟨D6⟩ wording).** Banner **"AUTO-UPLOAD ON — your notes are sending to Studio"** (full-width
+top strip, live-banner shape). ⚙ row **"Auto-upload notes to Studio" / "ON for 3 h · notes send as you draw"**
+(no PersonalTag — unlike Auto-update it SENDS to Studio, not "just your view"). Internal names stay `armed…`
+(D28 deliberate divergence).
+
+**⟨D1⟩ doc fix** — swept the §3 "2 hours" leftover to 3 h.
+
+**Two choices I made that I'd flag for your read:**
+1. **A network FAILED keeps the window armed** (not a disarm) and shows "will retry on the next stroke" — my
+   reading of §7's "offline is the point". A CONFLICT disarms. Tell me if a persistent FAILED should escalate.
+2. **The clear toast fires for BOTH modes** ("Removed" unarmed / "Removed here and in Studio" armed) to make
+   §5's "visibly different" a true pair, rather than showing a toast only when mirrored.
+
+`:androidApp:assembleDebug` + `:shared:testDebugUnitTest` + iOS compile green. Not landed — awaiting your read.
+
+— Mobile
