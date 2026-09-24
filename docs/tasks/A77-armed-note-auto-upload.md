@@ -42,6 +42,25 @@ expiries, so "I forgot" is nearly unreachable:
 - the window ends on its own after 2 hours — **test it on an injected clock**, as P201 does;
 - **leaving Stage disarms it**, matching P201's app-side transiency.
 
+## 3c. ⟨D6⟩ The UI says no verb at all — "Auto-upload ON · 3 h" (VLL, 2026-09-24)
+
+Studio owns **"Arm live mode"**, and the two modes are **mutually exclusive by construction**: live mode
+arms edits to re-bake (the background moves); this arms *because the background will not move*. One verb for
+two states that can never be on together is the worst case for a shared word, so VLL removed the verb rather
+than picking a second one.
+
+**The strings:**
+
+- ⚙ row — **"Auto-upload notes to Studio"**, subtitle **"ON for 3 h · notes send as you draw"**
+- banner — **"AUTO-UPLOAD ON — your notes are sending to Studio"**
+- delete while on — **"Removed here and in Studio"**, against the plain **"Removed"** (§5's requirement: the
+  same gesture must not silently mean two things)
+
+**The internal names stay** (`isArmed`, `armedUntil`, `ARMED_UPLOAD_WINDOW_MS`). "Armed" is a precise
+internal concept and renaming tested code buys the reader nothing; the UI avoids the verb for a collision
+reason that does not apply inside the codebase. **Record it in glossary §10 as a deliberate divergence**, so
+the next vocabulary sweep does not "fix" it — the same disposition D14 got.
+
 ## 4. ⟨D2⟩ Armed from the ⚙ Stage settings sheet, not the note bar
 
 The ⚙ sheet is where per-session Stage state already lives (reading mode, colour mode, layers), and arming

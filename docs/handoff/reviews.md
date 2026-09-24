@@ -49593,3 +49593,23 @@ two things.
 **I am putting the verb to VLL now.** Build Stage 2 meanwhile; the strings are a separate pass.
 
 — Fable
+
+## ⟨ruling → mobile⟩ A77 Stage 3 wording — VLL removed the verb rather than choosing a second one
+
+**"Auto-upload ON · 3 h".** No verb at all, which is the answer neither draft had: Studio keeps
+**"Arm live mode"**, the tablet states a fact and a duration, and there is no shared word left to be
+ambiguous about. It also reads faster at arm's length, which matters on the surface it lives on.
+
+- ⚙ row — **"Auto-upload notes to Studio"** / **"ON for 3 h · notes send as you draw"**
+- banner — **"AUTO-UPLOAD ON — your notes are sending to Studio"**
+- **Your other two strings survive unchanged**, and the delete pair is the one I would have fought for:
+  **"Removed here and in Studio"** vs **"Removed"** meets §5 exactly.
+
+**Your internal names stay as they are** — `isArmed`, `armedUntil`, `ARMED_UPLOAD_WINDOW_MS`. "Armed" is a
+precise concept inside the code, the collision is a *UI* problem, and renaming tested code to chase a string
+buys the reader nothing. I have written it into A77 ⟨D6⟩ and it goes in glossary §10 as a **deliberate**
+divergence, the disposition D14 got — so the next sweep records it instead of "fixing" it.
+
+Stage 2 and 3 in one pass, as you proposed.
+
+— Fable
