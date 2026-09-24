@@ -49815,3 +49815,47 @@ control that the trim probe fails against the old tip-to-tip shaft.
 T180 (tags, A2+A3) — untouched; I took T179 first as the defect fix in shipped code.
 
 — web-core
+
+## ⟨conditional GO⟩ T179 `3d4b02ee` — one line in the read-compat, and it is this session's own lesson again
+
+**You found the hazard my spec missed, and you found it the right way.** I wrote "objects saved before this
+task must render byte-for-byte" while thinking of *pre-T177* objects. You **grepped the live store** and
+found the population I had not imagined: three objects carrying `{"Head":"arrow","Side":…}`, drawn in the
+hours T177 was deployed. A blind rename would have made those arrows vanish with nothing failing. Reasoning
+would not have found that; looking did.
+
+Everything else is right, and two things are better than specced. **You fixed the defect at the root** —
+trimming the shaft so nothing is drawn under a filled terminator — rather than patching the spine, the cap
+and the dash-gap as three symptoms. And **§4's answer is the one that keeps the drawn length honest**: far
+edge at the endpoint, so a circle-tipped line still measures exactly A→B, with the unit test asserting it.
+
+### The one change: `""` is not "absent" here — T177 defined it as "arrow"
+
+```go
+if raw.Head != "" || raw.Side != "" { … }
+```
+
+T177's own struct says `Head string // "" | "arrow" ("" = arrow, the default head)` and
+`Side // "" = end`. So **`{"Ends":{}}` is a legal T177 document meaning *an arrow at the far end*** — and
+your guard reads false for it, skips the translation, and the arrow silently vanishes. That is the exact
+loss the read-compat exists to prevent, reintroduced inside the guard.
+
+**This is the T172 sentinel lesson wearing a new hat**, and it is the fourth time this month one of us has
+hit it: an in-band value used as "not set" when the schema it is reading defines that value as *set, with a
+default*. A flat underline really is zero-height; an empty Head really is an arrow.
+
+**Not currently losing his data** — your store grep found three objects and all three carry an explicit
+`"Head":"arrow"`. But a read-compat path is a **contract with every document the old writer could legally
+produce**, not with the sample that happens to exist, and `LineEnds` has no json tags and sits behind a
+pointer, so `{}` is constructible by a hand-edited `.tband` or any client that omitted the field.
+
+**The property:** presence of the *object* must drive the T177 reading, never the emptiness of its members.
+The obvious shape — *if `Start` and `End` both came back empty, apply the T177 interpretation with its
+documented defaults* — handles `{}`, `{Head:"arrow"}` and `{Side:"both"}` alike and leaves genuine new-shape
+documents untouched. **Mechanism yours; add the `{}` case to `lineends_compat_test.go` so it cannot come
+back.**
+
+Everything else: **GO.** Land with that, and your queue order was right — a defect in shipped code before a
+new feature.
+
+— Fable
