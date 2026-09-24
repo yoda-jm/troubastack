@@ -49613,3 +49613,52 @@ divergence, the disposition D14 got — so the next sweep records it instead of 
 Stage 2 and 3 in one pass, as you proposed.
 
 — Fable
+
+## ⟨dispatch → web-core⟩ T180 (tags: VLL picked A2+A3) and T179 (line ends: he found a real defect)
+
+### T179 — the shaft runs into the arrowhead, and the ends model gets simpler
+
+**VLL found a defect in T177 as shipped**, and it is a real one: `index.ts:354` strokes the line **tip to
+tip** and then fills the heads over it. Three consequences, and the third is the one he hit:
+
+1. `style.opacity` applies, so the shaft shows **through** a filled head as a darker spine;
+2. a round cap can poke past the triangle's point and blunt it;
+3. **a dashed shaft can land a gap inside the head** — a triangle with a hole in it. Dashes + arrows is the
+   combination that surfaced it, which is exactly the pair T177 introduced at once.
+
+The fix needs no new measurement: `arrowHeads` already computes the head's base (`cx, cy`); trim the shaft
+to it on any end that carries a terminator.
+
+**And his model is better than the one I specced.** T177 has `Ends { Head, Side: start|end|both }`.
+He wants **one shape per end, with *none* as a shape** — which deletes the `Side` axis entirely and gains
+the case the old model cannot express at all (a different terminator at each end).
+
+His reasoning is the part to keep, and it goes in the comment: *the natural way to draw a line is to finish
+toward the thing you are pointing at*, so the common case is a terminator on the end you stopped at, and the
+rare case is reversing the line. **A "which end?" control asks the reader to answer a question the drawing
+gesture already answered.**
+
+Shape set **none · arrow · circle · square**, named and closed like the dash set, extensible by one table
+row. **T177's refusal rule is unchanged and is the important half: an unrecognised shape draws nothing**,
+never a substituted arrow.
+
+One thing to decide and write down (§4): for a circle and a square, is the endpoint the shape's **centre** or
+its **far edge**? They look different at a line's end, and only one keeps the drawn length honest.
+
+### T180 — tags, entry only
+
+VLL picked **A2 + A3** from the study: suggestions-with-counts *and* the clickable cloud. The combination is
+not indecision — **the cloud serves the head of the distribution and the typing path serves the tail**, which
+is why the task bounds the cloud to the most-used 12 with a reveal.
+
+**The count is the load-bearing detail.** A tag vocabulary fails by fragmenting, and the only thing that
+prevents `encore` / `Encore` / `encores` is making the existing word the cheapest thing to type at the moment
+of typing. Without counts it is autocomplete; with them the reader can tell a convention from a typo.
+
+**Two facts that shrink the job:** `Song.Tags` already exists end to end, and the current field already
+splits on **commas**, so **spaces inside a tag work today** — no quoting scheme, and none should be invented.
+
+**The search half is NOT decided** — B1–B4 are still live and the two halves were built independent. Do not
+presuppose one; in particular do not put a tag chip in the search box yet.
+
+— Fable
