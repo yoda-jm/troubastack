@@ -247,6 +247,10 @@ fun StageScreen(
     // the eight built-in keys turn pages.
     pedalBindings: PedalBindings = emptyMap(),
     midiSignal: MidiSignal? = null, // A76 — the latest BLE-MIDI press (seq-stamped) to act on
+    // A77 — each note commit (pen-up save OR clear) while armed; the host reconciles with Studio. And a flush
+    // hint the host uses to send any debounced note promptly (§7: on page turn / on leaving note mode).
+    onNoteCommitted: (com.troubastack.shared.stage.notes.NoteEntry) -> Unit = {},
+    onFlushNotes: () -> Unit = {},
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -261,7 +265,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow, pedalBindings, midiSignal)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow, pedalBindings, midiSignal, onNoteCommitted, onFlushNotes)
         }
     }
 }
@@ -286,6 +290,8 @@ private fun Performing(
     noteNow: () -> Long = { 0L },
     pedalBindings: PedalBindings = emptyMap(),
     midiSignal: MidiSignal? = null, // A76 — the latest BLE-MIDI press (seq-stamped) to act on
+    onNoteCommitted: (com.troubastack.shared.stage.notes.NoteEntry) -> Unit = {}, // A77 — host reconciles this note with Studio while armed
+    onFlushNotes: () -> Unit = {},             // A77 — host sends any debounced note now (page turn / exit)
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
     // A46 (A33 drill 2): persist the reading position on every move, so a process death / exit reopens
@@ -293,7 +299,10 @@ private fun Performing(
     val here = state.currentPage
     LaunchedEffect(here?.songId, here?.pageInSong) {
         if (here != null) onPositionChange(here.songId, here.pageInSong)
+        onFlushNotes() // A77 §7 — a page turn flushes any debounced auto-send promptly (host no-ops if none)
     }
+    // A77 §7 — leaving note mode flushes too, so the strokes reach Studio without waiting out the debounce.
+    LaunchedEffect(state.noteMode) { if (!state.noteMode) onFlushNotes() }
     // T143 §3: when auto-update swaps the sheet under the performer, say a word — brief, non-modal, then
     // self-dismiss. `shownNotice` holds the text through the exit fade after clearUpdateNotice nulls it.
     var shownNotice by remember { mutableStateOf("") }
@@ -303,6 +312,15 @@ private fun Performing(
         delay(3500)
         vm.clearUpdateNotice()
     }
+    // A77 ⟨D1⟩ — the armed window self-expires: sleep exactly to the deadline, then disarm (which drops the
+    // banner and flushes the last pending send via onDisarm). Re-runs whenever armedUntil changes (arm/disarm).
+    LaunchedEffect(state.armedUntil) {
+        if (state.armedUntil == 0L) return@LaunchedEffect
+        delay(vm.armedRemainingMs())
+        vm.expireArmIfDue()
+    }
+    // A77 ⟨D1⟩ — leaving Stage disarms (matching live mode's "leave ⇒ OFF"); onDisarm flushes any pending send.
+    DisposableEffect(Unit) { onDispose { vm.disarm() } }
     // T147: a once-a-second readout for the bottom-right clock + chronometer. The VALUES are derived from
     // the clock at read time (Chrono stores instants), so this only refreshes the display — a dropped tick
     // never loses time. It ticks only while the clock is shown or the chrono runs; re-keys on chrono
@@ -608,6 +626,7 @@ private fun Performing(
             onUnhide = { songId -> vm.showNotesForSong(songId) },
             onIndexChanged = { vm.setNotes(it) },
             onBumpRevision = { vm.bumpNoteRevision() },
+            onNoteCommitted = onNoteCommitted, // A77 — host auto-sends/mirrors while armed
         )
 
         Box(
@@ -856,13 +875,41 @@ private fun Performing(
             BlockedTurnGlyph(forward = blockedForward)
         }
 
+        // A77 §4 — while armed, SAY SO prominently: a full-width top strip (the live-banner shape). His notes
+        // are leaving the tablet — not a state to infer from a settings screen he closed. VLL's wording (⟨D6⟩)
+        // states a fact + duration with NO verb, so it can't collide with Studio's "Arm live mode".
+        AnimatedVisibility(
+            visible = state.armedUntil != 0L,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(400)),
+            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding(),
+        ) {
+            val armChrome = stageChrome(colorMode)
+            Surface(color = armChrome.container, contentColor = armChrome.onContainer, tonalElevation = 6.dp) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(armChrome.onContainer))
+                    Spacer(Modifier.size(8.dp))
+                    Text(
+                        "AUTO-UPLOAD ON — your notes are sending to Studio",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = armChrome.onContainer,
+                    )
+                }
+            }
+        }
+
         // T143 §3: the auto-update notice — top-center so it never covers the music or the bottom chrome,
-        // and takes no focus (the pedal keeps working). Self-dismisses via the LaunchedEffect above.
+        // and takes no focus (the pedal keeps working). Self-dismisses via the LaunchedEffect above. When the
+        // armed strip is up (A77), drop below it so the two never overlap.
         AnimatedVisibility(
             visible = state.updateNotice != null,
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(400)),
-            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp),
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = if (state.armedUntil != 0L) 44.dp else 12.dp, start = 12.dp, end = 12.dp, bottom = 12.dp),
         ) {
             val noticeChrome = stageChrome(colorMode) // A69: the notice fades in over the page — follow the scheme
             Surface(shape = MaterialTheme.shapes.medium, tonalElevation = 6.dp, color = noticeChrome.container) {
@@ -905,10 +952,21 @@ private fun Performing(
                     NoteBar(state, vm, colorMode, Modifier.fillMaxWidth(), docked = true, onClear = np@{
                         val np = notePad ?: return@np
                         val pg = clearPage ?: return@np
+                        // A77 — capture the entry BEFORE the delete so the host can mirror the clear to Studio
+                        // while armed (§5); after delete noteForPage would be null.
+                        val cleared = state.noteForPage(pg)
                         scope.launch(Dispatchers.Default) {
                             np.notes.delete(np.concertId, com.troubastack.shared.stage.notes.NoteKey(pg.songId, pg.rasterHash))
                             val idx = np.notes.index(np.concertId)
-                            withContext(Dispatchers.Main) { np.onIndexChanged(idx); np.onBumpRevision() }
+                            withContext(Dispatchers.Main) {
+                                np.onIndexChanged(idx); np.onBumpRevision()
+                                if (cleared != null) {
+                                    // A77 §5 — the delete must read differently by mode: armed ⇒ the host mirrors
+                                    // and says "Removed here and in Studio"; unarmed ⇒ local only, "Removed".
+                                    np.onNoteCommitted(cleared)
+                                    if (!vm.isArmed()) vm.notify("Removed")
+                                }
+                            }
                         }
                     })
                 } else {
@@ -985,6 +1043,9 @@ private fun Performing(
         colorMode = colorMode,
         canAutoUpdate = canAutoUpdate,
         onToggleAutoUpdate = { vm.setAutoUpdate(!state.autoUpdate) },
+        canAutoUpload = concertId.isNotEmpty(),
+        armed = state.armedUntil != 0L,
+        onToggleArmed = { vm.setArmed(!vm.isArmed()) },
         onFitMode = { vm.setFitMode(it); onFitModeChange(it) },
         onLayers = { showSettings = false; showLayers = true },
         onRole = { showSettings = false; showRole = true },
@@ -1204,6 +1265,9 @@ private fun SettingsSheet(
     colorMode: StageColorMode,
     canAutoUpdate: Boolean,
     onToggleAutoUpdate: () -> Unit,
+    canAutoUpload: Boolean,     // A77 — notes available for this concert (else the arm row is hidden)
+    armed: Boolean,             // A77 — the auto-upload window is open
+    onToggleArmed: () -> Unit,  // A77 — arm / disarm
     onFitMode: (FitMode) -> Unit,
     onLayers: () -> Unit,
     onRole: () -> Unit,
@@ -1325,6 +1389,18 @@ private fun SettingsSheet(
                         Text("Apply new bakes as they arrive", style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(checked = state.autoUpdate, onCheckedChange = { onToggleAutoUpdate() })
+                }
+            }
+            // A77 §4 — auto-upload arm: the push twin of Auto-update (which pulls), so it sits here. No verb
+            // in the wording (⟨D6⟩) — a fact + duration — so it can't collide with Studio's "Arm live mode".
+            // No PersonalTag: unlike Auto-update this SENDS to Studio (it is not "just your view").
+            if (canAutoUpload) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Auto-upload notes to Studio", style = MaterialTheme.typography.titleSmall)
+                        Text("ON for 3 h · notes send as you draw", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = armed, onCheckedChange = { onToggleArmed() })
                 }
             }
             // T147: chronometer — times the run-through (start / pause / resume / reset). The elapsed shows
@@ -1906,6 +1982,7 @@ private fun PageView(
                                 imageMod = imageMod, fillWidth = fitMode == FitMode.FIT_WIDTH,
                                 noteRevision = np.noteRevision, meta = np.meta(page), noteWallNow = np.now,
                                 onIndexChanged = np.onIndexChanged, onBumpRevision = np.onBumpRevision,
+                                onNoteCommitted = np.onNoteCommitted,
                             )
                         }
                     }

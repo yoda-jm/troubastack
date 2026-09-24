@@ -82,6 +82,9 @@ class NotePad(
     val onUnhide: (String) -> Unit,
     val onIndexChanged: (List<NoteEntry>) -> Unit,
     val onBumpRevision: () -> Unit,
+    // A77 — each pen-up commit (after the local save) so the host can schedule a debounced auto-send while
+    // armed. Fires for every commit; the host gates on isArmed() — the "whether" is not NotePad's business.
+    val onNoteCommitted: (NoteEntry) -> Unit = {},
 )
 
 /** The inert port for hosts/tests without a notes backend — the surface renders and edits nothing. */
@@ -119,6 +122,7 @@ fun NoteLayer(
     noteWallNow: () -> Long, // A74 ⟨D6⟩: WALL-CLOCK epoch millis for the persisted updatedAt — NOT a monotonic source (elapsedRealtime resets at reboot).
     onIndexChanged: (List<NoteEntry>) -> Unit,
     onBumpRevision: () -> Unit,
+    onNoteCommitted: (NoteEntry) -> Unit = {}, // A77 — fired after each pen-up save so the host can auto-send.
 ) {
     val key = NoteKey(page.songId, page.rasterHash)
     // The NEUTRAL working bitmap for this page (the stored colours). Loaded once per (page, revision); a
@@ -178,7 +182,13 @@ fun NoteLayer(
                 val idx = notes.index(concertId)
                 // Refresh the index (counts + ✎ badge). NOT a revision bump — the in-memory bitmap is already
                 // current, so re-keying it would blank+reload the note mid-stroke.
-                withContext(Dispatchers.Main) { onIndexChanged(idx) }
+                withContext(Dispatchers.Main) {
+                    onIndexChanged(idx)
+                    // A77 — tell the host this note changed (a content save OR an all-transparent clear the
+                    // port just turned into a delete). The host reconciles with Studio while armed by reading
+                    // the stored bytes back: present ⇒ auto-send, gone ⇒ mirror the delete (§5/§7).
+                    onNoteCommitted(entry)
+                }
             }
         }
     }
