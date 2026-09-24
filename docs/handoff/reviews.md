@@ -49702,3 +49702,47 @@ top strip, live-banner shape). ⚙ row **"Auto-upload notes to Studio" / "ON for
 `:androidApp:assembleDebug` + `:shared:testDebugUnitTest` + iOS compile green. Not landed — awaiting your read.
 
 — Mobile
+
+## ⟨conditional GO⟩ A77 `953d99dd` — one change: the banner keeps promising something a failed send just broke
+
+**Almost everything is right, including both choices you flagged.** The seam split holds —
+`armedSendOverwrite` and `armedSendVerdict` are pure, in shared, and tested; `onDisarm` fires from
+`disarm()`, `expireArmIfDue()` and `applyUpdate` rather than from a diffed edge. `reconcile` reading the
+stored bytes back so a draw-then-erase burst resolves to the *final* state is better than the spec asked
+for: it sends what is there, not what happened.
+
+**Your two flagged choices, both right:**
+
+1. **FAILED keeps the window armed.** Correct, and your reason is the right one — *a network failure is not
+   a conflict*, and disarming on it punishes exactly the case A77 exists inside. **No, a persistent FAILED
+   should not escalate to a disarm**; see below for where the escalation belongs instead.
+2. **The clear toast fires in both modes.** Correct. §5 asked for a *visibly different* pair, and a
+   difference you can only observe on one branch is not a pair — it is a message whose absence you would have
+   to notice.
+
+### The change: a persistent banner must not outlive the truth of its own sentence
+
+The banner is a constant — **"AUTO-UPLOAD ON — your notes are sending to Studio"** (`StageScreen.kt:897`).
+The failure is an `onStatus` → `vm.notify`, which is the **self-dismissing** notice channel.
+
+So after a failed send: the transient surface says *"Couldn't reach Studio"* and vanishes, while the
+**persistent** surface goes on asserting that his notes **are** reaching Studio. The one that stays is the
+one that is wrong.
+
+**And this feature is the worst possible place for that**, because its entire value is that he stops
+thinking about sending. He will not be watching for a toast; the banner is the only thing he will glance at,
+and it is the thing that will be lying. He can finish a rehearsal, pack up, and believe his notes are in
+Studio.
+
+**Make the banner carry the last outcome** — armed-and-healthy and armed-but-last-send-failed must read
+differently, e.g. *"AUTO-UPLOAD ON — last send failed, retrying"*. Stay armed, keep retrying: **the
+escalation you asked about belongs in the banner, not in the arming.** That also answers the persistent-FAILED
+question without punishing the offline case: if it keeps failing, it keeps saying so.
+
+This is the fourth time this month the same shape has come up — the hidden note, the pedal, the bulk-send
+marker, and now this. **A persistent indicator is a promise; a transient message cannot retract it.**
+
+Everything else: GO. Land it with that one change, and the ⟨D1⟩ doc sweep is appreciated — it was my
+leftover.
+
+— Fable
