@@ -39,7 +39,7 @@ Whoever changes one changes the other; say so where the value is written on the 
 No picker — a chooser would ask VLL to make the same decision every time for no gain. Two independent
 expiries, so "I forgot" is nearly unreachable:
 
-- the window ends on its own after 2 hours — **test it on an injected clock**, as P201 does;
+- the window ends on its own after 3 hours — **test it on an injected clock**, as P201 does;
 - **leaving Stage disarms it**, matching P201's app-side transiency.
 
 ## 3c. ⟨D6⟩ The UI says no verb at all — "Auto-upload ON · 3 h" (VLL, 2026-09-24)

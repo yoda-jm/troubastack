@@ -23,6 +23,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.delete
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
@@ -532,6 +533,20 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
                 else -> NoteSendResult.Failed("Couldn't send (${resp.status.value})")
             }
         }.getOrElse { NoteSendResult.Failed("Couldn't reach the server") }
+    }
+
+    /** A77 §5 — remove this tablet's Studio copy of a note (the armed mirror-delete). The server DELETE is
+     *  owner-keyed + idempotent (a 404 is success — nothing there is the desired end state). Returns true iff
+     *  the copy is gone (or was never there); false on a real failure, so the caller can report/keep armed. */
+    suspend fun deleteRehearsalNote(concertId: String, n: com.troubastack.shared.stage.notes.NoteEntry): Boolean {
+        val ck = cookie() ?: return false
+        val bandId = bandIdFor(concertId) ?: return false
+        return runCatching {
+            val resp = client.delete("$baseUrl/api/bands/$bandId/songs/${n.songId}/rehearsal-notes/${n.pageInSong}") {
+                header("Cookie", ck)
+            }
+            resp.status.isSuccess() || resp.status == HttpStatusCode.NotFound
+        }.getOrDefault(false)
     }
 }
 

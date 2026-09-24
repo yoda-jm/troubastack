@@ -141,11 +141,28 @@ class StageViewModel(
      *  not re-appear on the next recomposition. */
     fun clearUpdateNotice() = _state.update { s -> if (s.updateNotice == null) s else s.copy(updateNotice = null) }
 
+    /** A77 — a one-off transient status (the armed mirror messages: "Removed here and in Studio", a conflict),
+     *  routed through the same self-dismissing top-center notice channel. */
+    fun notify(text: String) = _state.update { s -> s.copy(updateNotice = text) }
+
     // --- A77 armed auto-upload (the tablet-side twin of live mode: opt-in, indicated, self-expiring) ---
+
+    /**
+     * A77 ⟨D4⟩/§7 — fired EXACTLY ONCE at every armed→disarmed transition (manual off, expiry, a bake, a
+     * not-mine 409), from the place that knows the transition happened. The host flushes any pending
+     * auto-send here so the last strokes are not lost to the disarm. Fable: do NOT infer this edge by diffing
+     * a collected `armedUntil` — a consumer that recomposes / joins late would miss it, and a missed flush is
+     * the exact silence A77 exists to remove.
+     */
+    var onDisarm: (() -> Unit)? = null
 
     /** A77 — is the tablet armed right NOW (auto-sends + mirrors deletes)? Time-derived off the injected
      *  monotonic clock, so an expired window reads disarmed even before [expireArmIfDue] runs. */
     fun isArmed(): Boolean = _state.value.armed(monotonicNow())
+
+    /** A77 — millis until the armed window lapses (0 if not armed / already due), so the view sleeps exactly to
+     *  the deadline and disarms once, rather than polling. */
+    fun armedRemainingMs(): Long = if (_state.value.armedUntil == 0L) 0L else (_state.value.armedUntil - monotonicNow()).coerceAtLeast(0L)
 
     /** A77 ⟨D1⟩ — arm auto-upload for the standard rehearsal window from now; re-arming extends the deadline.
      *  In-memory only, like [setAutoUpdate]: a fresh Stage entry starts disarmed. */
@@ -153,20 +170,28 @@ class StageViewModel(
 
     /** A77 — disarm. [notice] says WHY when the end was not the user's own toggle (⟨D4⟩ a bake, a not-mine
      *  409); expiry and leaving Stage pass null (⟨D1⟩ — the banner simply goes). Reuses the self-dismissing
-     *  updateNotice channel. */
-    fun disarm(notice: String? = null) = _state.update { s ->
-        if (s.armedUntil == 0L && notice == null) s
-        else s.copy(armedUntil = 0L, updateNotice = notice ?: s.updateNotice)
+     *  updateNotice channel. [onDisarm] fires once if this actually ended an armed window (side effect kept
+     *  OUT of the CAS reducer, which may retry). */
+    fun disarm(notice: String? = null) {
+        val wasArmed = _state.value.armedUntil != 0L
+        _state.update { s ->
+            if (s.armedUntil == 0L && notice == null) s
+            else s.copy(armedUntil = 0L, updateNotice = notice ?: s.updateNotice)
+        }
+        if (wasArmed) onDisarm?.invoke()
     }
 
     /** A77 — the ⚙ Switch: arm / disarm by intent. */
     fun setArmed(on: Boolean) { if (on) arm() else disarm() }
 
     /** A77 ⟨D1⟩ — the window's own expiry: the view ticks this (and schedules a wake at the deadline) so an
-     *  armed window disarms itself with no other event. Pure w.r.t. the injected clock — tested without
-     *  sleeping, mirroring the Go WithClock expiry test. */
-    fun expireArmIfDue() = _state.update { s ->
-        if (s.armedUntil != 0L && monotonicNow() >= s.armedUntil) s.copy(armedUntil = 0L) else s
+     *  armed window disarms itself with no other event, flushing via [onDisarm]. Pure w.r.t. the injected
+     *  clock — tested without sleeping, mirroring the Go WithClock expiry test. */
+    fun expireArmIfDue() {
+        val due = _state.value.let { it.armedUntil != 0L && monotonicNow() >= it.armedUntil }
+        if (!due) return
+        _state.update { s -> s.copy(armedUntil = 0L) }
+        onDisarm?.invoke()
     }
 
     // --- T147 chronometer + clock ---
@@ -275,7 +300,11 @@ class StageViewModel(
      * Facing pages (A12) and scroll mode (A14) follow automatically: they derive the
      * spread / scroll position from `current`, which this maps correctly.
      */
-    fun applyUpdate(newResult: LoadResult) = _state.update { old ->
+    fun applyUpdate(newResult: LoadResult) {
+        // A77 ⟨D4⟩/§7: a bake disarms (fresh0 below drops armedUntil). Fire onDisarm so the host flushes any
+        // pending auto-send before the swap orphans the page — the transition, not a diffed edge (Fable).
+        val wasArmed = _state.value.armed(monotonicNow())
+        _state.update { old ->
         result = newResult // P205: keep the retained bundle current for a later setIdentity
         // A70 §3.4: leave note mode (the flush already happened at the host before applyUpdate), age every
         // unsent note by one bake, and carry the notes across the swap (they are keyed by hash, not rev, so
@@ -331,6 +360,8 @@ class StageViewModel(
             }
         }
         fresh.copy(current = target, visibleBySong = merged)
+        }
+        if (wasArmed) onDisarm?.invoke()
     }
 }
 

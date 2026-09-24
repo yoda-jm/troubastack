@@ -731,6 +731,22 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             AndroidImageDecoder(File(dir)),
         )
     }
+    // A77 — the armed auto-upload loop. Host owns the WHEN (debounce + flush); the "whether" (overwrite, the
+    // 409 verdict) is the shared, tested policy. Rebuilt with the VM (per dir/identity). onDisarm fires the
+    // flush at every disarm/expiry/bake transition — the transition itself, not a diffed state edge (Fable).
+    val armedScope = rememberCoroutineScope()
+    val armedUploader = remember(opened, concertId) {
+        ArmedUploader(
+            scope = armedScope, transport = transport, notes = notesPort, concertId = concertId,
+            isArmed = { opened.vm.isArmed() },
+            onConflict = { opened.vm.disarm(it) },
+            onStatus = { opened.vm.notify(it) },
+        )
+    }
+    DisposableEffect(armedUploader) {
+        opened.vm.onDisarm = { armedUploader.flush() }
+        onDispose { opened.vm.onDisarm = null }
+    }
     // A09/A13: route hardware VOLUME keys to page turns while (and only while) Stage is open. Volume
     // keys don't reach Compose, so the Activity intercepts them (onKeyDown) and calls back through the
     // registrar StageScreen provides here. StageScreen owns the turn logic, so two-up turns by a whole
@@ -813,6 +829,10 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     // A72 — device-local learned pedal bindings, read at Stage entry (Parameters writes them).
                     pedalBindings = com.troubastack.shared.stage.parsePedalBindings(storage.getSecret(PEDAL_BINDINGS_KEY)),
                     midiSignal = midiSignal, // A76 — BLE-MIDI presses turn pages in Stage
+                    // A77 — each note commit/clear while armed → the uploader reconciles with Studio; the flush
+                    // hint sends a debounced note promptly on page turn / leaving note mode.
+                    onNoteCommitted = { armedUploader.onCommitted(it) },
+                    onFlushNotes = { armedUploader.flush() },
                 )
             }
         }
