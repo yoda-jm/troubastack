@@ -111,11 +111,11 @@ export const fixture = {
           width: 0.006,
           fontSize: 0,
           dash: "dashed",
-          ends: { head: "arrow", side: "end" },
+          ends: { end: "arrow" },
         },
       },
-      // T177 — arrows at BOTH ends, on a line SHORTER than one nominal head: the clamp must produce
-      // the same two small arrows in both renderers, not one renderer's overshoot.
+      // T179 — a DIFFERENT shape at each end (arrow start, circle end): the case the old model could not
+      // express, and two independent terminators the two Skia builds must place identically.
       {
         type: "line",
         layerId: "L2",
@@ -126,10 +126,24 @@ export const fixture = {
           opacity: 1,
           width: 0.006,
           fontSize: 0,
-          ends: { head: "arrow", side: "both" },
+          ends: { start: "arrow", end: "circle" },
         },
       },
-      // T177 — a ZERO-LENGTH line with ends asked for: no direction, so no head. It must draw the dot
+      // T179 — a square terminator on a short line: shrinks to fit, far edge at the endpoint, in both builds.
+      {
+        type: "line",
+        layerId: "L2",
+        page: 0,
+        points: [{ x: 0.66, y: 0.91 }, { x: 0.70, y: 0.91 }],
+        style: {
+          color: "#7b1fa2",
+          opacity: 1,
+          width: 0.006,
+          fontSize: 0,
+          ends: { start: "square", end: "square" },
+        },
+      },
+      // T179 — a ZERO-LENGTH line with ends asked for: no direction, so no terminator. It must draw the dot
       // the tap made and raise nothing, in both renderers.
       {
         type: "line",
@@ -141,7 +155,7 @@ export const fixture = {
           opacity: 1,
           width: 0.008,
           fontSize: 0,
-          ends: { head: "arrow", side: "both" },
+          ends: { start: "arrow", end: "arrow" },
         },
       },
       // text

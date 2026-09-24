@@ -129,7 +129,7 @@ func TestBakeDoc_CarriesEveryStyleField(t *testing.T) {
 	if !ok {
 		t.Fatalf("T177 ends: the nested record did not reach the doc: %#v", style["ends"])
 	}
-	if ends["head"] != obj.Style.Ends.Head || ends["side"] != obj.Style.Ends.Side {
+	if ends["start"] != obj.Style.Ends.Start || ends["end"] != obj.Style.Ends.End {
 		t.Errorf("T177 ends: baked %v, object had %+v", ends, *obj.Style.Ends)
 	}
 }

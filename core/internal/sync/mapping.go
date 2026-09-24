@@ -168,14 +168,14 @@ func endsToJSON(e *domain.LineEnds) *endsJSON {
 	if e == nil {
 		return nil
 	}
-	return &endsJSON{Head: e.Head, Side: e.Side}
+	return &endsJSON{Start: e.Start, End: e.End}
 }
 
 func endsFromJSON(e *endsJSON) *domain.LineEnds {
 	if e == nil {
 		return nil
 	}
-	return &domain.LineEnds{Head: e.Head, Side: e.Side}
+	return &domain.LineEnds{Start: e.Start, End: e.End}
 }
 
 func anchorToJSON(a *domain.SourceAnchor) *anchorJSON {

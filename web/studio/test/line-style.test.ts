@@ -1,14 +1,15 @@
-// T177 — ink's line STYLE: the dash pattern, and the arrowhead geometry D3 asks to be pinned once so
-// the editor and the bake cannot disagree. Pure functions, so they are testable at the seam; the
-// pixels they produce are checked in web/bake's parity test and in the editor e2e.
+// T177/T179 — ink's line STYLE: the dash pattern, and the terminator geometry D3 pins once so the editor
+// and the bake cannot disagree. Pure functions, testable at the seam; the pixels are checked in web/bake
+// and in the editor e2e.
 import { describe, it, expect } from "vitest";
 import {
   ARROW_HEAD_HALF_W,
   ARROW_HEAD_LEN_W,
-  arrowHeads,
   dashArray,
   dashKind,
-  endsSpec,
+  endShapes,
+  lineEnds,
+  type EndGeom,
   type InkObject,
   type InkStyle,
 } from "@troubastack/ink";
@@ -33,117 +34,130 @@ describe("dash", () => {
     expect(dashKind(style())).toBe("solid");
     expect(dashArray(style(), 8)).toEqual([]);
   });
-
   it("names the closed set; an unknown name reads as solid rather than inventing a pattern", () => {
     expect(dashKind(style({ dash: "dashed" }))).toBe("dashed");
     expect(dashKind(style({ dash: "dotted" }))).toBe("dotted");
     expect(dashKind(style({ dash: "dot-dash" as never }))).toBe("solid");
   });
-
   it("measures the pattern in STROKE WIDTHS, so the same style dashes the same at any raster size", () => {
-    // This is the divergence D2 is about: the bake rasterizes a page at a different pixel size than the
-    // editor canvas. A px-constant pattern would be a different-looking dash on the stand.
     const editor = dashArray(style({ dash: "dashed" }), 4);
-    const bake = dashArray(style({ dash: "dashed" }), 12); // same style, 3× the raster
+    const bake = dashArray(style({ dash: "dashed" }), 12);
     expect(editor).toEqual([12, 8]);
     expect(bake).toEqual(editor.map((n) => n * 3));
   });
-
-  it("dots are a zero-length dash — the round cap makes the dot, so it is exactly the stroke's diameter", () => {
+  it("dots are a zero-length dash — the round cap makes the dot", () => {
     expect(dashArray(style({ dash: "dotted" }), 6)).toEqual([0, 12]);
   });
 });
 
-describe("ends", () => {
-  it("absent = an undecorated line", () => {
-    expect(endsSpec(line())).toBeNull();
+describe("endShapes — which terminator each end resolves to", () => {
+  it("a bare line is two bare ends", () => {
+    expect(endShapes(line())).toEqual({ start: null, end: null });
   });
-
-  it("an empty head means the DEFAULT head, the way an empty blend means normal", () => {
-    expect(endsSpec(line({ style: style({ ends: {} }) }))).toEqual({ side: "end" });
+  it("resolves each end independently to its named shape", () => {
+    expect(endShapes(line({ style: style({ ends: { end: "arrow" } }) }))).toEqual({ start: null, end: "arrow" });
+    expect(endShapes(line({ style: style({ ends: { start: "circle", end: "square" } }) }))).toEqual({
+      start: "circle",
+      end: "square",
+    });
   });
-
-  it("defaults the side to the far end", () => {
-    expect(endsSpec(line({ style: style({ ends: { head: "arrow" } }) }))).toEqual({ side: "end" });
+  it("'none', '' and any UNKNOWN shape all draw nothing — never a substituted shape", () => {
+    expect(endShapes(line({ style: style({ ends: { end: "none" } }) }))).toEqual({ start: null, end: null });
+    expect(endShapes(line({ style: style({ ends: { end: "" } }) }))).toEqual({ start: null, end: null });
+    expect(endShapes(line({ style: style({ ends: { end: "diamond" as never } }) }))).toEqual({ start: null, end: null });
   });
-
-  it("a head this renderer does not know draws NOTHING — never a silent arrow", () => {
-    // A wrong mark on a chart reads as a musical instruction, so an unknown decoration must be absent
-    // rather than approximated by the one head we happen to have.
-    expect(endsSpec(line({ style: style({ ends: { head: "bar" as never, side: "end" } }) }))).toBeNull();
-  });
-
   it("is a LINE's property: the same style on a rect decorates nothing", () => {
-    const rect: InkObject = {
-      type: "rect",
-      points: [{ x: 0, y: 0 }, { x: 0.5, y: 0.5 }],
-      style: style({ ends: { head: "arrow", side: "both" } }),
-    };
-    expect(endsSpec(rect)).toBeNull();
+    const rect: InkObject = { type: "rect", points: [{ x: 0, y: 0 }, { x: 0.5, y: 0.5 }], style: style({ ends: { end: "arrow" } }) };
+    expect(endShapes(rect)).toEqual({ start: null, end: null });
   });
 });
 
-describe("arrowHeads (the geometry, pinned in ink)", () => {
-  const W = 4; // stroke width in px
-  const nominal = ARROW_HEAD_LEN_W * W;
+const W = 4;
+const axialLen = (t: EndGeom, tipx: number, tipy: number): number => {
+  // distance from the endpoint to the terminator's inward extreme, along the shaft
+  if (t.shape === "arrow") return Math.hypot(tipx - (t.left[0] + t.right[0]) / 2, tipy - (t.left[1] + t.right[1]) / 2);
+  if (t.shape === "circle") return 2 * t.r;
+  const xs = t.corners.map((c) => c[0]);
+  return Math.max(...xs) - Math.min(...xs);
+};
 
-  it("puts one head at the far end, pointing along the line", () => {
-    const [h] = arrowHeads(0, 0, 200, 0, W, "end");
-    expect(h.tip).toEqual([200, 0]);
-    // base sits `nominal` back along the shaft, corners `half` either side
-    const half = ARROW_HEAD_HALF_W * W;
-    expect(h.left[0]).toBeCloseTo(200 - nominal);
-    expect(h.right[0]).toBeCloseTo(200 - nominal);
-    expect(Math.abs(h.left[1] - h.right[1])).toBeCloseTo(2 * half);
+describe("lineEnds — the trimmed shaft and the terminators", () => {
+  it("no ends → the full shaft, no terminators, byte-for-byte the pre-T177 line", () => {
+    const { shaft, terms } = lineEnds(10, 20, 210, 20, W, null, null);
+    expect(shaft).toEqual({ ax: 10, ay: 20, bx: 210, by: 20 });
+    expect(terms).toEqual([]);
   });
 
-  it("puts it at the START when asked, pointing the other way", () => {
-    const [h] = arrowHeads(0, 0, 200, 0, W, "start");
-    expect(h.tip).toEqual([0, 0]);
-    expect(h.left[0]).toBeCloseTo(nominal); // base is INSIDE the line
+  it("an END arrow: tip at the endpoint, shaft TRIMMED back to its base (the T179 fix)", () => {
+    const { shaft, terms } = lineEnds(0, 0, 200, 0, W, null, "arrow");
+    const t = terms[0];
+    expect(t.shape).toBe("arrow");
+    if (t.shape === "arrow") expect(t.tip).toEqual([200, 0]);
+    // the shaft no longer reaches the endpoint — it stops a head-length short of it
+    expect(shaft.bx).toBeCloseTo(200 - ARROW_HEAD_LEN_W * W);
+    expect(shaft.ax).toBe(0); // the bare start is untouched
   });
 
-  it("both ends = two heads, one at each tip", () => {
-    const hs = arrowHeads(0, 0, 200, 0, W, "both");
-    expect(hs.map((h) => h.tip)).toEqual([[200, 0], [0, 0]]);
+  it("a START shape trims the START of the shaft and leaves the far end alone", () => {
+    const { shaft } = lineEnds(0, 0, 200, 0, W, "arrow", null);
+    expect(shaft.ax).toBeCloseTo(ARROW_HEAD_LEN_W * W);
+    expect(shaft.bx).toBe(200);
   });
 
-  it("scales with WIDTH, not with the page — double the stroke, double the head", () => {
-    const [small] = arrowHeads(0, 0, 200, 0, 4, "end");
-    const [big] = arrowHeads(0, 0, 200, 0, 8, "end");
-    expect(200 - big.left[0]).toBeCloseTo(2 * (200 - small.left[0]));
+  it("DIFFERENT shapes at each end — the case the old {head,side} could not express", () => {
+    const { terms } = lineEnds(0, 0, 300, 0, W, "circle", "square");
+    expect(terms.map((t) => t.shape).sort()).toEqual(["circle", "square"]);
   });
 
-  it("a ZERO-LENGTH line has no direction, so it gets no head", () => {
-    expect(arrowHeads(50, 50, 50, 50, W, "both")).toEqual([]);
+  it("§4: circle and square sit with their FAR EDGE at the endpoint, entirely inside the line", () => {
+    const { terms } = lineEnds(0, 0, 300, 0, W, null, "circle");
+    const c = terms[0];
+    if (c.shape === "circle") {
+      expect(c.cx + c.r).toBeCloseTo(300); // far edge exactly at the endpoint
+      expect(c.cx).toBeLessThan(300); // centre is inward — nothing pokes past the end
+    }
+    const sq = lineEnds(0, 0, 300, 0, W, null, "square").terms[0];
+    if (sq.shape === "square") {
+      const maxX = Math.max(...sq.corners.map((p) => p[0]));
+      expect(maxX).toBeCloseTo(300); // far edge at the endpoint, never beyond
+    }
   });
 
-  it("a line SHORTER than its own head keeps the head's shape, shrunk to fit", () => {
-    const len = nominal / 2; // half the head's nominal length — a stray tap
-    const [h] = arrowHeads(0, 0, len, 0, W, "end");
-    const headLen = h.tip[0] - h.left[0];
-    expect(headLen).toBeLessThanOrEqual(len + 1e-9); // never longer than the line carrying it
-    expect(headLen).toBeCloseTo(len);
-    // shape preserved: the width shrank by the same factor as the length
-    const half = Math.abs(h.left[1] - h.right[1]) / 2;
-    expect(half / headLen).toBeCloseTo(ARROW_HEAD_HALF_W / ARROW_HEAD_LEN_W);
+  it("scales with WIDTH, not the page — double the stroke, double the terminator", () => {
+    const small = lineEnds(0, 0, 400, 0, 4, null, "arrow");
+    const big = lineEnds(0, 0, 400, 0, 8, null, "arrow");
+    expect(400 - big.shaft.bx).toBeCloseTo(2 * (400 - small.shaft.bx));
   });
 
-  it("splits a short line's budget between two heads, so they cannot swallow each other", () => {
-    const len = nominal; // enough for ONE nominal head, not two
-    const hs = arrowHeads(0, 0, len, 0, W, "both");
-    // AXIAL length — tip to the middle of the base. The tip-to-corner edge is the slant and is
-    // always longer, which is a property of a triangle and not of the clamp.
-    const lenOf = (h: (typeof hs)[number]) =>
-      Math.hypot(h.tip[0] - (h.left[0] + h.right[0]) / 2, h.tip[1] - (h.left[1] + h.right[1]) / 2);
-    for (const h of hs) expect(lenOf(h)).toBeLessThanOrEqual(len / 2 + 1e-9);
+  it("a ZERO-LENGTH line has no direction: no terminator, no trim (the shaft's cap is the tap's dot)", () => {
+    const { shaft, terms } = lineEnds(50, 50, 50, 50, W, "arrow", "arrow");
+    expect(terms).toEqual([]);
+    expect(shaft).toEqual({ ax: 50, ay: 50, bx: 50, by: 50 });
   });
 
-  it("follows a diagonal: the head points along the line, not along an axis", () => {
-    const [h] = arrowHeads(0, 0, 100, 100, W, "end");
-    const dx = h.tip[0] - (h.left[0] + h.right[0]) / 2;
-    const dy = h.tip[1] - (h.left[1] + h.right[1]) / 2;
-    expect(dx).toBeCloseTo(dy); // 45°
-    expect(Math.hypot(dx, dy)).toBeCloseTo(nominal);
+  it("a line shorter than its terminators shrinks them to fit and never crosses the shaft over itself", () => {
+    const nominal = ARROW_HEAD_LEN_W * W;
+    const len = nominal; // room for ONE nominal head, asked for TWO
+    const { shaft, terms } = lineEnds(0, 0, len, 0, W, "arrow", "arrow");
+    for (const t of terms) expect(axialLen(t, ...(t.shape === "arrow" ? t.tip : [0, 0]))).toBeLessThanOrEqual(len / 2 + 1e-9);
+    // the trimmed shaft must not invert (start past end)
+    expect(shaft.ax).toBeLessThanOrEqual(shaft.bx + 1e-9);
+  });
+
+  it("follows a diagonal: the terminator points along the line, not along an axis", () => {
+    const { terms } = lineEnds(0, 0, 100, 100, W, null, "arrow");
+    const t = terms[0];
+    if (t.shape === "arrow") {
+      const dx = t.tip[0] - (t.left[0] + t.right[0]) / 2;
+      const dy = t.tip[1] - (t.left[1] + t.right[1]) / 2;
+      expect(dx).toBeCloseTo(dy); // 45°
+      expect(Math.hypot(dx, dy)).toBeCloseTo(ARROW_HEAD_LEN_W * W);
+    }
+  });
+
+  it("the arrow half-width constant still governs the cross size", () => {
+    const { terms } = lineEnds(0, 0, 400, 0, W, null, "arrow");
+    const t = terms[0];
+    if (t.shape === "arrow") expect(Math.abs(t.left[1] - t.right[1])).toBeCloseTo(2 * ARROW_HEAD_HALF_W * W);
   });
 });

@@ -302,7 +302,8 @@ export type AnnotationStyle = {
   // absent = exactly what was drawn before T177. The renderer's view of these lives in
   // ink (InkDash/InkEnds) — this is the wire's.
   dash?: "solid" | "dashed" | "dotted";
-  ends?: { head?: "arrow"; side?: "start" | "end" | "both" };
+  // T179: one shape per end. "", "none" and any unknown name draw nothing.
+  ends?: { start?: "none" | "arrow" | "circle" | "square"; end?: "none" | "arrow" | "circle" | "square" };
 };
 
 export type AnnotationObject = {

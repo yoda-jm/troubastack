@@ -72,9 +72,17 @@ export type InkDash = "solid" | "dashed" | "dotted";
  *  empty blend means "normal"; an UNRECOGNISED head draws nothing (a newer client's
  *  head must not silently render as an arrow — a wrong mark on a chart reads as a
  *  musical instruction). */
+export type InkEndShape = "arrow" | "circle" | "square";
+
+/** The decoration at each END of a straight line — one shape per end (T179). This replaces T177's
+ *  {head, side}: a "which end?" axis asked the reader a question the drawing gesture already answered
+ *  (you finish toward the thing you are pointing at), and one-shape-per-end also expresses the case the
+ *  old model could not — a DIFFERENT terminator at each end. Absent, "none", "" and any UNRECOGNISED
+ *  name all draw nothing: a shape a newer client names and this renderer lacks must never be substituted
+ *  by one we happen to have, because a wrong mark on a chart reads as a musical instruction. */
 export interface InkEnds {
-  head?: string;
-  side?: "start" | "end" | "both";
+  start?: string;
+  end?: string;
 }
 
 // The wire object-type set is GENERATED from proto ObjectType (objecttype.gen.ts, T09)
@@ -156,11 +164,6 @@ const DASH_UNITS: Record<InkDash, number[]> = {
   dotted: [0, 2],
 };
 
-/** Arrowhead length along the shaft, in stroke widths. */
-export const ARROW_HEAD_LEN_W = 3.2;
-/** Arrowhead half-width across the shaft, in stroke widths (≈50° included angle). */
-export const ARROW_HEAD_HALF_W = 1.5;
-
 /** The dash this style asks for, normalized. An unknown name reads as solid — the
  *  same "draw what you understand, nothing more" rule the heads follow. */
 export function dashKind(style: InkStyle): InkDash {
@@ -174,75 +177,122 @@ export function dashArray(style: InkStyle, widthPx: number): number[] {
   return DASH_UNITS[dashKind(style)].map((u) => u * widthPx);
 }
 
-/** The end decoration to draw, or null for none. Null when there is no `ends`, when the
- *  head is one this renderer does not know, or when the object is not a straight line —
- *  `ends` on a rect has no meaning and must not invent one. */
-export function endsSpec(obj: InkObject): { side: "start" | "end" | "both" } | null {
+/** The shape at each end this renderer will draw, or null for a bare end. "", "none" and any name this
+ *  renderer does not know all resolve to null — never a substituted shape (T177's refusal rule, kept). A
+ *  bare `ends`, or any object that is not a straight line, is two bare ends. */
+export function endShapes(obj: InkObject): { start: InkEndShape | null; end: InkEndShape | null } {
   const e = obj.style.ends;
-  if (!e || obj.type !== "line") return null;
-  const head = e.head ?? "";
-  if (head !== "" && head !== "arrow") return null; // a head from a newer client
-  const side = e.side ?? "end";
-  if (side !== "start" && side !== "end" && side !== "both") return null;
-  return { side };
+  if (!e || obj.type !== "line") return { start: null, end: null };
+  return { start: normEndShape(e.start), end: normEndShape(e.end) };
 }
 
-/** One arrowhead as the triangle to fill: the tip, and the two base corners. */
-export type ArrowHead = { tip: [number, number]; left: [number, number]; right: [number, number] };
+function normEndShape(s: string | undefined): InkEndShape | null {
+  return s === "arrow" || s === "circle" || s === "square" ? s : null;
+}
 
-/**
- * The arrowhead triangles for a line, in device px. PURE — this is the geometry D3 asks
- * to be pinned once, so studio, the bake and any future consumer inherit the same answer,
- * including at the two degenerate ends of the range:
+/** Axial extent of a terminator, in stroke widths — how far back along the shaft it reaches from the
+ *  endpoint. The shaft is trimmed by exactly this so it never runs UNDER a filled terminator, which is the
+ *  T179 fix: a shaft drawn tip-to-tip shows through the head as a darker spine at opacity < 1, lets a round
+ *  cap poke past an arrow's point, and can land a dash GAP inside the head — a triangle with a hole. Trim
+ *  the shaft to the terminator's base and all three cannot happen. */
+const END_EXTENT_W: Record<InkEndShape, number> = {
+  arrow: 3.2,  // ARROW_HEAD_LEN_W
+  circle: 3.0, // diameter
+  square: 2.6, // side
+};
+/** Arrowhead half-width across the shaft, in stroke widths (≈50° included angle). */
+export const ARROW_HEAD_HALF_W = 1.5;
+/** T177 name kept for callers/tests: the arrowhead's length along the shaft. */
+export const ARROW_HEAD_LEN_W = END_EXTENT_W.arrow;
+
+/** A terminator to fill, in device px. §4: every shape sits with its FAR EDGE at the endpoint and its
+ *  body reaching INWARD — like the arrow's tip-at-endpoint — so nothing pokes past the line's end and the
+ *  drawn length stays honest (Fable, T179 §4). */
+export type EndGeom =
+  | { shape: "arrow"; tip: [number, number]; left: [number, number]; right: [number, number] }
+  | { shape: "circle"; cx: number; cy: number; r: number }
+  | { shape: "square"; corners: [number, number][] };
+
+/** The trimmed shaft and the terminators for a line, in device px. PURE — the geometry D3 pins once, so
+ *  studio, the bake and any other consumer inherit one answer, including the degenerate ends:
  *
- *  - A ZERO-LENGTH line has no direction, so it gets no head at all. (The shaft still
- *    draws: a round cap on a zero-length line is the dot the user tapped.)
- *  - A line SHORTER than its own head — what a stray tap makes — keeps the head's shape
- *    but shrinks it to the length available, splitting that budget when both ends are
- *    decorated. So a head is never longer than the line carrying it, and two heads on a
- *    short line never swallow each other.
- */
-export function arrowHeads(
+ *   - a ZERO-LENGTH line has no direction, so no terminator and no trim: the shaft's round cap is the dot
+ *     the user tapped;
+ *   - a line SHORTER than its terminators (a stray tap) shrinks every shape proportionally to the length
+ *     available and splits it between two decorated ends, so a terminator is never longer than its line
+ *     and two of them never swallow each other. */
+export function lineEnds(
   ax: number,
   ay: number,
   bx: number,
   by: number,
   widthPx: number,
-  side: "start" | "end" | "both",
-): ArrowHead[] {
+  startShape: InkEndShape | null,
+  endShape: InkEndShape | null,
+): { shaft: { ax: number; ay: number; bx: number; by: number }; terms: EndGeom[] } {
+  const bare = { shaft: { ax, ay, bx, by }, terms: [] as EndGeom[] };
   const dx = bx - ax;
   const dy = by - ay;
   const len = Math.hypot(dx, dy);
-  if (len === 0) return []; // no direction → no head
+  if (len === 0) return bare; // no direction → no terminator
   const ux = dx / len;
   const uy = dy / len;
+  const px = -uy;
+  const py = ux;
 
-  const count = side === "both" ? 2 : 1;
-  const nominal = ARROW_HEAD_LEN_W * widthPx;
-  const headLen = Math.min(nominal, len / count);
-  // Shrink the head as a WHOLE (length and width together) so a clamped head is a
-  // smaller arrow, not a needle.
-  const shrink = nominal === 0 ? 0 : headLen / nominal;
-  const half = ARROW_HEAD_HALF_W * widthPx * shrink;
+  let extS = startShape ? END_EXTENT_W[startShape] * widthPx : 0;
+  let extE = endShape ? END_EXTENT_W[endShape] * widthPx : 0;
+  // Shrink the WHOLE shape (extent and cross-size together via `scale`) so a clamped terminator is a
+  // smaller version of itself, not a needle; split the length when both ends carry one.
+  let scale = 1;
+  if (extS + extE > len) {
+    scale = len / (extS + extE);
+    extS *= scale;
+    extE *= scale;
+  }
 
-  const head = (tipX: number, tipY: number, dirX: number, dirY: number): ArrowHead => {
-    // Base centre is `headLen` back along the shaft from the tip; the corners sit
-    // `half` either side, perpendicular.
-    const cx = tipX - dirX * headLen;
-    const cy = tipY - dirY * headLen;
-    const px = -dirY;
-    const py = dirX;
-    return {
-      tip: [tipX, tipY],
-      left: [cx + px * half, cy + py * half],
-      right: [cx - px * half, cy - py * half],
-    };
+  const term = (
+    shape: InkEndShape,
+    // endpoint (the far edge sits here), and the INWARD unit direction
+    tx: number,
+    ty: number,
+    ix: number,
+    iy: number,
+    ext: number,
+  ): EndGeom => {
+    if (shape === "arrow") {
+      const half = ARROW_HEAD_HALF_W * widthPx * scale;
+      const cx = tx + ix * ext; // base centre, `ext` inward from the tip
+      const cy = ty + iy * ext;
+      return { shape, tip: [tx, ty], left: [cx + px * half, cy + py * half], right: [cx - px * half, cy - py * half] };
+    }
+    if (shape === "circle") {
+      const r = ext / 2;
+      return { shape, cx: tx + ix * r, cy: ty + iy * r, r };
+    }
+    // square, oriented to the line, far edge at the endpoint
+    const half = ext / 2;
+    const cx = tx + ix * half;
+    const cy = ty + iy * half;
+    const corners: [number, number][] = [
+      [cx + ix * half + px * half, cy + iy * half + py * half],
+      [cx + ix * half - px * half, cy + iy * half - py * half],
+      [cx - ix * half - px * half, cy - iy * half - py * half],
+      [cx - ix * half + px * half, cy - iy * half + py * half],
+    ];
+    return { shape, corners };
   };
 
-  const out: ArrowHead[] = [];
-  if (side === "end" || side === "both") out.push(head(bx, by, ux, uy));
-  if (side === "start" || side === "both") out.push(head(ax, ay, -ux, -uy));
-  return out;
+  const terms: EndGeom[] = [];
+  if (endShape) terms.push(term(endShape, bx, by, -ux, -uy, extE));
+  if (startShape) terms.push(term(startShape, ax, ay, ux, uy, extS));
+
+  return {
+    // Trim the shaft inward by each decorated end's extent, so it meets the terminator's base and never
+    // runs under it.
+    shaft: { ax: ax + ux * extS, ay: ay + uy * extS, bx: bx - ux * extE, by: by - uy * extE },
+    terms,
+  };
 }
 
 /** Font size in device px: style.fontSize is a fraction of the page height. */
@@ -350,32 +400,39 @@ export function drawLine(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const [bx, by] = toPx(b, page);
   const w = strokePx(obj.style, page);
 
+  const { start, end } = endShapes(obj);
+  const { shaft, terms } = lineEnds(ax, ay, bx, by, w, start, end);
+
+  // The shaft is dashed as before, but drawn only between the terminators' bases (T179) so it never runs
+  // under a filled terminator — no darker spine at opacity < 1, no round cap poking past an arrow point,
+  // no dash gap landing inside a head.
   ctx.beginPath();
-  ctx.moveTo(ax, ay);
-  ctx.lineTo(bx, by);
+  ctx.moveTo(shaft.ax, shaft.ay);
+  ctx.lineTo(shaft.bx, shaft.by);
   ctx.lineWidth = w;
   ctx.strokeStyle = obj.style.color;
   ctx.setLineDash(dashArray(obj.style, w));
   ctx.stroke();
 
-  const ends = endsSpec(obj);
-  if (!ends) return;
-  // The head is FILLED, not stroked: at a chart's stroke widths an outlined head
-  // doubles its own weight and its joins alias, while a filled triangle matches the
-  // shaft's darkness exactly. It is also drawn undashed — a dashed arrowhead is a
-  // pattern artifact, not a look anyone picks.
+  if (terms.length === 0) return;
+  // Terminators are FILLED and UNDASHED: at a chart's stroke widths a stroked shape doubles its own weight
+  // and aliases its joins, while a filled one matches the shaft's darkness exactly; a dashed terminator is
+  // a pattern artifact nobody picks. Opacity is the object's, already on ctx.globalAlpha (renderObject).
   ctx.setLineDash([]);
   ctx.fillStyle = obj.style.color;
-  for (const h of arrowHeads(ax, ay, bx, by, w, ends.side)) {
+  for (const t of terms) {
     ctx.beginPath();
-    ctx.moveTo(h.tip[0], h.tip[1]);
-    ctx.lineTo(h.left[0], h.left[1]);
-    ctx.lineTo(h.right[0], h.right[1]);
-    ctx.closePath();
+    if (t.shape === "circle") {
+      ctx.arc(t.cx, t.cy, t.r, 0, Math.PI * 2);
+    } else {
+      const pts = t.shape === "arrow" ? [t.tip, t.left, t.right] : t.corners;
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.closePath();
+    }
     ctx.fill();
   }
 }
-
 /** Normalize a two-point bbox into top-left + width/height (handles any order). */
 function bbox(obj: InkObject, page: PageRect): { x: number; y: number; w: number; h: number } {
   const [a, b] = obj.points;

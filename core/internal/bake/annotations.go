@@ -34,8 +34,8 @@ type docStyle struct {
 }
 
 type docEnds struct {
-	Head string `json:"head,omitempty"`
-	Side string `json:"side,omitempty"`
+	Start string `json:"start,omitempty"`
+	End   string `json:"end,omitempty"`
 }
 
 type docObject struct {
@@ -179,7 +179,7 @@ func docEndsOf(e *domain.LineEnds) *docEnds {
 	if e == nil {
 		return nil
 	}
-	return &docEnds{Head: e.Head, Side: e.Side}
+	return &docEnds{Start: e.Start, End: e.End}
 }
 
 // bakedOwner is the ONE place a domain layer's owner becomes the baked one, and it exists as a named

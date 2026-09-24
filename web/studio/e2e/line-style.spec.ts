@@ -13,7 +13,7 @@ import { stamp, register, createBandAndOpen, createSongAndOpen, uploadPdf } from
 type WireStyle = {
   color: string;
   dash?: string;
-  ends?: { head?: string; side?: string };
+  ends?: { start?: string; end?: string };
 };
 type WireObject = { uuid: string; type: string; style: WireStyle };
 
@@ -72,18 +72,23 @@ test("editor: a line's dash and arrow survive the round trip; and Solid/None wri
   await page.getByTestId("tool-line").click();
   await page.getByTestId("style-more").click();
   await expect(page.getByTestId("style-dash")).toHaveValue("solid");
-  await expect(page.getByTestId("style-ends")).toHaveValue("none");
+  await expect(page.getByTestId("style-end-end")).toHaveValue("none");
+  await expect(page.getByTestId("style-end-start")).toHaveValue("none");
+  // Drive the controls away and back — "solid"/"none" must travel as ABSENCE, and a test that only reads
+  // defaults cannot tell absence from an unset style.
   await page.getByTestId("style-dash").selectOption("dotted");
-  await page.getByTestId("style-ends").selectOption("both");
+  await page.getByTestId("style-end-end").selectOption("circle");
+  await page.getByTestId("style-end-start").selectOption("arrow");
   await page.getByTestId("style-dash").selectOption("solid");
-  await page.getByTestId("style-ends").selectOption("none");
+  await page.getByTestId("style-end-end").selectOption("none");
+  await page.getByTestId("style-end-start").selectOption("none");
   await dragPageFrac(page, 0.15, 0.14, 0.6, 0.14);
 
   // --- then a dashed line with an arrow at its far end.
   await page.getByTestId("tool-line").click();
   await page.getByTestId("style-more").click(); // the drag above dismissed it
   await page.getByTestId("style-dash").selectOption("dashed");
-  await page.getByTestId("style-ends").selectOption("end");
+  await page.getByTestId("style-end-end").selectOption("arrow");
   await dragPageFrac(page, 0.15, 0.3, 0.6, 0.3);
 
   await expect.poll(async () => (await getObjects(page, bandId, songId)).length).toBe(2);
@@ -96,7 +101,7 @@ test("editor: a line's dash and arrow survive the round trip; and Solid/None wri
   expect(plain.style.ends).toBeUndefined();
 
   expect(styled.style.dash).toBe("dashed");
-  expect(styled.style.ends).toEqual({ head: "arrow", side: "end" });
+  expect(styled.style.ends).toEqual({ end: "arrow" });
 
   // --- and it READS back: reload, select the styled line, the controls show what was saved.
   await page.reload();
@@ -107,7 +112,8 @@ test("editor: a line's dash and arrow survive the round trip; and Solid/None wri
   await expect(page.getByTestId("selected-bbox")).toBeVisible();
   await page.getByTestId("style-more").click();
   await expect(page.getByTestId("style-dash")).toHaveValue("dashed");
-  await expect(page.getByTestId("style-ends")).toHaveValue("end");
+  await expect(page.getByTestId("style-end-end")).toHaveValue("arrow");
+  await expect(page.getByTestId("style-end-start")).toHaveValue("none");
 });
 
 test("editor: the controls appear for the types that can carry them, and only those", async ({
@@ -121,30 +127,35 @@ test("editor: the controls appear for the types that can carry them, and only th
   await page.getByTestId("tool-line").click();
   await page.getByTestId("style-more").click();
   await expect(page.getByTestId("style-dash")).toBeVisible();
-  await expect(page.getByTestId("style-ends")).toBeVisible();
+  await expect(page.getByTestId("style-end-end")).toBeVisible();
+  await expect(page.getByTestId("style-end-start")).toBeVisible();
 
-  // A rect has a border to dash, but no ends to decorate — offering "Arrow at start" on a
+  // A rect has a border to dash, but no ends to decorate — offering an end-shape picker on a
   // rectangle is an offer that does nothing.
   await page.getByTestId("tool-rect").click();
   await page.getByTestId("style-more").click();
   await expect(page.getByTestId("style-dash")).toBeVisible();
-  await expect(page.getByTestId("style-ends")).toHaveCount(0);
+  await expect(page.getByTestId("style-end-end")).toHaveCount(0);
+  await expect(page.getByTestId("style-end-start")).toHaveCount(0);
 
   // An ellipse is a rect in this respect.
   await page.getByTestId("tool-ellipse").click();
   await page.getByTestId("style-more").click();
   await expect(page.getByTestId("style-dash")).toBeVisible();
-  await expect(page.getByTestId("style-ends")).toHaveCount(0);
+  await expect(page.getByTestId("style-end-end")).toHaveCount(0);
+  await expect(page.getByTestId("style-end-start")).toHaveCount(0);
 
   // Text has neither.
   await page.getByTestId("tool-text").click();
   await page.getByTestId("style-more").click();
   await expect(page.getByTestId("style-dash")).toHaveCount(0);
-  await expect(page.getByTestId("style-ends")).toHaveCount(0);
+  await expect(page.getByTestId("style-end-end")).toHaveCount(0);
+  await expect(page.getByTestId("style-end-start")).toHaveCount(0);
 
   // Freehand has neither: a dashed pen stroke is a different feature, and this task is not it.
   await page.getByTestId("tool-freehand").click();
   await page.getByTestId("style-more").click();
   await expect(page.getByTestId("style-dash")).toHaveCount(0);
-  await expect(page.getByTestId("style-ends")).toHaveCount(0);
+  await expect(page.getByTestId("style-end-end")).toHaveCount(0);
+  await expect(page.getByTestId("style-end-start")).toHaveCount(0);
 });

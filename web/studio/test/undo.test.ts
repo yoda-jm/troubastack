@@ -61,23 +61,30 @@ describe("objectContentEqual", () => {
     ).toBe(false);
   });
 
-  it("sees an ends-only restyle, and compares the record by VALUE not identity", () => {
+  it("sees an ends-only restyle, and compares the record by VALUE not identity (T179 per-end)", () => {
     const base = obj({ type: "line" });
-    const arrowEnd = { ...base.style, ends: { head: "arrow" as const, side: "end" as const } };
+    const arrowEnd = { ...base.style, ends: { end: "arrow" as const } };
     expect(objectContentEqual(base, obj({ type: "line", style: arrowEnd }))).toBe(false);
     // Same decoration, a different object: a `===` on the nested record would call these different and
     // every reload would look like a bandmate's edit.
     expect(
       objectContentEqual(
         obj({ type: "line", style: arrowEnd }),
-        obj({ type: "line", style: { ...base.style, ends: { head: "arrow", side: "end" } } }),
+        obj({ type: "line", style: { ...base.style, ends: { end: "arrow" } } }),
       ),
     ).toBe(true);
-    // Moving the head from one end to the other IS a change.
+    // A different shape at the same end IS a change.
     expect(
       objectContentEqual(
         obj({ type: "line", style: arrowEnd }),
-        obj({ type: "line", style: { ...base.style, ends: { head: "arrow", side: "start" } } }),
+        obj({ type: "line", style: { ...base.style, ends: { end: "circle" } } }),
+      ),
+    ).toBe(false);
+    // And the SAME shape moved to the other end is a change too — the two ends are independent.
+    expect(
+      objectContentEqual(
+        obj({ type: "line", style: arrowEnd }),
+        obj({ type: "line", style: { ...base.style, ends: { start: "arrow" } } }),
       ),
     ).toBe(false);
   });

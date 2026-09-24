@@ -84,6 +84,57 @@ const PRESET_BUTTONS: { id: PresetId; label: string; title: string; testid: stri
  * T177 adds Line (dash) and Ends (arrowhead) on the same terms: a dash belongs to
  * anything with a border, an end decoration only to a straight line.
  */
+type EndShape = "none" | "arrow" | "circle" | "square";
+
+// T179 — one shape per end. The END picker is offered FIRST because the natural gesture finishes toward
+// the thing you point at, so that is the common terminator; START is the rare reverse case. There is no
+// "which end?" control — each picker names its own end, so the reader never answers a question the drawing
+// already answered.
+function EndShapePicker({
+  which,
+  style,
+  onStyle,
+  disabled,
+}: {
+  which: "start" | "end";
+  style: AnnotationStyle;
+  onStyle: (s: AnnotationStyle) => void;
+  disabled: boolean;
+}) {
+  const cur = (style.ends?.[which] ?? "none") as EndShape;
+  return (
+    <label className="style-field">
+      <span>{which === "end" ? "End" : "Start"}</span>
+      <select
+        data-testid={`style-end-${which}`}
+        value={cur}
+        disabled={disabled}
+        onChange={(e) => {
+          const v = e.target.value as EndShape;
+          const other = which === "end" ? "start" : "end";
+          const otherVal = style.ends?.[other];
+          const next = { ...style };
+          // The record is present only while SOME end is decorated: an ends object with both ends bare is
+          // a decoration that decorates nothing, which is a state to not have (T177's rule, per end now).
+          if (v === "none" && (!otherVal || otherVal === "none")) {
+            delete next.ends;
+          } else {
+            next.ends = { ...(style.ends ?? {}) };
+            if (v === "none") delete next.ends[which];
+            else next.ends[which] = v;
+          }
+          onStyle(next);
+        }}
+      >
+        <option value="none">None</option>
+        <option value="arrow">Arrow</option>
+        <option value="circle">Circle</option>
+        <option value="square">Square</option>
+      </select>
+    </label>
+  );
+}
+
 function StyleMore({
   style,
   onStyle,
@@ -225,30 +276,8 @@ function StyleMore({
               </select>
             </label>
           )}
-          {showEnds && (
-            <label className="style-field">
-              <span>Ends</span>
-              <select
-                data-testid="style-ends"
-                value={style.ends ? (style.ends.side ?? "end") : "none"}
-                disabled={disabled}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const next = { ...style };
-                  // "None" is the ABSENT record, never a present one with nothing in it:
-                  // a decoration that exists and decorates nothing is a state to not have.
-                  if (v === "none") delete next.ends;
-                  else next.ends = { head: "arrow", side: v as "start" | "end" | "both" };
-                  onStyle(next);
-                }}
-              >
-                <option value="none">None</option>
-                <option value="start">Arrow at start</option>
-                <option value="end">Arrow at end</option>
-                <option value="both">Arrows both ends</option>
-              </select>
-            </label>
-          )}
+          {showEnds && <EndShapePicker which="end" style={style} onStyle={onStyle} disabled={disabled} />}
+          {showEnds && <EndShapePicker which="start" style={style} onStyle={onStyle} disabled={disabled} />}
           <label className="style-field">
             <span>Hex</span>
             <span className="style-value" data-testid="style-color-value">

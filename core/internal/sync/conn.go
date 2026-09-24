@@ -83,8 +83,8 @@ type styleJSON struct {
 }
 
 type endsJSON struct {
-	Head string `json:"head,omitempty"`
-	Side string `json:"side,omitempty"`
+	Start string `json:"start,omitempty"`
+	End   string `json:"end,omitempty"`
 }
 
 type layerJSON struct {

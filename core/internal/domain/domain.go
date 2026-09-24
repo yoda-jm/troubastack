@@ -13,6 +13,8 @@
 // proto codegen (I1) is a later step; the structs mirror proto/troubastack/v1.
 package domain
 
+import "encoding/json"
+
 // ----- enums (typed Go constants mirroring the proto enums) -----
 
 // ObjectType is the kind of annotation object. AUTHORITY: proto/troubastack/v1/
@@ -132,26 +134,67 @@ type Style struct {
 	// set, so it discriminates without overloading anything — the same shape as Blend above.
 	Dash string // "" | "solid" | "dashed" | "dotted"
 
-	// Ends (T177) decorates a straight LINE's extremities. Absent = an undecorated line, which is every
-	// line drawn before T177. Presence is STRUCTURAL (T172's rule), and the two facts live in ONE record
-	// precisely so they cannot disagree: there is no way to express "at both ends" with nothing to put
-	// there, or "an arrow" with no side to put it on.
+	// Ends (T177; reshaped in T179) decorates a straight LINE's extremities — one shape per end. Absent =
+	// an undecorated line, which is every line drawn before T177. Presence stays STRUCTURAL (T172's rule):
+	// nil means both ends bare, and a present record names each end's shape.
 	Ends *LineEnds
 }
 
-// LineEnds is the decoration on a straight line's ends: WHAT is drawn and WHERE.
+// LineEnds is the terminator at each END of a straight line — one shape per end (T179, replacing T177's
+// {Head, Side}). "" and "none" both mean a bare end; the drawable set is "arrow" | "circle" | "square".
 //
-// A present LineEnds always decorates something — an empty Head means the DEFAULT head (an arrow), the
-// way an empty Blend means "normal". An UNRECOGNISED head is different and renders nothing: a newer
-// client naming a head this renderer does not have should draw no head rather than silently draw an
-// arrow, because a wrong mark on a chart reads as a musical instruction.
+// Why one-shape-per-end and not a "which side?" axis: the natural way to draw a line is to finish toward
+// the thing you are pointing at, so the common terminator is on the end you stopped at and the rare case
+// is a different one at each end — which the old {Head, Side} could not express at all, and whose "side"
+// asked the reader to answer a question the drawing gesture already answered (Fable, T179).
 //
-// The geometry is NOT here. How big an arrowhead is, and what it does on a line shorter than itself, is
-// a renderer fact that must be identical in the editor and in the bake, so it is pinned once in
-// web/ink (T177 D3) and every consumer inherits it.
+// An UNRECOGNISED shape renders NOTHING (T177's rule, kept): a newer client naming a shape this renderer
+// lacks must not have it substituted by one we happen to have, because a wrong mark on a chart reads as a
+// musical instruction.
+//
+// The geometry is NOT here — how big each shape is, whether its far edge or its centre sits at the
+// endpoint (§4: the far edge, so nothing pokes past the line's end), and what it does on a line shorter
+// than itself, are renderer facts pinned once in web/ink so the editor and the bake cannot differ.
 type LineEnds struct {
-	Head string // "" | "arrow" ("" = arrow, the default head)
-	Side string // "" | "start" | "end" | "both" ("" = end)
+	Start string // "" | "none" | "arrow" | "circle" | "square"
+	End   string // same set; the end the line was drawn TOWARD, so the common terminator
+}
+
+// UnmarshalJSON reads the current {Start, End} AND T177's superseded {Head, Side}, so an arrow drawn in
+// the hours T177 was live is TRANSLATED rather than silently lost by T179's rename (deliberate read-compat,
+// the D17 lesson: old persisted data keeps being read). T177's Head was only ever "arrow" and Side placed
+// it; an empty Head meant the default arrow, and an empty Side meant the far end. This is the only reader
+// of a stored domain.LineEnds — the wire, .tband and bake DTOs carry their own {start,end} shape.
+func (e *LineEnds) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Start, End string
+		Head, Side string // T177
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	e.Start, e.End = raw.Start, raw.End
+	// When neither CURRENT field is set, this is a T177 document — and it is read with T177's DOCUMENTED
+	// DEFAULTS, where an empty Head IS an arrow and an empty Side IS the far end. So a bare `{}` means
+	// "arrow at the end", NOT "no ends": the PRESENCE of the record drives the reading, never the emptiness
+	// of its members (the T172 sentinel lesson — an in-band "" is "set, with a default" here, not "unset").
+	// A new-shape writer never emits an all-empty record (it drops the whole field when both ends are none),
+	// so this branch only ever sees a T177 or hand-edited document.
+	if raw.Start == "" && raw.End == "" {
+		shape := raw.Head
+		if shape == "" {
+			shape = "arrow"
+		}
+		switch raw.Side {
+		case "start":
+			e.Start = shape
+		case "both":
+			e.Start, e.End = shape, shape
+		default: // "" or "end" — T177's default was the far end
+			e.End = shape
+		}
+	}
+	return nil
 }
 
 // Clone deep-copies a Style INCLUDING its pointer members, so a copy cannot be used to mutate stored

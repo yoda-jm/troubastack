@@ -232,8 +232,8 @@ type v2Style struct {
 }
 
 type v2Ends struct {
-	Head string `json:"head,omitempty"`
-	Side string `json:"side,omitempty"`
+	Start string `json:"start,omitempty"`
+	End   string `json:"end,omitempty"`
 }
 
 type v2CuesFile struct {
@@ -362,7 +362,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 				},
 			}
 			if e := o.Style.Ends; e != nil {
-				vo.Style.Ends = &v2Ends{Head: e.Head, Side: e.Side}
+				vo.Style.Ends = &v2Ends{Start: e.Start, End: e.End}
 			}
 			if a := o.Anchor; a != nil {
 				vo.Anchor = &v2Anchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
@@ -615,7 +615,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 				},
 			}
 			if e := vo.Style.Ends; e != nil {
-				o.Style.Ends = &domain.LineEnds{Head: e.Head, Side: e.Side}
+				o.Style.Ends = &domain.LineEnds{Start: e.Start, End: e.End}
 			}
 			if a := vo.Anchor; a != nil {
 				o.Anchor = &domain.SourceAnchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}

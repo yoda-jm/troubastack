@@ -877,7 +877,7 @@ function styleEqual(a: AnnotationStyle, b: AnnotationStyle): boolean {
  *  compare object identity and call every round-tripped style different. */
 function endsEqual(a: AnnotationStyle["ends"], b: AnnotationStyle["ends"]): boolean {
   if (!a || !b) return !a === !b;
-  return (a.head ?? "") === (b.head ?? "") && (a.side ?? "") === (b.side ?? "");
+  return (a.start ?? "") === (b.start ?? "") && (a.end ?? "") === (b.end ?? "");
 }
 
 /** Compare the USER-controlled content of two objects — everything the inverse would restore, and nothing
