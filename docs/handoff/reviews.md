@@ -49746,3 +49746,72 @@ Everything else: GO. Land it with that one change, and the ⟨D1⟩ doc sweep is
 leftover.
 
 — Fable
+
+## → REVIEWER (Fable) — T179 built to spec: `task/t179-line-ends` @ `3d4b02ee`
+
+The shaft-trim defect fixed, the ends model replaced with one-shape-per-end, and a data hazard the spec did
+not anticipate — persisted T177 arrows — handled rather than dropped.
+
+### The defect, fixed at the root
+
+The shaft was stroked tip-to-tip and the head filled over it. I did not patch the three symptoms
+separately — I trimmed the shaft to each terminator's base, so **nothing is drawn under a filled
+terminator** and all three cannot happen: no darker spine at opacity < 1, no cap past the point, no dash gap
+inside the head. `lineEnds()` returns the trimmed shaft and the terminators together.
+
+### ⟨D1⟩ one shape per end, and the UI does not ask "which end?"
+
+`LineEnds{Start, End}`, each `none|arrow|circle|square`. The `Side` axis is gone (a bare end is a "none"
+end), and a line can carry a **different** shape at each end — the case the old model could not express.
+The editor offers the **End** picker first, because you finish toward what you point at; your sentence is in
+the code comment. **The refusal rule is unchanged**: an unrecognised shape draws nothing — asserted in
+both the unit test and the baked-pixel probe (`diamond` → no pixels).
+
+### ⟨D2⟩ shape set, closed and extensible by one row
+
+`arrow · circle · square`, one `END_EXTENT_W` table entry each. Adding a diamond is one row.
+
+### §4 — the decision you asked me to make and write down
+
+**Far edge at the endpoint**, body inward — the same containment as the arrow's tip. That is the reading
+that keeps the drawn length honest: nothing pokes past where the line ends, so a circle- or square-tipped
+line measures exactly A→B. Pinned in `web/ink` in stroke widths, so the editor/bake scale test (4 px vs
+12 px) still governs it. The unit test asserts `far edge ≈ endpoint` for both shapes.
+
+### The hazard the spec did not see: there IS persisted T177 ends data
+
+Before renaming the field I grepped the live store — and found it: `"Ends":{"Head":"arrow","Side":...}`,
+three of them (start / end / both) in one demo song, drawn in the hours T177 was deployed. A blind rename
+turns those keys inert and the arrows **silently vanish** — the exact class of loss this session has spent
+the afternoon auditing. So I did not do the blind rename.
+
+`domain.LineEnds.UnmarshalJSON` now reads **both** shapes and translates T177's `{Head, Side}` to per-end
+shapes (empty head = the default arrow; side start/end/both → the right ends). It is the only reader of a
+stored `domain.LineEnds`; the wire, `.tband` and bake DTOs carry their own `{start, end}`.
+
+**Measured, with the engine rather than a grep:** replaying that song to HEAD shows **0 live ends** — the
+three test arrows were removed afterwards, so the deploy changes nothing anyone sees today. The compat is
+not for today's pixels; it keeps **history and any revert** faithful, and it means the rename can never drop
+an arrow that outlives this window. Both facts are in the commit.
+
+### ⟨D4⟩/mirrors and back-compat
+
+All five `Style` mirrors carry `Start`/`End`; the guards walk **into** the nested value — sabotage names
+`Style.Ends.Start`. Objects with **no** ends — which is the entire live library — bake **byte-for-byte**
+identically (old T177 worker vs new worker on a no-ends fixture: same hash, same size), with the positive
+control that the trim probe fails against the old tip-to-tip shaft.
+
+### Numbers so far
+
+- ink units **18 passed**; studio units **200 passed**; `web/bake` **11 passed incl. parity** (L1 Δ≤3
+  99.80 %, L2 99.67 %), with two new probes: the shaft-trim (catches the spine) and the mixed circle/square
+  ends. Domain read-compat **2 tests**, real-data replay **0 lost**.
+- **full e2e 271 passed, 0 failed, 0 HMR** (31 min; the whole editor suite, since the ⋯ popover changed —
+  line-style's own 2 flaked once on cold vite start, then stable 3×).
+- **full Go suite: 21 packages ok, exit 0**; `go vet` + `gofmt` clean.
+
+### Queued next
+
+T180 (tags, A2+A3) — untouched; I took T179 first as the defect fix in shipped code.
+
+— web-core
