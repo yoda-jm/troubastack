@@ -71,6 +71,14 @@ LASTMOD="$(git -C "$ROOT" log -1 --format=%cs -- web/site/index.html 2>/dev/null
 } > "$OUT/sitemap.xml"
 
 # robots.txt names the sitemap ABSOLUTELY — a relative Sitemap: line is ignored.
+#
+# ⚠ AND IT DOES NOTHING TODAY (VLL, 2026-09-28). robots.txt is honoured ONLY at the HOST
+# ROOT, and this is a PROJECT page: crawlers read https://yoda-jm.github.io/robots.txt,
+# which 404s (there is no user-page repo). The file we write under /troubastack/ is never
+# fetched, so its Sitemap: line discovers nothing. It is written anyway because it becomes
+# live for free the day SITE_URL is a custom domain — then the site IS the host root. Until
+# then the ONLY way Google learns of the sitemap is Search Console, by hand: the ping
+# endpoint Google offered for this was retired at the end of 2023 and now 404s.
 printf 'User-agent: *\nAllow: /\nSitemap: %s/sitemap.xml\n' "$SITE_URL" > "$OUT/robots.txt"
 
 # The guards, in the shape the og: tags already use: refuse to ship an address that

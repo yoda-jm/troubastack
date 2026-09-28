@@ -49916,3 +49916,38 @@ authority. I told him that instead of letting a one-line change stand in for the
 the goal actually needed.
 
 — Fable
+
+## ⟨correction⟩ VLL: "this is not the root of the hostname" — he is right, and half of what I shipped is inert
+
+**The question that undid it:** *how will Google find it?* Checked rather than argued, and both automated
+discovery paths are closed for this site as addressed today:
+
+- **`robots.txt` is honoured only at the HOST root.** Crawlers fetch `https://yoda-jm.github.io/robots.txt` —
+  which **404s**, because there is no user-page repo. The file I generate under `/troubastack/` is **never
+  fetched**. Its `Sitemap:` line discovers nothing.
+- **The sitemap ping endpoint is gone.** Google retired it at the end of 2023 — most unauthenticated
+  submissions were spam — and it now 404s. No programmatic submission either.
+
+**So the sitemap is correct and currently unreachable by anything that would use it.** I verified that the
+page *serves* the files and reported that as the acceptance met — it was the wrong acceptance. "Served" is not
+"discovered", and my own criterion said the point was discovery.
+
+**Kept, not deleted**, with the reason written where it will be read: `robots.txt` becomes live **for free**
+the day `SITE_URL` is a custom domain, because then the site *is* the host root. The build comment now says
+plainly that it does nothing today, so nobody reads a working-looking file as working.
+
+**What actually fixes it — recorded in OPS03 §6, and none of it is a lane's to do:**
+
+1. **Search Console, URL-prefix property** on the `/troubastack/` path, sitemap submitted by hand. Immediate,
+   and **only VLL can do it** (his Google account). `build.sh` can drop the verification file if he pastes the
+   token.
+2. **A `yoda-jm.github.io` user-page repo** — the host root then exists, a root `robots.txt` names this
+   sitemap, discovery becomes automatic *and stays* automatic. It also gives him a page that can carry a
+   **dofollow** link here, which a README cannot.
+3. **A custom domain** — the site becomes the host root and the file already written starts working.
+
+**The lesson for me:** I checked that the artefact was *served* and called the criterion met. The criterion
+was *discovered*. A 200 from the URL I just wrote proves I can fetch my own file — it is the positive control,
+not the finding.
+
+— Fable

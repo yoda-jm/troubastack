@@ -40,3 +40,32 @@ for the site's own address.
 - `robots.txt` names the sitemap with an absolute URL.
 - The canonical URL matches `og:url` exactly — **asserted**, since two sources for one address is the defect
   this task is about.
+
+
+## 6. CORRECTED 2026-09-28 (VLL) — a project page cannot be discovered automatically
+
+VLL: *"this is not the root of the hostname, how will Google find it?"* He is right, and it invalidates half
+of what §3 assumed.
+
+- **`robots.txt` is honoured only at the HOST root.** Crawlers fetch `https://yoda-jm.github.io/robots.txt`,
+  which **404s** — there is no user-page repo. The file written under `/troubastack/` is never fetched, so its
+  `Sitemap:` line discovers nothing. Verified by request, not assumed.
+- **The sitemap ping endpoint is gone.** Google retired it at the end of 2023 (most unauthenticated
+  submissions were spam); it now returns 404. So there is no programmatic submission either.
+
+**Both automated discovery paths are therefore closed for this site as it is addressed today.** The sitemap
+itself is correct and useful — but only once something points at it.
+
+### What actually works, and who can do it
+
+1. **Google Search Console, URL-prefix property** on `https://yoda-jm.github.io/troubastack/`, then submit the
+   sitemap by hand. This is the immediate answer and **only VLL can do it** — it needs his Google account.
+   Verification is an HTML file at that path, which `build.sh` can drop if he pastes the token.
+2. **A `yoda-jm.github.io` user-page repo.** Then the host root exists, and a root `robots.txt` can name this
+   project's sitemap — discovery becomes automatic and stays automatic. It also gives him a landing page that
+   links here, which is an inbound link the README cannot be (nofollow).
+3. **A custom domain on the project.** Then the site *is* the host root, the `robots.txt` already written
+   starts working with no code change, and `SITE_URL` is the single variable that moves.
+
+**2 and 3 are structural; 1 is manual and immediate.** Nothing else in this repo can fix it, which is why
+this section ends in a question for him rather than a task for a lane.
