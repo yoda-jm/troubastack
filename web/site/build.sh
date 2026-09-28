@@ -30,6 +30,15 @@ SITE_URL="${SITE_URL:-https://yoda-jm.github.io/troubastack}"
 # sign-in, no zip. The explicit-tag URL is stable across rolling builds (fixed tag + asset
 # name), and survives the release being a prerelease (the /latest/ shortcut would not).
 APK_URL="https://github.com/yoda-jm/troubastack/releases/download/latest/troubastage-debug.apk"
+# Google Search Console ownership token. NOT a secret — it is SERVED publicly at
+# $SITE_URL/$GSC_TOKEN.html, which is the whole mechanism, and Google's own instructions are to
+# leave it in place forever ("don't remove the file, even after verification succeeds"). So do
+# not delete it as a leaked credential during a secret sweep: removing it un-verifies the
+# property and the sitemap stops being re-read.
+#
+# It is GENERATED rather than committed as a downloaded asset, because its content is entirely
+# determined by its name — one source, and no opaque blob in the tree.
+GSC_TOKEN="google59f46b47ac995647"
 
 rm -rf "$OUT"
 mkdir -p "$OUT/assets"
@@ -98,6 +107,26 @@ grep -q "<loc>$SITE_URL/</loc>" "$OUT/sitemap.xml" || {
 grep -q 'xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' "$OUT/sitemap.xml" || {
   echo "error: sitemap namespace is not the sitemaps.org 0.9 schema" >&2; exit 1; }
 echo "  canonical: $CANON${LASTMOD:+ · sitemap lastmod $LASTMOD}"
+
+# --- Search Console ownership ------------------------------------------------
+# Why this file exists at all: a PROJECT page cannot be discovered automatically. robots.txt is
+# read only at the host root (which 404s here) and Google's sitemap ping endpoint was retired in
+# 2023 — so Search Console, verified by this file, is the ONLY path by which the sitemap above
+# gets looked at. It is the working half of OPS03.
+GSC_BODY="google-site-verification: $GSC_TOKEN.html"
+printf '%s' "$GSC_BODY" > "$OUT/$GSC_TOKEN.html"
+# Byte-exact against what Google hands you: that string and nothing else.
+#
+# The expectation is derived from the FILENAME ON DISK, never from $GSC_BODY — comparing the
+# output to the variable that wrote it is a check that cannot fail, which is how the first
+# version of this guard passed a deliberately wrong body. The file's own name is the truth:
+# Google's file says "google-site-verification: <its own filename>".
+GSC_FILE="$OUT/$GSC_TOKEN.html"
+[ "$(cat "$GSC_FILE")" = "google-site-verification: $(basename "$GSC_FILE")" ] || {
+  echo "error: $(basename "$GSC_FILE") does not carry its own filename" >&2; exit 1; }
+[ "$(wc -c < "$GSC_FILE")" = "${#GSC_BODY}" ] || {
+  echo "error: $GSC_TOKEN.html has trailing bytes (Google's file has no newline)" >&2; exit 1; }
+echo "  search console: $GSC_TOKEN.html"
 
 # --- the brand marks --------------------------------------------------------
 # Regenerated first, so the site can never ship an icon that no longer matches

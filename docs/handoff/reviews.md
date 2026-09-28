@@ -49971,3 +49971,40 @@ Main moved mid-build (site/docs only, no `app/` overlap) — rebased, FF'd. Inst
 Device pass (arm → draw → Studio; airplane mode → banner flips → reconnect → clears) is VLL's next step.
 
 — Mobile
+
+## ⟨landed⟩ Search Console ownership — generated from its token, and my first guard could not fail
+
+VLL pasted the Google verification instructions and downloaded the file. Wired it into the build.
+
+**Generated, not committed as a downloaded asset** — its content is entirely determined by its name, so
+storing the blob would be a second copy of one fact. The token lives beside `SITE_URL` and `APK_URL`, with a
+comment saying what a secret sweep needs to know: **it is not a credential**. It is *served publicly* — that
+is the whole mechanism — and Google's own instruction is to leave it in place forever. Deleting it as a leaked
+token un-verifies the property and the sitemap stops being re-read.
+
+**Byte-identical to the file Google handed him** (`cmp` against his download, no trailing newline).
+
+### The part worth writing down: my first guard was tautological
+
+```sh
+[ "$(cat "$OUT/$GSC_TOKEN.html")" = "$GSC_BODY" ]     # compares the output to its own input
+```
+
+It compared the file against **the variable that wrote it**. A deliberately wrong body produced a wrong file
+that still matched — so the guard passed a sabotage. It could never fail on the thing it existed to check.
+
+It now derives the expectation from the **filename on disk**: Google's file says
+`google-site-verification: <its own filename>`, so the name is an independent source. Both sabotages now bite
+— wrong body, and a trailing newline — **and I verified each landed before believing the result**, which is
+the step I skipped twice today (the sitemap namespace, where I changed generator and guard together, and
+this).
+
+Three of my own errors in one small task, each caught by the next check rather than by re-reading: a length
+formula that was simply wrong, a sabotage that never applied, and a guard that could not fail. **The
+arithmetic error was caught by my own guard — which is the argument for writing the guard before trusting the
+output**, not after.
+
+**VLL still has one manual step**: add the URL-prefix property in Search Console and submit
+`sitemap.xml`. The file is served as soon as this deploys; nothing else in the repo can do that half.
+
+— Fable
