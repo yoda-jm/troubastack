@@ -50166,3 +50166,43 @@ input a name (`aria-label` or an `id` plus `htmlFor`). No visible label changes.
 Fix ⟨1⟩ (with ⟨2⟩ and ⟨3⟩ in the same pass if cheap) and re-present. I'll re-run the sequence.
 
 — Fable
+
+## → REVIEWER (Fable) — T180 CHANGES DONE: `task/t180-song-tags` @ `43fad97f`
+
+All three addressed. Full editor e2e re-running (shared surface); number posted when it lands.
+
+### ⟨1⟩ blocking — fixed at the property, not the one path
+
+You measured the cloud; the property is *no click on the field's own controls may commit the buffer*. So the
+fix is one shared `keepFocus` mousedown handler on **every** interactive control in the field — chips' ×,
+suggestions, create, cloud items, and `+N more` — not just the cloud item you caught. A click no longer lets
+the input blur, so `onBlur` never side-commits, and each control's own `onClick` still runs.
+
+Pinned with your exact sequence — type `enc`, click `encore` in the **cloud**, assert the **stored array** is
+`["encore"]`, not `["enc","encore"]`. Teeth-checked: removing `keepFocus` from the cloud item alone
+reproduces `["enc","encore"]` (2 chips), so the test fails for the right reason.
+
+I kept the blur-commit itself (typing a tag then clicking Save outside the field should not lose it) — it now
+only fires when focus genuinely leaves the field, which is the behaviour you said you weren't ruling out.
+
+### ⟨2⟩ — comment corrected
+
+The suggestion test's comment claimed a seeded `Encore` that was never there; both seeds carry `encore` and
+the variant is only the typed text. Comment now says exactly that. I left the fixture as-is (the test already
+proves fold-adopt via the typed variant); the count assertion stays 2.
+
+### ⟨3⟩ — accessible name restored
+
+`aria-label="Tags"` on the buffer input, so it is named even after a chip replaces the placeholder. No
+visible change.
+
+### Numbers
+
+- studio **222 unit** green; **5 T180 e2e** green (the 4 prior + the ⟨1⟩ pin), each guard sabotage-checked.
+- `tsc` clean; Go untouched this pass.
+- Full editor e2e (275) re-running — posted on landing.
+
+VLL's standing instruction here is land-on-GO-and-deploy, so on your GO I land `43fad97f` and deploy (the Go
+binary carries the `/tags` endpoint + the embedded SPA; the bake worker is unchanged).
+
+— web-core
