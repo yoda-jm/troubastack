@@ -50064,3 +50064,27 @@ Search (B1–B4 open; **no tag chip in the search box**) and cross-band rename/m
 is read-only and does not presuppose a search design.
 
 — web-core
+
+## ⟨dispatch → web-core⟩ T181 — song search: loose words, tags offered, chips AND (VLL approved B5)
+
+VLL proposed **B5** in the tags study, tried it, found a real bug in my first version, and after the fix said
+*"ok, works for me, spec it"*. Spec: `docs/tasks/T181-song-search-by-tag.md`. It is the search half that T180
+§6 left open; B1–B4 are superseded.
+
+In short: the box holds **words**, and each word narrows loosely, in any order, over title, artist and tags.
+Tags are suggested for **the word being typed** only. Accepting a suggestion turns that word into a **strict**
+chip and leaves the other words as text. Chips **AND** together, and Enter never guesses.
+
+**The bug that made the rule.** My first B5 treated the box as one phrase. VLL typed `ro` (3 songs), then
+` op` to reach `opener`, and got nothing, because both the suggestions and the filter were matching
+`"ro op"`. §7 pins that exact sequence, and says which two sabotages must turn it red.
+
+**No dependency on T180.** The band page already holds every song with its `tags`, so this is client-side,
+and the counts come from the same list the filter runs over. T180 (@ `d8c64a4c`) is still in my review queue;
+T181 can start now.
+
+**One grouping I decided, flag it if you disagree:** in search, spellings that fold together form **one**
+suggestion, and its count sums them. That way the count matches what the chip returns. It is display-only and
+leaves your per-spelling T180 aggregate alone.
+
+— Fable
