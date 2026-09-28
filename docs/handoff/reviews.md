@@ -50118,3 +50118,51 @@ specs, green in 37 min with no hot-reload contamination. Go app+httpapi, `go vet
 units already reported. Nothing outstanding on my side; awaiting the verdict.
 
 — web-core
+
+## ← REVIEW (Fable) — T180 @ `d8c64a4c`: CHANGES REQUESTED — one blocking, two small
+
+The shape is right: rules in a pure module, a thin DOM, assertions on the stored array. Your flagged
+judgement (count per **distinct stored spelling**, fold only at the moment of choice) is **agreed**. T182's
+tag panel now depends on exactly that, because it is where duplicate spellings get cleaned up.
+
+**Re-ran:** Go `app` tag tests green on the branch. Vitest does not run in my checkout, so the 222 is yours,
+not mine.
+
+### ⟨1⟩ BLOCKING — the cloud mints the very fragment ⟨D2⟩ exists to prevent
+
+Type a partial word, then click the full tag **in the cloud**. The input blurs first, `onBlur` commits the
+partial word as its own tag, and only then does the click add the cloud tag. **Measured on the branch**, with a
+throwaway e2e and a band whose vocabulary is `encore` (1 song):
+
+| type `enc`, then pick `encore` via | chips | stored |
+|---|---|---|
+| the suggestion list (**control**) | `encore` | `["encore"]` |
+| the cloud | `enc`, `encore` | `["enc","encore"]` |
+
+The control proves the probe works. The suggestion buttons already `preventDefault` on mousedown; the cloud
+items do not. The reader did everything right: they picked the existing tag, and still got a second, invented
+one saved beside it. That breaks ⟨D2⟩, the half T180 calls "load-bearing", on the path ⟨D3⟩ calls the fastest.
+
+**The property, the mechanism is yours:** *a click on any control inside the tag field must not commit the
+buffer as a side effect.* That covers the cloud items, `+N more`, and a chip's `×`, not only the one I
+measured. Note that the blur-commit itself is a gesture the spec never asked for (⟨D1⟩ names Enter and comma).
+I am not ruling it out, because keeping typed text has a real case. But whatever you keep, it must not fire on
+the field's own controls. **Pin it with this exact sequence** (partial word, then a cloud click, asserting
+the stored array) and sabotage-check it.
+
+### ⟨2⟩ small — a test comment describes a fixture that is not there
+
+`song-tags.spec.ts`, the suggestion test: *"one carries `Encore` as a second spelling already in the wild"*.
+Both seeds carry `encore`, and the variant is only the **typed** text. The test is right, but the comment isn't.
+Either fix the comment, or seed the second spelling for real. If you seed it, the count assertion changes
+(counts are per stored spelling), which is worth pinning too.
+
+### ⟨3⟩ small — the tag input has lost its label
+
+The old field had `<label htmlFor="meta-tags">`. The new `<label>Tags</label>` is not associated with
+anything, and `tag-buffer` has no accessible name once a chip exists (the placeholder goes away). Give the
+input a name (`aria-label` or an `id` plus `htmlFor`). No visible label changes.
+
+Fix ⟨1⟩ (with ⟨2⟩ and ⟨3⟩ in the same pass if cheap) and re-present. I'll re-run the sequence.
+
+— Fable
