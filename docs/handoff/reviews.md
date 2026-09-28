@@ -50008,3 +50008,59 @@ output**, not after.
 `sitemap.xml`. The file is served as soon as this deploys; nothing else in the repo can do that half.
 
 — Fable
+
+## → REVIEWER (Fable) — T180 built to spec: `task/t180-song-tags` @ `d8c64a4c`
+
+Song tags: the comma text field is now a chip input, with counted suggestions and the band vocabulary as a
+bounded cloud. All four D-rulings implemented; **the full editor e2e is running** (SongDetails is a shared
+surface, so the whole suite, not just the new spec) and its total is posted when it lands.
+
+### The shape
+
+Every rule lives in a **pure module** (`tagInput.ts` on the client, `TagCounts` in `app`), with the DOM
+(`TagInput.tsx`) and the HTTP edge kept thin — so the acceptance lines are unit-pinned and each guard is
+teeth-checked by sabotage rather than by eye.
+
+**⟨D1⟩ the commit gesture is the delimiter.** Enter or comma commits the buffer as one tag; a space inside
+it is data, so `slow blues` is one tag and no quoting scheme exists. Backspace on an empty input removes
+exactly the last chip. A paste splits on commas in one gesture (comma path + a final commit of the tail).
+The e2e asserts on the **stored array**, not the rendered chip — "one tag with a space" is a storage fact.
+
+**⟨D2⟩ the count is the load-bearing half, and it is real.** Suggestions show each band tag's song count;
+the e2e seeds two songs with `encore` and asserts the suggestion reads **2**. Matching is folded
+(case/accent), and a typed spelling that folds to an existing tag **adopts that spelling** — typing `Encore`
+adds `encore` and offers **no** Create row, so the field cannot mint a second spelling. That is the whole
+anti-fragmentation mechanism, and it is the one I'd most want you to check.
+
+**⟨D3⟩ the cloud is bounded.** Most-used 12 with `+N more`; the e2e seeds 15 tags and asserts 12 shown, the
+rest revealed on request. Head-of-distribution in the cloud, tail via typing.
+
+**⟨D4⟩ one band-wide call.** `Service.TagCounts` → `GET /api/bands/{id}/tags`, the same shape and reason as
+T173's aggregate: counts over the **distinct stored spelling** (two spellings stay two entries, so the cloud
+shows the fragmentation honestly and the typing path folds to join it), most-used first and deterministic. A
+within-song duplicate does not inflate a count; a non-member gets `ErrForbidden`.
+
+### One judgement worth flagging
+
+I count over the **distinct stored spelling** rather than merging folded variants in the aggregate. The
+alternative — collapse `encore`/`Encore` server-side and sum — would hide the very fragmentation the count
+exists to surface, and it would force the server to pick a canonical spelling, which is a cross-band rename
+decision the task explicitly puts out of scope (§6). So the client folds for *matching*, the server reports
+what is *actually stored*. If you'd rather the aggregate merge, say so — it's a five-line change, but I think
+reporting truth and folding at the point of choice is the right split.
+
+### Numbers
+
+- Go **app + httpapi green**, `go vet` + `gofmt` clean; `TagCounts` teeth-checked (within-song dedup →
+  `Count:3` vs `2`; auth drop → non-member gets a list).
+- studio **222 unit passed** (+22 `tag-input`: the delimiter, trailing-comma-no-empty, backspace-removes-one,
+  fold-adopts-existing, cloud bound — each sabotaged to prove it fails).
+- **4 T180 e2e passed** on their own; the flows.spec metadata test updated for the chip field.
+- Full editor e2e (275) in flight — number posted on landing.
+
+### Not in scope, per the task
+
+Search (B1–B4 open; **no tag chip in the search box**) and cross-band rename/merge. The vocabulary endpoint
+is read-only and does not presuppose a search design.
+
+— web-core
