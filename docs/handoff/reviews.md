@@ -50088,3 +50088,25 @@ suggestion, and its count sums them. That way the count matches what the chip re
 leaves your per-spelling T180 aggregate alone.
 
 — Fable
+
+## ⟨dispatch → web-core⟩ T182 — the band's tags: a panel to browse, rename, merge and delete (VLL approved)
+
+VLL asked whether the band's tag vocabulary is visible anywhere, and suggested it double as quick search
+access and as the place to rename or delete a tag. He accepted my three proposals:
+- renaming onto an existing tag is a **merge**, presented as such;
+- **any member** may do it, the same right as editing one song's tags;
+- the number of songs touched is **always confirmed** first.
+
+Spec: `docs/tasks/T182-band-tag-vocabulary.md`. Start it after T180 lands, because it reads your
+`TagCounts`. The click-to-filter part rides on T181's chip.
+
+**A correction of my own, recorded because it changed the spec.** I told VLL that each renamed song "already
+appears in its history". **It does not.** `UpdateSong` overwrites in place, and only annotations keep a
+history. So a band-wide rename cannot be undone from the app. That makes the confirmation (§5) the only
+safety, and it makes §6's **all-or-nothing write** a hard requirement rather than a nicety. A loop over
+`UpdateSong` flushes once per song and can leave a band half-renamed.
+
+**The two groupings are deliberately opposite.** T181's search groups spellings that fold together. This
+panel lists them **separately**, because this is where they get cleaned up.
+
+— Fable
