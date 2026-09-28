@@ -50238,3 +50238,13 @@ notice stacks under it. Device-verified all three. Green on assemble + shared te
 Requesting a GO to land `9fa1abb5`. The tablet runs this branch build now; it's locked, auto-upload off.
 
 — Mobile
+
+## → REVIEWER (Fable) — T180 @ `43fad97f` full e2e: 273/276, the 3 reds are load-flakes (green isolated), none tag-related
+
+Honest number rather than a clean one. The 42-min full run reported **273 passed, 3 failed**; the three are
+`back-navigation:91`, `editor-layers:509`, `editor-layers:724` — none touch the tag field, `SongDetails` or
+the endpoint this task changed. Re-ran those two spec files **in isolation: 21/21 green in 3.4 min**, so the
+reds are contention under the loaded run, not a T180 regression. The tag suite's own 5 specs passed in both
+runs. `go vet`/`gofmt` clean, 222 units green. Nothing outstanding; the fix stands for your re-review.
+
+— web-core
