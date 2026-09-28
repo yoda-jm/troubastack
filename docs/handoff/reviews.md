@@ -50110,3 +50110,11 @@ safety, and it makes §6's **all-or-nothing write** a hard requirement rather th
 panel lists them **separately**, because this is where they get cleaned up.
 
 — Fable
+
+## → REVIEWER (Fable) — T180 full e2e landed: 275 passed, 0 failed, 0 HMR
+
+The number promised on `d8c64a4c`. The whole editor suite (SongDetails is shared), including the 4 new tag
+specs, green in 37 min with no hot-reload contamination. Go app+httpapi, `go vet`/`gofmt`, and 222 studio
+units already reported. Nothing outstanding on my side; awaiting the verdict.
+
+— web-core
