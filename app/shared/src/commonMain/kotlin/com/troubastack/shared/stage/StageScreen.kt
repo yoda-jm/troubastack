@@ -125,6 +125,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -795,11 +800,16 @@ private fun Performing(
         // scroll mode the strip is inline in the column (ScrollReader), so it's omitted here.
         // A70 (VLL): note mode hides the top bar entirely — a clean drawing surface with only the docked
         // note bar below; exit is the note bar's "Done", so the ✕/⚙ chrome would only distract/mis-fire.
+        // A77 (VLL): the armed banner must sit UNDER this menu while it is up — drawn over it, it covered the top
+        // of ☰ ✎ ⚙ ✕ and swallowed taps there (measured on the tablet: a ⚙ tap in the covered band did nothing).
+        // The menu's height varies (the meta strip), so it is MEASURED rather than assumed.
+        var topChromeHeightPx by remember { mutableStateOf(0) }
+        var armBannerHeightPx by remember { mutableStateOf(0) }
         AnimatedVisibility(
             visible = chromeVisible && !state.noteMode,
             enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { -it },
             exit = fadeOut(tween(250)) + slideOutVertically(tween(250)) { -it },
-            modifier = Modifier.align(Alignment.TopCenter),
+            modifier = Modifier.align(Alignment.TopCenter).onSizeChanged { if (it.height > 0) topChromeHeightPx = it.height },
         ) {
             Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -878,11 +888,21 @@ private fun Performing(
         // A77 §4 — while armed, SAY SO prominently: a full-width top strip (the live-banner shape). His notes
         // are leaving the tablet — not a state to infer from a settings screen he closed. VLL's wording (⟨D6⟩)
         // states a fact + duration with NO verb, so it can't collide with Studio's "Arm live mode".
+        // A77 (VLL): menu up ⇒ the banner rides just below it; menu hidden ⇒ it slides up to the top edge. It stays
+        // on screen either way — it is the persistent promise, so it must never auto-hide with the chrome.
+        val density = LocalDensity.current
+        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val menuUp = chromeVisible && !state.noteMode
+        val armBannerTop by animateDpAsState(
+            if (menuUp && topChromeHeightPx > 0) with(density) { topChromeHeightPx.toDp() } else statusTop,
+            tween(250), label = "armBannerTop",
+        )
         AnimatedVisibility(
             visible = state.armedUntil != 0L,
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(400)),
-            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding(),
+            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(top = armBannerTop)
+                .onSizeChanged { if (it.height > 0) armBannerHeightPx = it.height },
         ) {
             val armChrome = stageChrome(colorMode)
             Surface(color = armChrome.container, contentColor = armChrome.onContainer, tonalElevation = 6.dp) {
@@ -909,7 +929,12 @@ private fun Performing(
             visible = state.updateNotice != null,
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(400)),
-            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = if (state.armedUntil != 0L) 44.dp else 12.dp, start = 12.dp, end = 12.dp, bottom = 12.dp),
+            modifier = Modifier.align(Alignment.TopCenter)
+                .then(
+                    if (state.armedUntil != 0L) Modifier.padding(top = armBannerTop + with(density) { armBannerHeightPx.toDp() } + 8.dp)
+                    else Modifier.statusBarsPadding().padding(top = 12.dp),
+                )
+                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
         ) {
             val noticeChrome = stageChrome(colorMode) // A69: the notice fades in over the page — follow the scheme
             Surface(shape = MaterialTheme.shapes.medium, tonalElevation = 6.dp, color = noticeChrome.container) {
