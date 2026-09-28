@@ -102,4 +102,23 @@ class StageArmedUploadTest {
         assertTrue(s1.shouldMirrorClear(livePage, clock))   // armed + live ⇒ clear reaches Studio
         assertFalse(s1.shouldMirrorClear(barePage, clock))  // armed + no live note ⇒ local only (orphans excluded)
     }
+
+    @Test
+    fun failingFlag_setByAFailure_clearedBySuccessDisarmRearmAndBake() {
+        var clock = 0L
+        val vm = StageViewModel(loaded(rev = 2uL), monotonicNow = { clock })
+        vm.setAutoUploadFailing(true)
+        assertFalse(vm.state.value.autoUploadFailing, "ignored while not armed — nothing is promised")
+        vm.arm()
+        vm.setAutoUploadFailing(true); assertTrue(vm.state.value.autoUploadFailing)
+        vm.setAutoUploadFailing(false); assertFalse(vm.state.value.autoUploadFailing) // the next success clears it
+        vm.setAutoUploadFailing(true); vm.disarm(); assertFalse(vm.state.value.autoUploadFailing)
+        vm.arm(); assertFalse(vm.state.value.autoUploadFailing) // a fresh window starts healthy
+        vm.setAutoUploadFailing(true)
+        vm.applyUpdate(loaded(rev = 3uL))                         // a bake disarms and drops it too
+        assertFalse(vm.state.value.autoUploadFailing)
+        vm.arm(); vm.setAutoUploadFailing(true)
+        clock = vm.state.value.armedUntil; vm.expireArmIfDue()    // and so does expiry
+        assertFalse(vm.state.value.autoUploadFailing)
+    }
 }

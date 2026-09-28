@@ -166,7 +166,13 @@ class StageViewModel(
 
     /** A77 ⟨D1⟩ — arm auto-upload for the standard rehearsal window from now; re-arming extends the deadline.
      *  In-memory only, like [setAutoUpdate]: a fresh Stage entry starts disarmed. */
-    fun arm() = _state.update { s -> s.copy(armedUntil = monotonicNow() + ARMED_UPLOAD_WINDOW_MS) }
+    fun arm() = _state.update { s -> s.copy(armedUntil = monotonicNow() + ARMED_UPLOAD_WINDOW_MS, autoUploadFailing = false) }
+
+    /** A77 — the host reports each armed send/delete outcome: true after a failure (a retry is pending), false
+     *  after a success. Only meaningful while armed, so it is ignored when the window is closed. */
+    fun setAutoUploadFailing(failing: Boolean) = _state.update { s ->
+        if (s.armedUntil == 0L || s.autoUploadFailing == failing) s else s.copy(autoUploadFailing = failing)
+    }
 
     /** A77 — disarm. [notice] says WHY when the end was not the user's own toggle (⟨D4⟩ a bake, a not-mine
      *  409); expiry and leaving Stage pass null (⟨D1⟩ — the banner simply goes). Reuses the self-dismissing
@@ -176,7 +182,7 @@ class StageViewModel(
         val wasArmed = _state.value.armedUntil != 0L
         _state.update { s ->
             if (s.armedUntil == 0L && notice == null) s
-            else s.copy(armedUntil = 0L, updateNotice = notice ?: s.updateNotice)
+            else s.copy(armedUntil = 0L, autoUploadFailing = false, updateNotice = notice ?: s.updateNotice)
         }
         if (wasArmed) onDisarm?.invoke()
     }
@@ -190,7 +196,7 @@ class StageViewModel(
     fun expireArmIfDue() {
         val due = _state.value.let { it.armedUntil != 0L && monotonicNow() >= it.armedUntil }
         if (!due) return
-        _state.update { s -> s.copy(armedUntil = 0L) }
+        _state.update { s -> s.copy(armedUntil = 0L, autoUploadFailing = false) }
         onDisarm?.invoke()
     }
 

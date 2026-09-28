@@ -31,4 +31,15 @@ class ArmedUploadPolicyTest {
         assertEquals(ArmedSendVerdict.CONFLICT_DISARM, armedSendVerdict(SendResultKind.CONFLICT))
         assertEquals(ArmedSendVerdict.FAILED, armedSendVerdict(SendResultKind.FAILED))
     }
+
+    @Test
+    fun bannerCarriesTheLastOutcome_notAConstant() {
+        // Fable: a persistent indicator is a promise — after a failed send it must not keep saying "sending".
+        val healthy = armedBannerText(failing = false)
+        val failing = armedBannerText(failing = true)
+        assertTrue(healthy.contains("sending to Studio"))
+        assertTrue(failing.contains("failed"))
+        assertFalse(failing.contains("sending to Studio"), "the failing banner must not repeat the healthy promise")
+        assertFalse(healthy.lowercase().contains(" arm"), "⟨D6⟩: no verb") ; assertFalse(failing.lowercase().contains(" arm"))
+    }
 }

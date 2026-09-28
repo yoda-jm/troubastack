@@ -17,6 +17,10 @@ import kotlinx.coroutines.withContext
  *  stroke into one upload (§7: "debounce after the last stroke"), not one per stroke. */
 private const val ARMED_SEND_DEBOUNCE_MS = 1200L
 
+/** After a failed send/delete, how long before trying again. The window stays armed (offline is the case A77
+ *  lives in); the banner says "last send failed, retrying" until one succeeds. */
+private const val ARMED_RETRY_MS = 15_000L
+
 /**
  * A77 §7 — the host's "WHEN" of armed auto-upload. It debounces per-note commits and flushes on demand; the
  * "whether" (overwrite, the 409 verdict) is the shared, tested [armedSendOverwrite]/[armedSendVerdict], per
@@ -35,6 +39,8 @@ class ArmedUploader(
     private val isArmed: () -> Boolean,
     private val onConflict: (String) -> Unit,
     private val onStatus: (String) -> Unit,
+    // A77 (Fable conditional GO) — each outcome, so the PERSISTENT banner reflects it: true = failed, retrying.
+    private val onHealth: (Boolean) -> Unit,
 ) {
     // The keys this session has already auto-sent — so their next send overwrites OUR OWN prior send, and a
     // first send stays non-overwrite (a foreign note surfaces as a 409 instead of being clobbered).
@@ -45,12 +51,24 @@ class ArmedUploader(
     /** A pen-up commit OR a clear (§7). No-op unless armed. Coalesces a stroke burst into one reconcile. */
     fun onCommitted(entry: NoteEntry) {
         if (!isArmed()) return
+        schedule(entry, ARMED_SEND_DEBOUNCE_MS)
+    }
+
+    private fun schedule(entry: NoteEntry, afterMs: Long) {
         pending = entry
         debounce?.cancel()
         debounce = scope.launch {
-            delay(ARMED_SEND_DEBOUNCE_MS)
+            delay(afterMs)
             reconcile()
         }
+    }
+
+    /** A failed attempt: say so on the banner and try again later — but only while still armed and only if no
+     *  newer commit has superseded it (that one carries the current bytes anyway). After disarm the final
+     *  flush was the last attempt; the note stays local and the Notes tab's Send is the fallback. */
+    private fun retryLater(entry: NoteEntry) {
+        onHealth(true)
+        if (isArmed() && pending == null) schedule(entry, ARMED_RETRY_MS)
     }
 
     /** Send any debounced note NOW — the flush at a page turn / leaving note mode / disarm / expiry (§7). Sends
@@ -72,9 +90,9 @@ class ArmedUploader(
                 is NoteSendResult.Failed -> SendResultKind.FAILED
             }
             when (armedSendVerdict(kind)) {
-                ArmedSendVerdict.SENT -> sentThisSession.add(entry.key)
+                ArmedSendVerdict.SENT -> { sentThisSession.add(entry.key); onHealth(false) }
                 ArmedSendVerdict.CONFLICT_DISARM -> onConflict("A note is already in Studio for this page — auto-upload off")
-                ArmedSendVerdict.FAILED -> onStatus("Couldn't reach Studio — will retry on the next stroke")
+                ArmedSendVerdict.FAILED -> retryLater(entry) // stay armed; the banner carries it (not a toast)
             }
         } else {
             // The commit cleared the note → mirror the delete (§5). In Stage a cleared page is always live, so
@@ -82,6 +100,7 @@ class ArmedUploader(
             sentThisSession.remove(entry.key)
             val gone = withContext(Dispatchers.IO) { transport.deleteRehearsalNote(concertId, entry) }
             onStatus(if (gone) "Removed here and in Studio" else "Removed here — couldn't reach Studio")
+            if (gone) onHealth(false) else retryLater(entry) // a surviving Studio copy is a broken promise too
         }
     }
 }

@@ -32,3 +32,12 @@ fun armedSendVerdict(result: SendResultKind): ArmedSendVerdict = when (result) {
     SendResultKind.CONFLICT -> ArmedSendVerdict.CONFLICT_DISARM
     SendResultKind.FAILED -> ArmedSendVerdict.FAILED
 }
+
+/**
+ * A77 (Fable conditional GO) — the armed banner's sentence. A persistent indicator is a promise: while the last
+ * send failed it must SAY so (still armed, still retrying) instead of asserting the notes are reaching Studio.
+ * The failing wording is Fable's; the healthy one is VLL's ⟨D6⟩ — both verbless, no "arm".
+ */
+fun armedBannerText(failing: Boolean): String =
+    if (failing) "AUTO-UPLOAD ON — last send failed, retrying"
+    else "AUTO-UPLOAD ON — your notes are sending to Studio"

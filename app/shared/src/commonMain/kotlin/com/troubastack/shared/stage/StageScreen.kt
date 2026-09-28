@@ -894,7 +894,7 @@ private fun Performing(
                     Box(Modifier.size(8.dp).clip(CircleShape).background(armChrome.onContainer))
                     Spacer(Modifier.size(8.dp))
                     Text(
-                        "AUTO-UPLOAD ON — your notes are sending to Studio",
+                        armedBannerText(state.autoUploadFailing), // A77: carries the LAST outcome, not a constant
                         style = MaterialTheme.typography.labelLarge,
                         color = armChrome.onContainer,
                     )

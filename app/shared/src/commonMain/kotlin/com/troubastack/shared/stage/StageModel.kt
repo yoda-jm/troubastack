@@ -342,6 +342,10 @@ data class StageState(
     // "I forgot" nearly unreachable (⟨D1⟩): the window lapses on its own (checked against this deadline) and
     // leaving Stage disarms. NOT preserved across applyUpdate — a bake disarms it visibly (⟨D4⟩).
     val armedUntil: Long = 0L,
+    // A77 (Fable conditional GO) — the LAST armed send/delete failed and a retry is pending. The banner is a
+    // persistent promise ("your notes are sending"); a self-dismissing toast cannot retract it, so the banner
+    // itself must carry this. Cleared by the next success, and by arm/disarm/expiry; not preserved by a bake.
+    val autoUploadFailing: Boolean = false,
     // T147: the rehearsal chronometer — a pure state machine (start instant + accumulated, not a tick
     // counter) so it survives screen-off/process death. It times the SESSION, so it must be PRESERVED
     // across song navigation, setIdentity and applyUpdate — never rebuilt to a fresh Chrono().

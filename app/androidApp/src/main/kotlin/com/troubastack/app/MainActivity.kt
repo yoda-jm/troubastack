@@ -741,6 +741,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             isArmed = { opened.vm.isArmed() },
             onConflict = { opened.vm.disarm(it) },
             onStatus = { opened.vm.notify(it) },
+            onHealth = { opened.vm.setAutoUploadFailing(it) },
         )
     }
     DisposableEffect(armedUploader) {
