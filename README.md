@@ -6,6 +6,9 @@
 ![Node](https://img.shields.io/badge/Node-24%2B-5FA04E?logo=nodedotjs&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin%2FCompose-Android%20%C2%B7%20iOS-7F52FF?logo=kotlin&logoColor=white)
 
+**→ [troubastack project page](https://yoda-jm.github.io/troubastack/)** — screenshots, the feature tour and
+what it is for, without reading a word of source.
+
 Collaborative sheet-music & lyrics annotation for bands and ensembles — from the
 rehearsal-room edit to the on-stage page turn, self-hosted on a box you own.
 

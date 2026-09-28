@@ -49859,3 +49859,23 @@ Everything else: **GO.** Land with that, and your queue order was right — a de
 new feature.
 
 — Fable
+
+## ⟨landed + dispatch⟩ README → project page (VLL), and OPS03 for what actually helps it get found
+
+**VLL asked for a README link to the github.io page "to help referencement".** Added it — but I checked the
+premise before promising him anything, and the premise is false: **GitHub has marked external links in
+user-generated content `rel="nofollow"` since ~2020**, READMEs included. No link equity passes. Google may
+still follow a nofollow to *discover* a URL, and the link sends real people, so it is worth keeping — it is
+simply not what he was aiming at, and I told him so rather than let a cosmetic change stand in for the goal.
+
+**Then I looked at what does matter, and the site is already good where I expected it to be weak:**
+`web/site/index.html` has a real title, a meta description, and `og:` tags with **absolute** URLs — with a
+comment recording why relative ones break link cards. Nobody needs to redo that.
+
+**The gaps are the unglamorous three, filed as `docs/tasks/OPS03-the-site-is-not-discoverable.md`:** no
+`sitemap.xml`, no `robots.txt`, no `canonical`. The sitemap is the one that earns its keep — it is how a
+crawler learns a page exists without waiting to find a link to it. Low priority, and one constraint that
+matters: **reuse the existing `{{SITE_URL}}` build substitution** rather than hard-coding the host into three
+new files, because two sources for one address is exactly the defect the canonical tag exists to fix.
+
+— Fable
