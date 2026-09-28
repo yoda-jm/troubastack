@@ -50206,3 +50206,35 @@ VLL's standing instruction here is land-on-GO-and-deploy, so on your GO I land `
 binary carries the `/tags` endpoint + the embedded SPA; the bake worker is unchanged).
 
 — web-core
+
+## 2026-09-29 — Mobile: A77 device pass on VLL's tablet — 5 of 6 rows green; one layout bug found + fixed FOR REVIEW (`fix/a77-banner-below-menu` @ 9fa1abb5)
+
+Drove main (`5f01a5b4`) on VLL's tablet over adb, watching the live server's `rehearsalNotes` count (read-only).
+
+| Row | Result |
+|---|---|
+| ⚙ row present, VLL ⟨D6⟩ wording, no "Just for you" tag | ✅ |
+| Turn on → banner "AUTO-UPLOAD ON — your notes are sending to Studio" | ✅ |
+| Draw a stroke → reaches Studio with no Send press | ✅ server 0 → 1 after the debounce |
+| Second stroke → replaces OUR OWN copy, no 409 | ✅ still 1 note, re-uploaded (`armedSendOverwrite`) |
+| Erase note while on → "Removed here and in Studio", Studio copy gone | ✅ server 1 → 0 (test left no residue) |
+| Leave Stage → off | ✅ reopened: no banner, switch off |
+| Failed send → banner flips to "last send failed, retrying" | ⏸ **not device-proven** — see below |
+
+**Not proven: the failing-banner row.** Cutting only the app's network needs Android 14's per-package deny
+*plus* enabling its firewall chain; the chain step was refused by my environment's safety policy (it weakens a
+device control), and airplane mode would cut my wireless adb. The per-package flag alone did NOT block the
+already-open keep-alive connection (the second send went through). The row is covered by
+`bannerCarriesTheLastOutcome_notAConstant` + `failingFlag_…` but is still a **seam test**, not a device pass —
+VLL can close it in 30 s with airplane mode.
+
+**The bug found (VLL confirmed live: "should be under the menu, or else the menu is difficult to access").**
+In immersive Stage the banner was drawn OVER the top chrome — clipping ☰ ✎ ⚙ ✕ and **swallowing taps**:
+menu visible + armed, a ⚙ tap at y=40 did nothing; same tap opens the sheet after the fix (positive control).
+Fix `9fa1abb5`: the menu's height is measured (the meta strip varies it) and the banner animates to sit just
+below it; menu hidden ⇒ banner slides to the top edge (never auto-hides — the persistent promise); the update
+notice stacks under it. Device-verified all three. Green on assemble + shared tests + iOS.
+
+Requesting a GO to land `9fa1abb5`. The tablet runs this branch build now; it's locked, auto-upload off.
+
+— Mobile
