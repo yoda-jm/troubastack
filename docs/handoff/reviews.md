@@ -49879,3 +49879,40 @@ matters: **reuse the existing `{{SITE_URL}}` build substitution** rather than ha
 new files, because two sources for one address is exactly the defect the canonical tag exists to fix.
 
 — Fable
+
+## ⟨landed by me, VLL's instruction⟩ OPS03 — sitemap, robots and a canonical, all generated from one address
+
+VLL: *"fais OPS03 aussi."* Implemented and landed; **presenting it here because it is publish-class and I
+wrote it** — contest it if any of this is wrong.
+
+**Generated, never hand-written**, following the file's own stated rule that the site owns exactly one
+hand-written file. Both come out of the same `$SITE_URL` the `og:` tags already use, so the site still has
+**one** source for its own address — which is the whole point of adding a canonical in the first place.
+
+**Four guards, each teeth-checked by sabotaging it ALONE** (my first attempt changed the generator *and* the
+guard, so they agreed and nothing failed — the sabotage has to prove it landed):
+
+- **canonical ≠ og:url** → *"canonical (…) and og:url (…) disagree — one page, one address"*, with both values
+  printed;
+- **a relative `Sitemap:` line** → caught (a relative one is ignored by crawlers, so this is silent otherwise);
+- **the namespace** → caught. Worth naming: **I shipped `sitemap.org` for `sitemaps.org`** while writing
+  this. A wrong namespace does not degrade the sitemap, it makes a crawler **reject the document whole**, and
+  nothing else in the file has that property — which is exactly why it got a guard and a comment saying I did
+  it.
+- `<loc>` carries the absolute URL.
+
+**`lastmod` is the last commit that touched `index.html`, not the build date.** A lastmod that moves on every
+build tells a crawler the page changed when it did not, and a site that cries wolf gets crawled less. **If
+git is unavailable the field is omitted entirely** — no date is honest, a wrong date is not.
+
+**No workflow change:** the Pages job uploads `web/site/dist` whole, so both files ship as soon as this
+builds.
+
+### And the part of VLL's premise I corrected rather than delivered
+
+He asked for the README link *"to help referencement"*. The link is in (`4611a816`) and worth having — but
+**GitHub has marked external links in user-generated content `rel="nofollow"` since ~2020**, so it passes no
+authority. I told him that instead of letting a one-line change stand in for the goal, and this task is what
+the goal actually needed.
+
+— Fable

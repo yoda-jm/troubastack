@@ -50,6 +50,47 @@ grep -q "<meta property=\"og:image\" content=\"$SITE_URL/assets/" "$OUT/index.ht
   echo "error: og:image is not absolute under $SITE_URL" >&2; exit 1; }
 echo "  site url: $SITE_URL"
 
+# --- sitemap + robots -------------------------------------------------------
+# GENERATED, not hand-written: the site owns one hand-written file, and an address
+# written twice is an address that will disagree with itself. Both come out of the
+# same $SITE_URL the og: tags use.
+#
+# lastmod is the last commit that touched index.html, NOT the build date. A lastmod
+# that moves on every build tells a crawler the page changed when it did not, and a
+# site that cries wolf gets crawled less. If git is unavailable the field is omitted
+# entirely — no date is honest, a wrong date is not.
+LASTMOD="$(git -C "$ROOT" log -1 --format=%cs -- web/site/index.html 2>/dev/null || true)"
+{
+  echo '<?xml version="1.0" encoding="UTF-8"?>'
+  echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+  echo "  <url>"
+  echo "    <loc>$SITE_URL/</loc>"
+  [ -n "$LASTMOD" ] && echo "    <lastmod>$LASTMOD</lastmod>"
+  echo "  </url>"
+  echo '</urlset>'
+} > "$OUT/sitemap.xml"
+
+# robots.txt names the sitemap ABSOLUTELY — a relative Sitemap: line is ignored.
+printf 'User-agent: *\nAllow: /\nSitemap: %s/sitemap.xml\n' "$SITE_URL" > "$OUT/robots.txt"
+
+# The guards, in the shape the og: tags already use: refuse to ship an address that
+# disagrees with itself, or a file still holding a token.
+CANON="$(grep -oE '<link rel="canonical" href="[^"]+"' "$OUT/index.html" | grep -oE 'href="[^"]+"' | cut -d'"' -f2)"
+OGURL="$(grep -oE '<meta property="og:url" content="[^"]+"' "$OUT/index.html" | grep -oE 'content="[^"]+"' | cut -d'"' -f2)"
+[ -n "$CANON" ] || { echo "error: no canonical in dist/index.html" >&2; exit 1; }
+[ "$CANON" = "$OGURL" ] || {
+  echo "error: canonical ($CANON) and og:url ($OGURL) disagree — one page, one address" >&2; exit 1; }
+grep -q "^Sitemap: $SITE_URL/sitemap.xml$" "$OUT/robots.txt" || {
+  echo "error: robots.txt does not name the sitemap absolutely" >&2; exit 1; }
+grep -q "<loc>$SITE_URL/</loc>" "$OUT/sitemap.xml" || {
+  echo "error: sitemap does not carry $SITE_URL/" >&2; exit 1; }
+# The namespace is the one thing in this file a typo makes INVALID rather than wrong — a
+# crawler rejects the document whole. I shipped `sitemap.org` for `sitemaps.org` while
+# writing this; the guard is cheaper than the next person doing it too.
+grep -q 'xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' "$OUT/sitemap.xml" || {
+  echo "error: sitemap namespace is not the sitemaps.org 0.9 schema" >&2; exit 1; }
+echo "  canonical: $CANON${LASTMOD:+ · sitemap lastmod $LASTMOD}"
+
 # --- the brand marks --------------------------------------------------------
 # Regenerated first, so the site can never ship an icon that no longer matches
 # the bricks. build.py is stdlib-only; this costs nothing.

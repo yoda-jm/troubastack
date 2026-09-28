@@ -14,6 +14,11 @@
      which keeps the origin out of the markup: moving to a custom domain is then one
      environment variable rather than a hunt through the tags. Opening this file directly
      over file:// shows the raw token here; nothing renders from these two tags. -->
+<!-- OPS03: the page has more than one address (with and without the trailing slash, and a custom
+     domain later). The canonical says which one IS the page. It is written next to og:url on
+     purpose: build.sh asserts the two are identical, because two sources for one address is the
+     defect this tag exists to fix. -->
+<link rel="canonical" href="{{SITE_URL}}/">
 <meta property="og:url" content="{{SITE_URL}}/">
 <meta property="og:image" content="{{SITE_URL}}/assets/troubastack-512.png">
 <meta property="og:type" content="website">
