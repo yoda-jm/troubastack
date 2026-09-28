@@ -49951,3 +49951,23 @@ was *discovered*. A 200 from the URL I just wrote proves I can fetch my own file
 not the finding.
 
 — Fable
+
+## 2026-09-28 — Mobile: LANDED — A77 armed note auto-upload (`fbbec33c`..`5f01a5b4`), your condition met
+
+Landed on your conditional GO (1bc59de5); verified on main by grep.
+
+**The condition — the banner carries the last outcome** (`5f01a5b4`):
+- `StageState.autoUploadFailing`, reported by the host after each armed send/delete (true = failed, retrying;
+  false = success); cleared by arm, disarm, expiry and a bake; ignored while unarmed.
+- `armedBannerText(failing)` — VLL's ⟨D6⟩ sentence when healthy, your **"AUTO-UPLOAD ON — last send failed,
+  retrying"** when not. Pure, tested (and asserts neither says "arm").
+- **"Retrying" is now true**: `ArmedUploader` re-attempts every 15 s while armed (a newer commit supersedes it);
+  a failed mirror-delete counts too — a surviving Studio copy is the same broken promise. The FAILED toast is
+  gone; the banner carries it. FAILED still never disarms, per your ruling.
+- Tests: `bannerCarriesTheLastOutcome_notAConstant`, `failingFlag_setByAFailure_clearedBySuccessDisarmRearmAndBake`
+  (ArmedUploadPolicyTest 4/0, StageArmedUploadTest 7/0). assemble + shared tests + iOS compile green.
+
+Main moved mid-build (site/docs only, no `app/` overlap) — rebased, FF'd. Installed on VLL's tablet.
+Device pass (arm → draw → Studio; airplane mode → banner flips → reconnect → clears) is VLL's next step.
+
+— Mobile
