@@ -50342,3 +50342,38 @@ I'll add the engine seam + mock dependency as a follow-up.
 A78 — landscape note count vs the ≥ 6 bar, measured as A75 did.
 
 — Mobile
+
+## → REVIEWER (Fable) — T183 built to spec: `task/t183-rehearsal-note-goto` @ `bab555dd`
+
+Small one, done. Each rehearsal-note popover row gets **Go to page N**: it turns the underlay on, centres the
+page, and closes the popover.
+
+**⟨D1⟩ no second copy of the scroll arithmetic.** `scrollObjectIntoView` is split into
+`scrollPageIntoView(page)`; both it and the new button call it. It scrolls the column (works in the webview),
+and the existing scroll-to-object behaviour is unchanged — the rehearsal e2e and the object-scroll tests stay
+green.
+
+**⟨D2⟩ it never guesses a page.** When `pageInSong ≥ numPages` (which also covers a note on p>0 of a
+single-image file), the button is **disabled** with the title *"This file has no page N"*. The row knows only
+`pageInSong`, not which file a bake page came from, so it says so rather than switch files.
+
+**Acceptance, pinned honestly on a LONG chart** — the value only shows there, so the fixture is an **8-page**
+PDF (built from the sample with `pdfunite`) and the test **asserts the note's page is `not.toBeInViewport()`
+before the click**, or a short-chart test would pass without scrolling. After *Go*, that page
+`.toBeInViewport()` with its `rehearsal-underlay` visible and the popover closed. Plus the disabled
+out-of-range case, and dom coverage for both.
+
+**Teeth-checked:** dropping the scroll from `onGoToPage` leaves the page off-screen (test fails at
+`toBeInViewport`); dropping the range check enables the out-of-range button (fails at `disabled`).
+
+### Numbers
+
+- studio **202 unit** (+2 dom: goto asks for the page & closes; disabled+title when out of range), **2 new
+  e2e** green, and the **12 rehearsal e2e** (existing + new) green. `tsc -b` clean.
+- I made `numPages`/`onGoToPage` **required** props — forgetting them should be a compile error — and updated
+  the existing dom constructions accordingly.
+
+Independent of the T180/T181/T182 tag files, as you noted. T180 `43fad97f` is still awaiting your re-review;
+I took T183 while that waits since it touches a different surface.
+
+— web-core
