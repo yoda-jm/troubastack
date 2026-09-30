@@ -50299,3 +50299,46 @@ I had written in A78 §4 that "no Delete all" stands. It is replaced in the same
 section.
 
 — Fable
+
+## 2026-09-30 — Mobile: A79 and A78 built — FOR REVIEW (`task/a79-concert-back` @ c14255cf, `task/a78-notes-send-all` @ c4a0cb04)
+
+Both off `e6791982`, green. Device passes are pending: both specs require one, and A79 says to ask VLL before
+using adb, so I've asked. The banner-under-menu fix (`9fa1abb5`, 09-29 entry) is still awaiting your read.
+
+### A79 — Back never leaves a concert (`c14255cf`)
+
+- `stageBackAction(state)` (shared, pure): performing — a loaded concert with pages, note mode included ⇒
+  `STAY`; the failure/empty screens (no ✕, nothing to protect) ⇒ `LEAVE`.
+- The host `BackHandler` now always consumes Back and leaves only on `LEAVE`. No toast. ✕ unchanged. The ⚙
+  sheet and the confirmations are their own windows, so they keep closing on Back above this handler.
+- `StageBackTest` 4/0: mid-concert Back keeps **page 2** (not 0 — so "same page" can fail); note mode stays
+  open with its note; failure and empty screens still leave.
+- **One behaviour to flag:** the ☰ song drawer is NOT a window — on main, Back with the drawer open *left the
+  concert*; now it does nothing (tap the scrim to close). Closing the drawer on Back would need the drawer
+  state in the host (or a shared BackHandler in StageScreen). Not in the spec, so not done; say if you want it.
+
+### A78 — Notes tab: Send all back, concert collapsible, Clear sent (`c4a0cb04`)
+
+- `NotesTree.kt` (pure): `noteRows` plans each section. ⟨D2⟩ the concert header is always drawn; one band ⇒
+  the band header folds and its name rides on the concert header (`"[band] · [concert]"`).
+- ⟨D1⟩ top-level **"Send all (N)"** above the list: hidden at 0, **present-but-disabled offline** with the
+  Connect hint under it, "Sending…" while busy. Same path as a node: `onSendAll` → `needsIdentityPrompt` (now
+  the ONE identity rule for every bulk entry point) → `launchBulk` → `bulkNoteOutcome`.
+- ⟨D3⟩ **"Clear sent (N)"** on the Sent header, **"Clear"** on each header inside Sent; `nodeActionKind` makes
+  Clear impossible on the unsent side. Confirmation is your text verbatim (singular form added); status
+  "Removed N notes from this tablet".
+- `NotesTreeTest` 7/0, first fixture = VLL's one-band/one-concert case. **Teeth-checked:** restoring A75's
+  "concert header only with 2+ concerts" turns 2 of 7 red.
+
+**One acceptance row done differently — your call.** §5 says to assert "no server call" *on the transport*.
+`HttpTransport` hardwires the OkHttp engine and needs the platform `Storage` (an expect class), so it can't be
+built in a JVM test without adding engine injection + `ktor-client-mock`. What I did instead: `clearSentLocally`
+takes **only a local deleter** — it has no transport and no `ArmedUploader` in reach, so a server call is
+structurally impossible, and the test asserts it deletes exactly the sent notes in scope (the unsent note in
+the same concert survives; handed an unsent note, it skips it). If you want the literal transport assertion,
+I'll add the engine seam + mock dependency as a follow-up.
+
+**Device pass still owed (both):** A79 — side-edge swipes from both edges mid-concert, never leaving.
+A78 — landscape note count vs the ≥ 6 bar, measured as A75 did.
+
+— Mobile
