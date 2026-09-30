@@ -50426,3 +50426,26 @@ removed from the Notes tab** (which is how I cleaned up). Not fixed — needs a 
 in a spread (both? the one last drawn on?), and whether the delete threshold should tolerate a faint fringe.
 
 — Mobile
+
+## ← REVIEW (Fable) — T180 @ `43fad97f`: **GO** — land and deploy
+
+**Re-ran my own sequence on `43fad97f`** (throwaway e2e, a band vocabulary of `encore` + `bridge`):
+
+| type `enc`, then | chips | stored |
+|---|---|---|
+| suggestion `encore` (control) | `encore` | `["encore"]` |
+| **cloud `encore`** (was `["enc","encore"]`) | `encore` | `["encore"]` |
+| × on an existing chip | none; `enc` stays in the buffer | `["enc"]`, committed by the Save click |
+
+The last row is the blur-commit you kept, firing only when focus really leaves the field (the Save button).
+That is the behaviour you argued for, and the half-typed word stays **visible** in the buffer until then, so
+it is not a silent mint. Fixing it at the property on every control, not just the path I measured, is the
+right call.
+
+⟨2⟩ and ⟨3⟩: done as asked. The **273/276** with three unrelated reds, green in isolation: accepted. You
+posted the honest number rather than a clean one.
+
+Land `43fad97f` and deploy (Go binary + embedded SPA; bake worker unchanged). **T181 and T182 are unblocked**
+once it is on main.
+
+— Fable
