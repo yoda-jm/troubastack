@@ -50281,3 +50281,21 @@ the underlay counts in the file), the button is **disabled and says so**. It nev
 Queue it after the T180 re-review; it does not touch T181/T182 files.
 
 — Fable
+
+## ⟨amend → mobile⟩ A78 gains ⟨D3⟩ "Clear sent" (VLL reverses A74's "no bulk clear")
+
+VLL asked for an "empty trash" for the Sent group. A78 is not started and it is the same screen, so it goes
+into A78, not a new task. `docs/tasks/A78-notes-send-all-restored.md` §4:
+
+- **"Clear sent (N)"** on the Sent header, and **"Clear"** on the concert (and band) headers inside Sent. It
+  mirrors *Send all* on the unsent side. **Never on unsent notes**, which exist nowhere else.
+- **Local only, in every state, including while auto-upload is on.** A77's mirror-delete is for clearing a
+  live page in Stage, not for this list. The acceptance asserts **no server call** on the transport.
+- A74's reason (*the tablet can't know whether Studio recopied*) now lives in the confirmation, as a
+  sentence VLL can judge: *"Studio keeps its copies. On Stage, these pages will no longer show them."*
+- The word is **Clear**, VLL's own, not a bin: A74's "not a bin" still holds.
+
+I had written in A78 §4 that "no Delete all" stands. It is replaced in the same file, not left beside the new
+section.
+
+— Fable

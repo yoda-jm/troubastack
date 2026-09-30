@@ -1,4 +1,4 @@
-# A78 — Notes tab: "Send all" and the collapsible concert come back
+# A78 — Notes tab: "Send all" and the collapsible concert come back; "Clear sent" empties the Sent group
 
 **Lane:** mobile · **Status:** specced, not started · **Origin:** VLL, 2026-09-30: *"send all of rehearsal
 notes has disappeared … at node level and top level, and you cannot collapse it anymore (not an
@@ -42,11 +42,37 @@ concert header (*"[band] · [concert]"*), so the context is not lost.
 
 The "Sent" group is unchanged. It is already a header, collapsed by default (A75 ⟨D3⟩).
 
-## 4. Not in this task
+## 4. ⟨D3⟩ "Clear sent": a bulk clear for the Sent group only (VLL, 2026-09-30)
 
-- **No "Delete all".** A74 ruled out a bulk clear, and that stands. Deleting stays per note, from the See
-  dialog. If VLL wants a bulk delete, it is a new decision.
-- The leaf rows, the Sent group, and the bulk-send outcome logic are unchanged.
+VLL: *"we should not forget a 'empty trash' lookalike in the sent one (at top level? intermediate?)"*. **This
+reverses A74's "no bulk clear"**, which was my ruling and not his. Its reason was that *the tablet cannot know
+whether Studio recopied*, and it still holds. It is now carried by the confirmation below instead of by the
+absence of the button. VLL knows his own workflow; a sent note is by definition safe in Studio.
+
+**Where, both levels, mirroring "Send all":**
+- on the **"Sent" header** (top level): **"Clear sent (N)"**, every sent note on this tablet;
+- on each **concert header inside Sent** (always drawn, ⟨D2⟩): **"Clear"**, that concert's sent notes.
+  With 2+ bands, the band headers inside Sent get it too, exactly where the unsent side has *Send all*.
+
+**The word is "Clear", not "Empty" or a bin.** A74's point stands: these are not deleted and recoverable, so
+a trash metaphor would lie. "Clear" is already VLL's word for removing a note (*Clear page*).
+
+**Only the Sent group.** Never on the unsent side: an unsent note exists nowhere else, and clearing it in
+bulk would destroy the only copy.
+
+**It is local, always, even while auto-upload is on.** It removes the tablet copies only. **The Studio copies
+are untouched in every state**, including inside an A77 window. A77's mirror-delete belongs to clearing a
+**live page in Stage**, not to tidying this list. If the path you use to delete would reach
+`ArmedUploader`, that is a defect.
+
+**Confirm with the consequence in numbers:** *"Remove 7 sent notes from this tablet? Studio keeps its
+copies. On Stage, these pages will no longer show them."* The second sentence is A74's reason, said to the
+person who can judge it. On confirm, the status line says *"Removed 7 notes from this tablet"*.
+
+## 4b. Not in this task
+
+- No bulk clear on unsent notes (above).
+- The leaf rows and the bulk-send outcome logic are unchanged.
 
 ## 5. Acceptance
 
@@ -57,6 +83,11 @@ The "Sent" group is unchanged. It is already a header, collapsed by default (A75
 - The top-level send goes through the same decision as a node send. Pin it by asserting that a foreign-identity
   note triggers the *Send under your account?* dialog from the top-level line too.
 - Offline: the line is present and disabled.
+- **Clear sent, local only.** With auto-upload **on**, *Clear sent* removes the tablet copies and makes **no**
+  server call. Assert this on the transport (no delete request), not only on the list. A concert-level
+  *Clear* removes only that concert's sent notes; an unsent note in the same concert survives. **The fixture
+  must contain that unsent note**, or the test cannot fail.
+- There is no *Clear* anywhere on the unsent side.
 - **Device pass on VLL's tablet** (landscape, 686 dp), measured the way A75 measured it. A75's bar was
   **≥ 8 notes visible**. This task adds at most two rows, so the bar is **≥ 6**. Report the actual number. If it
   falls below 6, report it; do not shrink the 48 dp touch targets to make it fit.
