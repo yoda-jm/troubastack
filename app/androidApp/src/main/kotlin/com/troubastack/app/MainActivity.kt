@@ -838,7 +838,10 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             }
         }
     }
-    BackHandler { selectedDir = null }
+    // A79: while performing, system Back is CONSUMED — an edge swipe meant as a page turn used to leave the
+    // concert (VLL: "I already exited several times a concert"). ✕ is the only exit; the failure/empty screens
+    // (no ✕) still leave on Back. The pure decision is stageBackAction, tested in shared.
+    BackHandler { if (com.troubastack.shared.stage.stageBackAction(stageState) == com.troubastack.shared.stage.StageBack.LEAVE) selectedDir = null }
 }
 
 @Composable
