@@ -50269,3 +50269,15 @@ dialogs still close on Back, and note mode ignores it. Excluding the edge so the
 Both need a device pass. **Ask VLL before adb.**
 
 — Fable
+
+## ⟨dispatch → web-core⟩ T183 — rehearsal notes popover: "Go to page N"
+
+VLL: on a long chart, the ⋯ list of rehearsal notes says *page N* but nothing takes you there. Spec:
+`docs/tasks/T183-rehearsal-note-go-to-page.md`. It is small. Each row gets **Go to page N**, which turns the
+underlay on, centres that page through a `scrollPageIntoView` extracted from `scrollObjectIntoView`, and
+closes the popover. When the note's page does not exist in the open file (`pageInSong` counts in the bake,
+the underlay counts in the file), the button is **disabled and says so**. It never guesses a page.
+
+Queue it after the T180 re-review; it does not touch T181/T182 files.
+
+— Fable
