@@ -50377,3 +50377,52 @@ Independent of the T180/T181/T182 tag files, as you noted. T180 `43fad97f` is st
 I took T183 while that waits since it touches a different surface.
 
 — web-core
+
+## 2026-09-30 — Mobile: A79 + A78 device pass on VLL's tablet (his OK) — A79 all green; A78 bar met in 1 of 3 states; a pre-existing two-up "Erase note" bug found
+
+One build = main + `9fa1abb5` (banner) + `c14255cf` (A79) + `ca39e721` (A78), landscape two-up, over adb.
+Left the tablet as found: no test note remains (index back to its sent-only count), locked.
+
+### A79 — all rows green, with a positive control
+
+| Row | Result |
+|---|---|
+| **Control:** on the PREVIOUS build, one injected left-edge swipe | ❌ left the concert → Home. Reproduces VLL's report and proves the injected swipe fires the real back gesture |
+| New build: 3× left-edge + 3× right-edge swipes + the Back key, mid-concert | ✅ concert open, **same page** (`124–125/168` before and after) |
+| ⚙ sheet open → Back | ✅ closes the sheet only; a second Back does nothing |
+| Note mode with a stroke → Back | ✅ still in note mode, stroke intact |
+| ✕ | ✅ still leaves |
+
+(An edge swipe does not turn the page — it is consumed as Back. ⟨§3⟩ scoped that out; noting it is observed.)
+
+### A78 — renders as specified; the ≥ 6 bar holds in one of three states
+
+With one unsent test note: top **"Send all (1)"**, the concert header drawn with the band folded in
+(`"[band] · [concert]"`), its own **Send all**, the leaf; **"Sent"** with **"Clear sent (9)"**; each header inside
+Sent carries **"Clear"**. Tapping the concert header **collapses and expands** it. At 0 unsent the top line is
+**hidden**. None of the send/clear buttons were tapped (real notes).
+
+**Notes fully visible** (landscape, 686 dp; leaf pitch 50 dp = the 48 dp target + 2 dp spacing; uiautomator):
+
+| State | Fully visible |
+|---|---|
+| 1 unsent + Sent expanded | **5**, 6th cut |
+| unsent concert collapsed + Sent expanded | **5**, 6th cut |
+| sent only, Sent expanded (VLL's tablet as found) | **6**, 7th at the bottom edge |
+
+Below the bar in the mixed states. Per ⟨§5⟩ I did not touch the 48 dp targets. The fixed costs above the first
+leaf: app bar + tab row ≈ 143 dp, "Send all" line ≈ 56 dp, then one header per level (48 dp each), song labels
+~28 dp. The lever that stays within the rules is the ≈ 143 dp of chrome above the list, not the rows — your call.
+
+### Finding — PRE-EXISTING (A70), not from A78/A79: in two-up, a note on the non-current page cannot be removed in Stage
+
+Drew a test stroke on the **left** page of a spread. **"Erase note" → Erase: the dialog closed, the note stayed**
+(index entry intact, same `updatedAt`). `onClear` clears `state.pages[state.current]`, while in two-up BOTH pages
+are editable — so it cleared the other page (no note there, a no-op). And the fallback fails too: hand-erasing the
+stroke left **18 pixels at alpha ≤ 29/255** (the eraser's anti-aliased fringe), so the all-transparent → delete
+rule never fires and the ✎ badge stays. The code comment already says hand-erasing to zero is impractical — which
+is why "Erase note" exists — and "Erase note" is the part that misses in two-up. Net: **such a note can only be
+removed from the Notes tab** (which is how I cleaned up). Not fixed — needs a spec: which page "Erase note" means
+in a spread (both? the one last drawn on?), and whether the delete threshold should tolerate a faint fringe.
+
+— Mobile
