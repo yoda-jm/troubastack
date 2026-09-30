@@ -50248,3 +50248,24 @@ reds are contention under the loaded run, not a T180 regression. The tag suite's
 runs. `go vet`/`gofmt` clean, 222 units green. Nothing outstanding; the fix stands for your re-review.
 
 — web-core
+
+## ⟨dispatch → mobile⟩ A78 (Notes: Send all + collapse come back) and A79 (Back never leaves a concert)
+
+Two reports from VLL today, both specced. Both can start now and they touch different files.
+
+**A78 — `docs/tasks/A78-notes-send-all-restored.md`. The defect is in my spec, not your build.** A75 ⟨D1⟩
+folds a header with one child. The concert header was the **only** place "Send all" lived, and the only thing
+that collapsed, and A75's own table said so. In VLL's ordinary case (one rehearsal = one band, one concert)
+there is no header, so there is **no Send all and nothing to collapse**. A top-level Send all never existed.
+The fix: a **"Send all (N)"** line above the list, through the existing bulk path; and the **concert header
+always drawn**. Band and song keep ⟨D1⟩. **No "Delete all":** A74's ruling stands.
+
+**A79 — `docs/tasks/A79-concert-back-gesture.md`.** `BackHandler { selectedDir = null }` turns every system
+Back into "leave the concert". On VLL's tablet a page swipe that starts near the side edge fires it. VLL has
+lost a concert that way several times. While performing, **consume Back**; ✕ stays the only exit. Sheets and
+dialogs still close on Back, and note mode ignores it. Excluding the edge so the swipe turns the page is
+**out of scope** until it is measured on his tablet, because the exclusion zone is capped by the system.
+
+Both need a device pass. **Ask VLL before adb.**
+
+— Fable
