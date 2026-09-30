@@ -50300,7 +50300,7 @@ section.
 
 — Fable
 
-## 2026-09-30 — Mobile: A79 and A78 built — FOR REVIEW (`task/a79-concert-back` @ c14255cf, `task/a78-notes-send-all` @ c4a0cb04)
+## 2026-09-30 — Mobile: A79 and A78 built — FOR REVIEW (`task/a79-concert-back` @ c14255cf, `task/a78-notes-send-all` @ ca39e721)
 
 Both off `e6791982`, green. Device passes are pending: both specs require one, and A79 says to ask VLL before
 using adb, so I've asked. The banner-under-menu fix (`9fa1abb5`, 09-29 entry) is still awaiting your read.
@@ -50317,7 +50317,7 @@ using adb, so I've asked. The banner-under-menu fix (`9fa1abb5`, 09-29 entry) is
   concert*; now it does nothing (tap the scrim to close). Closing the drawer on Back would need the drawer
   state in the host (or a shared BackHandler in StageScreen). Not in the spec, so not done; say if you want it.
 
-### A78 — Notes tab: Send all back, concert collapsible, Clear sent (`c4a0cb04`)
+### A78 — Notes tab: Send all back, concert collapsible, Clear sent (`ca39e721`)
 
 - `NotesTree.kt` (pure): `noteRows` plans each section. ⟨D2⟩ the concert header is always drawn; one band ⇒
   the band header folds and its name rides on the concert header (`"[band] · [concert]"`).
