@@ -50449,3 +50449,61 @@ Land `43fad97f` and deploy (Go binary + embedded SPA; bake worker unchanged). **
 once it is on main.
 
 — Fable
+
+## ← REVIEW (Fable) — mobile: A77 banner `9fa1abb5` **GO** · A79 `c14255cf` **GO** · A78 `ca39e721` **conditional GO**
+
+**`9fa1abb5` (banner under the menu): GO, land it.** The menu height is measured, not assumed (the meta
+strip varies it). The banner never auto-hides with the chrome, so the persistent promise holds. The device
+proof has the right shape: the same ⚙ tap at y=40, dead before and live after. The failing-banner row stays a
+seam test until VLL flips airplane mode; that gap is declared, which is correct.
+
+**A79 `c14255cf`: GO, land it.** `stageBackAction` reads the **live** `stageState`
+(`collectAsState`), so the handler cannot act on a stale snapshot. I checked that, because a captured
+state is the way this shape usually breaks. The unit test only proves the decision, not the screen, but your
+device table does: the **control on the previous build left the concert**, and the new build held page
+124–125/168 through six edge swipes and the Back key. That is the evidence that settles it.
+- **The ☰ drawer: yes, Back should close it.** My spec said dialogs and sheets keep closing on Back; the
+  drawer is the same kind of overlay, and the spec simply missed it. **Follow-up, after landing:** Back with
+  the drawer open closes the drawer and nothing else. The mechanism is yours (host state or a nested
+  handler); pin it with the drawer open → Back → drawer closed, concert still open.
+
+**A78 `ca39e721`: conditional GO.** The plan is a pure function, the first fixture is VLL's one-concert case,
+and restoring A75's rule turns 2/7 red. I checked the Clear path myself: `port` is `AndroidRehearsalNotes`
+(the local file store) and `onChanged` is a refresh, so **no server route exists**. I accept the structural
+argument in place of the transport assertion; adding an engine seam for it would cost more than it proves.
+
+**The condition: the density bar.** You measured **5** in the mixed states against **≥ 6**, and you left the
+48 dp targets alone, as asked. The lever is not the chrome in general. It is the **"Send all (N)" line
+itself, ≈ 56 dp, which needs no row of its own.** The Stage title row (`‹ Home · TroubaStage`, Perform
+mode) has an empty right side. **Put "Send all (N)" there while the Notes tab is selected**, with the same
+states (hidden at 0; disabled offline, with the Connect hint staying in the tab). That returns ≈ 56 dp,
+roughly one leaf at your 50 dp pitch, **which predicts 6 in both mixed states. Re-measure; do not take my
+arithmetic for it.** If it is still 5, report it and stop; the next lever is a VLL question, not yours or
+mine.
+
+**Nit, same pass:** the single-note send still uses `isForeign`, a second copy of the rule that
+`needsIdentityPrompt` now owns ("one rule, every entry point"). Route it through the same function.
+
+**Your two-up "Erase note" finding (pre-existing, A70):** a good catch, and correctly not fixed in this
+branch. I'll spec it separately; it needs a ruling on which page "Erase note" means in a spread.
+
+— Fable
+
+## ← REVIEW (Fable) — web-core: T183 `bab555dd` **CHANGES REQUESTED** (one, small)
+
+The extraction is right: one copy of the arithmetic. So is the long-chart fixture that asserts
+`not.toBeInViewport()` first. Required props are a good call.
+
+**⟨1⟩ An image chart disables a note the viewer is showing.** For an image file, `usePdfDocument` sets
+`numPages` to **0** and returns (`setNumPages(0)`, then the `image/` branch). The viewer still draws page 0's
+note on the image (`noteForPage(rehearsalNotes, 0)`). So a note on **page 1 of an image** gets a disabled
+button titled *"This file has no page 1"*, sitting over a note the reader can see. ⟨D2⟩ disables only
+**p > 0** on a single image. Your entry says the rule "also covers a note on p>0 of a single-image file"; it
+covers p = 0 too, and that is the bug.
+
+**The property:** the button is enabled exactly when the viewer draws that note on some page of the open file.
+The page count the chip receives must be **1 for an image**. How you derive it is yours. **Pin it on an image
+chart**: a page-1 note is enabled and scrolls to the image, and a page-2 note is disabled. The current e2e
+only uses a PDF, which is why it passed.
+
+— Fable
