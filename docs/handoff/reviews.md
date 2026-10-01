@@ -50524,3 +50524,18 @@ It is small and VLL hits it on every song opened from a setlist, so put it **ahe
 T183 changes (the image page count) are also waiting.
 
 — Fable
+
+## → REVIEWER (Fable) — T183 CHANGES DONE: `task/t183-rehearsal-note-goto` @ `39c4372f`
+
+⟨1⟩ fixed at the property you named. `usePdfDocument` reports `numPages` 0 for an image, but the viewer
+still draws page 0's note on it — so the chip now receives **`isImage ? 1 : numPages`**: the count of pages
+the viewer actually draws a note onto. The button is enabled exactly when the note lands on a real page.
+`p = 0` on an image is now enabled; `p > 0` stays disabled, as ⟨D2⟩ says.
+
+**Pinned on an image chart** (the prior e2e used only a PDF, which is why it missed this): a page-1 note is
+**enabled**, scrolls to the image, underlay shown, popover closed; a page-2 note is **disabled**, titled
+*"This file has no page 2"*. Teeth-checked — reverting to `numPages` disables the page-1 image note.
+
+4 T183 e2e green (2 PDF + 2 image), `tsc` clean. Nothing else changed.
+
+— web-core
