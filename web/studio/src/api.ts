@@ -495,6 +495,12 @@ export const api = {
   listSongs: (bandId: string) =>
     request<{ songs: Song[] }>("GET", `/api/bands/${bandId}/songs`).then((r) => r.songs),
 
+  // T180 ⟨D4⟩ — the band's tag vocabulary with usage counts, most-used first. One call per editor.
+  bandTags: (bandId: string) =>
+    request<{ tags: { tag: string; count: number }[] }>("GET", `/api/bands/${bandId}/tags`).then(
+      (r) => r.tags ?? [],
+    ),
+
   createSong: (bandId: string, title: string, artist?: string) =>
     request<{ song: Song }>("POST", `/api/bands/${bandId}/songs`, { title, artist }).then(
       (r) => r.song,

@@ -140,7 +140,12 @@ test("6. edit song metadata persists across reload", async ({ page }) => {
   await page.getByTestId("my-files-edit").click();
   await page.getByTestId("meta-key").fill("G#m");
   await page.getByTestId("meta-tempo").fill("128");
-  await page.getByTestId("meta-tags").fill("rock, encore");
+  // T180: tags are now a chip field — the commit gesture (comma/Enter) is the delimiter.
+  await page.getByTestId("tag-buffer").click();
+  await page.getByTestId("tag-buffer").fill("rock");
+  await page.getByTestId("tag-buffer").press("Enter");
+  await page.getByTestId("tag-buffer").fill("encore");
+  await page.getByTestId("tag-buffer").press("Enter");
   await page.getByTestId("meta-notes").fill("Capo 2");
   await page.getByTestId("meta-save").click();
   await expect(page.getByTestId("meta-notice")).toBeVisible();
@@ -149,7 +154,7 @@ test("6. edit song metadata persists across reload", async ({ page }) => {
   await page.getByTestId("my-files-edit").click();
   await expect(page.getByTestId("meta-key")).toHaveValue("G#m");
   await expect(page.getByTestId("meta-tempo")).toHaveValue("128");
-  await expect(page.getByTestId("meta-tags")).toHaveValue("rock, encore");
+  await expect(page.getByTestId("tag-chip")).toHaveText(["rock×", "encore×"]);
   await expect(page.getByTestId("meta-notes")).toHaveValue("Capo 2");
 });
 

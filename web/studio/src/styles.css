@@ -2122,3 +2122,41 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
   outline-offset: 1px;
   border-color: transparent;
 }
+
+/* T180 — song tag chip field: chips + buffer, a counted suggestion list, and the band vocabulary cloud. */
+.tag-input { position: relative; display: flex; flex-direction: column; gap: .4rem; }
+.tag-chips {
+  display: flex; flex-wrap: wrap; gap: .3rem; align-items: center;
+  padding: .3rem; border: 1px solid var(--border); border-radius: .4rem; background: var(--surface);
+}
+.tag-chips:focus-within { border-color: var(--brand); }
+.tag-chip {
+  display: inline-flex; align-items: center; gap: .2rem;
+  padding: .1rem .2rem .1rem .45rem; border-radius: .3rem;
+  background: var(--brand-tint, color-mix(in srgb, var(--brand) 12%, var(--surface)));
+  color: var(--fg); font-size: .82rem; flex: 0 0 auto;
+}
+.tag-chip-x { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 1rem; line-height: 1; padding: 0 .2rem; }
+.tag-chip-x:hover { color: var(--brand); }
+.tag-buffer { border: 0; outline: none; background: none; color: var(--fg); flex: 1 1 6rem; min-width: 6rem; padding: .15rem; }
+.tag-suggestions {
+  position: absolute; z-index: 9; top: calc(100% - .3rem); left: 0; right: 0; margin: 0; padding: .2rem; list-style: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: .4rem; box-shadow: 0 6px 20px rgba(0,0,0,.18);
+  max-height: 15rem; overflow-y: auto;
+}
+.tag-suggestions li { margin: 0; }
+.tag-suggestions button {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%;
+  border: 0; background: none; cursor: pointer; text-align: left; padding: .3rem .45rem; border-radius: .3rem; color: var(--fg);
+}
+.tag-suggestions button:hover { background: var(--brand-tint, color-mix(in srgb, var(--brand) 10%, var(--surface))); }
+.tag-suggestion-count { font-family: var(--font-mono); font-size: .72rem; color: var(--muted); flex: 0 0 auto; }
+.tag-suggestion-create { color: var(--brand); }
+.tag-cloud { display: flex; flex-wrap: wrap; gap: .3rem; }
+.tag-cloud-item, .tag-cloud-more {
+  display: inline-flex; align-items: center; gap: .3rem; padding: .12rem .45rem;
+  border: 1px solid var(--border); border-radius: .3rem; background: var(--surface); cursor: pointer;
+  color: var(--muted); font-size: .8rem;
+}
+.tag-cloud-item:hover, .tag-cloud-more:hover { border-color: var(--brand); color: var(--fg); }
+.tag-cloud-count { font-family: var(--font-mono); font-size: .7rem; color: var(--muted); }

@@ -75,6 +75,9 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/bands/{bandId}/invite-links/{id}", a.auth(a.revokeInviteLink))
 	mux.HandleFunc("POST /api/bands/{bandId}/lyrics-import", a.auth(a.lyricsImport))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs", a.auth(a.listSongs))
+	// T180 ⟨D4⟩ — the band-wide tag vocabulary with counts, ONE call per editor. A band-library
+	// property, so it sits beside the song list, not under /songs/{id}/.
+	mux.HandleFunc("GET /api/bands/{bandId}/tags", a.auth(a.bandTagCounts))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs", a.auth(a.createSong))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}", a.auth(a.updateSong))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}", a.auth(a.deleteSong))
@@ -618,6 +621,20 @@ func (a *WebAPI) createSong(w http.ResponseWriter, r *http.Request, u app.User) 
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"song": song})
+}
+
+// bandTagCounts serves the band's tag vocabulary with usage counts, most-used first (T180 ⟨D4⟩). An empty
+// array is the ordinary "no tags yet" answer, so the client never distinguishes absent from empty.
+func (a *WebAPI) bandTagCounts(w http.ResponseWriter, r *http.Request, u app.User) {
+	tags, err := a.svc.TagCounts(u, r.PathValue("bandId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if tags == nil {
+		tags = []app.TagCount{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tags": tags})
 }
 
 func (a *WebAPI) updateSong(w http.ResponseWriter, r *http.Request, u app.User) {

@@ -11,6 +11,7 @@ import { RowMenu, RowMenuItem } from "../../components/RowMenu";
 import { useFlipRows, useSortable } from "../../components/SortableList";
 import { normalizeLyrics, detectSections } from "./lyrics";
 import { ChartEditor, type ChartEdit } from "./ChartEditor";
+import { TagInput } from "./TagInput";
 
 export function Details({ title, children }: { title: string; children: ReactNode }) {
   // Default OPEN: the viewer is the headline, but the existing flows expect the
@@ -46,7 +47,7 @@ export function Metadata({
   const [key, setKey] = useState(song.key ?? "");
   const [tempo, setTempo] = useState(song.tempo != null ? String(song.tempo) : "");
   const [meter, setMeter] = useState(song.meter ?? "");
-  const [tags, setTags] = useState((song.tags ?? []).join(", "));
+  const [tags, setTags] = useState<string[]>(song.tags ?? []);
   const [notes, setNotes] = useState(song.notes ?? "");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -65,17 +66,13 @@ export function Metadata({
     setNotice(null);
     setBusy(true);
     try {
-      const tagList = tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
       const updated = await api.updateSong(bandId, song.id, {
         title,
         artist,
         key,
         tempo: tempo === "" ? 0 : Number(tempo),
         meter,
-        tags: tagList,
+        tags,
         notes,
       });
       onSaved(updated);
@@ -151,15 +148,10 @@ export function Metadata({
                 e.g. 4/4, 6/8, 3+4/8 — blank = 4/4
               </span>
             </div>
-            <div className="field">
-              <label htmlFor="meta-tags">Tags</label>
-              <input
-                id="meta-tags"
-                data-testid="meta-tags"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-              />
-              <span className="hint">Comma-separated.</span>
+            <div className="field wide">
+              <label>Tags</label>
+              <TagInput bandId={bandId} value={tags} onChange={setTags} />
+              <span className="hint">Enter or comma to add. Pick from the band's tags below.</span>
             </div>
             <div className="field wide">
               <label htmlFor="meta-notes">Notes</label>
