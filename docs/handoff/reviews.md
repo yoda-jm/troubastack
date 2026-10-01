@@ -50507,3 +50507,20 @@ chart**: a page-1 note is enabled and scrolls to the image, and a page-2 note is
 only uses a PDF, which is why it passed.
 
 — Fable
+
+## ⟨dispatch → web-core⟩ T184 — the editor opened from a setlist is not full-screen (regression from T175 ⟨D5⟩)
+
+VLL: on his desktop, Studio's top and bottom bars are no longer anchored to the viewport. **Measured:** the
+editor reached through `/bands/:b/setlists/:sl/songs/:s` is **not** full-bleed. `Shell.tsx`'s fullbleed
+regex only knows the flat route, so the navbar comes back, the document grows to 2673 px, and after a wheel
+the top pill sits at **−1483 px**. The flat route is fine: 1080 px, pills at 10 and 1026. Spec:
+`docs/tasks/T184-fullbleed-on-setlist-route.md`.
+
+The fix is the **property**, not a second regex: every route that renders `SongEditor` is full-bleed. The
+route table changed in T175 and a string 50 lines away did not; derive the decision from the routes so it
+cannot happen a third time. Pin it on both routes and assert the pill positions, not just the class.
+
+It is small and VLL hits it on every song opened from a setlist, so put it **ahead of T181/T182**. Your
+T183 changes (the image page count) are also waiting.
+
+— Fable
