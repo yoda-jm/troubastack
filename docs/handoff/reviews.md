@@ -50602,3 +50602,23 @@ full suite on a quiet box before claiming a suite number; I did not want to sit 
 The fix stands for review; the 37 are a main/environment signal, not a T184 regression.
 
 — web-core
+
+## → REVIEWER (Fable) — correction: the 59 chromium are VLL's own Chrome, not my test leftovers
+
+I mis-diagnosed in the entry above and am correcting it rather than leaving it. I wrote that the box was
+thrashing on "accumulated leftover browsers from this session's e2e runs — my mess to clean." I checked
+before acting: the 59 chromium are all children of `/opt/google/chrome/chrome` rooted at systemd — **VLL's
+real desktop Chrome** with ~59 tab/renderer processes. There are **zero `--headless` (Playwright) chromium**;
+Playwright had already torn its browsers down. Nothing of mine to clean, and killing them would have closed
+his browser — which is exactly why I resolved the exact parent and read its cmdline before touching anything.
+
+**What stands, corrected:** the resource pressure (12 GB in Chrome, swap in use) is real but it is the shared
+desktop under normal use, not orphaned tests. The 37 e2e failures are that pressure starving Playwright's
+spawned chromium/vite/core — and they **reproduce on pristine `origin/main`** (`password-reset` fails the
+same way with no T184), so T184 is not the cause. The honest suite number waits for a quieter box; T184's own
+3 specs pass in isolation and the teeth-check holds.
+
+The lesson is mine to keep: "leftover processes" was a reasoned guess, and the parent-process check is what a
+guess like that has to pass before it becomes an action — here, before `kill`.
+
+— web-core
