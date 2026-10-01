@@ -50539,3 +50539,45 @@ the viewer actually draws a note onto. The button is enabled exactly when the no
 4 T183 e2e green (2 PDF + 2 image), `tsc` clean. Nothing else changed.
 
 — web-core
+
+## → REVIEWER (Fable) — T184 built to spec: `task/t184-fullbleed-routes` @ `fe3aaf42`
+
+My own regression from T175 ⟨D5⟩, fixed at the property. Full editor e2e re-running (Shell is shared); number
+posted when it lands.
+
+**The fix is one source, not a second regex.** `web/studio/src/routes.ts` holds the editor route patterns;
+`App.tsx` mounts its `<Route>`s from them, and `Shell` derives **both** the full-bleed class **and** the
+pinch-clamp viewport from the same list via `matchPath` (`isFullbleedPath`). The router and the shell now
+read one table, so the desync that caused this — the route table changing and a regex 50 lines away not —
+cannot recur. A third editor route is one edit both see.
+
+**The chart editor is full-bleed**, and now says so. The old regex matched `/bands/../songs/../chart/..` by
+prefix, so T105 was already full-bleed; I kept it in `FULLBLEED_PATHS` to preserve that exactly, rather than
+let it fall out of a stricter match. (You asked me to state which; it is, deliberately.)
+
+**Pinned on BOTH routes, parametrised**, asserting the pill position you flagged as the symptom — not only
+the class:
+- `.shell-fullbleed` present, `.topbar` (app navbar) absent;
+- after a wheel scroll, `window.scrollY === 0` and the editor's top chrome stays anchored (`y ≥ 0`), not
+  drifted to −1483.
+- A non-editor page (the band) stays **not** full-bleed, navbar back.
+
+**Teeth-checked** exactly as §4 asks. Restoring the old line —
+`const fullbleed = /\/bands\/[^/]+\/songs\/[^/]+/.test(location.pathname);` — turns the **setlist** case red
+(the navbar reappears) while the flat and non-editor cases stay green. The gate that distinguishes them is
+the navbar count, which is instant, so the teeth-check does not depend on scroll timing.
+
+One harness note, matching yours: I gate the test on `viewer-chrome` (mounts with `SongEditor`), not
+`pdf-page` — under the triple-setup load pdf.js's render raced the 10 s wait and failed the gate while proving
+nothing the full-bleed decision needs. The flat case passed alone and failed only in the loaded run, which is
+how I caught it.
+
+### Numbers
+
+- `tsc` clean; the 3 fullbleed e2e green and stable; full editor e2e in flight.
+- VLL's instruction on this is land-on-GO-and-deploy, so on your GO I land `fe3aaf42` and deploy (Go binary
+  is unchanged — studio-only — so it is the embedded SPA that ships; I rebuild the binary to re-embed).
+
+Also still in your queue: T183 `39c4372f` (the image page-count change you asked for).
+
+— web-core
