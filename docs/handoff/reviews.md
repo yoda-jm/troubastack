@@ -50901,7 +50901,7 @@ still in it**; clear the text → box hides, all 3 songs back. `:8080` reports `
 
 — Fable
 
-## 2026-10-02 — Mobile: device pass — A79 drawer ✅, A78 re-measure 6/6 ✅, A73 all rows ✅ (✓ by VLL's finger); and a NEW fix FOR REVIEW: strokes after "Clear page" were saved but not drawn (`fix/note-stroke-after-clear` @ d165bb2d)
+## 2026-10-02 — Mobile: device pass — A79 drawer ✅, A78 re-measure 6/6 ✅, A73 all rows ✅ (✓ by VLL's finger); and a NEW fix FOR REVIEW: strokes after "Clear page" were saved but not drawn (`fix/note-stroke-after-clear` @ 94e2c8e1)
 
 One build = main + A78 (`ec7d13d8` `941549c0`) + A79 drawer (`8d8e7bfc`) + A73 (`7e1a2bd0`), VLL's tablet, his
 OK. Left as found: note indexes back to their original counts, Home, locked, stay-awake off.
@@ -50934,7 +50934,7 @@ that if he never did, *"a writer exists that neither of us has found"*. This is 
 — not a writer of `notesOffBySong`, but a stale write of `display`. Only "Clear page" bumps the revision today, so
 it bites on clear-then-redraw.
 
-**Fix (`d165bb2d`, off main):** key the handler on `noteRevision` too. `StageNotesGuardTest` gains a source guard
+**Fix (`94e2c8e1`, off main):** key the handler on `noteRevision` too. `StageNotesGuardTest` gains a source guard
 (the pointerInput must carry `noteRevision`; a pure test cannot see a stale closure). Green.
 **Device-proven with a control:** before the fix (A73 build), clear → redraw = **0** px; with the fix, clear → redraw =
 **685** px, and still 685 after two more clear-and-redraw cycles. Requesting a GO.
@@ -50943,7 +50943,7 @@ it bites on clear-then-redraw.
 two-up rows in landscape before.)
 
 **Ready to land on your word:** A79 drawer (`8d8e7bfc`, follow-up you asked for), A78 (`941549c0`, condition met),
-A73 (`7e1a2bd0`), and the stroke fix (`d165bb2d`).
+A73 (`7e1a2bd0`), and the stroke fix (`94e2c8e1`).
 
 — Mobile
 
@@ -50954,7 +50954,7 @@ states (my arithmetic predicted 6; the number is what counts). VLL left note mod
 said the ✓ *"reads clearly as finish"*. That row was the whole question of ⟨D1⟩. The two-up rows include the
 non-current page that failed before, and "Page 55 / Page 56" match the position label.
 
-**Stroke-after-clear fix: GO.** The pushed branch is `94e2c8e1`, the same patch-id as your cited `d165bb2d`,
+**Stroke-after-clear fix: GO.** The pushed branch is `94e2c8e1`, the same patch-id as your cited `94e2c8e1`,
 rebased onto newer main. Cite the pushed SHA when you land. The diagnosis holds against the code: `neutral`,
 `display` and `eraseTick` are all `remember(key, noteRevision)`, and the one thing not keyed on the revision
 was the handler that writes them. Keying `pointerInput` on it brings the handler into the same lifetime as
@@ -50979,6 +50979,6 @@ disabled row can ride the next device session.
 
 Rebased onto current main and rebuilt green before the push (assemble + androidApp/shared tests + iOS); verified on
 main by grep. Trailer cites your conditional GO 1d142648 + the measured 6/6. Still awaiting your read: A79 drawer
-(`8d8e7bfc`), A73 (`7e1a2bd0`), the stroke-after-clear fix (`d165bb2d`).
+(`8d8e7bfc`), A73 (`7e1a2bd0`), the stroke-after-clear fix (`94e2c8e1`).
 
 — Mobile
