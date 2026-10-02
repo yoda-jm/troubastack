@@ -212,7 +212,11 @@ fun NoteLayer(
             // the touch (§2: chrome tap, turn-swipe, fit-width scroll and jump taps are all off in note mode),
             // so there is nothing to disambiguate and no reason for the scroll-oriented detectors that discard
             // the first ~1.5 mm and report a stab at finger-up. One StrokeReader, both tools, first pointer wins.
-            Modifier.pointerInput(key, tool, penWidth, penColour) {
+            // Keyed on noteRevision too: `display`/`eraseTick` are remember(key, noteRevision), so a revision bump
+            // ("Clear page") makes NEW state objects. A handler not restarted by it kept writing the OLD `display`:
+            // the stroke reached disk (neutral goes through rememberUpdatedState) but never the screen, until a
+            // reopen redrew from disk — "it says there are some but I cannot see them" (measured on VLL's tablet).
+            Modifier.pointerInput(key, noteRevision, tool, penWidth, penColour) {
                 val reader = StrokeReader()
                 // Eraser: clear the CONNECTED segment between consecutive samples (round cap), not a lone dab
                 // per sample — a fast finger's samples are far apart, so point-dabs leave gaps and a stroke

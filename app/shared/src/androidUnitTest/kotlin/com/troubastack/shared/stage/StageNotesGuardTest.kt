@@ -120,4 +120,19 @@ class StageNotesGuardTest {
                 "wet preview and the committed note cannot diverge on colour (A70 ⟨D6⟩ R1)",
         )
     }
+
+    /**
+     * The drawing handler must restart on a note revision. `display` is remember(key, noteRevision): after "Clear
+     * page" bumps the revision it is a NEW state, and a pointerInput keyed without noteRevision keeps writing the
+     * old one — the stroke is saved (neutral is read through rememberUpdatedState) but never drawn, until reopen.
+     * Measured on the tablet: 999 opaque px in the saved PNG, 0 on screen. A pure test can't see a stale closure;
+     * this guards the key.
+     */
+    @Test
+    fun noteDrawingHandler_restartsOnANoteRevision() {
+        val src = stageFile("NotePad.kt").lineSequence().joinToString("\n") { it.substringBefore("//") }
+        val call = Regex("""pointerInput\(([^)]*)\)""").findAll(src).map { it.groupValues[1] }.toList()
+        assertTrue(call.isNotEmpty(), "found no pointerInput( in NotePad.kt — the guard lost its subject")
+        assertTrue(call.all { "noteRevision" in it }, "NotePad's drawing pointerInput must be keyed on noteRevision; keys were: $call")
+    }
 }
