@@ -2,7 +2,7 @@
  * Route table for the non-canvas Studio pages. The canvas/annotation editor at
  * /bands/:bandId/songs/:songId is a deferred placeholder (see SongEditor).
  */
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import { Login } from "./pages/Login";
@@ -19,13 +19,9 @@ import { Profile } from "./pages/Profile";
 import { Join } from "./pages/Join";
 import { RouteFallback, RouteErrorBoundary } from "./components/RouteBoundary";
 
-// T112: the annotation editor + its chart-editor route pull in pdf.js and the whole drawing canvas —
-// ~half the bundle, and code that nobody reaching /login needs. Load them only when an editor route is
-// actually visited, behind the Suspense boundary below.
-const SongEditor = lazy(() => import("./pages/SongEditor").then((m) => ({ default: m.SongEditor })));
-const ChartEditorPage = lazy(() =>
-  import("./pages/ChartEditorPage").then((m) => ({ default: m.ChartEditorPage })),
-);
+// The editor routes (lazy-loaded pages + their paths) live in one table so the router and Shell cannot
+// disagree about which routes are full-bleed (T184). App mounts them; Shell reads the same entries.
+import { EDITOR_ROUTES } from "./routes";
 
 export function App() {
   return (
@@ -48,17 +44,12 @@ export function App() {
           <Route path="settings" element={<BandSettings />} />
         </Route>
         <Route path="/bands/:bandId/setlists/:setlistId" element={<SetlistDetail />} />
-        <Route path="/bands/:bandId/songs/:songId" element={<SongEditor />} />
-        {/* T175 ⟨D5⟩ — the SAME editor, addressed through the setlist the reader came from, so Back is
-            the path minus its last two segments rather than something resolved at runtime. The flat
-            route above stays permanently: it is the song's canonical address, it is what the band list
-            links to, and it is in every existing bookmark. Two routes, one component, on purpose. */}
-        <Route
-          path="/bands/:bandId/setlists/:setlistId/songs/:songId"
-          element={<SongEditor />}
-        />
-        {/* T105: the dedicated full-page chart editor, reachable from the viewer and linkable. */}
-        <Route path="/bands/:bandId/songs/:songId/chart/:fileId" element={<ChartEditorPage />} />
+        {/* The editor routes come from ONE table (routes.tsx) that Shell also derives full-bleed from, so a
+            route cannot be mounted without being full-bleed (T184). Flat song address, the T175 ⟨D5⟩ setlist
+            address, and the T105 chart editor — all documented beside the table. */}
+        {EDITOR_ROUTES.map((r) => (
+          <Route key={r.path} path={r.path} element={r.element} />
+        ))}
         <Route path="/invites" element={<Invites />} />
         <Route path="/me" element={<Profile />} />
         <Route path="/join/:token" element={<Join />} />

@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { isFullbleedPath } from "../routes";
 import { useAuth } from "../auth";
 import { AccountMenu } from "./AccountMenu";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -61,7 +62,7 @@ export function Shell() {
   // low-vision users. Scope the restriction to the editor route; everywhere else is
   // zoomable. (index.html ships the zoomable default for the first paint.)
   useEffect(() => {
-    const editor = /\/bands\/[^/]+\/songs\/[^/]+/.test(location.pathname);
+    const editor = isFullbleedPath(location.pathname);
     const meta = document.querySelector('meta[name="viewport"]');
     if (!meta) return;
     meta.setAttribute(
@@ -83,7 +84,9 @@ export function Shell() {
   // The song editor is a full-bleed, canvas-first surface (T27 stage 3): hide the app
   // top bar so the score owns the whole viewport (also the mobile win). Back-nav lives
   // in the editor's own floating chrome.
-  const fullbleed = /\/bands\/[^/]+\/songs\/[^/]+/.test(location.pathname);
+  // T184: derived from the shared route table (routes.ts), not a path regex, so a new editor
+  // route cannot silently miss full-bleed the way the setlist route did (T175 ⟨D5⟩ regression).
+  const fullbleed = isFullbleedPath(location.pathname);
   // Embedded (in the app's WebView): drop the app-duplicating chrome entirely. (T46)
   const embedded = studioEmbedded();
 
