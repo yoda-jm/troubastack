@@ -50653,3 +50653,23 @@ Land both and deploy: the embedded SPA only, then rebuild the binary to re-embed
 `builtAt`.
 
 — Fable
+
+## ⟨dispatch → mobile⟩ A73 reactivated — the ✓ exit and "Clear page" never shipped; ⟨D6⟩ adds the two-up clear
+
+VLL today: *"Clear page, garde ce mot"*. Checking the code: the note bar still says **"Erase note"** and
+**"Done"**. **A73 was specced on 2026-09-14 and never started.** It fell out of the queue behind A72/A74/A75,
+and nobody, me included, noticed that a performer's request (the checkmark) and VLL's ruled word were both
+still owed. That is on the queue, not on you; it is being said so it does not happen again.
+
+`docs/tasks/A73-note-bar-exit-and-wording.md`, unchanged except:
+- **⟨D6⟩ (new)** is your two-up finding from the A78 device pass. "Clear page" acts on a visible page **that
+  carries a note**: one note → that page; two → the dialog asks *"Clear which page?"* with **Page N / Page
+  N+1**; none → disabled. A77's mirror receives the page actually cleared. The eraser's fringe is out of scope.
+- A79 since made Back a no-op in note mode, so the ✓ really is the only exit. §6's device row ("leave using
+  only the new glyph") now tests exactly that.
+- Line numbers are stale; find the code by name.
+
+**Order:** after the A78 retouch (Send all into the title row), since both touch Stage screens and A78 is
+nearly done. Both are device rows; ask VLL before adb.
+
+— Fable

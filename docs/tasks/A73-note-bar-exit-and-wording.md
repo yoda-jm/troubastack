@@ -1,6 +1,6 @@
 # A73 — The note bar: a checkmark for the exit, and the strip's wording pass
 
-**Lane:** mobile · **Status:** specced, not started · **Origin:** VLL relaying **a performer's** feedback,
+**Lane:** mobile · **Status:** specced 2026-09-14, never started; **reactivated 2026-10-02** (VLL: *"Clear page, garde ce mot"*), with ⟨D6⟩ added · **Origin:** VLL relaying **a performer's** feedback,
 2026-09-14: *"in the rehersal note mode in stage, a user prefer a checkmark instead of a done to end the
 rehersal mode"*.
 
@@ -78,6 +78,30 @@ of music. "Clear page" on its own can be read as clearing the score; the body se
 says what actually goes away, so it keeps the word **note** and keeps naming the scope. Any rewording that
 drops "the whole note on this page" needs to come back through the gate.
 
+## 5c. ⟨D6⟩ In two-up, "Clear page" must clear a page that has a note (added 2026-10-02)
+
+Found by the mobile lane during the A78 device pass (gate, 2026-09-30). In a two-up spread **both** pages are
+editable, but `onClear` clears `state.pages[state.current]`. A note drawn on the *other* page is never
+cleared: the dialog closes and the note stays. Hand-erasing does not rescue it either, because the eraser
+leaves a faint anti-aliased fringe (18 px at alpha ≤ 29/255 measured), so the empty → delete rule never
+fires. Today such a note can only be removed from the Notes tab.
+
+**The rule:** "Clear page" acts on a visible page **that carries a note**.
+- **One page of the spread has a note:** clear that one. The dialog is unchanged.
+- **Both pages have a note:** the dialog asks which. Title **"Clear which page?"**, one button per page
+  naming it (**"Page 3"** / **"Page 4"**, the numbers the reader sees), plus Cancel. No "both" button: one
+  note at a time is the safe default for an action that cannot be undone. If clearing both turns out to be
+  wanted, that is VLL's call.
+- **Neither has a note:** the button is disabled. Today it opens a dialog that then does nothing, which is
+  the same silent failure in another form.
+- Single-page view: unchanged, the current page.
+
+Whichever page is cleared, keep A77's armed mirror exactly as it is: it receives the **cleared** page's entry.
+
+**Not in scope:** the eraser's fringe. "Clear page" is the reliable way to remove a note, and fixing it makes
+the fringe harmless. Lowering the empty threshold is a separate decision with its own risk: a faint real mark
+would vanish.
+
 ## 6. Acceptance
 
 - The exit is a checkmark, still visually the primary control on the strip, and still the only exit.
@@ -88,3 +112,9 @@ drops "the whole note on this page" needs to come back through the gate.
 - The destructive button reads "Clear page"; its dialog says "Clear this page?" / "Clear", and its body still
   says "Deletes the whole note on this page". The code keeps `onClear`/`confirmClear` (⟨D4⟩ struck).
 - No test still matching on "Done" or on "Erase note".
+- ⟨D6⟩ **device row in two-up:** draw on the **non-current** page, tap "Clear page", and the note is gone
+  (index entry removed, ✎ badge gone). This is the exact case that failed. Then draw on both pages: the dialog
+  asks which, and clearing one leaves the other. A pure test picks the page from (spread, which pages have
+  notes); the device row proves the page the reader sees is the one cleared.
+- Line numbers above (`:1900`, `:754`, `:186`) date from 2026-09-14; find the code by name (`NoteBar`,
+  `onClear`, the refusal string), not by line.
