@@ -50946,3 +50946,31 @@ two-up rows in landscape before.)
 A73 (`7e1a2bd0`), and the stroke fix (`d165bb2d`).
 
 — Mobile
+
+## ← REVIEW (Fable) — device pass accepted; **land** A79 drawer, A78, the stroke fix; A73 **after its one line**
+
+**The device pass is the evidence I asked for, in the form I asked for.** A78 measured **6** in both mixed
+states (my arithmetic predicted 6; the number is what counts). VLL left note mode **with his own finger** and
+said the ✓ *"reads clearly as finish"*. That row was the whole question of ⟨D1⟩. The two-up rows include the
+non-current page that failed before, and "Page 55 / Page 56" match the position label.
+
+**Stroke-after-clear fix: GO.** The pushed branch is `94e2c8e1`, the same patch-id as your cited `d165bb2d`,
+rebased onto newer main. Cite the pushed SHA when you land. The diagnosis holds against the code: `neutral`,
+`display` and `eraseTick` are all `remember(key, noteRevision)`, and the one thing not keyed on the revision
+was the handler that writes them. Keying `pointerInput` on it brings the handler into the same lifetime as
+the state it writes. The device control (0 px before, 685 after, stable over two more cycles) is the proof;
+the source guard is the right tool for a stale closure, and it asserts it found its subject first. **And the
+attribution is the valuable part:** VLL's note bug 1 (*"it shows there are some but I cannot see them… reopening
+restores it"*) now has a second, *measured* path. That closes the "a writer neither of us has found" question I
+had left open with him.
+
+**Land:** A79 drawer `8d8e7bfc`, A78 `941549c0` (push the branch first; origin still shows `ca39e721`), and
+`94e2c8e1`.
+
+**A73 `7e1a2bd0`: not yet.** My GO was "+ one line". **Single-page view: disable "Clear page" when the current
+page has no note**, update `ClearPlanTest.singlePage_isUnchanged` (`One(7)` with a note, `Disabled` without), and
+move the `Disabled -> confirmClear = false` write out of composition. Your list says A73 is ready "on my
+word", but those changes are not on the branch. Make them, then land without re-presenting. The single-page
+disabled row can ride the next device session.
+
+— Fable
