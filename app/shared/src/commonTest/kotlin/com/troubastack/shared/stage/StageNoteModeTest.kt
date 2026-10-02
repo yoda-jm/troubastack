@@ -43,7 +43,8 @@ class StageNoteModeTest {
         val before = vm.state.value.current
         assertFalse(vm.requestNoteMode())
         val s = vm.state.value
-        assertEquals("Notes: switch to page mode", s.noteModeRefusal)
+        // A73 ⟨D3⟩ — the guard is fitMode == SCROLL, so BOTH Page and Width work; the string names both.
+        assertEquals("Notes: switch to Page or Width", s.noteModeRefusal)
         assertFalse(s.noteMode); assertFalse(s.noteModePending)
         assertEquals(before, s.current)
     }

@@ -242,7 +242,7 @@ class StageViewModel(
      */
     fun requestNoteMode(): Boolean {
         if (_state.value.fitMode == FitMode.SCROLL) {
-            _state.update { it.copy(noteModeRefusal = "Notes: switch to page mode") }
+            _state.update { it.copy(noteModeRefusal = "Notes: switch to Page or Width") }
             return false
         }
         _state.update { it.copy(noteModePending = true) }

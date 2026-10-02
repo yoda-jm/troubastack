@@ -117,6 +117,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -809,7 +811,7 @@ private fun Performing(
         // slides in on reveal; the A08 meta strip rides inside it (score stays clean when hidden). In
         // scroll mode the strip is inline in the column (ScrollReader), so it's omitted here.
         // A70 (VLL): note mode hides the top bar entirely — a clean drawing surface with only the docked
-        // note bar below; exit is the note bar's "Done", so the ✕/⚙ chrome would only distract/mis-fire.
+        // note bar below; exit is the note bar's ✓ (A73), so the ✕/⚙ chrome would only distract/mis-fire.
         // A77 (VLL): the armed banner must sit UNDER this menu while it is up — drawn over it, it covered the top
         // of ☰ ✎ ⚙ ✕ and swallowed taps there (measured on the tablet: a ⚙ tap in the covered band did nothing).
         // The menu's height varies (the meta strip), so it is MEASURED rather than assumed.
@@ -983,10 +985,13 @@ private fun Performing(
                     // impractical (stray specks keep the ✎ chip). Deletes through the port (an empty note is a
                     // deleted note), refreshes the index (chip goes), and bumps the revision so the layer
                     // reloads empty. The current page in note mode is state.current (turns are locked).
-                    val clearPage = state.pages.getOrNull(state.current)
-                    NoteBar(state, vm, colorMode, Modifier.fillMaxWidth(), docked = true, onClear = np@{
+                    // A73 ⟨D6⟩ — in two-up BOTH pages are editable, so "Clear page" acts on a visible page that
+                    // carries a note (not blindly state.current, which can be the other page).
+                    val visiblePages = if (twoUp) spread else listOf(state.current)
+                    val plan = clearPlan(visiblePages, twoUp) { i -> state.pages.getOrNull(i)?.let { state.noteForPage(it) } != null }
+                    NoteBar(state, vm, colorMode, Modifier.fillMaxWidth(), docked = true, clearPlan = plan, onClear = np@{ pageIndex ->
                         val np = notePad ?: return@np
-                        val pg = clearPage ?: return@np
+                        val pg = state.pages.getOrNull(pageIndex) ?: return@np
                         // A77 — capture the entry BEFORE the delete so the host can mirror the clear to Studio
                         // while armed (§5); after delete noteForPage would be null.
                         val cleared = state.noteForPage(pg)
@@ -2035,11 +2040,12 @@ private fun PageView(
 
 /**
  * A70 §3.7 — the note tool bar (replaces the ‹ › turn FABs in note mode): pencil · eraser · three widths ·
- * four colours · Done. Opaque; no undo/clear/opacity (§3.6 — undo IS the eraser). Reads/writes the VM's
+ * four colours · "Clear page" · ✓. Opaque; no undo/opacity (§3.6 — undo IS the eraser). The ✓ is the ONLY way
+ * out of note mode (the ✕/⚙ chrome is hidden), so it stays a filled Button (A73 ⟨D1⟩). Reads/writes the VM's
  * session tool state.
  */
 @Composable
-private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColorMode, modifier: Modifier = Modifier, docked: Boolean = false, onClear: () -> Unit = {}) {
+private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColorMode, modifier: Modifier = Modifier, docked: Boolean = false, clearPlan: ClearPlan = ClearPlan.Disabled, onClear: (pageIndex: Int) -> Unit = {}) {
     val chrome = stageChrome(colorMode)
     var confirmClear by remember { mutableStateOf(false) }
     // A70 (VLL): docked = flush bottom bar — square the bottom corners against the screen edge, round only
@@ -2076,18 +2082,40 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
                 ) { Box(Modifier.size(22.dp).clip(CircleShape).background(Color(c))) }
             }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { confirmClear = true }) { Text("Erase note") }
-            Button(onClick = { vm.exitNoteMode() }) { Text("Done") }
+            // A73 ⟨D5⟩ — VLL's word, restored: "Clear page". ⟨D6⟩ disabled when no visible page has a note.
+            TextButton(onClick = { confirmClear = true }, enabled = clearPlan != ClearPlan.Disabled) { Text("Clear page") }
+            // A73 ⟨D1⟩/⟨D2⟩ — a checkmark, still a FILLED Button (the sole exit must not read as a fourth tool), with
+            // an accessible name since the glyph alone has none. U+2714 HEAVY CHECK MARK: a thin ✓ on a filled
+            // container does not read at arm's length on a dark stage.
+            Button(onClick = { vm.exitNoteMode() }, modifier = Modifier.semantics { contentDescription = "Finish notes" }) {
+                Text("✔", style = MaterialTheme.typography.titleLarge)
+            }
         }
     }
-    if (confirmClear) {
-        AlertDialog(
+    if (confirmClear) when (val plan = clearPlan) {
+        // A73 ⟨D5⟩ — the dialog follows the button; the BODY stays exactly as it was: on Stage a "page" is a page
+        // of music, and this sentence is what says that only the NOTE goes away.
+        is ClearPlan.One -> AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("Erase this note?") },
+            title = { Text("Clear this page?") },
             text = { Text("Deletes the whole note on this page — this can't be undone.") },
-            confirmButton = { TextButton(onClick = { confirmClear = false; onClear() }) { Text("Erase") } },
+            confirmButton = { TextButton(onClick = { confirmClear = false; onClear(plan.page) }) { Text("Clear") } },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
         )
+        // ⟨D6⟩ — both pages of the spread carry a note: ask which, one per button, numbered as the reader sees
+        // them (the position label's page numbers). No "both": one note at a time for an undoable-never action.
+        is ClearPlan.Choose -> AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("Clear which page?") },
+            text = { Text("Deletes the whole note on this page — this can't be undone.") },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    plan.pages.forEach { p -> TextButton(onClick = { confirmClear = false; onClear(p) }) { Text("Page ${p + 1}") } }
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
+        )
+        ClearPlan.Disabled -> confirmClear = false
     }
 }
 
