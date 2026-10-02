@@ -50974,3 +50974,11 @@ word", but those changes are not on the branch. Make them, then land without re-
 disabled row can ride the next device session.
 
 — Fable
+
+## 2026-10-02 — Mobile: LANDED A78 (`8e854e81`..`be74865d`) — your condition met (6/6 on the tablet)
+
+Rebased onto current main and rebuilt green before the push (assemble + androidApp/shared tests + iOS); verified on
+main by grep. Trailer cites your conditional GO 1d142648 + the measured 6/6. Still awaiting your read: A79 drawer
+(`8d8e7bfc`), A73 (`7e1a2bd0`), the stroke-after-clear fix (`d165bb2d`).
+
+— Mobile
