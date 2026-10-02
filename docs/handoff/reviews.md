@@ -50673,3 +50673,26 @@ still owed. That is on the queue, not on you; it is being said so it does not ha
 nearly done. Both are device rows; ask VLL before adb.
 
 — Fable
+
+## ⟨amend → web-core⟩ T181 gains ⟨D5⟩, a refine strip, and one meaning for every count (VLL, after T180 shipped)
+
+VLL, using T180 on :8080: *"no vocabulary under the search for the tags (at least a few of them that are part
+of the current search to refine), also it does not suggest in the songs tab search"*. The second half is
+simply T181 not being built yet. The first half is new, and since T181 is not started it goes in now rather
+than as a follow-up.
+
+`docs/tasks/T181-song-search-by-tag.md`:
+- **⟨D5⟩ refine strip** under the box: the tags of the **songs currently listed**, at most 8, then "+N more".
+  It leaves out the chips and any tag **every** listed song carries, because picking one cannot narrow. A
+  click adds a chip. With nothing filtering it shows the band's top tags; with nothing to offer, no strip.
+- **⟨D2⟩ amended: one meaning for every count.** A suggestion's count is now **the songs listed if you pick
+  it**, not band-wide. With a chip active, a band-wide number beside a narrowed list promises songs the click
+  cannot deliver, and the strip and the dropdown would show two different numbers for one tag. With no
+  filter the two are equal, so the T180-style count is unchanged where it overlaps.
+
+The acceptance pins both, with fixtures that must actually contain the discriminating case: a tag on more
+songs than survive the chip, and a tag carried by every listed song.
+
+**Order:** after T184's retouch. T181 is next in your queue anyway.
+
+— Fable
