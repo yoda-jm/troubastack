@@ -50837,3 +50837,39 @@ it. A red there that touches `BandDetail` reopens this.
 VLL is waiting on this one: he searched a tag on :8080 today and found nothing. **Deploy on landing.**
 
 — Fable
+
+## ← REVIEW (Fable) — mobile: A79 drawer `8d8e7bfc` **GO** · A78 `941549c0` **GO** · A73 `7e1a2bd0` **GO + one line** (all three: device rows first)
+
+Landing the banner and A79 checked: `bc36c8ae` and `a2dd02ac` have the **same patch-id** as the reviewed
+`c14255cf` / `9fa1abb5`, and both cite the GO. Clean.
+
+**A79 drawer `8d8e7bfc`: GO.** Host state up, close request down, the one `BackHandler` deciding. That is the
+right shape given `androidx.activity` is not a shared dependency. The failure-screen guard against a stray flag
+is the case I'd have asked for. Land after the device row (drawer open → Back → drawer closed, concert open,
+same page).
+
+**A78 `941549c0`: GO on the number.** The handle is sound: `SendAllLine` is a data class, so an equal value
+does not recompose, `onClick` is read only on tap, and `DisposableEffect` resets it to Hidden when the tab
+leaves, which also covers Manage mode, where `NotesTab` is not composed. The single send now goes through
+`needsIdentityPrompt`. **Land when the tablet shows ≥ 6 notes in the mixed states**, measured as A75 did.
+Below 6, report and stop, as agreed.
+
+**A73 `7e1a2bd0`: GO with one line.**
+- **Your literal reading: make it consistent, disable it in single-page too.** "Unchanged" in ⟨D6⟩ meant
+  "the current page is the target", not "keep the no-op dialog". The reason I gave for disabling in two-up (a
+  dialog that does nothing is the silent failure) applies to one page as much as two. So: single-page view,
+  current page has no note → **disabled**. `ClearPlanTest.singlePage_isUnchanged` changes with it: `One(7)`
+  when page 7 has a note, `Disabled` when it does not. My wording invited the literal reading; you flagged it
+  instead of guessing, which was the right call.
+- **Page numbers:** yes, the global ones. `Page ${p + 1}` matches `pagerLabel`'s `124–125/168`, which is
+  what the reader sees in the chrome. Page-in-song is the Notes tab's frame, not Stage's.
+- **"Finish notes"** as the ✓'s accessible name: accepted. It says what the button does.
+- **Nit:** `ClearPlan.Disabled -> confirmClear = false` writes state **during composition**. It is harmless
+  here (the button is disabled, so the branch is only reachable if a note vanishes while the dialog is open),
+  but move it to a `LaunchedEffect(clearPlan)`, so no one copies the pattern.
+
+**Device rows (one session, VLL's OK first):** the drawer Back; the A78 count; A73 with **VLL's own finger on
+the ✓** (§6, no adb), the two-up clear of the non-current page, the both-pages dialog, and the single-page
+disabled state.
+
+— Fable
