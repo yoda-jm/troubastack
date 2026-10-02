@@ -50,6 +50,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -866,6 +867,9 @@ private fun ConcertsScreen(
     var names by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     // A70 §5.3 — the Stage section is two tabs: Bakes (today's list) | Notes (rehearsal-note management).
     var stageTab by remember { mutableStateOf(0) }
+    // A78 (Fable conditional GO): the Notes tab's "Send all (N)" lives in THIS title row's empty right side,
+    // not on a row of its own (≈ 56 dp back for the list). NotesTab publishes it here; see NotesSendAllHandle.
+    val notesSendAll = remember { NotesSendAllHandle() }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
@@ -960,6 +964,14 @@ private fun ConcertsScreen(
                         style = MaterialTheme.typography.headlineMedium,
                         modifier = Modifier.weight(1f),
                     )
+                    // A78 ⟨D1⟩ — top-level "Send all (N)", only while the Notes tab is selected. Same states as
+                    // before: hidden at 0, disabled offline (the Connect hint stays inside the tab), busy text.
+                    val line = notesSendAll.line
+                    if (stageTab == 1 && line is SendAllLine.Shown) {
+                        Button(onClick = { notesSendAll.onClick() }, enabled = line.enabled) {
+                            Text(if (line.sending) "Sending…" else "Send all (${line.count})")
+                        }
+                    }
                 }
                 // Manage-only affordances (import / download offers / edit / sign-in). Perform stays lean.
                 if (manage) {
@@ -1043,7 +1055,7 @@ private fun ConcertsScreen(
                 }
             }
             } // A70: close the Bakes-tab wrapper (manage || stageTab == 0)
-            if (!manage && stageTab == 1) NotesTab(storage, transport, connected, onChanged = { refresh++ })
+            if (!manage && stageTab == 1) NotesTab(storage, transport, connected, onChanged = { refresh++ }, sendAllHandle = notesSendAll)
         }
     }
 }
@@ -1065,7 +1077,7 @@ private fun allNotesWarning(storage: Storage): NotesWarning =
  * also spells it out. This is the only place a note can be deleted, viewed off the page, or sent.
  */
 @Composable
-private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Boolean, onChanged: () -> Unit = {}) {
+private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Boolean, onChanged: () -> Unit = {}, sendAllHandle: NotesSendAllHandle? = null) {
     var refresh by remember { mutableStateOf(0) }
     val notes = remember(refresh) { allNoteEntries(storage) }
     val port = remember { AndroidRehearsalNotes(storage.notesDir()) }
@@ -1093,8 +1105,6 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
     var clearAsk by remember { mutableStateOf<List<NoteItem>?>(null) }
     LaunchedEffect(connected) { if (connected) myId = transport.myUserId() }
     fun noteId(cid: String, n: NoteEntry) = "$cid:${n.file}"
-    // §3.3: a note whose taker isn't the signed-in user. Unknown id (offline/failed /api/me) ⇒ no prompt.
-    fun isForeign(n: NoteEntry) = myId?.let { n.takenAs.isNotEmpty() && n.takenAs != it } ?: false
 
     // One note. [overwrite] off for a first send so a 409 surfaces the overwrite prompt; a Re-send passes it.
     fun launchSend(cid: String, n: NoteEntry, overwrite: Boolean) {
@@ -1151,7 +1161,7 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
     // Entry points — gate each on the identity prompt first (§6 step 1), then run.
     fun onSendTap(cid: String, n: NoteEntry) {
         if (!connected) return
-        if (isForeign(n)) idAsk = listOf(cid to n) to false else launchSend(cid, n, overwrite = n.sentAt != null)
+        if (needsIdentityPrompt(listOf(cid to n), myId)) idAsk = listOf(cid to n) to false else launchSend(cid, n, overwrite = n.sentAt != null)
     }
     fun onSendAll(items: List<Pair<String, NoteEntry>>) {
         if (!connected || items.isEmpty()) return
@@ -1199,12 +1209,12 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
     Column(Modifier.fillMaxSize()) {
         status?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 4.dp)) }
         // A78 ⟨D1⟩ — the top-level "Send all (N)" over every band and concert, through the SAME bulk path as a
-        // node (identity check → launchBulk). Present-but-disabled offline, with the Connect hint under it.
+        // node (identity check → launchBulk). Rendered in the screen's title row (no row of its own); this
+        // only publishes its state + action. The Connect hint below stays in the tab.
         val sendAll = sendAllLine(unsent.size, connected, sending = unsent.any { (c, n) -> noteId(c, n) in busy })
-        if (sendAll is SendAllLine.Shown) {
-            Button(onClick = { onSendAll(unsent) }, enabled = sendAll.enabled, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(if (sendAll.sending) "Sending…" else "Send all (${sendAll.count})")
-            }
+        if (sendAllHandle != null) {
+            SideEffect { sendAllHandle.line = sendAll; sendAllHandle.onClick = { onSendAll(unsent) } }
+            DisposableEffect(sendAllHandle) { onDispose { sendAllHandle.line = SendAllLine.Hidden } }
         }
         if (!connected) Text("Connect (Bakes tab) to send notes to Studio.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1285,6 +1295,14 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
             dismissButton = { TextButton(onClick = { idAsk = null }) { Text("Cancel") } },
         )
     }
+}
+
+/** A78 — carries the Notes tab's top-level "Send all" up to the screen's title row. [line] is observable (an
+ *  equal value does not recompose); [onClick] is a plain var read only on tap, so re-publishing it every
+ *  composition cannot loop. */
+class NotesSendAllHandle {
+    var line by mutableStateOf<SendAllLine>(SendAllLine.Hidden)
+    var onClick: () -> Unit = {}
 }
 
 /** A78 — a header's trailing action: "Send all" on the unsent side, "Clear" on the Sent side. */
