@@ -767,6 +767,9 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // it starts/stops with the toggle and cancels when Stage is left. Best-effort — a failed
     // tick is a no-op (autoUpdateTick returns null), the current rev keeps performing.
     val stageState by opened.vm.state.collectAsState()
+    // A79 follow-up — the Stage's ☰ drawer state (reported up) and the Back handler's close request (sent down).
+    var stageDrawerOpen by remember(opened) { mutableStateOf(false) }
+    var closeDrawerRequest by remember(opened) { mutableStateOf(0) }
     LaunchedEffect(dir, stageState.autoUpdate) {
         if (!stageState.autoUpdate || concertId.isEmpty()) return@LaunchedEffect
         while (isActive) {
@@ -835,6 +838,8 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     // hint sends a debounced note promptly on page turn / leaving note mode.
                     onNoteCommitted = { armedUploader.onCommitted(it) },
                     onFlushNotes = { armedUploader.flush() },
+                    onDrawerOpenChange = { stageDrawerOpen = it },
+                    closeDrawerRequest = closeDrawerRequest,
                 )
             }
         }
@@ -842,7 +847,13 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // A79: while performing, system Back is CONSUMED — an edge swipe meant as a page turn used to leave the
     // concert (VLL: "I already exited several times a concert"). ✕ is the only exit; the failure/empty screens
     // (no ✕) still leave on Back. The pure decision is stageBackAction, tested in shared.
-    BackHandler { if (com.troubastack.shared.stage.stageBackAction(stageState) == com.troubastack.shared.stage.StageBack.LEAVE) selectedDir = null }
+    BackHandler {
+        when (com.troubastack.shared.stage.stageBackAction(stageState, drawerOpen = stageDrawerOpen)) {
+            com.troubastack.shared.stage.StageBack.LEAVE -> selectedDir = null
+            com.troubastack.shared.stage.StageBack.CLOSE_DRAWER -> closeDrawerRequest++ // A79 follow-up: drawer only
+            com.troubastack.shared.stage.StageBack.STAY -> {}
+        }
+    }
 }
 
 @Composable

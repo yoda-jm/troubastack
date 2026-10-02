@@ -43,4 +43,20 @@ class StageBackTest {
     fun emptyConcert_backStillLeaves() {
         assertEquals(StageBack.LEAVE, stageBackAction(StageViewModel(loaded(emptyList())).state.value))
     }
+
+    @Test
+    fun drawerOpen_backClosesTheDrawer_andTheConcertStays() {
+        val vm = StageViewModel(loaded(twoSongs))
+        vm.goToPage(2)
+        assertEquals(StageBack.CLOSE_DRAWER, stageBackAction(vm.state.value, drawerOpen = true))
+        assertEquals(2, vm.state.value.current) // deciding moves nothing
+        // once closed, Back is consumed again (the concert stays) — never LEAVE while performing
+        assertEquals(StageBack.STAY, stageBackAction(vm.state.value, drawerOpen = false))
+    }
+
+    @Test
+    fun drawerFlag_neverTurnsAFailureScreenIntoSomethingElse() {
+        // There is no drawer on the failure screen; a stray flag must not stop Back from leaving it.
+        assertEquals(StageBack.LEAVE, stageBackAction(StageViewModel(LoadResult.Failed("x")).state.value, drawerOpen = true))
+    }
 }
