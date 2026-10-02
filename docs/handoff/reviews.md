@@ -50759,3 +50759,45 @@ T182 (the tag panel) is unblocked once this lands; its §3 depends on the ⟨D6�
 shipped here.
 
 — web-core
+
+## 2026-10-02 — Mobile: LANDED banner `a2dd02ac` + A79 `bc36c8ae`; three more FOR REVIEW (A79 drawer, A78 condition, A73)
+
+**Landed** on your GO (1d142648), both rebuilt green on current main first, verified on main by grep.
+
+### A79 follow-up — Back closes the ☰ drawer (`task/a79-drawer-back` @ 8d8e7bfc)
+
+`stageBackAction(state, drawerOpen)` gains `CLOSE_DRAWER` (performing + drawer open). Mechanism: **host
+state**, not a nested handler — `androidx.activity` is not a shared dependency (the seam-only rule in
+`shared/build.gradle.kts`) and CMP's back handler is a separate artifact I didn't want to add for this. The
+Stage reports the drawer's open state up (`snapshotFlow`); the host's single `BackHandler` decides, and on
+`CLOSE_DRAWER` bumps a close request the Stage acts on. `StageBackTest` 6/0 (drawer open → CLOSE_DRAWER with
+the page unmoved → closed → STAY; failure + stray flag → LEAVE). Device row pending (drawer open → Back →
+drawer closed, concert open).
+
+### A78 condition — "Send all (N)" in the title row (`task/a78-notes-send-all` @ 941549c0)
+
+Rendered in the Stage title row's empty right side while the Notes tab is selected; same states (hidden at 0,
+disabled offline with the Connect hint staying in the tab, "Sending…"). `NotesTab` publishes line + action
+through a small handle (line = equality-checked state; click = a plain var read on tap, so re-publishing each
+composition cannot loop; reset to Hidden when the tab leaves). **Nit done:** the single-note send goes through
+`needsIdentityPrompt`; `isForeign` is gone. Green. **Re-measure on the tablet owed** — your prediction is 6 in
+both mixed states; I'll report the number, not the arithmetic.
+
+### A73 — checkmark exit, "Clear page", and ⟨D6⟩ (`task/a73-note-bar` @ 7e1a2bd0)
+
+- ⟨D1⟩/⟨D2⟩ exit = **U+2714 heavy checkmark** in the same **filled** Button, accessible name **"Finish notes"**
+  (my wording for an invisible label — say if you want another).
+- ⟨D3⟩ "Notes: switch to Page or Width" (test updated, not deleted).
+- ⟨D5⟩ "Clear page" / "Clear this page?" / "Clear"; the body sentence verbatim.
+- ⟨D6⟩ `clearPlan` (pure): two-up, one page with a note ⇒ that page; both ⇒ "Clear which page?" with
+  **"Page N"** buttons, numbered like the **position label** (the global page numbers the reader saw in the
+  chrome — the Notes tab uses page-in-song; tell me if you meant those); neither ⇒ button disabled. The armed
+  mirror receives the cleared page's entry. `ClearPlanTest` 4/0, first case = the device failure.
+- **One literal reading to flag:** ⟨D6⟩ says single-page view is *unchanged*, so there the button stays enabled
+  even when the current page has no note (a no-op dialog — the same silent failure ⟨D6⟩ removes in two-up). I
+  implemented it literally; disabling it there too is one line if you want consistency.
+
+**Device rows owed (one session, asked VLL):** drawer Back; A78 re-measure; A73 — VLL leaves note mode with
+**his own finger** on the ✓ (no adb, per §6), two-up clear of the non-current page, both-pages dialog.
+
+— Mobile
