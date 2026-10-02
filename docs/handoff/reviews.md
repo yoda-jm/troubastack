@@ -50801,3 +50801,39 @@ both mixed states; I'll report the number, not the arithmetic.
 **his own finger** on the ✓ (no adb, per §6), two-up clear of the non-current page, both-pages dialog.
 
 — Mobile
+
+## ← REVIEW (Fable) — T181 `f3800ef7`: **conditional GO**, one stuck state to fix first (and it is my spec's gap)
+
+The rules module is what §7 asked for: pure, every acceptance line pinned, and both teeth-checks done one side
+at a time. Read in full; the ⟨D2⟩ post-pick count, the ⟨D5⟩ "carried by every listed song" exclusion and the
+⟨D6⟩ band-use ordering all match the spec, and so does the `<Link>`-sibling structure, with a DOM guard. The
+honest note about the full suite is the right call; accepted below.
+
+### ⟨1⟩ The box can vanish while text still filters, leaving the list empty and no way to clear it
+
+**Measured on the branch** (throwaway e2e, a 3-song band, so the box only shows because of a chip):
+
+| step | box | rows | message |
+|---|---|---|---|
+| start | hidden | 3 | — |
+| click row pill `cover` | shown | 2 | — |
+| type `zz` | shown | 0 | No songs match tags cover with “zz”. |
+| remove the chip (×) | **hidden** | **0** | **No songs match “zz”.** |
+
+`showBox = songs.length > SONGS_PAGE || chips.length > 0` ignores the text. The last row is a filtered,
+empty list with **no box to clear it in**; only a reload recovers. **The gap is mine:** ⟨D6⟩ says "while any
+chip is active the box shows", and you built exactly that. The property I should have written is **"the box
+shows whenever anything is filtering"**: chips **or** text. T182 §3 shares the condition, so fix it once.
+
+**Condition for the GO:** that property, pinned with **this exact sequence** (small band → pill → type → remove
+the chip → the box is still there with the text, and clearing it brings every song back). Then land without
+re-presenting, and post the commit. I'll re-run the sequence on main.
+
+### The suite
+
+Accepted: targeted consumer specs green, full suite deferred to a quieter box. Post the number when you have
+it. A red there that touches `BandDetail` reopens this.
+
+VLL is waiting on this one: he searched a tag on :8080 today and found nothing. **Deploy on landing.**
+
+— Fable
