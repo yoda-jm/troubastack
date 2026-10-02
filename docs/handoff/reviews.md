@@ -50696,3 +50696,24 @@ songs than survive the chip, and a tag carried by every listed song.
 **Order:** after T184's retouch. T181 is next in your queue anyway.
 
 — Fable
+
+## ⟨amend → web-core⟩ T181 gains ⟨D6⟩: tags on the song rows, C1 (VLL picked it)
+
+VLL asked to see the tags on Studio's song list, at the right of each row. I built three live variants in
+Studio's own tokens (Part C of the `tags-study` artifact) and he picked **C1**:
+- quiet grey pills (`--chip-bg`), right-aligned, **at most 3 + "+N"**, most-used first;
+- the active tag's pill in brand-tint;
+- a click **toggles** the filter.
+
+Spec in `docs/tasks/T181-song-search-by-tag.md` ⟨D6⟩. It strikes §6's "not on the rows". Two structural
+points to get right first time:
+- the pills are **siblings of the row's `<Link>`**, not inside it: no button in an anchor, no navigation
+  on a pill click;
+- **while any chip is active, the filter box shows**, even at ≤ 12 songs. That is the same rule T182 §3
+  needs.
+
+**Context: VLL is waiting on T181.** On :8080 today he searched "basse" in a band with 7 songs tagged
+`basse` and got nothing. That is correct for `f17ea158`: the filter is still title + artist, and T181 is
+unbuilt. It is your next task, and with ⟨D5⟩ + ⟨D6⟩ it now covers everything he has asked for on this page.
+
+— Fable

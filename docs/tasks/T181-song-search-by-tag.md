@@ -67,6 +67,42 @@ carries the same tags, or nothing is listed), no strip: an empty line is not inf
 It recomputes on every change to the words or chips. It is client-side over the list this page already holds,
 so there is no new call.
 
+## 3c. ⟨D6⟩ Tags on the song rows: C1, quiet pills at the right (VLL, 2026-10-02)
+
+VLL asked for the tags on Studio's song list, *"at the right of each item, with a design that works"*, and
+picked **C1** from Part C of the interaction study (`tags-study`, three live variants in Studio's own tokens).
+This reverses §6's *"Showing tags on the result rows"*, which is struck below.
+
+**The row, on the band's song list:**
+- the song's tags as **small pills, right-aligned**, after the title, artist and ✎ badge;
+- colour: Studio's **neutral metadata chip** (`--chip-bg` / `--chip-fg`), never the brand and never the
+  crimson of `.song-note-badge`. The two must not compete: crimson means "work waiting", grey means
+  "description";
+- **at most 3** pills, then **"+N"**, which reveals that row's remaining tags in place. Order: **most used
+  in the band first**, ties by name. The same tag then sits in the same place row after row, so the column
+  can be scanned;
+- a pill whose tag is an **active chip** (folded equality, §4) takes the brand-tint style, which is the one
+  place colour says "this is filtering";
+- **a click toggles the filter**: not a chip → it becomes one (exactly as a §3b strip click); already a chip
+  → the chip is removed. The box text is never touched;
+- untagged rows show nothing: no empty pill, no placeholder;
+- narrow viewport (≈ 400 px): the pills **wrap under the title** on tagged rows only. On a desktop the row
+  keeps its height.
+
+**Structure, because the row is a link:** the pills must be **siblings of the `<Link>`, not inside it**. A
+`<button>` nested in an `<a>` is invalid, and a pill click would also navigate to the song. The row stays one
+visual unit; the link covers the title area.
+
+**Accessibility:** each pill is a `<button>` with an accessible name that says what the click does: *Filter
+by "basse"* / *Remove the "basse" filter*. "+N" says *Show N more tags*.
+
+**The box must exist to show the chip.** Today the filter box only renders above `SONGS_PAGE` (12) songs. A
+pill click on a smaller band adds a chip, so **while any chip is active the box shows**, whatever the song
+count. T182 §3 states the same rule for its panel; one condition serves both.
+
+**Not chosen:** C2 (a second text line, which costs height on a 60-song list) and C3 (fading the other pills
+while filtering). C3 was offered as an optional extra; VLL picked C1 alone. Do not add the fade.
+
 ## 4. ⟨D3⟩ A chip is strict, and chips AND together
 
 A tag chip keeps a song when one of the song's tags **folds equal** to the chip. That is an exact match on the
@@ -92,7 +128,8 @@ If that is wanted later, it is a separate decision.
 ## 6. Not in this task
 
 - The Setlists page filter and any song picker elsewhere. This task covers the band song list only.
-- Showing tags on the result rows.
+- ~~Showing tags on the result rows.~~ **Struck 2026-10-02**: now ⟨D6⟩ (C1).
+- The setlist page and the add-a-song picker: the C1 row is for the band's song list only, for now.
 - Tags on Stage.
 - Renaming or merging tags (as in T180 §6).
 
@@ -126,3 +163,12 @@ the component thin.
   it shows only tags present in the listed songs, each count equal to the songs listed after clicking it, and
   **omits a tag that every listed song carries**. The fixture needs one such tag, or the omission is
   untested. Clicking a strip tag adds a chip and leaves the box text unchanged.
+- ⟨D6⟩ rows: a song with 5 tags shows **exactly 3** pills plus "+2", and the 3 are the band's most used
+  (**assert the order** on a fixture where alphabetical and by-use order differ, or the rule is untested).
+  "+2" reveals the other two on that row only.
+- ⟨D6⟩ a pill click adds the chip and filters the list; a second click on the same tag (pill or chip ×)
+  removes it. **A pill click does not navigate**: assert the URL is unchanged.
+- ⟨D6⟩ on a band with ≤ 12 songs, a pill click makes the box appear with its chip.
+- ⟨D6⟩ the pills are not descendants of the row's `<a>` (a DOM assertion, so a refactor that moves them
+  inside the link goes red).
+- ⟨D6⟩ an active tag's pill has the active style, and the others do not.
