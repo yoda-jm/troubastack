@@ -50900,3 +50900,49 @@ still in it**; clear the text → box hides, all 3 songs back. `:8080` reports `
 **T182 is unblocked.**
 
 — Fable
+
+## 2026-10-02 — Mobile: device pass — A79 drawer ✅, A78 re-measure 6/6 ✅, A73 all rows ✅ (✓ by VLL's finger); and a NEW fix FOR REVIEW: strokes after "Clear page" were saved but not drawn (`fix/note-stroke-after-clear` @ d165bb2d)
+
+One build = main + A78 (`ec7d13d8` `941549c0`) + A79 drawer (`8d8e7bfc`) + A73 (`7e1a2bd0`), VLL's tablet, his
+OK. Left as found: note indexes back to their original counts, Home, locked, stay-awake off.
+
+| Row | Result |
+|---|---|
+| A79 drawer: ☰ open → Back | ✅ drawer closes, concert stays (page unchanged); a 2nd Back does nothing |
+| A78 re-measure, 1 unsent + Sent expanded | ✅ **6** fully visible (was 5) |
+| A78 re-measure, unsent concert collapsed + Sent expanded | ✅ **6** fully visible (was 5) — your prediction held; 48 dp untouched |
+| A78 title row | ✅ "Send all (1)" right of the brand title, list starts under the tabs |
+| A73 ⟨D1⟩ — VLL entered note mode, drew, **left with his own finger on the ✓** | ✅ VLL: *"it reads clearly as finish"* |
+| A73 ⟨D2⟩ accessible name | ✅ "Finish notes" in the uiautomator tree |
+| A73 ⟨D6⟩ two-up, no note on either page | ✅ "Clear page" disabled |
+| A73 ⟨D6⟩ two-up, note on the left page / on the right page | ✅ each cleared (0 px left, ✎ badge gone) — one of the two is the non-current page that failed before |
+| A73 ⟨D6⟩ two-up, notes on both | ✅ "Clear which page?" · **Page 55** / **Page 56** (= the position label); clearing 55 left 56 (0 vs 285 px) |
+| A73 ⟨D5⟩ dialog | ✅ "Clear this page?" / "Clear", body verbatim |
+
+### NEW: a stroke drawn after "Clear page" was saved but never drawn — likely VLL's original note bug 1
+
+Found mid-pass: after a few clears, a fresh stroke on the left page **reached disk** (pulled the PNG: **999 opaque px
+exactly where drawn**; the Notes-tab preview showed it) but **0 px on screen**, with the ✎ badge up. Cause:
+`display`/`eraseTick` are `remember(key, noteRevision)`; "Clear page" bumps `noteRevision` ⇒ new state objects;
+`NotePad`'s `pointerInput(key, tool, penWidth, penColour)` was not restarted by it and kept writing the **old**
+`display`, while `neutral` — read through `rememberUpdatedState` — stayed live. Disk right, screen wrong, until a
+reopen redraws from disk.
+
+**That is VLL's note bug 1, clause by clause:** *"it is shown that there are some but I cannot see them, it worked
+at the beginning but not anymore"* + *"reopening restores it"*. You asked him whether he toggled ⚙→Layers, and said
+that if he never did, *"a writer exists that neither of us has found"*. This is a second path to the same symptom
+— not a writer of `notesOffBySong`, but a stale write of `display`. Only "Clear page" bumps the revision today, so
+it bites on clear-then-redraw.
+
+**Fix (`d165bb2d`, off main):** key the handler on `noteRevision` too. `StageNotesGuardTest` gains a source guard
+(the pointerInput must carry `noteRevision`; a pure test cannot see a stale closure). Green.
+**Device-proven with a control:** before the fix (A73 build), clear → redraw = **0** px; with the fix, clear → redraw =
+**685** px, and still 685 after two more clear-and-redraw cycles. Requesting a GO.
+
+(Device note: VLL had rotated the tablet to portrait mid-session; the fix was proven in single-page portrait, the
+two-up rows in landscape before.)
+
+**Ready to land on your word:** A79 drawer (`8d8e7bfc`, follow-up you asked for), A78 (`941549c0`, condition met),
+A73 (`7e1a2bd0`), and the stroke fix (`d165bb2d`).
+
+— Mobile
