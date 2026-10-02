@@ -2170,3 +2170,34 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 }
 .tag-cloud-item:hover, .tag-cloud-more:hover { border-color: var(--brand); color: var(--fg); }
 .tag-cloud-count { font-family: var(--font-mono); font-size: .7rem; color: var(--muted); }
+
+/* T181 — song search: chips + box, a counted suggestion dropdown, a refine strip, and row tag pills.
+   Reuses T180's .tag-chip / .tag-suggestions / .tag-cloud-* (one vocabulary for both surfaces). */
+.song-search { position: relative; display: flex; flex-direction: column; gap: .4rem; margin-bottom: .6rem; }
+.song-search-box {
+  display: flex; flex-wrap: wrap; gap: .3rem; align-items: center;
+  padding: .3rem; border: 1px solid var(--border); border-radius: .4rem; background: var(--surface);
+}
+.song-search-box:focus-within { border-color: var(--brand); }
+.song-search-box .song-filter { border: 0; outline: none; background: none; flex: 1 1 8rem; min-width: 8rem; padding: .15rem; }
+.song-search .tag-suggestions { position: absolute; z-index: 9; top: calc(100% - .3rem); left: 0; right: 0; }
+.tag-refine { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.filter-summary { margin: 0; font-size: .8rem; }
+
+/* row: title area (the link) on the left, tag pills pushed to the right */
+.song-row { display: flex; align-items: center; gap: .5rem; }
+.song-row > a { flex: 1 1 auto; min-width: 0; }
+.song-row-tags { display: flex; flex-wrap: wrap; gap: .25rem; justify-content: flex-end; flex: 0 1 auto; }
+.tag-pill {
+  border: 1px solid transparent; border-radius: .3rem; cursor: pointer;
+  padding: .05rem .4rem; font-size: .74rem; line-height: 1.4;
+  background: var(--chip-bg); color: var(--chip-fg); /* neutral metadata — never brand, never the crimson note badge */
+}
+.tag-pill:hover { border-color: var(--border-strong, var(--border)); }
+.tag-pill.active { background: var(--brand-tint); color: var(--brand-strong); border-color: var(--brand); }
+.tag-pill-more { font-family: var(--font-mono); }
+/* narrow (~phone): tag pills wrap under the title, tagged rows only; desktop rows keep their height */
+@media (max-width: 480px) {
+  .song-row { flex-wrap: wrap; }
+  .song-row-tags { justify-content: flex-start; flex-basis: 100%; }
+}

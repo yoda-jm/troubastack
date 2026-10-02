@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { badgeTitle, noteCount, withNotesFirst } from "./song-editor/noteBadge";
 import { Link, useLocation } from "react-router-dom";
 import QRCode from "qrcode";
@@ -15,6 +15,17 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
 import { NewItem } from "../components/NewItem";
 import { foldText } from "../foldText";
+import {
+  bandTagRank,
+  caretWord,
+  filterSongs,
+  filterSummary,
+  queryWords,
+  refineStrip,
+  removeCaretWord,
+  rowPills,
+  suggestForWord,
+} from "./song-search";
 import { useBand } from "./BandLayout";
 
 /** Sentence-case a short enum label (role, zone) for display. */
@@ -297,6 +308,53 @@ function ResetLinkPanel({ link, onDone }: { link: string; onDone: () => void }) 
 
 const SONGS_PAGE = 12;
 
+// T181 ⟨D6⟩ (C1) — a song's tags as quiet pills to the RIGHT of the row, siblings of the row's <Link> (never
+// inside it: a <button> in an <a> is invalid and the click would also navigate). Most-used-in-the-band first,
+// at most 3 then "+N" which reveals the rest on that row; a pill that is an active chip takes the brand tint
+// (the one place colour means "this is filtering"); a click toggles the filter.
+function RowTags({
+  song,
+  rank,
+  chips,
+  onToggle,
+}: {
+  song: Song;
+  rank: Map<string, number>;
+  chips: string[];
+  onToggle: (label: string) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const { shown, hidden } = rowPills(song, rank, chips, showAll ? Number.POSITIVE_INFINITY : 3);
+  if (shown.length === 0) return null;
+  return (
+    <span className="song-row-tags" data-testid="song-row-tags">
+      {shown.map((pill) => (
+        <button
+          type="button"
+          key={pill.folded}
+          className={"tag-pill" + (pill.active ? " active" : "")}
+          data-testid="row-tag"
+          aria-label={pill.active ? `Remove the "${pill.label}" filter` : `Filter by "${pill.label}"`}
+          onClick={() => onToggle(pill.label)}
+        >
+          {pill.label}
+        </button>
+      ))}
+      {hidden > 0 && (
+        <button
+          type="button"
+          className="tag-pill tag-pill-more"
+          data-testid="row-tag-more"
+          aria-label={`Show ${hidden} more tags`}
+          onClick={() => setShowAll(true)}
+        >
+          +{hidden}
+        </button>
+      )}
+    </span>
+  );
+}
+
 function Songs({ bandId }: { bandId: string }) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [title, setTitle] = useState("");
@@ -305,6 +363,13 @@ function Songs({ bandId }: { bandId: string }) {
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(SONGS_PAGE);
+  // T181 — tag chips (strict, AND) alongside the loose text. Chips live only in this page's state (not the
+  // URL, not remembered between visits — §5).
+  const [chips, setChips] = useState<string[]>([]);
+  const [caret, setCaret] = useState(0); // caret offset in the box, so suggestions are for the typed word
+  const [highlight, setHighlight] = useState(-1); // keyboard-highlighted suggestion; -1 = none
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const boxRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -366,12 +431,42 @@ function Songs({ bandId }: { bandId: string }) {
     }
   }
 
-  const q = foldText(query.trim());
-  const matched = q ? songs.filter((s) => foldText(`${s.title} ${s.artist ?? ""}`).includes(q)) : songs;
-  // ⟨D2⟩ — songs carrying notes come first, so the work to clear them is under the reader's nose
-  // instead of behind a filter they have to choose to enter. Ordering only; nothing is hidden.
+  // T181 ⟨D1⟩/⟨D3⟩ — loose words AND strict chips. Order is T173's: notes first; nothing is hidden.
+  const words = queryWords(query);
+  const matched = filterSongs(songs, chips, words);
   const filtered = withNotesFirst(matched, noteCounts);
   const shown = filtered.slice(0, limit);
+
+  const rank = useMemo(() => bandTagRank(songs), [songs]);
+  const summary = filterSummary(chips, query);
+  // ⟨D2⟩ suggestions are for the word under the caret only; ⟨D5⟩ the refine strip is over the LISTED songs.
+  const typed = caretWord(query, caret).word;
+  const suggestions = useMemo(
+    () => suggestForWord(songs, chips, words, typed),
+    [songs, chips, query, typed, words.join("\u0000")],
+  );
+  const [stripLimit, setStripLimit] = useState(8);
+  const strip = refineStrip(matched, chips, stripLimit);
+
+  const chipsFolded = new Set(chips.map(foldText));
+  function toggleTag(label: string) {
+    const f = foldText(label);
+    setChips((cs) => (chipsFolded.has(f) ? cs.filter((c) => foldText(c) !== f) : [...cs, label]));
+    setLimit(SONGS_PAGE);
+  }
+  function acceptSuggestion(label: string) {
+    setChips((cs) => (cs.some((c) => foldText(c) === foldText(label)) ? cs : [...cs, label]));
+    setQuery((t) => removeCaretWord(t, caret));
+    setSuggestOpen(false);
+    setHighlight(-1);
+    setLimit(SONGS_PAGE);
+    boxRef.current?.focus();
+  }
+  // The box shows whenever ANYTHING is filtering — above the page threshold, or while a chip is active, or
+  // while there is text. Text matters because a chip click on a small band shows the box, and removing that
+  // chip while text remains must NOT hide the box over a filtered (maybe empty) list the reader then cannot
+  // clear (Fable, T181 ⟨1⟩: the property is "filtering", not "has a chip"). T182 §3 shares this condition.
+  const showBox = songs.length > SONGS_PAGE || chips.length > 0 || query.trim() !== "";
 
   return (
     <section className="panel">
@@ -419,23 +514,127 @@ function Songs({ bandId }: { bandId: string }) {
           </p>
         ) : (
           <>
-            {songs.length > SONGS_PAGE && (
-              <input
-                type="search"
-                className="song-filter"
-                placeholder="Filter by title or artist…"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setLimit(SONGS_PAGE);
-                }}
-                data-testid="songs-filter"
-                aria-label="Filter songs"
-              />
+            {showBox && (
+              <div className="song-search" data-testid="song-search">
+                <div className="song-search-box">
+                  {chips.map((c) => (
+                    <span className="tag-chip" key={c} data-testid="search-chip">
+                      {c}
+                      <button
+                        type="button"
+                        className="tag-chip-x"
+                        aria-label={`Remove the "${c}" filter`}
+                        data-testid="search-chip-remove"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => toggleTag(c)}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    ref={boxRef}
+                    type="search"
+                    className="song-filter"
+                    placeholder="Filter by title, artist or tag…"
+                    value={query}
+                    data-testid="songs-filter"
+                    aria-label="Filter songs"
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setCaret(e.target.selectionStart ?? e.target.value.length);
+                      setSuggestOpen(true);
+                      setHighlight(-1);
+                      setLimit(SONGS_PAGE);
+                    }}
+                    onKeyUp={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
+                    onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
+                    onFocus={() => setSuggestOpen(true)}
+                    onBlur={() => window.setTimeout(() => setSuggestOpen(false), 0)}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setSuggestOpen(true);
+                        setHighlight((h) => Math.min(h + 1, suggestions.length - 1));
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setHighlight((h) => Math.max(h - 1, -1));
+                      } else if (e.key === "Enter") {
+                        // ⟨D2⟩ Enter accepts a HIGHLIGHTED suggestion, and otherwise does nothing — it never
+                        // turns text into a tag or picks the first on its own. preventDefault so it also
+                        // never submits the surrounding form.
+                        e.preventDefault();
+                        if (highlight >= 0 && suggestions[highlight]) acceptSuggestion(suggestions[highlight].label);
+                      } else if (e.key === "Escape") {
+                        setSuggestOpen(false);
+                        setHighlight(-1);
+                      } else if (e.key === "Backspace" && query === "" && chips.length > 0) {
+                        setChips((cs) => cs.slice(0, -1));
+                        setLimit(SONGS_PAGE);
+                      }
+                    }}
+                  />
+                </div>
+                {suggestOpen && suggestions.length > 0 && (
+                  <ul className="tag-suggestions" data-testid="search-suggestions" role="listbox">
+                    {suggestions.map((sg, i) => (
+                      <li key={sg.folded}>
+                        <button
+                          type="button"
+                          data-testid="search-suggestion"
+                          className={i === highlight ? "active" : undefined}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => acceptSuggestion(sg.label)}
+                        >
+                          <span className="tag-suggestion-name">{sg.label}</span>
+                          <span className="tag-suggestion-count" data-testid="search-suggestion-count">
+                            {sg.count}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {/* ⟨D5⟩ refine strip — the tags of what is currently listed, each count = songs if you pick it. */}
+                {strip.shown.length > 0 && (
+                  <div className="tag-refine" data-testid="tag-refine">
+                    {strip.shown.map((t) => (
+                      <button
+                        type="button"
+                        className="tag-cloud-item"
+                        key={t.folded}
+                        data-testid="refine-tag"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => toggleTag(t.label)}
+                      >
+                        {t.label} <span className="tag-cloud-count">{t.count}</span>
+                      </button>
+                    ))}
+                    {strip.hidden > 0 && (
+                      <button
+                        type="button"
+                        className="tag-cloud-more"
+                        data-testid="refine-more"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setStripLimit(Number.POSITIVE_INFINITY)}
+                      >
+                        +{strip.hidden} more
+                      </button>
+                    )}
+                  </div>
+                )}
+                {summary && (
+                  <p className="muted filter-summary" data-testid="filter-summary">
+                    {summary}
+                  </p>
+                )}
+              </div>
             )}
             {filtered.length === 0 ? (
               <p className="muted" data-testid="songs-no-match">
-                No songs match “{query}”.
+                {chips.length > 0
+                  ? `No songs match tags ${chips.join(" AND ")}${query.trim() ? ` with “${query.trim()}”` : ""}.`
+                  : `No songs match “${query}”.`}
               </p>
             ) : (
               <>
@@ -454,7 +653,7 @@ function Songs({ bandId }: { bandId: string }) {
                 )}
                 <ul className="list song-list" data-testid="songs-list">
                   {shown.map((s) => (
-                    <li key={s.id}>
+                    <li key={s.id} className="song-row">
                       <Link to={`/bands/${bandId}/songs/${s.id}`} data-testid="song-link">
                         <span className="song-link-title">{s.title}</span>
                         {s.artist ? <span className="muted"> — {s.artist}</span> : null}
@@ -477,6 +676,7 @@ function Songs({ bandId }: { bandId: string }) {
                           </span>
                         )}
                       </Link>
+                      <RowTags song={s} rank={rank} chips={chips} onToggle={toggleTag} />
                     </li>
                   ))}
                 </ul>
