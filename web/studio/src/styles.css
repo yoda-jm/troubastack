@@ -787,6 +787,16 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   background: transparent; color: inherit; font: inherit; font-size: .78rem;
 }
 
+/* T183 — "Go to page N" on a rehearsal-note row: same affordance as Done/remove, muted when the note's
+   page is not in the open file. */
+.rehearsal-note-goto {
+  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+  padding: .15rem .5rem; border-radius: .4rem;
+  border: 1px solid var(--border, rgba(255,255,255,.2));
+  background: transparent; color: inherit; font: inherit; font-size: .78rem;
+}
+.rehearsal-note-goto:disabled { opacity: .45; cursor: not-allowed; }
+
 /* ---- On-demand right DRAWER (Layers | Annotations): one tabbed glass dropdown,
    absolute over the canvas so opening/closing never resizes the score (zero-shift).
    Scrolls internally. ---- */

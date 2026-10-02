@@ -1019,18 +1019,24 @@ export function Viewer({
   // list item for an object on page N brings page N into view even when a
   // different page is currently scrolled to (Feature #4). We scroll the column
   // itself (offsetTop is relative to it) so it also works in the embedded webview.
+  // T183: the page-centring arithmetic, extracted so both "scroll to this object" and the rehearsal
+  // notes' "Go to page N" use ONE copy. Works in the embedded webview because it scrolls the column, not
+  // the window.
+  const scrollPageIntoView = useCallback((page: number) => {
+    const scroll = scrollRef.current;
+    const pageEls = scroll?.querySelectorAll<HTMLElement>(".pdf-page");
+    const el = pageEls?.[page] ?? pageEls?.[0];
+    if (!el || !scroll) return;
+    const target = el.offsetTop - scroll.clientHeight / 2 + el.clientHeight / 2;
+    scroll.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+  }, []);
   const scrollObjectIntoView = useCallback(
     (uuid: string) => {
       const obj = doc.objects.find((o) => o.uuid === uuid);
       if (!obj) return;
-      const scroll = scrollRef.current;
-      const pageEls = scroll?.querySelectorAll<HTMLElement>(".pdf-page");
-      const el = pageEls?.[obj.page] ?? pageEls?.[0];
-      if (!el || !scroll) return;
-      const target = el.offsetTop - scroll.clientHeight / 2 + el.clientHeight / 2;
-      scroll.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+      scrollPageIntoView(obj.page);
     },
-    [doc.objects],
+    [doc.objects, scrollPageIntoView],
   );
 
   // Delete the current selection (one or many objects). Only objects on the
@@ -1473,8 +1479,19 @@ export function Viewer({
         <RehearsalNotesChip
           notes={rehearsalNotes}
           shown={underlayOn}
+          // T183 ⟨1⟩: the count the chip gates "Go to page N" on is how many pages the viewer actually
+          // DRAWS a note onto — which is 1 for an image (usePdfDocument reports numPages 0 for images, but
+          // the viewer still draws page 0's note on it), and numPages for a PDF. The button is enabled
+          // exactly when the note lands on a real page of the open file.
+          numPages={isImage ? 1 : numPages}
           onToggle={() => setUnderlayOn((v) => !v)}
           onRemove={removeRehearsalNote}
+          onGoToPage={(page) => {
+            // T183 ⟨D1⟩: seeing a note you have hidden is pointless, so ensure the underlay is ON, then
+            // centre the page. The chip closes its own popover.
+            setUnderlayOn(true);
+            scrollPageIntoView(page);
+          }}
         />
 
         {/* T105 — for a generated text chart the source IS the file, so offer to edit it from where you

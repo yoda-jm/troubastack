@@ -55,14 +55,14 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
 
   it("renders no chip at all when this user has no notes", () => {
     const { container } = render(
-      <RehearsalNotesChip notes={[]} shown onToggle={() => {}} onRemove={() => {}} />,
+      <RehearsalNotesChip numPages={99} onGoToPage={() => {}} notes={[]} shown onToggle={() => {}} onRemove={() => {}} />,
     );
     expect(container.innerHTML).toBe("");
   });
 
   it("counts the notes and reflects whether the underlay is on", () => {
     const { rerender } = render(
-      <RehearsalNotesChip
+      <RehearsalNotesChip numPages={99} onGoToPage={() => {}}
         notes={[note({ pageInSong: 0 }), note({ pageInSong: 1 })]}
         shown
         onToggle={() => {}}
@@ -73,7 +73,7 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
     expect(chip.textContent).toContain("(2)");
     expect(chip.getAttribute("aria-pressed")).toBe("true");
     rerender(
-      <RehearsalNotesChip
+      <RehearsalNotesChip numPages={99} onGoToPage={() => {}}
         notes={[note()]}
         shown={false}
         onToggle={() => {}}
@@ -93,7 +93,7 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
       [null, false],
     ] as const) {
       const { unmount } = render(
-        <RehearsalNotesChip
+        <RehearsalNotesChip numPages={99} onGoToPage={() => {}}
           notes={[note({ pageChanged: value })]}
           shown
           onToggle={() => {}}
@@ -112,7 +112,7 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
   it("Done, remove asks for the note's own page", () => {
     const onRemove = vi.fn();
     render(
-      <RehearsalNotesChip
+      <RehearsalNotesChip numPages={99} onGoToPage={() => {}}
         notes={[note({ pageInSong: 4 })]}
         shown
         onToggle={() => {}}
@@ -184,7 +184,7 @@ describe("T170 §5.3 — a rehearsal note must not reach the renderer or the bak
 describe("T170 — the changed tag names what is checkable and nothing else", () => {
   it("says the page is not in the current bake, and blames nothing", () => {
     render(
-      <RehearsalNotesChip
+      <RehearsalNotesChip numPages={99} onGoToPage={() => {}}
         notes={[note({ pageChanged: true })]}
         shown
         onToggle={() => {}}
@@ -199,4 +199,48 @@ describe("T170 — the changed tag names what is checkable and nothing else", ()
       expect(words, `the tag blames a cause it cannot know: ${cause}`).not.toContain(cause);
     }
   });
+
+  // T183 — "Go to page N": the row asks for the note's own page, and refuses a page not in the open file.
+  it("Go to page N asks for the note's page and closes the popover", () => {
+    const onGoToPage = vi.fn();
+    render(
+      <RehearsalNotesChip
+        notes={[note({ pageInSong: 4 })]}
+        shown
+        numPages={8}
+        onToggle={() => {}}
+        onRemove={() => {}}
+        onGoToPage={onGoToPage}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("rehearsal-notes-more"));
+    const goto = screen.getByTestId("rehearsal-note-goto");
+    expect(goto.textContent).toBe("Go to page 5"); // 0-based 4 → shown 5
+    expect((goto as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(goto);
+    expect(onGoToPage).toHaveBeenCalledWith(4);
+    // popover closed
+    expect(screen.queryByTestId("rehearsal-notes-popover")).toBeNull();
+  });
+
+  it("Go is disabled, and says why, when the note's page is not in the open file", () => {
+    const onGoToPage = vi.fn();
+    render(
+      <RehearsalNotesChip
+        notes={[note({ pageInSong: 9 })]}
+        shown
+        numPages={8}
+        onToggle={() => {}}
+        onRemove={() => {}}
+        onGoToPage={onGoToPage}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("rehearsal-notes-more"));
+    const goto = screen.getByTestId("rehearsal-note-goto");
+    expect((goto as HTMLButtonElement).disabled).toBe(true);
+    expect(goto.getAttribute("title")).toBe("This file has no page 10");
+    fireEvent.click(goto);
+    expect(onGoToPage).not.toHaveBeenCalled();
+  });
+
 });

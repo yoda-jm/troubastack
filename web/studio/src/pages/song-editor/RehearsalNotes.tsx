@@ -97,13 +97,17 @@ export function noteDate(n: RehearsalNote): string {
 export function RehearsalNotesChip({
   notes,
   shown,
+  numPages,
   onToggle,
   onRemove,
+  onGoToPage,
 }: {
   notes: RehearsalNote[];
   shown: boolean;
+  numPages: number;
   onToggle: () => void;
   onRemove: (page: number) => void;
+  onGoToPage: (page: number) => void;
   }) {
   const [open, setOpen] = useState(false);
   if (notes.length === 0) return null;
@@ -154,6 +158,34 @@ export function RehearsalNotesChip({
                 >
                   not in the current bake
                 </span>
+              )}
+              {/* T183 — go to the note's page. pageInSong is 0-based in the file; numPages is the open
+                  file's page count. A note whose page is not in THIS file (a bake page from another file,
+                  or a note on p>0 of a single image) is drawn on no page here, so the button states that
+                  and does nothing rather than guess (⟨D2⟩). */}
+              {n.pageInSong < numPages ? (
+                <button
+                  type="button"
+                  className="rehearsal-note-goto"
+                  data-testid="rehearsal-note-goto"
+                  title={`Show this note and scroll to page ${n.pageInSong + 1}`}
+                  onClick={() => {
+                    onGoToPage(n.pageInSong);
+                    setOpen(false);
+                  }}
+                >
+                  Go to page {n.pageInSong + 1}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="rehearsal-note-goto"
+                  data-testid="rehearsal-note-goto"
+                  disabled
+                  title={`This file has no page ${n.pageInSong + 1}`}
+                >
+                  Go to page {n.pageInSong + 1}
+                </button>
               )}
               <button
                 type="button"
