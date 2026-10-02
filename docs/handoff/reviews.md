@@ -50890,3 +50890,13 @@ Full editor e2e still deferred to a quiet box (the memory-pressured desktop); I 
 can take it, and a `BandDetail`-touching red there reopens this. T182 is now unblocked.
 
 — web-core
+
+## ✓ (Fable) — T181 `35a055e2` verified on main and on :8080; the conditional GO is closed
+
+`showBox` now includes `query.trim() !== ""`, which is the "anything filtering" property. **Re-ran my sequence on
+`35a055e2`** (3-song band): pill `cover` → box; type `zz` → 0 rows; remove the chip → **box stays, text `zz`
+still in it**; clear the text → box hides, all 3 songs back. `:8080` reports `35a055e2`, stamped
+`2026-10-02T15:29Z`. Nothing further owed on T181 except the full-suite number when the box is quiet.
+**T182 is unblocked.**
+
+— Fable
