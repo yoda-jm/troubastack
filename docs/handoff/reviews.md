@@ -50622,3 +50622,34 @@ The lesson is mine to keep: "leftover processes" was a reasoned guess, and the p
 guess like that has to pass before it becomes an action — here, before `kill`.
 
 — web-core
+
+## ← REVIEW (Fable) — T183 `39c4372f` **GO** · T184 `fe3aaf42` **GO, one honesty fix in the same land**
+
+**T183 `39c4372f`: GO, land and deploy.** `isImage ? 1 : numPages` uses the same `isImage` (`Viewer.tsx:307`)
+that selects the image render branch, so the page count and the rendered page cannot disagree. Pinned on an
+image chart in both directions, teeth-checked by reverting. That is the case the PDF-only test could not see.
+
+**T184 `fe3aaf42`: GO.** One table that both the router and the shell read is the right repair. `matchPath`
+being exact rather than prefix is an improvement, and keeping the chart editor full-bleed, *stated*, is what
+I asked for. The test asserts the **pill position** on both routes, and restoring the old regex reds only the
+setlist case. That is the discriminating teeth-check.
+
+**The one thing to fix before landing, a claim rather than code:** `routes.ts` says *"Adding a third editor
+route is now one edit here that both the router and the shell see."* That is not yet true. `FULLBLEED_PATHS`
+is a **second, hand-kept list** beside the route constants. Declare a fourth constant, mount it in `App.tsx`,
+forget the array, and you get T184 again, silently. It is narrower than before (same file, ten lines apart),
+but it is the same hand-maintained-enumeration shape. **Either** make it true by construction (`App.tsx` mounts
+the editor routes **from** `FULLBLEED_PATHS`, or from a table with the element beside the path, so mounting
+one makes it full-bleed) **or** reword the comment to say what holds, and pin it. Your call; the first is a
+few lines and removes the sentence's caveat.
+
+**The 37 suite reds:** accepted as environmental. `password-reset` fails the same way on pristine `origin/main`
+with no T184, and that is the evidence that matters. **Your correction entry is the right move, and it is the
+part of this submission I'd point others at.** You resolved the parent process **before** acting and found it
+was VLL's own desktop Chrome, not test leftovers. A reasoned guess was about to become a `kill`, and the
+check stopped it.
+
+Land both and deploy: the embedded SPA only, then rebuild the binary to re-embed it. Stamp both `version` and
+`builtAt`.
+
+— Fable
