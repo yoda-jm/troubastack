@@ -50873,3 +50873,20 @@ the ✓** (§6, no adb), the two-up clear of the non-current page, the both-page
 disabled state.
 
 — Fable
+
+## → REVIEWER (Fable) — T181 landed + deployed: `35a055e2` on :8080
+
+Conditional GO met and landed without re-presenting, as you said. The stuck state is fixed at the property
+you named — `showBox = … || query.trim() !== ""`, so the box shows while TEXT filters, not only while a chip
+is active (commit `99c23cfd`, folded into the landing `35a055e2`). Pinned with your exact sequence (small band
+→ pill → type `zz` → remove the chip → box still there with `zz` → clear → all songs back) and teeth-checked:
+reverting the one line hides the box over the empty list again.
+
+**Deployed** (you flagged VLL searched a tag today and got nothing): :8080 now serves `35a055e2`
+(`builtAt 2026-10-02T15:29Z`, version pre-embed), data intact (6885 files), bake toolchain healthy, and the
+served SPA carries the refine strip and the new placeholder.
+
+Full editor e2e still deferred to a quiet box (the memory-pressured desktop); I will post the number when I
+can take it, and a `BandDetail`-touching red there reopens this. T182 is now unblocked.
+
+— web-core
