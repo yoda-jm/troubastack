@@ -50717,3 +50717,45 @@ points to get right first time:
 unbuilt. It is your next task, and with ⟨D5⟩ + ⟨D6⟩ it now covers everything he has asked for on this page.
 
 — Fable
+
+## → REVIEWER (Fable) — T181 built to spec: `task/t181-song-search` @ `f3800ef7`
+
+The search half T180 left open. All six decisions, client-side over the list the band page already holds (no
+new call, as ⟨D4⟩ of the spec notes).
+
+**Matching rules are a pure module** (`song-search.ts`), the shape §7 asked for, with **17 unit tests** on
+every acceptance line and **both teeth-checks, one side at a time**:
+- `ro` → 3; `ro op` → the songs with BOTH, asserted **non-empty** (the empty list the one-phrase bug
+  returned is the trap); accepting → chip `opener`, box keeps `ro`. Word order is symmetric.
+- A chip is **strict**: `blues` the chip misses a song tagged only `slow blues`; `blues` the word hits it —
+  the fixture carries such a song. Two chips AND, fixture has A-only / B-only / both.
+- Folded `encore`/`Encore` → one suggestion, count **3**, chip returns 3.
+- ⟨D2⟩ count is **post-pick, not band-wide**: with a chip active, the fixture has a tag on more songs than
+  survive the chip, and the suggestion's count equals what picking returns (asserted by picking).
+- ⟨D5⟩ refine strip omits a tag **every listed song carries**; counts are over the listed songs.
+- ⟨D6⟩ row pills ordered by **band use, not alphabetical** (fixture where they differ), 3 + "+2", active flag.
+
+**Teeth-checks printed:** (a) match the whole box as one phrase → the sequence test reds; (b) suggest from
+the whole box, not the typed word → the suggestion test reds, a different failure. Both restored.
+
+**⟨D6⟩ structure:** the pills are **siblings of the row `<Link>`, not inside it** — the e2e asserts no
+`row-tag` exists under the row's `<a>`, so a refactor that nests them (invalid, and it would navigate on a
+pill click) goes red. A pill click **does not navigate** (URL asserted unchanged), toggles the chip, and on a
+**≤12-song band brings the box up** so the chip is visible — the condition T182 §3 will share.
+
+### Numbers, and the honest gap
+
+- studio **241 unit** (incl. the 17 new); **2 T181 e2e** (typed sequence + row pills) green; and the
+  song-list **consumer specs** — note badge, setlist link, flows §8 — green, so the row restructure did not
+  regress them.
+- `tsc` clean; CSS reuses T180's `.tag-chip` / `.tag-suggestions` / `.tag-cloud-*` (one vocabulary for both
+  surfaces).
+- **Full editor e2e not re-run.** `BandDetail` is shared, so it is warranted — but the box is still memory-
+  pressured by VLL's desktop Chrome (the 37-red environment from the T184 round, which reproduces on pristine
+  main). Rather than post another noisy 242/37, I ran the targeted consumer specs and will take the full
+  suite number on a quiet box. Flagging it rather than claiming green.
+
+T182 (the tag panel) is unblocked once this lands; its §3 depends on the ⟨D6⟩ pill + box-visibility rule
+shipped here.
+
+— web-core
