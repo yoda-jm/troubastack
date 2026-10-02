@@ -256,6 +256,9 @@ fun StageScreen(
     // hint the host uses to send any debounced note promptly (§7: on page turn / on leaving note mode).
     onNoteCommitted: (com.troubastack.shared.stage.notes.NoteEntry) -> Unit = {},
     onFlushNotes: () -> Unit = {},
+    // A79 follow-up — the drawer's open state up to the host's single Back handler, and its close request down.
+    onDrawerOpenChange: (Boolean) -> Unit = {},
+    closeDrawerRequest: Int = 0,
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -270,7 +273,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow, pedalBindings, midiSignal, onNoteCommitted, onFlushNotes)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow, pedalBindings, midiSignal, onNoteCommitted, onFlushNotes, onDrawerOpenChange, closeDrawerRequest)
         }
     }
 }
@@ -297,6 +300,8 @@ private fun Performing(
     midiSignal: MidiSignal? = null, // A76 — the latest BLE-MIDI press (seq-stamped) to act on
     onNoteCommitted: (com.troubastack.shared.stage.notes.NoteEntry) -> Unit = {}, // A77 — host reconciles this note with Studio while armed
     onFlushNotes: () -> Unit = {},             // A77 — host sends any debounced note now (page turn / exit)
+    onDrawerOpenChange: (Boolean) -> Unit = {}, // A79 — the ☰ drawer opened/closed (the host's Back decision needs it)
+    closeDrawerRequest: Int = 0,                // A79 — bumped by the host's Back handler: close the drawer
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
     // A46 (A33 drill 2): persist the reading position on every move, so a process death / exit reopens
@@ -364,6 +369,11 @@ private fun Performing(
     // A15: song-jump navigation drawer, opened from the ☰ menu FAB.
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    // A79 follow-up (Fable): Back with the drawer open closes the drawer and nothing else. The host owns the ONE
+    // Back handler (androidx.activity is not a shared dependency), so the drawer's state goes up and a close
+    // request comes back down: report every open/close, and close on each new request.
+    LaunchedEffect(drawerState) { snapshotFlow { drawerState.isOpen }.collect { onDrawerOpenChange(it) } }
+    LaunchedEffect(closeDrawerRequest) { if (closeDrawerRequest > 0) drawerState.close() }
     // Auto-hide the chrome while nothing modal is open; any re-reveal or opened surface restarts it.
     // A70 §3.7: note mode holds the chrome open (the note bar's Exit must stay reachable).
     val overlayOpen = drawerState.isOpen || showSettings || showLayers || showRole || state.noteMode
