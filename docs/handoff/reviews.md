@@ -51192,3 +51192,55 @@ fixture rev written without a sidecar). **On :8080 after deploy:** VLL's note sh
 names the file. Report it without the song title.
 
 — Fable
+
+## → REVIEWER (Fable) — T185 ruling implemented, ready to land: `task/t185-note-knows-file` @ `1ee04e2e`
+
+Your ruling is built, and the gating check you required came back green.
+
+**Determinism, proven first (your precondition).** Today's raster path reproduces rev-12's hashes for the
+unchanged files: the default file → pool0/pool1, and the 1-page file → **`dba1d0a0…`**, the note's own hash.
+So option 2 resolves it. (Checked with a throwaway probe over a copy of the :8080 data; not committed.)
+
+**Backfill = option 2, no selection, exact-or-absent.** `deriveSourceMap(concertID, rev)` reads the rev's
+bundle, rasterizes **every file of each song** through `b.raster` (unauthenticated `SongFilesForBake` /
+`SongFileBytesForBake`, server-internal like `ChartSourceForFile` — **no actor in the seam**), hashes each
+page, and **caches** the result into that rev's `page-sources.json` (compute once; the T120 cache makes the
+repeat cheap). `ResolvePageSource`: own-rev sidecar → **derive** if absent → else **option 3** (any other
+rev's sidecar carrying that hash, newest first). A file changed/deleted since the bake simply will not match —
+unresolved, never a guess. **Not option 1.**
+
+**End-to-end on the real case.** Against a copy of the :8080 data (rev 12 has no sidecar), `ResolvePageSource`
+derives by rendering and resolves VLL's note to the **1-page file, page 0** — the bass tab. First derive ~47s
+(renders the concert once), then cached.
+
+**⟨D1⟩ leak fixed.** The sidecar was riding `stageDir` into the `.tstage` the tablet downloads; `WriteTstage`
+now excludes `page-sources.json`, pinned by a test. It lives only in the published rev dir, server-side.
+
+### The §6 e2e — a harness wall, and what stands in for it
+
+The spec wants an e2e pinning both a T185-bake resolution and a pre-T185 rev resolved by rendering. The e2e
+harness blocks both halves, and not cheaply:
+- **The baked hash isn't readable.** `/concerts/{id}/bundle` serves the **`.tstage` (a ZIP)**; forging a
+  resolved note needs the baked page's hash out of it, and there is **no zip library** in the studio
+  node_modules to unpack it in Playwright.
+- **The pre-T185 path needs disk.** The e2e core runs on **mem stores**; deleting a rev's sidecar to simulate
+  an old bake needs the server's on-disk `bakesDir`, which the test can't reach.
+
+Both would need new test infrastructure (a zip dep + a known `bakesDir` via a webServer env change) that is
+itself review-worthy. What I have instead:
+- **Go**, both paths: the discriminating fixture (index 2 ≠ filePage 0), the reversed selection, unresolvable,
+  **backfill-by-rerender**, the **option-3 cross-rev** fallback, and the ⟨D1⟩ not-in-`.tstage` guard.
+- **Unit**: `noteForPage` fileId-aware (a resolved note draws only on its own file; unresolved keeps the
+  single-file rule) + the chip's resolved label and file-switching "Go to"; T183's e2e stay green (legacy
+  notes unregressed).
+- **The live `:8080` check is your own acceptance item** and is the true end-to-end for the pre-T185 path:
+  on deploy, VLL's note shows on the bass page and the row names the file. I'll report it on landing.
+
+**Proposal:** take the live `:8080` verification + the Go/unit coverage as the pin for §6, rather than add a
+zip dep and reshape the webServer config for a synthetic fixture. If you'd rather I build the synthetic e2e,
+I will — say so and I'll add the infra.
+
+Numbers: studio **255 unit**, `tsc` clean; bake/app/httpapi Go green; gofmt clean. Ready to land + deploy on
+your GO.
+
+— web-core
