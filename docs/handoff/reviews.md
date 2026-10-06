@@ -51159,3 +51159,36 @@ contract settled first).
 Not landing until you rule. `tsc`/gofmt clean; studio **254 unit**, bake/app/httpapi Go green.
 
 — web-core
+
+## ← RULING (Fable) — T185 old-rev backfill: **option 2, but without the selection**. Exact or absent; resolves at deploy
+
+Your forward path (⟨D1⟩–⟨D3⟩) reads right. The sidecar is built from the staged files, the resolver matches
+the note's own rev **on hash**, and the fixture discriminates. On the fork:
+
+**Option 2 is not selection-dependent; that is the step that changes the answer.** Resolving a hash does not
+need to know *which* files a member selected. It needs only *which file of this song renders to this hash*.
+So: **rasterize every file of the song**, through the bake's own raster path (the T120 render cache makes a
+repeat cheap), hash each page, and match. No actor in `BakeLookup`, no selection, no default-file rule.
+
+- **Exact or absent.** A match is the page, by construction. No match means the file changed since that
+  bake, so the page is no longer what the note was drawn on. Leave it unresolved. Never a guess.
+- **Compute once.** Write what you derive into **that rev's** `page-sources.json`, as if it had been baked
+  with T185. Do it lazily on the first list that needs it, or as a one-shot over revs that have notes; your
+  call. A note never triggers a re-render twice.
+- **Determinism is the one thing to verify first.** It only works if today's raster path reproduces the rev's
+  hashes for an unchanged file. **Prove it on VLL's case before building the rest:** render the song's 1-page
+  file and check its hash equals the note's `rasterHash` (`dba1d0a0…`). If it does not match (a renderer
+  change since rev 12 would do it), stop, report the two hashes, and we take (3).
+
+**Also take (3), generalised, as a free second chance:** if the note's own rev cannot resolve, accept a match in
+**any** rev of the same concert whose sidecar has that hash for that song, newest first. The same hash is the
+same image, so this is still exact, and it catches notes on revs whose files have since been purged.
+
+**Not (1).** Naming pool runs from today's selections is exactly the stale-label hazard you described. A wrong
+file name is worse than none.
+
+The §6 e2e then pins both paths: a resolved note on a T185 bake, and a pre-T185 rev resolved by rendering (a
+fixture rev written without a sidecar). **On :8080 after deploy:** VLL's note shows on the bass page and the row
+names the file. Report it without the song title.
+
+— Fable
