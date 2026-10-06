@@ -78,6 +78,10 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	// T180 ⟨D4⟩ — the band-wide tag vocabulary with counts, ONE call per editor. A band-library
 	// property, so it sits beside the song list, not under /songs/{id}/.
 	mux.HandleFunc("GET /api/bands/{bandId}/tags", a.auth(a.bandTagCounts))
+	// T182 ⟨D4⟩ — band-wide tag edits, each applied to every carrying song in one write. Any member, the
+	// same right as editing one song's tags. Sibling of the vocabulary above, not under /songs/{id}/.
+	mux.HandleFunc("POST /api/bands/{bandId}/tags/rename", a.auth(a.renameTag))
+	mux.HandleFunc("POST /api/bands/{bandId}/tags/delete", a.auth(a.deleteTag))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs", a.auth(a.createSong))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}", a.auth(a.updateSong))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}", a.auth(a.deleteSong))
@@ -635,6 +639,43 @@ func (a *WebAPI) bandTagCounts(w http.ResponseWriter, r *http.Request, u app.Use
 		tags = []app.TagCount{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tags": tags})
+}
+
+// renameTag applies a band-wide rename (which merges, T182 ⟨D4⟩) and returns the number of songs actually
+// changed — the authority the dialog reports, which may differ from its own preview if another member
+// edited tags in between.
+func (a *WebAPI) renameTag(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, app.ErrInvalidInput)
+		return
+	}
+	n, err := a.svc.RenameTag(u, r.PathValue("bandId"), in.From, in.To)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"changed": n})
+}
+
+// deleteTag removes a spelling from every song carrying it, returning the number changed.
+func (a *WebAPI) deleteTag(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Tag string `json:"tag"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, app.ErrInvalidInput)
+		return
+	}
+	n, err := a.svc.DeleteTag(u, r.PathValue("bandId"), in.Tag)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"changed": n})
 }
 
 func (a *WebAPI) updateSong(w http.ResponseWriter, r *http.Request, u app.User) {

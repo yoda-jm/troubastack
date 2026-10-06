@@ -108,6 +108,12 @@ type Repo struct {
 	mu   sync.Mutex
 	path string
 	d    dataset
+
+	// flushHook, when set, runs inside flush() before anything is written, and a non-nil error from it
+	// aborts the write. It is a TEST SEAM for T182's all-or-nothing property — a test injects a flush
+	// failure to prove a batch tag edit rolls back in memory AND leaves disk untouched, where a per-song
+	// loop would have already persisted an earlier song. It is nil in production. Held under r.mu.
+	flushHook func() error
 }
 
 // New opens (or initializes) a file-backed Repo at dir/app.json. The dir is
@@ -200,6 +206,11 @@ func (r *Repo) load() error {
 
 // flush writes the dataset atomically. Caller must hold r.mu.
 func (r *Repo) flush() error {
+	if r.flushHook != nil {
+		if err := r.flushHook(); err != nil {
+			return err
+		}
+	}
 	b, err := json.MarshalIndent(r.d, "", "  ")
 	if err != nil {
 		return fmt.Errorf("filerepo: marshal: %w", err)
@@ -678,6 +689,60 @@ func (r *Repo) SongsOfBand(bandID string) ([]app.Song, error) {
 	}
 	app.SortSongs(out)
 	return out, nil
+}
+
+// RenameTag and DeleteTag are the T182 ⟨D5⟩ band-wide tag edits: one lock, one flush, all or nothing.
+// They gather every affected song under the lock, apply the change to r.d.Songs, then flush ONCE. If that
+// flush fails they restore the pre-edit tags in memory so the in-memory dataset matches the untouched disk
+// (the hazard the spec names: r.d.Songs is mutated before flush()). A per-song loop over UpdateSong would
+// flush between songs, so an earlier song would survive a mid-way failure — these do not.
+
+func (r *Repo) RenameTag(bandID, from, to string) (int, error) {
+	return r.editBandTags(bandID, func(tags []string) ([]string, bool) {
+		return app.RenameInTags(tags, from, to)
+	})
+}
+
+func (r *Repo) DeleteTag(bandID, tag string) (int, error) {
+	return r.editBandTags(bandID, func(tags []string) ([]string, bool) {
+		return app.DeleteFromTags(tags, tag)
+	})
+}
+
+// editBandTags applies edit to every song of the band, atomically. edit returns the new tags and whether
+// the song changed. Returns the number of songs changed; 0 writes nothing.
+func (r *Repo) editBandTags(bandID string, edit func([]string) ([]string, bool)) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	type backup struct {
+		id   string
+		tags []string
+	}
+	var backups []backup
+	for id, s := range r.d.Songs {
+		if s.BandID != bandID {
+			continue
+		}
+		nt, changed := edit(s.Tags)
+		if !changed {
+			continue
+		}
+		backups = append(backups, backup{id, s.Tags})
+		s.Tags = nt
+		r.d.Songs[id] = s
+	}
+	if len(backups) == 0 {
+		return 0, nil
+	}
+	if err := r.flush(); err != nil {
+		for _, b := range backups {
+			s := r.d.Songs[b.id]
+			s.Tags = b.tags
+			r.d.Songs[b.id] = s
+		}
+		return 0, err
+	}
+	return len(backups), nil
 }
 
 // ---- song files ----

@@ -523,6 +523,41 @@ func (r *Repo) SongsOfBand(bandID string) ([]app.Song, error) {
 	return out, nil
 }
 
+// RenameTag / DeleteTag: the T182 ⟨D5⟩ band-wide tag edits. In-memory there is no flush, so atomicity is
+// just the single write lock — every affected song changes together or (on a zero match) none does. They
+// share app.RenameInTags / app.DeleteFromTags with filerepo so the merge-and-dedup rule is one definition.
+
+func (r *Repo) RenameTag(bandID, from, to string) (int, error) {
+	return r.editBandTags(bandID, func(tags []string) ([]string, bool) {
+		return app.RenameInTags(tags, from, to)
+	})
+}
+
+func (r *Repo) DeleteTag(bandID, tag string) (int, error) {
+	return r.editBandTags(bandID, func(tags []string) ([]string, bool) {
+		return app.DeleteFromTags(tags, tag)
+	})
+}
+
+func (r *Repo) editBandTags(bandID string, edit func([]string) ([]string, bool)) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	changed := 0
+	for id, s := range r.songs {
+		if s.BandID != bandID {
+			continue
+		}
+		nt, did := edit(s.Tags)
+		if !did {
+			continue
+		}
+		s.Tags = nt
+		r.songs[id] = s
+		changed++
+	}
+	return changed, nil
+}
+
 // ---- song files ----
 
 func (r *Repo) CreateSongFile(f app.SongFile) error {

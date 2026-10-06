@@ -483,6 +483,14 @@ type Repo interface {
 	DeleteSong(id string) error
 	SongsOfBand(bandID string) ([]Song, error)
 
+	// RenameTag / DeleteTag apply a band-wide tag edit to every affected song under ONE lock and ONE
+	// flush (T182 ⟨D5⟩): all or nothing, never a per-song loop. The affected songs are computed from the
+	// store here, not from any client-supplied list. RenameTag replaces the exact spelling `from` with
+	// `to` and dedups within a song if `to` is already present, preserving position. Both return the
+	// number of songs changed (0 if none carried the spelling, and then nothing is written).
+	RenameTag(bandID, from, to string) (int, error)
+	DeleteTag(bandID, tag string) (int, error)
+
 	// Song files (metadata only; bytes live in a blob.Store).
 	CreateSongFile(f SongFile) error
 	GetSongFile(id string) (SongFile, error)

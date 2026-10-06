@@ -501,6 +501,18 @@ export const api = {
       (r) => r.tags ?? [],
     ),
 
+  // T182 ⟨D3⟩/⟨D4⟩ — band-wide tag edits, each applied to every carrying song in one server write. Both
+  // return the number of songs ACTUALLY changed, which the panel reports (it may differ from the dialog's
+  // preview if another member edited tags in between).
+  renameTag: (bandId: string, from: string, to: string) =>
+    request<{ changed: number }>("POST", `/api/bands/${bandId}/tags/rename`, { from, to }).then(
+      (r) => r.changed,
+    ),
+  deleteTag: (bandId: string, tag: string) =>
+    request<{ changed: number }>("POST", `/api/bands/${bandId}/tags/delete`, { tag }).then(
+      (r) => r.changed,
+    ),
+
   createSong: (bandId: string, title: string, artist?: string) =>
     request<{ song: Song }>("POST", `/api/bands/${bandId}/songs`, { title, artist }).then(
       (r) => r.song,

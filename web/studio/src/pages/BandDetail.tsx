@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+} from "react";
 import { badgeTitle, noteCount, withNotesFirst } from "./song-editor/noteBadge";
 import { Link, useLocation } from "react-router-dom";
 import QRCode from "qrcode";
@@ -27,6 +36,7 @@ import {
   suggestForWord,
 } from "./song-search";
 import { useBand } from "./BandLayout";
+import { TagsPanel } from "./TagsPanel";
 
 /** Sentence-case a short enum label (role, zone) for display. */
 function label(s: string): string {
@@ -41,6 +51,19 @@ export function BandDetail() {
   // A just-completed import (T62) navigates here with its report in router state.
   const importReport = (location.state as { importReport?: ImportReport } | null)?.importReport;
   const [showReport, setShowReport] = useState(true);
+
+  // T182 — the search chips are lifted here so the Tags panel can add one on a tag click (§3), and a
+  // token bumped after a tag edit so the song list re-reads (§5). songsRef is the scroll target for §3's
+  // "scrolls to that list".
+  const [chips, setChips] = useState<string[]>([]);
+  const [songsReload, setSongsReload] = useState(0);
+  const songsRef = useRef<HTMLDivElement>(null);
+  const pickTag = useCallback((tag: string) => {
+    const f = foldText(tag);
+    setChips((cs) => (cs.some((c) => foldText(c) === f) ? cs : [...cs, tag]));
+    // let the box render (it only appears once a chip exists on a small band) before scrolling to it
+    requestAnimationFrame(() => songsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, []);
 
   return (
     <>
@@ -61,7 +84,10 @@ export function BandDetail() {
       )}
 
       <Members bandId={bandId} myRole={myRole} />
-      <Songs bandId={bandId} />
+      <TagsPanel bandId={bandId} onPick={pickTag} onChanged={() => setSongsReload((n) => n + 1)} />
+      <div ref={songsRef}>
+        <Songs bandId={bandId} chips={chips} setChips={setChips} reloadToken={songsReload} />
+      </div>
     </>
   );
 }
@@ -355,7 +381,20 @@ function RowTags({
   );
 }
 
-function Songs({ bandId }: { bandId: string }) {
+function Songs({
+  bandId,
+  chips,
+  setChips,
+  reloadToken,
+}: {
+  bandId: string;
+  // T181's tag chips (strict, AND) alongside the loose text. Lifted to BandDetail in T182 so the Tags
+  // panel can add a chip on a tag click (§3); they still live only in page state, never the URL.
+  chips: string[];
+  setChips: Dispatch<SetStateAction<string[]>>;
+  // Bumped by the Tags panel after a rename/delete so the list re-reads the now-changed tags (§5).
+  reloadToken: number;
+}) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
@@ -363,9 +402,6 @@ function Songs({ bandId }: { bandId: string }) {
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(SONGS_PAGE);
-  // T181 — tag chips (strict, AND) alongside the loose text. Chips live only in this page's state (not the
-  // URL, not remembered between visits — §5).
-  const [chips, setChips] = useState<string[]>([]);
   const [caret, setCaret] = useState(0); // caret offset in the box, so suggestions are for the typed word
   const [highlight, setHighlight] = useState(-1); // keyboard-highlighted suggestion; -1 = none
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -381,7 +417,7 @@ function Songs({ bandId }: { bandId: string }) {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, reloadToken]);
 
   // T173 — which of MY songs have a rehearsal note waiting in Studio. One call for the whole band
   // (⟨D3⟩), and a failure degrades to "no badges" rather than to an error banner: the song list must
