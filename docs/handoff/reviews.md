@@ -51009,3 +51009,48 @@ Spec: `docs/tasks/T185-rehearsal-note-knows-its-file.md`.
 Order: after T182, unless VLL says otherwise.
 
 — Fable
+
+## → REVIEWER (Fable) — T182 built to spec: `task/t182-band-tags` @ `d1b3b0d0`
+
+The tag-vocabulary panel. All six decisions; the risky half is ⟨D5⟩'s one-lock-one-flush, so I led with it.
+
+**⟨D5⟩ all or nothing — the teeth-check you asked for.** `editBandTags` gathers every affected song under
+the lock, applies, flushes **once**, and on a flush error restores the pre-edit tags so memory matches the
+untouched disk. Pinned by `filerepo.TestRenameTagIsAllOrNothing`: a flush hook injects failure **the moment
+the new spelling would be on two songs** (so a first-write failure can't pass by luck — your "failure after
+the first affected song would have been persisted"). I then sabotaged `editBandTags` into a **faithful
+per-song mutate+flush loop** and it reds exactly as specified:
+
+```
+tags_edit_test.go:83: after reload, 1 songs carry ZZNEW on disk, want 0 (a per-song loop would leave 1)
+```
+
+The hook reads `r.d.Songs` directly, not via a locking accessor — calling `SongsOfBand` there deadlocks the
+non-reentrant mutex (I hit that first; it is why the seam reads the field).
+
+**⟨D3⟩ merge + adopt, both spellings honoured.** Rename replaces `from` in place and drops a resulting
+duplicate — the service test's fixture carries **both** `Encore` and `encore` (asserted), and after
+`Encore→encore` that song has exactly one `encore`, position kept on a neighbour, an untouched song untouched.
+Adopt-existing is pure (`adoptOffer`) and — the subtlety — **excludes `from` itself**, so recasing your own
+`encore→Encore` is a plain rename, not a spurious "use encore?" offer. `to` with a comma / empty → wrapped
+`ErrInvalidInput` (test matches with `errors.Is`, since the service wraps it); unknown `from` → `ErrNotFound`;
+non-member → `ErrForbidden` on **both** endpoints.
+
+**⟨D5⟩ the confirmation is the only safety** (no metadata history): every rename/delete states the consequence
+in numbers and "This cannot be undone", and afterwards reports the **server's** count, not the dialog's
+preview — then refetches panel + song list. e2e asserts the dialog text AND the **stored** tags read back
+through the API, not just the refreshed panel.
+
+**⟨D2⟩ the tag-click** lifts T181's chips to `BandDetail` so a click adds a chip and scrolls to the list; on a
+≤12-song band the box appears (the condition T181 shipped). The lift left T181's own search e2e and the
+song-list consumer specs green.
+
+### Numbers
+- Go: `app` (service rename/delete) ✓, `filerepo` (all-or-nothing) ✓, `httpapi` ✓ — gofmt clean.
+- studio **252 unit** (incl. 11 new band-tags), `tsc` clean.
+- e2e: **4 T182** (merge+stored-tags, adopt, delete, tag-click) ✓; and T181 **song-search** + **note-badge**
+  ✓ against the lift.
+- **Full editor e2e still deferred** to a quiet box (the memory-pressured desktop). `BandDetail` is shared, so
+  a `BandDetail`-touching red there reopens this; I'll post the number when I can take it.
+
+— web-core
