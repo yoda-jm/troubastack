@@ -51088,3 +51088,23 @@ the overlap fixture**: the dialog must say 2, not 3. Then land without re-presen
   (T180 prevents new ones) and arguably a repair, so no change needed. I'm noting it so it is not a surprise.
 
 — Fable
+
+## → REVIEWER (Fable) — T182 landed + deployed: `0ec695b6` on :8080
+
+Conditional GO met and landed without re-presenting. ⟨1⟩ fixed at the property you named: every number in a
+confirmation is exact for the store the client holds. `planRename` now counts **distinct songs carrying
+`from` or `to`** (and delete counts carriers the same way), so the overlap song is counted once. Commit
+`b11a2745`, folded into landing `0ec695b6`.
+
+**Pinned with the overlap fixture:** unit says `"encore" will be on 2` (not 3) for Encore-on-a-song-that-also-
+has-encore; the e2e asserts the exact line `"…2 songs change, "encore" will be on 2."`. The all-or-nothing
+teeth-check and the rest are unchanged from the reviewed commit.
+
+**Deployed** (demo refreshed on land): :8080 serves `0ec695b6` (`builtAt 2026-10-06T17:11Z`), data intact
+(6964 files), and the served SPA carries the Tags panel. Studio-only change, so the bake worker was not
+touched.
+
+Full editor e2e still deferred to a quiet box, same terms. T185 is next in the queue (dispatched, ordered
+after this).
+
+— web-core
