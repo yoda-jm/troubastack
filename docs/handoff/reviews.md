@@ -51108,3 +51108,54 @@ Full editor e2e still deferred to a quiet box, same terms. T185 is next in the q
 after this).
 
 — web-core
+
+## → REVIEWER (Fable) — T185 built (new-bake path) + ONE design ruling needed: `task/t185-note-knows-file` @ `0a06ea93`
+
+⟨D1⟩/⟨D2⟩/⟨D3⟩ are built and tested for the forward path (a note on a post-T185 bake). I'm holding the old-rev
+**backfill** for your ruling because it needs an architectural change and collides with a standing rule —
+and it also shapes the §6 e2e, so I'd rather not build that twice.
+
+### Built, and how it's pinned
+- **⟨D1⟩** sidecar `page-sources.json` (songId → [{fileId, filePage, rasterHash}]) beside `bundle.json`,
+  server-side only — no bundle/Stage change. Built from the staged files, whose rasters hash exactly like the
+  pool pages, so it is the pool's own hashes by construction.
+- **⟨D2⟩** `ResolvePageSource(concertID, concertRev, songID, rasterHash)` on the `BakeLookup` seam (twin of
+  `PageRasterHash`), reading the note's **own** rev's sidecar, matched on **hash, not index**. `ListRehearsalNotes`
+  decorates each view with optional `fileId`/`filePage`; unresolvable ⇒ absent, never a guess.
+- **⟨D3⟩** `noteForPage` is fileId-aware (a resolved note draws only on its file+page; unresolved keeps the
+  single-file rule); the row names the file ("bass.pdf · page 1"); "Go to" switches file then centres (deferred
+  to a `pdfRenderCount` effect, since the new file's pages mount a frame later).
+- **Tests:** `TestBakeT185` pins your discriminating fixture — a 2-page + a 1-page file, a note at **sequence
+  index 2** resolving to the **1-page file, filePage 0** (index ≠ filePage, asserted), the **reversed selection**
+  reaching the same page by a different index, and the unresolvable cases. Chip DOM tests pin the resolved label
+  and the file-switching Go. **T183's goto + notes e2e stay green**, proving unresolved/legacy notes are unchanged.
+
+### ⟨1⟩ The ruling I need: backfilling OLD revs (your rev-12 note)
+
+A rev baked before T185 has no sidecar, so the resolver returns unresolved for it today. To make your existing
+note resolve on :8080 **after deploy**, I'd have to re-derive rev 12's source map, and that is the fork you
+flagged. The options, and why none is free:
+
+1. **Derive from the rev-12 `bundle.json` itself.** It carries `MemberPages` (member → pool-index sequence),
+   but **nothing names the file** of a pool page (`PageImages` is only `pageRasterRef`+`rasterHash`). To name
+   the runs I'd need the song's **current** selections + default file — which means wiring an **authenticated
+   actor into the `BakeLookup` seam** (today it takes none; `PageRasterHash` reads only the bundle). It is also
+   **best-effort**: if a selection or the default changed since rev 12, the run→file labels are wrong, so I'd
+   fall back to unresolved on any ambiguity. No re-render needed.
+2. **Re-render the song's current files** to get hashes and match (your suggested mechanism). Heavier (the
+   rasterizer in the lookup path) and equally selection-dependent; I don't think it beats (1).
+3. **Resolve against the latest rev's sidecar instead of the note's.** Clean and needs no actor — but the
+   latest rev has a sidecar only **after a post-T185 bake**, and baking your real concert is **auth-only with no
+   CLI (my standing rule: a real-band rebake needs you)**. So this resolves your note the moment you next bake,
+   but **not on deploy**.
+
+**My recommendation:** ship ⟨D1⟩/⟨D2⟩/⟨D3⟩ now (every future note is exact), and for the existing note take
+**(3)** — it is clean and correct and needs no fragile heuristic — accepting that your note resolves at your
+next bake rather than at deploy. If you want it resolved **at deploy**, I'll build **(1)** as best-effort with
+empty-on-ambiguity. Which do you want? That answer also fixes what the **§6 two-file e2e** pins (it needs a
+bake + the baked page's hash to forge a resolved note; feasible via the bake dialog, but I want the resolution
+contract settled first).
+
+Not landing until you rule. `tsc`/gofmt clean; studio **254 unit**, bake/app/httpapi Go green.
+
+— web-core
