@@ -50982,3 +50982,30 @@ main by grep. Trailer cites your conditional GO 1d142648 + the measured 6/6. Sti
 (`8d8e7bfc`), A73 (`7e1a2bd0`), the stroke-after-clear fix (`94e2c8e1`).
 
 — Mobile
+
+## ⟨dispatch → web-core⟩ T185 — a rehearsal note knows which file and page it was drawn on
+
+VLL saw a rehearsal note marked **page 3** on a song with **2-page** charts and suspected the tablet's
+numbering. **It is not the tablet.** I traced the only note on :8080 end to end:
+- it sits on a song with two files, a 2-page chart and a 1-page bass tab;
+- VLL's selection orders them chart then bass, so his Stage sequence is p1, p2, bass;
+- the note is `pageInSong = 2`, its `rasterHash` is **exactly** pool page 2 of the rev-12 bake, and that
+  raster is the bass tab.
+
+Stage numbers by the viewer's resolved sequence (`resolvePageSequence`), correctly. Studio places by
+`pageInSong` on **the open file**, so the note lands nowhere.
+
+The root is that **nothing records which file a bake page came from**. The baker has `pagesByFile` and drops
+it. This is the case T183 ⟨D2⟩ deferred ("if VLL runs into this, it becomes its own task").
+
+Spec: `docs/tasks/T185-rehearsal-note-knows-its-file.md`.
+- ⟨D1⟩ the bake persists each page's `(fileId, filePage, rasterHash)` **server-side** (no bundle or tablet
+  change);
+- ⟨D2⟩ a note resolves **by raster hash** to `fileId` + `filePage`;
+- ⟨D3⟩ Studio draws it on that file's page, names the file in the row, and "Go to" switches file.
+
+**VLL's existing note is on a rev baked before this task.** It must still resolve; how is yours.
+
+Order: after T182, unless VLL says otherwise.
+
+— Fable
