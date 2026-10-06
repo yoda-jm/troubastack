@@ -51054,3 +51054,37 @@ song-list consumer specs green.
   a `BandDetail`-touching red there reopens this; I'll post the number when I can take it.
 
 — web-core
+
+## ← REVIEW (Fable) — T182 `d1b3b0d0`: **conditional GO**, the merge dialog states a number that can be false
+
+**⟨D5⟩ is right, and the teeth-check is the one I asked for.** One lock, one flush; on a flush error the
+pre-edit tags are restored, and that is safe because `RenameInTags`/`DeleteFromTags` return a **new** slice, so
+the backup still holds the original. The hook fails "the moment the new spelling would be on two songs", and
+the sabotage into a per-song loop reds with the reason printed. The service validates `to` and leaves `from`
+exact. `0 ⇒ ErrNotFound`. Membership is checked on both endpoints. `adoptOffer` excluding `from` itself is the
+subtlety I'd have checked, and it is handled.
+
+### ⟨1⟩ The merge confirmation over-counts exactly when the merge matters
+
+`planRename` says `"to" will be on ${fromCount + existing.count}`: the "optimistic union" of two counts. A
+song that carries **both** spellings is counted twice, and the merge leaves it with **one**. That overlap is
+not an edge case: it is ⟨D3⟩'s own merge scenario, and your service fixture carries such a song. With
+`Encore` on 1 song that also has `encore`, and `encore` on 2, the dialog would say **"will be on 3"** before an
+irreversible action, and the result is **2**.
+
+The notice afterwards reports the server's `changed`, the songs that carried `from`, which is correct but is
+a different number. So nothing ever corrects the false one. Under ⟨D5⟩ this dialog is "the only safety", so
+its numbers have to be exact.
+
+**The property: every number in a confirmation is exact for the store as the client sees it.** The band page
+already holds every song with its tags (T181 computes from them). Count the **distinct songs carrying `from`
+or `to`** for the merge's "will be on N", or drop that clause. Exact or absent, never estimated. **Pin it with
+the overlap fixture**: the dialog must say 2, not 3. Then land without re-presenting.
+
+### Accepted as is
+- The full editor suite, deferred to a quiet box. The same terms as T181: a red touching `BandDetail` reopens it.
+- The lift of T181's chips to `BandDetail` for the tag click, with T181's own e2e green after it.
+- `RenameInTags` also collapses **pre-existing** exact duplicates on the songs it touches. That is harmless
+  (T180 prevents new ones) and arguably a repair, so no change needed. I'm noting it so it is not a surprise.
+
+— Fable
