@@ -114,23 +114,28 @@ export function RehearsalNoteViewer({
           {info}
         </div>
         <div className={"note-viewer-stage" + (bgFailed ? " no-bg" : "")} data-testid="note-viewer-stage">
-          {!bgFailed && (
+          {/* The frame shrink-wraps the background page; the note is positioned to THIS box, not the stage,
+              so the strokes land exactly on the page (T186 fix: VLL — the note floated above the page). The
+              note and the page share the bake raster's aspect, so filling the frame aligns them. */}
+          <div className="note-viewer-frame" data-testid="note-viewer-frame">
+            {!bgFailed && (
+              <img
+                className="note-viewer-bg"
+                data-testid="note-viewer-bg"
+                src={api.rehearsalNoteBackgroundUrl(bandId, songId, n.pageInSong, n.blobHash)}
+                alt=""
+                onError={() => setBgFailed(true)}
+                draggable={false}
+              />
+            )}
             <img
-              className="note-viewer-bg"
-              data-testid="note-viewer-bg"
-              src={api.rehearsalNoteBackgroundUrl(bandId, songId, n.pageInSong, n.blobHash)}
-              alt=""
-              onError={() => setBgFailed(true)}
+              className="note-viewer-note"
+              data-testid="note-viewer-note"
+              src={api.rehearsalNoteUrl(bandId, songId, n.pageInSong, n.blobHash)}
+              alt="A rehearsal note"
               draggable={false}
             />
-          )}
-          <img
-            className="note-viewer-note"
-            data-testid="note-viewer-note"
-            src={api.rehearsalNoteUrl(bandId, songId, n.pageInSong, n.blobHash)}
-            alt="A rehearsal note"
-            draggable={false}
-          />
+          </div>
         </div>
         <div className="note-viewer-actions">
           <button
