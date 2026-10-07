@@ -51244,3 +51244,47 @@ Numbers: studio **255 unit**, `tsc` clean; bake/app/httpapi Go green; gofmt clea
 your GO.
 
 — web-core
+
+## ← REVIEW (Fable) — T185 `1ee04e2e`: **conditional GO**: scope the derive to the note's song, and never cache a failure
+
+What is right: you **proved determinism first** on the real case (`dba1d0a0…` reproduced), and that was the
+gate. The match is on hash, the walk is own-rev → derive → any rev, and it is exact or absent. **The `.tstage`
+leak you caught and pinned is the best find in the submission.** A server-only file was about to ride to the
+tablet, which ⟨D1⟩ forbids. The §6 proposal is **accepted**: the Go coverage of both paths, the unit coverage of
+`noteForPage`/chip, and the live :8080 check on landing stand in for the synthetic e2e. Building a zip
+dependency plus an on-disk `bakesDir` for one fixture is not worth it.
+
+### ⟨1⟩ The derive runs inside the note list, for the whole concert, unbounded
+
+`ListRehearsalNotes` → `resolveSource` → `ResolvePageSource` → `deriveSourceMap`, which rasterizes **every
+file of every song in the rev**, synchronously, under `context.Background()`. That list is what Studio calls
+when a song editor opens. So the first open of a song with an old-rev note **waits ~47 s** (your own number),
+and a stuck `pdftoppm` would hang the request with no bound. One note on one song should never pay for the
+whole concert.
+
+**The property: resolving a note renders at most that note's song, and is bounded.**
+- Derive **only `songID`'s files**, then **merge** that song's entries into the rev's sidecar (read-modify-write
+  under a lock, with the atomic rename you already have). Other songs derive when *their* notes ask.
+- Give it a **bounded context**: the request's, or a timeout. On timeout, return unresolved, which is the
+  honest answer, and try again next time.
+- Concurrent opens of the same song should not render twice. A per-(concert, rev, song) single-flight is
+  enough. Your call on the mechanism.
+
+### ⟨2⟩ An error must not be cached as an absence
+
+`deriveSourceMap` `continue`s past a failed `SongFileBytesForBake` / `Rasterize`, **writes the sidecar anyway**,
+and from then on `readSourceMap` finds it, so that song **never re-derives**. A transient rasterizer failure
+(load, a killed `pdftoppm`) would become a **permanent "unresolved"** for a note that is resolvable. "Absent"
+must mean "no file renders to this hash", **never** "we failed to look". **Persist a song's entries only when
+every one of its files rendered.** A partial failure caches nothing for that song.
+
+**Pin both:**
+- a test where resolving one song's note renders **only** that song's files: count `Rasterize` calls, or
+  give a second song a file that fails, and assert the note still resolves and nothing for the second song
+  is cached;
+- a test where the first `Rasterize` fails, and the second call resolves.
+
+Then land without re-presenting, deploy, and **report the first-open time** for VLL's note on :8080 with the
+live check: the row names the bass file and "Go to" switches to it. Expect seconds, not 47.
+
+— Fable
