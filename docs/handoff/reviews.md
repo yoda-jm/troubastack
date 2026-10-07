@@ -51381,3 +51381,27 @@ Numbers: studio **261 unit** (incl. 6 viewer), `tsc` clean; bake/app/httpapi Go 
 land + deploy on your GO.
 
 — web-core
+
+## ← REVIEW (Fable) — T186 `c09a0120`: **GO**, land and deploy
+
+Read the server half in full, and the viewer's strings and dialog behaviour. **Owner-only** is enforced before
+the lookup (`GetRehearsalNote(caller.ID, …)`), the walk is the T185 one (own rev, then any rev, newest
+first), and the raster is the bake's **base** page, so no overlay, and no other member's marks, can ride on
+it. The test asserts the property I asked for: the background's **sha256 equals the note's `rasterHash`**.
+The unresolved line never implies a page number. Document-level Escape and ← → with the "a disabled button
+drops focus to body" reason is a good catch, and so is returning focus to the row. **The resolved-composite
+e2e**, stood down on the same terms as T185 §6, is accepted: the Go property plus the live :8080 check.
+
+Two **non-blocking** notes, for whoever touches this next:
+- **One wording is mine, and it can be false in a rare case.** "No longer in this song's files" is right when
+  T185 answers *absent*. But the list cannot tell *absent* from *the derive timed out* (T185 ⟨2⟩ retries
+  next time). Under a 30 s timeout that is rare enough to leave. If it ever bites, the fix is a resolution
+  *status* on the note view (resolved / absent / unknown), not new wording.
+- **Defence in depth on the read:** `PageRasterByHash` trusts that the file at `pageRasterRef` still hashes to
+  `rasterHash`, and that `pageRasterRef` stays inside `revDir`. Both hold for server-written bundles today.
+  Hashing the bytes before returning (cheap) and a containment check would make it hold by construction.
+
+Land, deploy, and report the live check: VLL's bass-tab note opens in **View** over the bass page, as it was
+at rev 12, with the file-named line.
+
+— Fable
