@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type RehearsalNote } from "../../api";
+import { api, type RehearsalNote, type SongFile } from "../../api";
 
 /**
  * T170 — rehearsal notes as a REFERENCE UNDERLAY.
@@ -72,10 +72,17 @@ export function RehearsalUnderlay({
   );
 }
 
-/** noteForPage picks the (at most one) note drawn on a page. The server's unique key is
- * (owner, song, page), so a second match would be a server bug, not a display choice. */
-export function noteForPage(notes: RehearsalNote[], page: number): RehearsalNote | undefined {
-  return notes.find((n) => n.pageInSong === page);
+/** noteForPage picks the (at most one) note drawn on a given page of the OPEN file. A resolved note
+ * (T185 ⟨D2⟩) matches its own fileId + filePage, so it draws only on its file; an unresolved note keeps
+ * the single-file rule (pageInSong on whatever file is open), which is right when the song has one file. */
+export function noteForPage(
+  notes: RehearsalNote[],
+  fileId: string | null,
+  page: number,
+): RehearsalNote | undefined {
+  return notes.find((n) =>
+    n.fileId ? n.fileId === fileId && n.filePage === page : n.pageInSong === page,
+  );
 }
 
 /** noteDate is the one honest date this row can show. `capturedAt` is when it was DRAWN and is
@@ -98,17 +105,22 @@ export function RehearsalNotesChip({
   notes,
   shown,
   numPages,
+  files,
+  selectedFileId,
   onToggle,
   onRemove,
-  onGoToPage,
+  onGoToNote,
 }: {
   notes: RehearsalNote[];
   shown: boolean;
   numPages: number;
+  // T185 ⟨D3⟩ — the song's files, to name a resolved note's file and know whether "Go to" must switch.
+  files: SongFile[];
+  selectedFileId: string | null;
   onToggle: () => void;
   onRemove: (page: number) => void;
-  onGoToPage: (page: number) => void;
-  }) {
+  onGoToNote: (note: RehearsalNote) => void;
+}) {
   const [open, setOpen] = useState(false);
   if (notes.length === 0) return null;
   return (
@@ -139,11 +151,33 @@ export function RehearsalNotesChip({
       </button>
       {open && (
         <div className="rehearsal-popover" data-testid="rehearsal-notes-popover">
-          {notes.map((n) => (
+          {notes.map((n) => {
+            // T185 ⟨D3⟩ — a resolved note names its file and the page within it; "Go to" switches to that
+            // file when it is not the open one. An unresolved note keeps the single-file "page N" rule.
+            const resolved = !!n.fileId;
+            const targetFile = resolved ? files.find((f) => f.id === n.fileId) : undefined;
+            const targetPage = resolved ? n.filePage ?? 0 : n.pageInSong;
+            const where =
+              resolved && targetFile
+                ? `${targetFile.filename} · page ${targetPage + 1}`
+                : `page ${n.pageInSong + 1}`;
+            const switches = resolved && !!targetFile && n.fileId !== selectedFileId;
+            // Go-to is possible for a resolved note whenever its file is still on the song (its page exists
+            // there by construction); for an unresolved note, only when the page is in the OPEN file.
+            const canGoTo = resolved ? !!targetFile : n.pageInSong < numPages;
+            const disabledTitle = resolved
+              ? "That file is no longer on this song"
+              : `This file has no page ${n.pageInSong + 1}`;
+            const gotoLabel = switches
+              ? `Go to ${targetFile!.filename}`
+              : `Go to page ${targetPage + 1}`;
+            const gotoTitle = switches
+              ? `Switch to ${targetFile!.filename} and show this note on page ${targetPage + 1}`
+              : `Show this note and scroll to page ${targetPage + 1}`;
+            return (
             <div className="rehearsal-note-row" data-testid="rehearsal-note-row" key={n.id}>
               <span className="rehearsal-note-what">
-                page {n.pageInSong + 1} · from rev {n.concertRev} · taken as {n.takenAs || "—"} ·{" "}
-                {noteDate(n)}
+                {where} · from rev {n.concertRev} · taken as {n.takenAs || "—"} · {noteDate(n)}
               </span>
               {/* Fable (dd6e359c): state the FACT, never the cause. A re-encode, a re-render, an
                   edit and a reflow are indistinguishable from a hash — and the label's first real
@@ -159,22 +193,22 @@ export function RehearsalNotesChip({
                   not in the current bake
                 </span>
               )}
-              {/* T183 — go to the note's page. pageInSong is 0-based in the file; numPages is the open
-                  file's page count. A note whose page is not in THIS file (a bake page from another file,
-                  or a note on p>0 of a single image) is drawn on no page here, so the button states that
-                  and does nothing rather than guess (⟨D2⟩). */}
-              {n.pageInSong < numPages ? (
+              {/* T185 — go to the note. A resolved note (⟨D2⟩) goes to its own file + page, switching files
+                  if needed; its page always exists in its file, so the button is enabled whenever that file
+                  is still on the song. An UNRESOLVED note keeps T183's rule: enabled only when its page is in
+                  the OPEN file, else it states that and does nothing rather than guess. */}
+              {canGoTo ? (
                 <button
                   type="button"
                   className="rehearsal-note-goto"
                   data-testid="rehearsal-note-goto"
-                  title={`Show this note and scroll to page ${n.pageInSong + 1}`}
+                  title={gotoTitle}
                   onClick={() => {
-                    onGoToPage(n.pageInSong);
+                    onGoToNote(n);
                     setOpen(false);
                   }}
                 >
-                  Go to page {n.pageInSong + 1}
+                  {gotoLabel}
                 </button>
               ) : (
                 <button
@@ -182,9 +216,9 @@ export function RehearsalNotesChip({
                   className="rehearsal-note-goto"
                   data-testid="rehearsal-note-goto"
                   disabled
-                  title={`This file has no page ${n.pageInSong + 1}`}
+                  title={disabledTitle}
                 >
-                  Go to page {n.pageInSong + 1}
+                  {gotoLabel}
                 </button>
               )}
               <button
@@ -197,7 +231,8 @@ export function RehearsalNotesChip({
                 Done, remove
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </span>

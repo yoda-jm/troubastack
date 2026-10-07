@@ -45,6 +45,12 @@ func WriteTstage(dst, srcDir string, modTime time.Time) (err error) {
 			if rerr != nil {
 				return rerr
 			}
+			// T185 ⟨D1⟩: the page-source sidecar is SERVER-SIDE ONLY. It lives in the published rev dir
+			// (the rename carries it there) but must never enter the .tstage the tablet downloads — keeping
+			// it out is what means "no Stage contract change".
+			if filepath.ToSlash(rel) == sourceMapFile {
+				return nil
+			}
 			names = append(names, filepath.ToSlash(rel))
 		}
 		return nil

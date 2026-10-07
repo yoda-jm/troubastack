@@ -193,3 +193,13 @@ func (l bakePageLookup) PageRasterHash(concertID, songID string, pageInSong int)
 	}
 	return "", false, false // no bake for this concert — we cannot say
 }
+
+// ResolvePageSource (T185 ⟨D2⟩) looks up, in the note's OWN rev, which file and page produced the raster
+// with this hash. Unlike PageRasterHash it reads the specific rev the note names, not the latest, because it
+// is answering "where was this drawn", not "is it still current".
+func (l bakePageLookup) ResolvePageSource(concertID string, concertRev uint64, songID, rasterHash string) (string, int, bool) {
+	if l.baker == nil {
+		return "", 0, false
+	}
+	return l.baker.ResolvePageSource(concertID, concertRev, songID, rasterHash)
+}

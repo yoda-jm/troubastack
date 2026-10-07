@@ -168,6 +168,11 @@ export type RehearsalNote = {
   capturedAt?: string;
   uploadedAt: string;
   pageChanged: boolean | null;
+  /** T185 ⟨D2⟩ — the file and 0-based page the note's raster was drawn on, resolved from the bake by hash.
+   * Both absent when unresolvable; Studio then keeps the single-file rule (pageInSong on the open file).
+   * fileId present is the signal that filePage is meaningful (page 0 is valid). */
+  fileId?: string;
+  filePage?: number;
 };
 
 export type SongPatch = {

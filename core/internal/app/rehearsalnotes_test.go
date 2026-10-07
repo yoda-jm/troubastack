@@ -164,11 +164,21 @@ type stubBake struct {
 	hash                string
 	pageExists, isBaked bool
 	calls               int
+	// T185: resolve by hash → (fileId, filePage). srcFileID empty ⇒ unresolved.
+	srcFileID   string
+	srcFilePage int
 }
 
 func (s *stubBake) PageRasterHash(string, string, int) (string, bool, bool) {
 	s.calls++
 	return s.hash, s.pageExists, s.isBaked
+}
+
+func (s *stubBake) ResolvePageSource(_ string, _ uint64, _, _ string) (string, int, bool) {
+	if s.srcFileID == "" {
+		return "", 0, false
+	}
+	return s.srcFileID, s.srcFilePage, true
 }
 
 // TestPageChangedIsThreeValued pins the distinction the *bool exists for: "we could not check"

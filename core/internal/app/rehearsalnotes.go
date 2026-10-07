@@ -23,6 +23,11 @@ const maxRehearsalNoteBytes = 4 << 20 // 4 MiB
 // baked=true, pageExists=false means the bake is there and the page is not (→ changed).
 type BakeLookup interface {
 	PageRasterHash(concertID, songID string, pageInSong int) (hash string, pageExists, baked bool)
+	// ResolvePageSource answers T185 ⟨D2⟩: which file and 0-based page produced the raster with this hash,
+	// in this song and bake rev. Matched on the hash, never the index. resolved=false when it cannot be
+	// told (no source record for the rev, or no hash match) — the caller then leaves the fields empty and
+	// Studio keeps the single-file rule. It never guesses.
+	ResolvePageSource(concertID string, concertRev uint64, songID, rasterHash string) (fileID string, filePage int, resolved bool)
 }
 
 // WithBakeLookup injects the bake seam. Nil is allowed and means "no bake knowledge": every
@@ -40,6 +45,11 @@ func (s *Service) WithBakeLookup(b BakeLookup) *Service {
 type RehearsalNoteView struct {
 	RehearsalNote
 	PageChanged *bool `json:"pageChanged"`
+	// T185 ⟨D2⟩ — the file and 0-based page the note's raster was drawn on, resolved from the bake by hash.
+	// Both are absent when unresolvable (no source record, no hash match); Studio then keeps today's
+	// single-file rule. FileID present is the signal that FilePage is meaningful (page 0 is valid).
+	FileID   string `json:"fileId,omitempty"`
+	FilePage *int   `json:"filePage,omitempty"`
 }
 
 // RehearsalNoteMeta is what the sender tells us about a note. Everything here is the
@@ -155,9 +165,26 @@ func (s *Service) ListRehearsalNotes(caller User, bandID, songID string) ([]Rehe
 	}
 	out := make([]RehearsalNoteView, 0, len(notes))
 	for _, n := range notes {
-		out = append(out, RehearsalNoteView{RehearsalNote: n, PageChanged: s.pageChanged(n)})
+		v := RehearsalNoteView{RehearsalNote: n, PageChanged: s.pageChanged(n)}
+		if fileID, filePage, ok := s.resolveSource(n); ok {
+			v.FileID = fileID
+			fp := filePage
+			v.FilePage = &fp
+		}
+		out = append(out, v)
 	}
 	return out, nil
+}
+
+// resolveSource answers T185 ⟨D2⟩ at list time: the file and page a note's raster was drawn on, resolved by
+// hash through the bake seam. Unresolvable (no lookup wired, no hash, no source record, no match) leaves it
+// to the caller to omit the fields — Studio then keeps the single-file rule. Resolving here, not at upload,
+// also covers notes stored before T185.
+func (s *Service) resolveSource(n RehearsalNote) (fileID string, filePage int, resolved bool) {
+	if s.bakes == nil || n.ConcertID == "" || n.RasterHash == "" {
+		return "", 0, false
+	}
+	return s.bakes.ResolvePageSource(n.ConcertID, n.ConcertRev, n.SongID, n.RasterHash)
 }
 
 // pageChanged answers "does the page this note was drawn on still look like this?" — a LABEL

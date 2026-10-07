@@ -1138,6 +1138,32 @@ func (s *Service) SongFiles(caller User, bandID, songID string) ([]SongFile, err
 	return s.repo.FilesOfSong(songID)
 }
 
+// SongFilesForBake and SongFileBytesForBake are UNAUTHENTICATED, server-internal accessors for the baker —
+// the same kind as ChartSourceForFile. They carry no caller because the baker is not acting for a user: the
+// bake (and T185's source-map derivation of an OLD rev) renders a song's files on the server's behalf. Never
+// reachable from an HTTP handler; the note-list that triggers T185's derive has already authorised its
+// caller as a band member.
+func (s *Service) SongFilesForBake(songID string) ([]SongFile, error) {
+	return s.repo.FilesOfSong(songID)
+}
+
+// SongFileBytesForBake returns a file's bytes, healing a generated chart's blob from source if the cache is
+// missing (as DownloadSongFile does), but without a membership check.
+func (s *Service) SongFileBytesForBake(fileID string) (SongFile, []byte, error) {
+	f, err := s.repo.GetSongFile(fileID)
+	if err != nil {
+		return SongFile{}, nil, ErrNotFound
+	}
+	data, err := s.blobs.Get(f.BlobHash)
+	if err != nil {
+		if healed, hdata, herr := s.healGeneratedBlob(f); herr == nil {
+			return healed, hdata, nil
+		}
+		return SongFile{}, nil, ErrNotFound
+	}
+	return f, data, nil
+}
+
 // SongFilePatch carries optional song-file updates (rename and/or reorder).
 type SongFilePatch struct {
 	Filename     *string

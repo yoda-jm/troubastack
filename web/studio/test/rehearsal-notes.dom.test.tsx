@@ -38,8 +38,24 @@ function note(over: Partial<RehearsalNote> = {}): RehearsalNote {
 describe("T170 — the note is a reference, and the UI must not promise more than it knows", () => {
   it("picks the note drawn on the page, and nothing for a page without one", () => {
     const notes = [note({ pageInSong: 0 }), note({ pageInSong: 3 })];
-    expect(noteForPage(notes, 3)?.pageInSong).toBe(3);
-    expect(noteForPage(notes, 1)).toBeUndefined();
+    expect(noteForPage(notes, null, 3)?.pageInSong).toBe(3);
+    expect(noteForPage(notes, null, 1)).toBeUndefined();
+  });
+
+  // T185 ⟨D3⟩ — a RESOLVED note draws only on its own file+page; an UNRESOLVED note keeps the single-file
+  // rule (pageInSong on whatever file is open). This is what puts VLL's bass-page note on the bass file and
+  // nowhere else — the core of the underlay placement, pinned without a browser.
+  it("a resolved note matches only its own file and page; unresolved matches by pageInSong on any file", () => {
+    const resolved = note({ pageInSong: 2, fileId: "f-bass", filePage: 0 });
+    const legacy = note({ pageInSong: 1 }); // no fileId
+    const notes = [resolved, legacy];
+    // Resolved: drawn on file f-bass page 0, and NOT on the other file even at the same page index.
+    expect(noteForPage(notes, "f-bass", 0)).toBe(resolved);
+    expect(noteForPage(notes, "f-lyrics", 0)).toBeUndefined();
+    expect(noteForPage(notes, "f-bass", 2)).toBeUndefined(); // its pageInSong index is not its filePage
+    // Unresolved: matches by pageInSong regardless of which file is open (single-file behaviour).
+    expect(noteForPage(notes, "f-lyrics", 1)).toBe(legacy);
+    expect(noteForPage(notes, "f-bass", 1)).toBe(legacy);
   });
 
   // The tablet has no wall clock for a note (A70 stamps SystemClock.elapsedRealtime), so
@@ -55,14 +71,14 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
 
   it("renders no chip at all when this user has no notes", () => {
     const { container } = render(
-      <RehearsalNotesChip numPages={99} onGoToPage={() => {}} notes={[]} shown onToggle={() => {}} onRemove={() => {}} />,
+      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null} notes={[]} shown onToggle={() => {}} onRemove={() => {}} />,
     );
     expect(container.innerHTML).toBe("");
   });
 
   it("counts the notes and reflects whether the underlay is on", () => {
     const { rerender } = render(
-      <RehearsalNotesChip numPages={99} onGoToPage={() => {}}
+      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null}
         notes={[note({ pageInSong: 0 }), note({ pageInSong: 1 })]}
         shown
         onToggle={() => {}}
@@ -73,7 +89,7 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
     expect(chip.textContent).toContain("(2)");
     expect(chip.getAttribute("aria-pressed")).toBe("true");
     rerender(
-      <RehearsalNotesChip numPages={99} onGoToPage={() => {}}
+      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null}
         notes={[note()]}
         shown={false}
         onToggle={() => {}}
@@ -93,7 +109,7 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
       [null, false],
     ] as const) {
       const { unmount } = render(
-        <RehearsalNotesChip numPages={99} onGoToPage={() => {}}
+        <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null}
           notes={[note({ pageChanged: value })]}
           shown
           onToggle={() => {}}
@@ -112,7 +128,7 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
   it("Done, remove asks for the note's own page", () => {
     const onRemove = vi.fn();
     render(
-      <RehearsalNotesChip numPages={99} onGoToPage={() => {}}
+      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null}
         notes={[note({ pageInSong: 4 })]}
         shown
         onToggle={() => {}}
@@ -184,7 +200,7 @@ describe("T170 §5.3 — a rehearsal note must not reach the renderer or the bak
 describe("T170 — the changed tag names what is checkable and nothing else", () => {
   it("says the page is not in the current bake, and blames nothing", () => {
     render(
-      <RehearsalNotesChip numPages={99} onGoToPage={() => {}}
+      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null}
         notes={[note({ pageChanged: true })]}
         shown
         onToggle={() => {}}
@@ -202,7 +218,7 @@ describe("T170 — the changed tag names what is checkable and nothing else", ()
 
   // T183 — "Go to page N": the row asks for the note's own page, and refuses a page not in the open file.
   it("Go to page N asks for the note's page and closes the popover", () => {
-    const onGoToPage = vi.fn();
+    const onGoToNote = vi.fn();
     render(
       <RehearsalNotesChip
         notes={[note({ pageInSong: 4 })]}
@@ -210,7 +226,7 @@ describe("T170 — the changed tag names what is checkable and nothing else", ()
         numPages={8}
         onToggle={() => {}}
         onRemove={() => {}}
-        onGoToPage={onGoToPage}
+        onGoToNote={onGoToNote} files={[]} selectedFileId={null}
       />,
     );
     fireEvent.click(screen.getByTestId("rehearsal-notes-more"));
@@ -218,13 +234,60 @@ describe("T170 — the changed tag names what is checkable and nothing else", ()
     expect(goto.textContent).toBe("Go to page 5"); // 0-based 4 → shown 5
     expect((goto as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(goto);
-    expect(onGoToPage).toHaveBeenCalledWith(4);
+    expect(onGoToNote).toHaveBeenCalledWith(expect.objectContaining({ pageInSong: 4 }));
     // popover closed
     expect(screen.queryByTestId("rehearsal-notes-popover")).toBeNull();
   });
 
+  // T185 ⟨D3⟩ — a RESOLVED note names its own file and page, and "Go to" offers to switch to that file.
+  it("a resolved note on another file names it and the Go button switches files", () => {
+    const onGoToNote = vi.fn();
+    const files = [
+      { id: "f-lyrics", filename: "lyrics.pdf" },
+      { id: "f-bass", filename: "bass.pdf" },
+    ] as never;
+    render(
+      <RehearsalNotesChip
+        notes={[note({ pageInSong: 2, fileId: "f-bass", filePage: 0 })]}
+        shown
+        numPages={2} // the OPEN file (lyrics) has 2 pages; the note is on the bass file, page 0
+        files={files}
+        selectedFileId="f-lyrics"
+        onToggle={() => {}}
+        onRemove={() => {}}
+        onGoToNote={onGoToNote}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("rehearsal-notes-more"));
+    // The row names the file + page within it, NOT "page 3".
+    expect(screen.getByTestId("rehearsal-note-row").textContent).toContain("bass.pdf · page 1");
+    const goto = screen.getByTestId("rehearsal-note-goto");
+    expect(goto.textContent).toBe("Go to bass.pdf"); // switches, not "Go to page N"
+    expect((goto as HTMLButtonElement).disabled).toBe(false); // resolved: its page exists in its own file
+    fireEvent.click(goto);
+    expect(onGoToNote).toHaveBeenCalledWith(expect.objectContaining({ fileId: "f-bass", filePage: 0 }));
+  });
+
+  it("a resolved note on the OPEN file centres the page without switching", () => {
+    render(
+      <RehearsalNotesChip
+        notes={[note({ pageInSong: 5, fileId: "f-lyrics", filePage: 1 })]}
+        shown
+        numPages={2}
+        files={[{ id: "f-lyrics", filename: "lyrics.pdf" }] as never}
+        selectedFileId="f-lyrics"
+        onToggle={() => {}}
+        onRemove={() => {}}
+        onGoToNote={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("rehearsal-notes-more"));
+    // Same file open → "Go to page N" (filePage 1 → shown 2), not a switch.
+    expect(screen.getByTestId("rehearsal-note-goto").textContent).toBe("Go to page 2");
+  });
+
   it("Go is disabled, and says why, when the note's page is not in the open file", () => {
-    const onGoToPage = vi.fn();
+    const onGoToNote = vi.fn();
     render(
       <RehearsalNotesChip
         notes={[note({ pageInSong: 9 })]}
@@ -232,7 +295,7 @@ describe("T170 — the changed tag names what is checkable and nothing else", ()
         numPages={8}
         onToggle={() => {}}
         onRemove={() => {}}
-        onGoToPage={onGoToPage}
+        onGoToNote={onGoToNote} files={[]} selectedFileId={null}
       />,
     );
     fireEvent.click(screen.getByTestId("rehearsal-notes-more"));
@@ -240,7 +303,7 @@ describe("T170 — the changed tag names what is checkable and nothing else", ()
     expect((goto as HTMLButtonElement).disabled).toBe(true);
     expect(goto.getAttribute("title")).toBe("This file has no page 10");
     fireEvent.click(goto);
-    expect(onGoToPage).not.toHaveBeenCalled();
+    expect(onGoToNote).not.toHaveBeenCalled();
   });
 
 });

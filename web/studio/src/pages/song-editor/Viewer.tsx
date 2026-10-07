@@ -12,6 +12,7 @@ import {
   type AnnotationObject,
   type AnnotationStyle,
   type Role,
+  type RehearsalNote,
   type Song,
   type SongFile,
 } from "../../api";
@@ -1039,6 +1040,31 @@ export function Viewer({
     [doc.objects, scrollPageIntoView],
   );
 
+  // T185 ⟨D3⟩ — "Go to" a rehearsal note. A resolved note (fileId set) goes to ITS file and page: if that is
+  // a different file, we switch to it and DEFER the scroll, because the new file's pages mount a frame later
+  // (scrolling now would move the file we are leaving). The pending target is flushed by the effect below,
+  // keyed on pdfRenderCount so it fires once the new file has actually rendered. An unresolved note keeps
+  // today's behaviour: scroll within the open file.
+  const pendingGoTo = useRef<number | null>(null);
+  const goToNote = useCallback(
+    (note: RehearsalNote) => {
+      setUnderlayOn(true);
+      if (note.fileId && note.fileId !== selectedFileId) {
+        pendingGoTo.current = note.filePage ?? 0;
+        setSelectedFileId(note.fileId);
+        return;
+      }
+      scrollPageIntoView(note.fileId ? note.filePage ?? 0 : note.pageInSong);
+    },
+    [selectedFileId, scrollPageIntoView],
+  );
+  useEffect(() => {
+    if (pendingGoTo.current === null) return;
+    const page = pendingGoTo.current;
+    pendingGoTo.current = null;
+    scrollPageIntoView(page);
+  }, [selectedFileId, pdfRenderCount, scrollPageIntoView]);
+
   // Delete the current selection (one or many objects). Only objects on the
   // ACTIVE editable layer are deleted; everything else (locked OR on a non-active
   // layer) is skipped — no mutation sent.
@@ -1484,14 +1510,12 @@ export function Viewer({
           // the viewer still draws page 0's note on it), and numPages for a PDF. The button is enabled
           // exactly when the note lands on a real page of the open file.
           numPages={isImage ? 1 : numPages}
+          // T185 ⟨D3⟩: the files let a resolved note name its own file and let "Go to" switch to it.
+          files={files}
+          selectedFileId={selectedFileId}
           onToggle={() => setUnderlayOn((v) => !v)}
           onRemove={removeRehearsalNote}
-          onGoToPage={(page) => {
-            // T183 ⟨D1⟩: seeing a note you have hidden is pointless, so ensure the underlay is ON, then
-            // centre the page. The chip closes its own popover.
-            setUnderlayOn(true);
-            scrollPageIntoView(page);
-          }}
+          onGoToNote={goToNote}
         />
 
         {/* T105 — for a generated text chart the source IS the file, so offer to edit it from where you
@@ -1656,7 +1680,7 @@ export function Viewer({
                     hide the musician's own work behind their scribble. */}
                 {underlayOn &&
                   (() => {
-                    const rn = noteForPage(rehearsalNotes, i);
+                    const rn = noteForPage(rehearsalNotes, selectedFileId, i);
                     return rn ? (
                       <RehearsalUnderlay note={rn} bandId={bandId} songId={songId} />
                     ) : null;
@@ -1712,7 +1736,7 @@ export function Viewer({
               />
               {underlayOn &&
                 (() => {
-                  const rn = noteForPage(rehearsalNotes, 0);
+                  const rn = noteForPage(rehearsalNotes, selectedFileId, 0);
                   return rn ? (
                     <RehearsalUnderlay note={rn} bandId={bandId} songId={songId} />
                   ) : null;

@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"troubastack/core/internal/app"
@@ -68,6 +69,12 @@ type Baker struct {
 	// frames) to the server log — and nowhere else (T102). Injectable so a test can capture it;
 	// defaults to log.Printf.
 	logf func(format string, args ...any)
+
+	// T185: per-(concert,rev) locks serialising an old-rev source-map DERIVE+merge, so concurrent song
+	// opens never render the same rev's files twice and never clobber each other's sidecar write. Lazily
+	// populated (works for a bare struct-literal Baker in tests too).
+	deriveMu    sync.Mutex
+	deriveLocks map[string]*sync.Mutex
 }
 
 // New builds a Baker with the real poppler + web/bake shell-out steps. A missing
@@ -383,6 +390,10 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		// server paths. Log that; tell the user the renderer is unavailable and whose problem it is.
 		return ConcertBundle{}, bakeID, b.fail("The annotation renderer isn't available on the server. Ask an admin to check the bake setup.", oerr)
 	}
+	// T185 ⟨D1⟩: the per-page source map (fileId, filePage, rasterHash per song), built from the staged
+	// files whose rasters are hashed the same way the pool pages are. Persisted as a sidecar below, never in
+	// the bundle.
+	srcMap := SourceMap{Songs: map[string][]PageSource{}}
 	for _, st := range staged {
 		song, warns, aerr := b.assembleSong(st, overlaysByKey, blobsDir, layerDefaults)
 		if aerr != nil {
@@ -391,6 +402,16 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		}
 		bakeWarnings = append(bakeWarnings, warns...)
 		bundle.Songs = append(bundle.Songs, song)
+
+		var srcs []PageSource
+		for _, sf := range st.files {
+			for i, r := range sf.rasters {
+				srcs = append(srcs, PageSource{FileID: sf.fileID, FilePage: int32(i), RasterHash: Sha256Hex(r)})
+			}
+		}
+		if len(srcs) > 0 {
+			srcMap.Songs[st.song.SongID] = srcs
+		}
 	}
 
 	// T124: derive the terminal state from the ARTEFACT, not from reaching the end of the code. A bake
@@ -437,6 +458,11 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	// mismatch the published `.tstage`. (This narrows B04's "tstage strictly before dir"
 	// to a sub-ms window where `<rev>/` exists just before `<rev>.tstage` lands, on the
 	// rare re-claim path only — an accepted trade per the B09 ruling.)
+	// T185 ⟨D1⟩: the source sidecar is rev-independent, so write it once into the staging dir; it rides the
+	// atomic `<rev>/` rename like the blobs and bundle.json.
+	if err := writeSourceMap(stageDir, srcMap); err != nil {
+		return ConcertBundle{}, bakeID, err
+	}
 	tstageStage := stageDir + ".tstage" // unique: we exclusively hold stageDir
 	for {
 		bundle.ConcertRev = rev
