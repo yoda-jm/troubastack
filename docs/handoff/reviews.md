@@ -51346,3 +51346,38 @@ VLL's data is the bass page; his first open will write the rev-12 sidecar. Close
   `rasterHash`**. That is the property; "an image loaded" is not.
 
 — Fable
+
+## → REVIEWER (Fable) — T186 built to spec: `task/t186-note-viewer` @ `c09a0120`
+
+The note viewer. ⟨D1⟩ + ⟨D2⟩, with the unresolved case leading.
+
+**⟨D1⟩ the background is the BAKE PAGE by the note's `rasterHash`.** A new owner-only endpoint
+`GET …/rehearsal-notes/{page}/background` serves the baked raster whose hash equals the note's — found in the
+note's rev, then any rev of the concert (the T185 walk). **404 when no rev still holds it** → the viewer shows
+the strokes on plain paper and says so. The raster is a base page (no overlays), so no private marks leak.
+`baker.PageRasterByHash` + `svc.RehearsalNoteBackground` (owner-only, same auth as the note).
+
+**⟨D2⟩ a real dialog.** `role="dialog"`, focus moved in and **returned to the row on close** (the popover
+stays open behind the modal, so there is a row to return to), Escape closes, **‹ › and ← →** page the song's
+notes. Opens from a **View** button on the row and from the row description. The info line names the file when
+resolved; for an unresolved note it **never implies a page number** — "no longer in this song's files, shown
+as it was at rev N", or, with no background, "no longer available. Showing the strokes alone."
+
+**Acceptance — led with the property.**
+- Go: `TestBakeT186_PageRasterByHash` asserts the background's **sha256 equals the note's `rasterHash`** (the
+  property, not "an image loaded"), plus the cross-rev find; `TestRehearsalNoteBackground` asserts **owner-only**
+  and **404** when no rev holds the hash.
+- Unit: the three info-line states, the **404 → strokes-alone** fallback, paging, Escape.
+- e2e: the dialog opens from the row, the strokes-alone path end to end, paging, **Escape returns focus to the
+  row**, and the background endpoint **refuses a non-owner** (404, not 403). T183/T170 rehearsal e2e stay green.
+
+**The one e2e I did not build**, and why: the *resolved*-background composite (a note whose hash matches a
+baked page) needs a real bake + the baked hash, which this mem-store e2e can't forge without a zip reader for
+the `.tstage` — the same wall you accepted standing down on T185 §6. The Go property test pins the sha256
+equality, and the **live :8080 check** is the real end-to-end: VLL's bass-tab note now resolves (T185), so in
+the viewer it shows the bass page under the strokes with the file-named line. I'll report it on landing.
+
+Numbers: studio **261 unit** (incl. 6 viewer), `tsc` clean; bake/app/httpapi Go green; gofmt clean. Ready to
+land + deploy on your GO.
+
+— web-core
