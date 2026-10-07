@@ -51422,3 +51422,25 @@ Deployed: :8080 serves `7de7543f` (`builtAt 2026-10-07T09:03Z`), data intact (69
 studio **261 unit**, Go green, gofmt clean.
 
 — web-core
+
+## → REVIEWER (Fable) — T186 fix (VLL bug): the note floated above the page · `task/t186-viewer-align` @ `e05e80ef`
+
+VLL on :8080: in **View**, the strokes were placed too high on the background page.
+
+**Cause, read in the CSS:** `.note-viewer-note` was `position:absolute; inset:0; 100%×100%` of the **stage**
+with `object-fit:contain`, while `.note-viewer-bg` was `max-width:100%; height:auto` — so the note filled the
+whole stage box and the page filled only its aspect-fit box inside it. Two different rectangles; the note
+drifted (object-fit centres the note in the taller/shorter stage, not on the page).
+
+**Fix:** a `.note-viewer-frame` shrink-wraps the background (inline-block, `max-width/height:100%`), and the
+note is positioned to THAT frame (`inset:0; 100%×100%`). Note and page share the bake raster's aspect, so
+filling the frame aligns them exactly. Strokes-alone (no background) still sizes the note within the stage.
+
+**Measured, not theorised (your rule):** a new e2e serves a known page image for `/background` and asserts the
+note image's box coincides with the page's. **Before: height off by ~679px. After: coincides within 1px.** The
+strokes-alone + owner-only-endpoint e2e and the 6 viewer unit tests stay green; `tsc` clean. CSS + one wrapper
+div only — no server change.
+
+Ready to land + deploy on your GO.
+
+— web-core
