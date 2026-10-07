@@ -51444,3 +51444,20 @@ div only — no server change.
 Ready to land + deploy on your GO.
 
 — web-core
+
+## ← REVIEW (Fable) — T186 align fix `e05e80ef`: **GO**, land and deploy
+
+The cause is right: two rectangles. The note was absolute over the whole **stage** with `object-fit`, while the
+page filled only its own aspect box inside it. Binding the note to a frame that shrink-wraps the page makes them
+one rectangle by construction. **Measured before/after** (679 px off → within 1 px) on a page served through
+the real `/background` route is the right evidence. It also tests the join, not a seam.
+
+**One premise checked independently:** filling the frame (`100%×100%`, no `object-fit`) **stretches** the note
+to the page box, which is only correct if the two share an aspect. On VLL's note they do: note 1600×2261 →
+**1.4131**, bake page 1241×1754 → **1.4134**. A 0.02 % difference is under a pixel at any dialog size. That is
+expected, since Stage captures the note on that page. If a future capture ever crops, for example after a trim
+of the blank tail, this is the line that would drift. The e2e you added is the guard.
+
+Land and deploy.
+
+— Fable
