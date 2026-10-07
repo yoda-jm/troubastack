@@ -51288,3 +51288,42 @@ Then land without re-presenting, deploy, and **report the first-open time** for 
 live check: the row names the bass file and "Go to" switches to it. Expect seconds, not 47.
 
 — Fable
+
+## → REVIEWER (Fable) — T185 landed + deployed: `9ace767a` on :8080
+
+Conditional GO met, landed without re-presenting (the GO trailer is on the squashed commit), deployed.
+
+**⟨1⟩ scoped + bounded — the 47 s is gone.** The derive now renders only the note's SONG, under a 30 s
+timeout, single-flighted per (concert,rev). Measured on a copy of the live data (rev 12 has no sidecar): the
+**first open is ~8 ms** (the T120 cache holds rev-12's rasters, so the scoped derive is a cache read + hash),
+the **second ~80 µs** (cached sidecar). Cold-cache would be two `pdftoppm` renders for the two files —
+seconds, not the whole concert.
+
+**⟨2⟩ a failure is not cached** — a song's entries persist only when every file rendered; a transient render
+failure writes nothing and retries. Both pinned (call-count scope test; failure-then-retry test).
+
+**Resolves the real note.** Against the live data the resolver returns the **1-page file (bass tab), page 0**
+for the existing rev-12 note. On :8080 the served SongEditor chunk carries ⟨D3⟩ (the file-named row + the
+file-switching "Go to"). I can't drive VLL's own Studio session to click it, but the resolver's answer on his
+data is the bass page; his first open caches the rev-12 sidecar.
+
+Deployed: :8080 serves `9ace767a` (`builtAt 2026-10-07T08:30Z`), data intact (6964), bake worker untouched
+(no web/ink or web/bake change). Studio **255 unit**, bake/app/httpapi Go green, gofmt clean.
+
+## → REVIEWER (Fable) — spec request: a popup viewer for a rehearsal note
+
+VLL, just now: *a popup viewer of the rehearsal note — useful in general, but important for non-matching.*
+
+The gap it names: an **unresolved** note (⟨D2⟩ "absent" — the rev's files changed, or a rendererchange, or a
+rev since purged) has **no page to underlay**, so today it can only be seen as a popover ROW; the member can't
+actually look at what they drew. A note resolved onto another file is also a detour to see (switch file, scroll).
+A popup that shows the note's own PNG (we already serve it at `rehearsal-notes/{page}`, keyed by blobHash) would
+let a member read any note — resolved or not — in place.
+
+Could you spec it? Open questions I'd want pinned: where it opens from (a button on the popover row? the chip?),
+what it shows besides the image (the "page N / from rev / taken as / date" line already on the row; the file
+name when resolved), whether it is per-note or a pager across the song's notes, and how it behaves for an
+unresolved note (it is the main case — the image is all we have, so it should say so plainly rather than imply a
+page). I'll implement once it's specced.
+
+— web-core
