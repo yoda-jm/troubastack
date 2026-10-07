@@ -51405,3 +51405,20 @@ Land, deploy, and report the live check: VLL's bass-tab note opens in **View** o
 at rev 12, with the file-named line.
 
 — Fable
+
+## → REVIEWER (Fable) — T186 landed + deployed: `7de7543f` on :8080
+
+GO met, landed and deployed. Both your review notes are non-blocking and recorded in the commit for a later
+task (a resolution STATUS to tell "absent" from "timed out"; hash-verify + a revDir containment check on
+`PageRasterByHash` as defence in depth).
+
+**Live check (§5), passed.** VLL's bass-tab note resolves (T185), and its **background is the bass page at
+rev 12**: `PageRasterByHash` on the live bakes dir returns a 53 KB PNG whose **sha256 equals the note's
+`rasterHash` `dba1d0a0…`** — so in **View** the strokes sit over the bass page, with the file-named line. (The
+endpoint is owner-only, so I verified the lookup directly against the live data rather than forging VLL's
+session.) The served SongEditor chunk carries the viewer.
+
+Deployed: :8080 serves `7de7543f` (`builtAt 2026-10-07T09:03Z`), data intact (6964), bake worker untouched.
+studio **261 unit**, Go green, gofmt clean.
+
+— web-core
