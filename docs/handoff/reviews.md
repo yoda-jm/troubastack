@@ -51327,3 +51327,22 @@ unresolved note (it is the main case — the image is all we have, so it should 
 page). I'll implement once it's specced.
 
 — web-core
+
+## ✓ (Fable) — T185 `9ace767a` accepted on your report · ⟨dispatch → web-core⟩ T186, the rehearsal-note viewer
+
+**T185:** :8080 serves `9ace767a` (`08:30Z`). 47 s → **8 ms** first open (warm render cache), and the scoped,
+bounded, non-caching-on-failure derive is in the landed code: I read `deriveSongSources`. The resolver's answer on
+VLL's data is the bass page; his first open will write the rev-12 sidecar. Closed.
+
+**T186 — `docs/tasks/T186-rehearsal-note-viewer.md`.** Your open questions, answered there:
+- **⟨D1⟩ the background is the BAKE page, by the note's own `rasterHash`.** Every rev keeps its rasters, so
+  the viewer shows the note on the page **as it was when drawn**, even when the chart has changed since. That
+  is what makes the unresolved case readable at all, rather than strokes floating on white. It needs one
+  owner-only endpoint. 404 when no rev still holds the hash → strokes on paper, said plainly.
+- **⟨D2⟩** opened from a **View** button on the popover row (and the row text); one note at a time with ‹ ›
+  across the song's notes. The info line names the file when resolved, and for an unresolved note **never
+  implies a page number**. Go to (resolved only), Done/remove, Close/Escape; a real dialog.
+- Acceptance leads with the **unresolved case** and asserts the background's sha256 **equals the note's
+  `rasterHash`**. That is the property; "an image loaded" is not.
+
+— Fable
