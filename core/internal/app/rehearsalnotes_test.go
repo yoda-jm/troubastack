@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/app/blob"
@@ -167,6 +168,8 @@ type stubBake struct {
 	// T185: resolve by hash → (fileId, filePage). srcFileID empty ⇒ unresolved.
 	srcFileID   string
 	srcFilePage int
+	// T186: the bake page bytes for the background endpoint. Empty ⇒ not found (404).
+	bgRaster []byte
 }
 
 func (s *stubBake) PageRasterHash(string, string, int) (string, bool, bool) {
@@ -179,6 +182,13 @@ func (s *stubBake) ResolvePageSource(_ string, _ uint64, _, _ string) (string, i
 		return "", 0, false
 	}
 	return s.srcFileID, s.srcFilePage, true
+}
+
+func (s *stubBake) PageRasterByHash(_ string, _ uint64, _, _ string) ([]byte, bool) {
+	if len(s.bgRaster) == 0 {
+		return nil, false
+	}
+	return s.bgRaster, true
 }
 
 // TestPageChangedIsThreeValued pins the distinction the *bool exists for: "we could not check"
@@ -320,5 +330,40 @@ func TestRehearsalNoteIsNotExported(t *testing.T) {
 	// exactly what an earlier version of this test was doing.
 	if !foundControl {
 		t.Fatalf("the walk never saw %q, a song that IS exported — it cannot testify that the note is absent", control)
+	}
+}
+
+// T186 ⟨D1⟩ — the viewer's background endpoint: the owner gets the bake page bytes; a non-owner band member
+// is refused; no background (no rev holds the hash) is a 404.
+func TestRehearsalNoteBackground(t *testing.T) {
+	repo := memrepo.New()
+	svc, _, alice, bandID, songID := noteFixture(t, repo)
+	svc.WithBakeLookup(&stubBake{bgRaster: []byte("THE-BAKE-PAGE"), isBaked: true})
+	if _, err := svc.PutRehearsalNote(alice, bandID, songID, 0, app.RehearsalNoteMeta{RasterHash: "h", ConcertID: "c", ConcertRev: 5}, testPNG(t, 1), false); err != nil {
+		t.Fatal(err)
+	}
+
+	// The owner gets the page bytes.
+	data, err := svc.RehearsalNoteBackground(alice, bandID, songID, 0)
+	if err != nil || string(data) != "THE-BAKE-PAGE" {
+		t.Fatalf("owner background = %q, err %v; want the bake page", data, err)
+	}
+
+	// A band member who is not the note's owner is refused (notes are owner-keyed).
+	bob, err := svc.Register("bob", "Bob", "pw123456", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.AddMembership(app.Membership{BandID: bandID, UserID: bob.ID, Role: app.RoleMember, CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RehearsalNoteBackground(bob, bandID, songID, 0); !errors.Is(err, app.ErrNotFound) {
+		t.Errorf("non-owner background err = %v, want ErrNotFound", err)
+	}
+
+	// No rev holds the hash → 404 (the viewer shows strokes on paper).
+	svc.WithBakeLookup(&stubBake{isBaked: true}) // bgRaster empty ⇒ false
+	if _, err := svc.RehearsalNoteBackground(alice, bandID, songID, 0); !errors.Is(err, app.ErrNotFound) {
+		t.Errorf("no-background err = %v, want ErrNotFound", err)
 	}
 }

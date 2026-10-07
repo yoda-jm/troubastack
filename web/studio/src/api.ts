@@ -674,6 +674,12 @@ export const api = {
     `/api/bands/${bandId}/songs/${songId}/rehearsal-notes/${page}` +
     (blobHash ? `?v=${blobHash}` : ""),
 
+  // T186 ⟨D1⟩ — the bake page the note was drawn over (by the note's rasterHash). 404 ⇒ no rev holds it, and
+  // the viewer shows the strokes on plain paper. Cache-bust on the blob hash like the note image.
+  rehearsalNoteBackgroundUrl: (bandId: string, songId: string, page: number, blobHash?: string) =>
+    `/api/bands/${bandId}/songs/${songId}/rehearsal-notes/${page}/background` +
+    (blobHash ? `?v=${blobHash}` : ""),
+
   // T173 ⟨D3⟩ — ONE call per band behind the song list's badge, never one per song. Songs with no
   // notes are omitted, so `counts[songId] ?? 0` is the only read a caller needs.
   //

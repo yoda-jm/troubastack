@@ -110,6 +110,7 @@ export function RehearsalNotesChip({
   onToggle,
   onRemove,
   onGoToNote,
+  onView,
 }: {
   notes: RehearsalNote[];
   shown: boolean;
@@ -120,6 +121,8 @@ export function RehearsalNotesChip({
   onToggle: () => void;
   onRemove: (page: number) => void;
   onGoToNote: (note: RehearsalNote) => void;
+  // T186 — open the note viewer at this row's note (by its index in the song's note list).
+  onView: (index: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   if (notes.length === 0) return null;
@@ -151,7 +154,7 @@ export function RehearsalNotesChip({
       </button>
       {open && (
         <div className="rehearsal-popover" data-testid="rehearsal-notes-popover">
-          {notes.map((n) => {
+          {notes.map((n, i) => {
             // T185 ⟨D3⟩ — a resolved note names its file and the page within it; "Go to" switches to that
             // file when it is not the open one. An unresolved note keeps the single-file "page N" rule.
             const resolved = !!n.fileId;
@@ -176,9 +179,16 @@ export function RehearsalNotesChip({
               : `Show this note and scroll to page ${targetPage + 1}`;
             return (
             <div className="rehearsal-note-row" data-testid="rehearsal-note-row" key={n.id}>
-              <span className="rehearsal-note-what">
+              {/* T186 — the description is the obvious way in: click it to open the viewer. */}
+              <button
+                type="button"
+                className="rehearsal-note-what"
+                data-testid="rehearsal-note-what"
+                title="Look at this note on the page it was drawn on"
+                onClick={() => onView(i)}
+              >
                 {where} · from rev {n.concertRev} · taken as {n.takenAs || "—"} · {noteDate(n)}
-              </span>
+              </button>
               {/* Fable (dd6e359c): state the FACT, never the cause. A re-encode, a re-render, an
                   edit and a reflow are indistinguishable from a hash — and the label's first real
                   mass firing was a RENDERER change (two consecutive bakes moved every raster hash
@@ -193,6 +203,17 @@ export function RehearsalNotesChip({
                   not in the current bake
                 </span>
               )}
+              {/* T186 — look at the note on the page it was drawn on. The obvious action; works for an
+                  unresolved note too, which "Go to" cannot. */}
+              <button
+                type="button"
+                className="rehearsal-note-view"
+                data-testid="rehearsal-note-view"
+                title="Look at this note on the page it was drawn on"
+                onClick={() => onView(i)}
+              >
+                View
+              </button>
               {/* T185 — go to the note. A resolved note (⟨D2⟩) goes to its own file + page, switching files
                   if needed; its page always exists in its file, so the button is enabled whenever that file
                   is still on the song. An UNRESOLVED note keeps T183's rule: enabled only when its page is in

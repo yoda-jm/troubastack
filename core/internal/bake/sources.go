@@ -197,6 +197,68 @@ func (b *Baker) deriveLock(concertID string, rev uint64) *sync.Mutex {
 	return lk
 }
 
+// PageRasterByHash returns the bytes of the baked page raster whose hash is rasterHash, in this song — the
+// note's own rev first, then any other rev of the concert, newest first (the same hash is the same image,
+// T186 ⟨D1⟩). This is the page AS IT WAS when the note was drawn, which the viewer shows under the strokes
+// even when the chart has changed since. Returns false when no rev the server still holds carries the hash
+// (→ the viewer shows strokes on plain paper). The raster is a base page, no overlays, so no private marks
+// leak.
+func (b *Baker) PageRasterByHash(concertID string, rev uint64, songID, rasterHash string) ([]byte, bool) {
+	if rasterHash == "" {
+		return nil, false
+	}
+	revs := append([]uint64{rev}, b.concertRevs(concertID, rev)...)
+	for _, r := range revs {
+		revDir := filepath.Join(b.bakesDir, concertID, strconv.FormatUint(r, 10))
+		data, err := os.ReadFile(filepath.Join(revDir, "bundle.json"))
+		if err != nil {
+			continue
+		}
+		var cb ConcertBundle
+		if err := json.Unmarshal(data, &cb); err != nil {
+			continue
+		}
+		for _, song := range cb.Songs {
+			if song.SongID != songID {
+				continue
+			}
+			for _, p := range song.Pages {
+				if p.RasterHash == rasterHash && p.PageRasterRef != "" {
+					raster, rerr := os.ReadFile(filepath.Join(revDir, filepath.FromSlash(p.PageRasterRef)))
+					if rerr == nil {
+						return raster, true
+					}
+				}
+			}
+		}
+	}
+	return nil, false
+}
+
+// concertRevs lists the concert's rev numbers (dirs with a bundle.json), newest first, EXCLUDING `exclude`
+// (the caller tries that one first).
+func (b *Baker) concertRevs(concertID string, exclude uint64) []uint64 {
+	entries, err := os.ReadDir(filepath.Join(b.bakesDir, concertID))
+	if err != nil {
+		return nil
+	}
+	var revs []uint64
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		n, perr := strconv.ParseUint(e.Name(), 10, 64)
+		if perr != nil || n == exclude {
+			continue
+		}
+		if _, statErr := os.Stat(filepath.Join(b.bakesDir, concertID, e.Name(), "bundle.json")); statErr == nil {
+			revs = append(revs, n)
+		}
+	}
+	sort.Slice(revs, func(i, j int) bool { return revs[i] > revs[j] })
+	return revs
+}
+
 // revsWithSidecar lists the concert's rev numbers that have a page-sources.json, newest first.
 func (b *Baker) revsWithSidecar(concertID string) []uint64 {
 	entries, err := os.ReadDir(filepath.Join(b.bakesDir, concertID))

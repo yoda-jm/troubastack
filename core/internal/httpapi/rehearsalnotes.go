@@ -22,6 +22,9 @@ func (a *WebAPI) mountRehearsalNotes(mux *http.ServeMux) {
 	// /songs/: it is a property of the band's library, not of any one song.
 	mux.HandleFunc("GET /api/bands/{bandId}/rehearsal-notes", a.auth(a.bandRehearsalNoteCounts))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/rehearsal-notes/{page}", a.auth(a.getRehearsalNote))
+	// T186 ⟨D1⟩ — the bake page the note was drawn over, by the note's rasterHash. Owner-only, 404 when no
+	// rev still holds that page.
+	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/rehearsal-notes/{page}/background", a.auth(a.getRehearsalNoteBackground))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/rehearsal-notes/{page}", a.auth(a.deleteRehearsalNote))
 }
 
@@ -110,6 +113,27 @@ func (a *WebAPI) bandRehearsalNoteCounts(w http.ResponseWriter, r *http.Request,
 		counts = map[string]int{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"counts": counts})
+}
+
+// getRehearsalNoteBackground serves the bake page the note was drawn over (T186 ⟨D1⟩). 404 when no rev holds
+// the hash — the viewer then shows the strokes on plain paper.
+func (a *WebAPI) getRehearsalNoteBackground(w http.ResponseWriter, r *http.Request, u app.User) {
+	page, err := notePage(r)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	data, err := a.svc.RehearsalNoteBackground(u, r.PathValue("bandId"), r.PathValue("songId"), page)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	// The raster is content-addressed by the note's rasterHash (stable), so it is safe to revalidate on it.
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 func (a *WebAPI) getRehearsalNote(w http.ResponseWriter, r *http.Request, u app.User) {
@@ -202,4 +226,11 @@ func (l bakePageLookup) ResolvePageSource(concertID string, concertRev uint64, s
 		return "", 0, false
 	}
 	return l.baker.ResolvePageSource(concertID, concertRev, songID, rasterHash)
+}
+
+func (l bakePageLookup) PageRasterByHash(concertID string, concertRev uint64, songID, rasterHash string) ([]byte, bool) {
+	if l.baker == nil {
+		return nil, false
+	}
+	return l.baker.PageRasterByHash(concertID, concertRev, songID, rasterHash)
 }

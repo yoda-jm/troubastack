@@ -44,6 +44,7 @@ import {
   noteForPage,
   useRehearsalNotes,
 } from "./RehearsalNotes";
+import { RehearsalNoteViewer } from "./RehearsalNoteViewer";
 import { IconGlyphPalette } from "./IconGlyphPalette";
 import { EditCanvas } from "./EditCanvas";
 import { MyFilesEditor } from "./MyFilesEditor";
@@ -159,6 +160,8 @@ export function Viewer({
   // Default ON: they sent the notes in order to look at them. Per song, in session only.
   const { notes: rehearsalNotes, remove: removeRehearsalNote } = useRehearsalNotes(bandId, songId);
   const [underlayOn, setUnderlayOn] = useState(true);
+  // T186 — the rehearsal-note viewer: the index of the note it shows, or null when closed.
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   // T30 — "no silent ink": while the realtime connection is down, ink cannot land,
   // so the editor presents READ-ONLY up-front (draw tools grayed via canDraw, wet
@@ -1516,7 +1519,25 @@ export function Viewer({
           onToggle={() => setUnderlayOn((v) => !v)}
           onRemove={removeRehearsalNote}
           onGoToNote={goToNote}
+          onView={(i) => setViewerIndex(i)}
         />
+        {viewerIndex !== null && rehearsalNotes[viewerIndex] && (
+          <RehearsalNoteViewer
+            notes={rehearsalNotes}
+            index={viewerIndex}
+            bandId={bandId}
+            songId={songId}
+            files={files}
+            onClose={() => setViewerIndex(null)}
+            onNavigate={(d) =>
+              setViewerIndex((i) =>
+                i === null ? null : Math.max(0, Math.min(rehearsalNotes.length - 1, i + d)),
+              )
+            }
+            onGoToNote={goToNote}
+            onRemove={removeRehearsalNote}
+          />
+        )}
 
         {/* T105 — for a generated text chart the source IS the file, so offer to edit it from where you
             are reading it, without opening the files panel. Navigates to the dedicated editor route.

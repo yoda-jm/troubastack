@@ -221,6 +221,34 @@ func TestBakeT185_FailureNotCached(t *testing.T) {
 	}
 }
 
+// T186 ⟨D1⟩ — the viewer's background: PageRasterByHash returns the baked page whose sha256 IS the note's
+// rasterHash (the property, not "some image"). It walks the note's rev, then any rev of the concert.
+func TestBakeT186_PageRasterByHash(t *testing.T) {
+	e := newT137Env(t)
+	two := e.upload(t, "two.pdf", []byte("%PDF-1.4 PAGES=2 TWO"))
+	one := e.upload(t, "one.pdf", []byte("%PDF-1.4 ONE"))
+	e.selects(t, e.marie, two.ID, one.ID)
+	cb, b := e.bakeMultiPage(t)
+	song := cb.Songs[0]
+	hash := song.Pages[seqFor(song.MemberPages, e.marie.ID)[2]].RasterHash // the bass page
+
+	raster, ok := b.PageRasterByHash(cb.ConcertID, cb.ConcertRev, song.SongID, hash)
+	if !ok {
+		t.Fatalf("background not found for a baked page")
+	}
+	if got := Sha256Hex(raster); got != hash {
+		t.Errorf("background sha256 = %s, want the note's rasterHash %s", got, hash)
+	}
+	// A hash in no rev → not found (viewer shows strokes on paper).
+	if _, ok := b.PageRasterByHash(cb.ConcertID, cb.ConcertRev, song.SongID, "nope"); ok {
+		t.Error("an unknown hash must not resolve to a background")
+	}
+	// Cross-rev: a note naming a rev with no bundle still finds the page in the baked rev.
+	if _, ok := b.PageRasterByHash(cb.ConcertID, cb.ConcertRev+9, song.SongID, hash); !ok {
+		t.Error("the background should be found in another rev of the concert")
+	}
+}
+
 // A rev baked BEFORE T185 has no sidecar; resolving a note on it DERIVES one by re-rendering the song's
 // files, matches by hash, and caches it (Fable's ruling, option 2). This is VLL's rev-12 case, in miniature.
 func TestBakeT185_BackfillOldRevByRerender(t *testing.T) {

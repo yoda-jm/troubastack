@@ -28,6 +28,10 @@ type BakeLookup interface {
 	// told (no source record for the rev, or no hash match) — the caller then leaves the fields empty and
 	// Studio keeps the single-file rule. It never guesses.
 	ResolvePageSource(concertID string, concertRev uint64, songID, rasterHash string) (fileID string, filePage int, resolved bool)
+	// PageRasterByHash returns the baked page raster (PNG bytes) whose hash is rasterHash in this song —
+	// the note's rev first, then any rev of the concert (T186 ⟨D1⟩). false when no rev the server holds has
+	// it. The viewer draws the note over this page as it was when drawn, even for an unresolved note.
+	PageRasterByHash(concertID string, concertRev uint64, songID, rasterHash string) ([]byte, bool)
 }
 
 // WithBakeLookup injects the bake seam. Nil is allowed and means "no bake knowledge": every
@@ -241,6 +245,28 @@ func (s *Service) RehearsalNoteBytes(caller User, bandID, songID string, pageInS
 		return RehearsalNote{}, nil, ErrNotFound
 	}
 	return n, data, nil
+}
+
+// RehearsalNoteBackground serves the BAKE PAGE the note was drawn over (T186 ⟨D1⟩): the raster whose hash is
+// the note's, found in the note's rev or any rev of the concert. Owner-only, same authorisation as the note.
+// ErrNotFound (→ 404) when no rev the server still holds has that hash, and the viewer then shows the strokes
+// on plain paper.
+func (s *Service) RehearsalNoteBackground(caller User, bandID, songID string, pageInSong int) ([]byte, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return nil, err
+	}
+	n, err := s.repo.GetRehearsalNote(caller.ID, songID, pageInSong)
+	if err != nil || n.BandID != bandID {
+		return nil, ErrNotFound
+	}
+	if s.bakes == nil {
+		return nil, ErrNotFound
+	}
+	data, ok := s.bakes.PageRasterByHash(n.ConcertID, n.ConcertRev, n.SongID, n.RasterHash)
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return data, nil
 }
 
 // DeleteRehearsalNote is the musician's "Done, remove": they have recopied the note into real

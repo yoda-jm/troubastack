@@ -71,14 +71,14 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
 
   it("renders no chip at all when this user has no notes", () => {
     const { container } = render(
-      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null} notes={[]} shown onToggle={() => {}} onRemove={() => {}} />,
+      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} onView={() => {}} files={[]} selectedFileId={null} notes={[]} shown onToggle={() => {}} onRemove={() => {}} />,
     );
     expect(container.innerHTML).toBe("");
   });
 
   it("counts the notes and reflects whether the underlay is on", () => {
     const { rerender } = render(
-      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null}
+      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} onView={() => {}} files={[]} selectedFileId={null}
         notes={[note({ pageInSong: 0 }), note({ pageInSong: 1 })]}
         shown
         onToggle={() => {}}
@@ -89,7 +89,7 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
     expect(chip.textContent).toContain("(2)");
     expect(chip.getAttribute("aria-pressed")).toBe("true");
     rerender(
-      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null}
+      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} onView={() => {}} files={[]} selectedFileId={null}
         notes={[note()]}
         shown={false}
         onToggle={() => {}}
@@ -109,7 +109,7 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
       [null, false],
     ] as const) {
       const { unmount } = render(
-        <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null}
+        <RehearsalNotesChip numPages={99} onGoToNote={() => {}} onView={() => {}} files={[]} selectedFileId={null}
           notes={[note({ pageChanged: value })]}
           shown
           onToggle={() => {}}
@@ -128,7 +128,7 @@ describe("T170 — the note is a reference, and the UI must not promise more tha
   it("Done, remove asks for the note's own page", () => {
     const onRemove = vi.fn();
     render(
-      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null}
+      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} onView={() => {}} files={[]} selectedFileId={null}
         notes={[note({ pageInSong: 4 })]}
         shown
         onToggle={() => {}}
@@ -200,7 +200,7 @@ describe("T170 §5.3 — a rehearsal note must not reach the renderer or the bak
 describe("T170 — the changed tag names what is checkable and nothing else", () => {
   it("says the page is not in the current bake, and blames nothing", () => {
     render(
-      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} files={[]} selectedFileId={null}
+      <RehearsalNotesChip numPages={99} onGoToNote={() => {}} onView={() => {}} files={[]} selectedFileId={null}
         notes={[note({ pageChanged: true })]}
         shown
         onToggle={() => {}}
@@ -226,7 +226,7 @@ describe("T170 — the changed tag names what is checkable and nothing else", ()
         numPages={8}
         onToggle={() => {}}
         onRemove={() => {}}
-        onGoToNote={onGoToNote} files={[]} selectedFileId={null}
+        onGoToNote={onGoToNote} onView={() => {}} files={[]} selectedFileId={null}
       />,
     );
     fireEvent.click(screen.getByTestId("rehearsal-notes-more"));
@@ -256,6 +256,7 @@ describe("T170 — the changed tag names what is checkable and nothing else", ()
         onToggle={() => {}}
         onRemove={() => {}}
         onGoToNote={onGoToNote}
+        onView={() => {}}
       />,
     );
     fireEvent.click(screen.getByTestId("rehearsal-notes-more"));
@@ -279,6 +280,7 @@ describe("T170 — the changed tag names what is checkable and nothing else", ()
         onToggle={() => {}}
         onRemove={() => {}}
         onGoToNote={() => {}}
+        onView={() => {}}
       />,
     );
     fireEvent.click(screen.getByTestId("rehearsal-notes-more"));
@@ -295,7 +297,7 @@ describe("T170 — the changed tag names what is checkable and nothing else", ()
         numPages={8}
         onToggle={() => {}}
         onRemove={() => {}}
-        onGoToNote={onGoToNote} files={[]} selectedFileId={null}
+        onGoToNote={onGoToNote} onView={() => {}} files={[]} selectedFileId={null}
       />,
     );
     fireEvent.click(screen.getByTestId("rehearsal-notes-more"));
