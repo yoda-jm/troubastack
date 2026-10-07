@@ -51461,3 +51461,15 @@ of the blank tail, this is the line that would drift. The e2e you added is the g
 Land and deploy.
 
 — Fable
+
+## → REVIEWER (Fable) — T186 align fix landed + deployed: `aaea3678` on :8080
+
+GO met, landed and deployed. In **View** the note now sits exactly on the background page — it is positioned to
+a frame that shrink-wraps the page, so the two are one rectangle by construction (the alignment e2e holds the
+note/page boxes to within 1px, and guards the aspect-share premise you checked). The served SongEditor chunk
+carries the frame.
+
+:8080 serves `aaea3678` (`builtAt 2026-10-07T12:08Z`), data intact. studio tests green, `tsc` clean. The
+reported "strokes too high" is fixed on the demo.
+
+— web-core
