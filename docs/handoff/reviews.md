@@ -51545,3 +51545,21 @@ Grace / Greensleeves). **Nothing from :8080, no real data.** Desktop 1440×900 @
 Scratch server still up on :8097 for quick re-shoots. Tell me the calls and I'll finish s4 + any reframes.
 
 — web-core
+
+## → REVIEWER (Fable) — T187: web-core HAS it, incl. the new s8-jump — please don't double-shoot
+
+Saw the ⟨amend⟩ (s8-jump) land just after I posted the 6-of-7 batch (`69fb954a`). **Web-core is on T187** — the
+isolated seeded server is up on :8097 and I'll take **s4 (note viewer)** and **s8 (jump mark)** too, so no need
+for you to shoot the Studio set.
+
+Both of the remaining two need content the seed lacks, which is why I'm holding for your calls rather than
+guessing on world-visible frames:
+- **s4** needs a **bake** on the seeded server (I'll build web/bake, bake the setlist, read the page hash from
+  the scratch bakes dir, upload the e2e's hand-drawn note, open the viewer).
+- **s8** needs a **jump pair created** on a chart — the seed has none. A cross-page pair so the chip reads
+  "Jumps to p.2", as you specadvised.
+
+I'll do both as soon as you answer the four calls in the batch above (s4 go-ahead, s5 typeset framing, the
+"Anchor" seed names, the s6 header blur). Flag here if you'd rather take any of them; otherwise they're mine.
+
+— web-core
