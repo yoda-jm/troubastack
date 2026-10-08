@@ -392,7 +392,7 @@ Strings in quotes are the UI's own words.
 | 1.2 | 0:14–0:23 | `TitleCard`: TroubaStack mark, "01 · What is TroubaStack?" | promise line |
 | 1.3 | 0:23–1:04 | `Diagram`: three planes appear one by one — TroubaStudio (pink, pencil chip), TroubaCore (blue, CPU chip), TroubaStage (yellow, play chip); an arrow Studio → Core → Stage | LT "TroubaStudio" / "TroubaCore" / "TroubaStage" |
 | 1.4 | 1:04–1:39 | WEB (from E06): Marie highlights "Capo 2", Leo's conductor ring appears live in a second window (`Split`) | LT "annotate together" |
-| 1.5 | 1:39–2:03 | WEB (from E08): "Bake setlist" → progress "Baking — song 2 of 4" → "Rev 3" in the timeline | LT "bake" |
+| 1.5 | 1:39–2:03 | WEB (from E08): "Bake setlist" → progress "Baking — song 2 of 4: …" → the concert row now reads "Rev 3" | LT "bake" |
 | 1.6 | 2:03–2:43 | TAB (from E09/E10): the concert opens, a pedal turns a spread, the count-in pulses, a jump mark → "Go" → landing glow | LT "TroubaStage — offline" |
 | 1.7 | 2:43–3:07 | TAB (from E11) a note scribbled on the tablet → WEB the same note under the score in Studio | LT "rehearsal notes" |
 | 1.8 | 3:07–3:23 | GFX: the episode map — 12 tiles in four arc colours; "players: start at 03" highlights 03, 04, 09–11 | — |
@@ -454,8 +454,8 @@ the padlock shot needs a valid one — see §9 D7), a throwaway domain. WEB agai
 | Take | Surface | Beats asserted |
 |---|---|---|
 | `term-compose-up` | TERM (real) | `cp deploy/.env.example deploy/.env`; editor shows `DOMAIN=band.example.org`; `docker compose up -d` → pulls `vincentleligeour/troubastack:latest` → `troubacore` healthy in `docker compose ps`; `curl https://…/healthz` → `ok` |
-| `term-docker-run` | TERM (recorded) | the 5-line `docker run … -e TROUBA_APP_STORE=file -e TROUBA_STORE=file -v troubadata:/data` |
-| `web-first-account` | WEB (empty server) | `/register` → account `marie` created → `/bands` empty → "New band name" "The Troubadours" → "New band" → band Overview, Marie listed as admin |
+| `term-docker-run` | TERM (recorded) | `docker pull …` then the 4-line `docker run … -e TROUBA_APP_STORE=file -e TROUBA_STORE=file -v troubadata:/data` |
+| `web-first-account` | WEB (empty server) | `/register` → account `marie` created → `/bands` empty → "+ New band" → field "New band name" "The Troubadours" → "Create band" → the band appears in the list (no navigation) → click it → Overview, Marie listed as admin |
 
 **Storyboard**
 
@@ -487,11 +487,12 @@ the padlock shot needs a valid one — see §9 D7), a throwaway domain. WEB agai
 > After a minute, docker compose p s shows the server as healthy. You can ask it directly: the health check
 > answers "ok".
 >
-> **2.5** Open your domain in a browser. You get the TroubaStack sign-in page, over HTTPS.
+> **2.5** Open your domain in a browser. You get TroubaStack's "Log in" page, over HTTPS.
 >
 > **2.6** A fresh server is empty — there is no administrator account built in. [beat] The first person to open
-> it registers, here Marie, who leads the band. [pause] She lands on "My bands", which is empty. She types the band's
-> name and clicks "New band". [beat] Creating a band makes you its admin. That is the only kind of admin
+> it registers, here Marie, who leads the band. [pause] She lands on "My bands", which is empty. She clicks "New band",
+> types the band's name, and clicks "Create band". The band appears in her list; she opens it. [beat] Creating a
+> band makes you its admin. That is the only kind of admin
 > TroubaStack has: per band, not per server. [beat] One thing to know: registration is open, so anyone who can
 > reach your server can create an account. If that matters to you, keep the server on a private network or
 > behind a VPN.
@@ -503,7 +504,9 @@ the padlock shot needs a valid one — see §9 D7), a throwaway domain. WEB agai
 > **2.8** No domain, or just trying it out on your home network? You can run the same image with a single
 > docker run command. This serves plain HTTP on port eight-zero-eight-zero — fine for a rehearsal room, not for
 > the open internet. [beat] And set both store variables, as shown: without them, the server forgets everything
-> when it stops.
+> when it stops. [beat] The published image is for regular PC-type servers today; on a Raspberry Pi or another ARM
+> machine, you build it from source. [beat] And if you'd rather hack on TroubaStack itself, the README's "make demo"
+> runs everything locally with demo data.
 >
 > **2.9** The server is ready. Next, the app on your tablet.
 
@@ -563,9 +566,17 @@ exists) and seeded (Marie logged in, WEB).
 > connect to your band — which is the next episode. [beat] And the chip in the corner says who you are: for now,
 > a guest.
 >
-> **3.5** You do not need a server to try it. A concert is a single file — a dot-T-stage file — and you can open one
-> from anywhere: email, a messenger, a USB stick. [beat] The project ships a demo concert. Tap TroubaStage, then
-> "Import", and pick the file. [beat] "Sat at The Anchor" appears in your library, with its version number.
+> **3.5** You do not need a server to try it. A concert is a single file — a dot-T-stage file. Copy one onto the
+> tablet from anywhere — email, a messenger, a USB stick — and import it. [beat] The project ships a demo concert.
+> Open TroubaStage, tap "Import", and pick the file. [beat] "Sat at The Anchor" appears in your library, with its
+> version number.
+>
+> ⚠ **Blocked — product bug, found while checking this spec (2026-10-08):** the "Import" button has been
+> unreachable since A65 (`ee3c6a68`, 2026-09-04): `manageIntent` is only ever set to `false`, so the Manage screen
+> that holds "Import" never opens, and the Perform list says *"No concerts on device yet. Open TroubaStudio to import
+> or download one."* — while TroubaStudio is disabled for a guest. There is also no `.tstage` VIEW intent-filter, so a
+> tapped file cannot open the app. **E03 (the pilot) cannot be shot until this is fixed**; the narration above
+> describes the intended path (import from the TroubaStage screen) and must be re-checked against the fix.
 >
 > **3.6** Now put the tablet in airplane mode. [pause] Open the concert. [beat] TroubaStage asks "Who are you?" —
 > each player sees their own part, their own layers and their own cues. You can pick a name or say "Not now".
@@ -588,10 +599,10 @@ of §4.5 green. **Gate P1** (§7) rules on voice, pace and look from this render
 | **Length** | 3:00 (narration 271 words ≈ 2.0 min of speech; the rest is watched action and cards) |
 | **Surfaces** | WEB (Studio Settings, Overview, `/join`), TAB (Connect, Join with QR, Home connected) |
 | **Goal** | The band leader invites his players; a player joins from the tablet in under a minute; roles are understood. |
-| **Perimeter — in** | The three membership roles (admin, conductor, member) and what each may do; Settings → "Invite links": Role, "Expiry (hours)", "Max uses", "Create link", "Reveal the join link (QR + URL)"; the invite by username alternative (one line); joining from the tablet: Home "⧉ Scan a QR to join a band" → QR → "You've been invited to …" → create account → "You've joined …"; the server safety check ("TroubaStage will check this is a TroubaStack server before asking for your password"); signing in on another tablet (Connect → "Sign in", "Servers on this network"); the connected Home ("Performing as … ✓", TroubaStudio tile now active); promoting Leo to conductor; members are band-scoped, the band is the privacy boundary. |
+| **Perimeter — in** | The three membership roles (admin, conductor, member) and what each may do; Settings → "Invite links": Role, "Expiry (hours)", "Max uses", "Create link", "🔒 Reveal"; the invite by username alternative (one line); joining from the tablet: Home "⧉ Scan a QR to join a band" → QR → "You've been invited to …" → create account → "You've joined …"; the server safety check ("TroubaStage will check this is a TroubaStack server before asking for your password"); signing in on another tablet (Connect → "Sign in", "Servers on this network"); the connected Home ("Performing as … ✓", TroubaStudio tile now active); promoting Leo to conductor; members are band-scoped, the band is the privacy boundary. |
 | **Perimeter — out** | Part tags and "Who are you?" depth (E09), "Your invite QR" on `/me` (a one-liner). |
 
-**Prerequisites:** isolated server with **The Troubadours** created but only Marie in it (fixture "empty band");
+**Prerequisites:** isolated server with **The Troubadours** created with Marie (admin) and Leo (member, joined off camera) only (fixture "empty band");
 emulator with the app installed, not connected; a camera feed for the QR scan — the emulator's virtual scene camera
 can show an image: the fixture renders the invite QR to a PNG and injects it (`-camera-back virtualscene` +
 poster). Fallback: "Paste a link instead" (also a real UI path).
@@ -600,10 +611,10 @@ poster). Fallback: "Paste a link instead" (also a real UI path).
 
 | Take | Surface | Beats asserted |
 |---|---|---|
-| `web-invite-link` | WEB | Settings → Invite links: Role "member", Expiry 24, Max uses 1 → "Create link" → "Reveal the join link (QR + URL)" → QR visible |
-| `tab-join-qr` | TAB | Home "⧉ Scan a QR to join a band" → "Point at the invite QR" → "You've been invited to The Troubadours" / "as member" → "New here? Create an account" → Username/Display name/Password → "Create account" → "You've joined The Troubadours." → "Done" → Home chip shows the band, "Performing as Sasha · The Troubadours ✓" |
-| `web-members-roles` | WEB | Overview: Sasha listed; Settings → Leo's role → "conductor" → saved |
-| `tab-signin-discovered` | TAB (2nd emulator profile) | Connect → "Servers on this network" → tap the **isolated** server row → Username/Password → "Connect" → connected. **Constraint (§5.2):** discovery needs the isolated server's mDNS ON, and on VLL's LAN the list would *also* show his real server — so this take runs only on a network where the isolated server is the only advertiser (a separate Wi-Fi/VLAN or a network namespace bridged to the emulator). If that is not available, the take **types the URL** instead and the narration's "shows up by itself" sentence is cut. |
+| `web-invite-link` | WEB | Settings → Invite links: Role "member", Expiry 24, Max uses 1 → "Create link" → "🔒 Reveal" (tooltip "Reveal the join link (QR + URL)") → QR and URL visible → "Hide" |
+| `tab-join-qr` | TAB | Home "⧉ Scan a QR to join a band" → "Point at the invite QR" → "This invite points at a server you haven't used before." + the TroubaStack-check line → "Continue" → "Verifying …" → sign-in step → "New here? Create an account" → Username/Display name/Password → "Create account" → "You've been invited to" / "The Troubadours" / "as member" → "Join" → "You've joined The Troubadours." → "Done" → Home chip label "The Troubadours" → tap the chip → "Performing as Sasha · The Troubadours ✓" (or " · syncing…" first) |
+| `web-members-roles` | WEB | Overview: Sasha listed; Settings → Leo's role → "conductor" → saved (the "empty band" fixture includes Leo as a plain member who joined off camera) |
+| `tab-signin-discovered` | TAB (2nd emulator profile) | Home chip → "Join or sign in" → "Connect to your band" (Sign in tab) → "Servers on this network" → tap the **isolated** server row → Username/Password → "Connect" → connected. Note: the E02 compose install sets `TROUBA_NO_MDNS=1` (it never advertises) — discovery is shown as the bare-binary / LAN case, said as such. **Constraint (§5.2):** discovery needs the isolated server's mDNS ON, and on VLL's LAN the list would *also* show his real server — so this take runs only on a network where the isolated server is the only advertiser (a separate Wi-Fi/VLAN or a network namespace bridged to the emulator). If that is not available, the take **types the URL** instead and the narration's "shows up by itself" sentence is cut. |
 
 **Storyboard**
 
@@ -619,27 +630,28 @@ poster). Fallback: "Paste a link instead" (also a real UI path).
 
 **Narration**
 
-> **4.2** A band in TroubaStack has three kinds of members. [beat] Admins manage the band: members, setlists,
-> and baking concerts. [beat] Conductors lead the music: their marks can be made compulsory for everyone.
+> **4.2** A band in TroubaStack has three kinds of members. [beat] Admins manage the band: members,
+> invitations, and baking concerts. [beat] Conductors lead the music: their marks can be made compulsory for everyone.
 > [beat] And members — the players — read, annotate for themselves, and share what they want to share. [beat] The
-> band is also the privacy boundary: everything in it is visible to its members, and to nobody else.
+> band is also the privacy boundary: nothing in it is ever visible outside the band.
 >
 > **4.3** To invite someone, the admin opens the band's Settings. Under "Invite links", choose the role the
 > invitation gives, how long it stays valid — a day by default — and how many people can use it: one, by default.
-> Click "Create link". [beat] The link and its QR code stay blurred until you reveal them, so nobody reads them
-> over your shoulder.
+> Click "Create link". [beat] The QR code stays blurred and the link hidden until you click "Reveal", so nobody
+> reads them over your shoulder.
 >
 > **4.4** On the tablet, the player taps "Scan a QR to join a band", and points the camera at the code. [pause]
-> TroubaStage shows which band, and which role. Before it ever sends a password, it checks that this really is a
-> TroubaStack server. [beat] New here, Sasha creates her account right in the app: a username, a display name, a
-> password. [pause] "You've joined The Troubadours." [beat] Back on Home, the chip shows the band, and the
-> TroubaStudio tile is now active.
+> First, TroubaStage checks that this really is a TroubaStack server — before it ever asks for a password. [beat]
+> New here, Sasha creates her account right in the app: a username, a display name, a password. [pause] Then it
+> shows which band, and which role. She taps "Join". [pause] "You've joined The Troubadours." [beat] Back on Home,
+> the chip in the corner now shows the band, and the TroubaStudio tile is active.
 >
 > **4.5** Back in Studio, Sasha is in the member list. [beat] Marie makes Leo the conductor: one change in Settings.
 >
-> **4.6** Already have an account and a new tablet? Open "Server and account", and look under "Servers on this
-> network": when your server is in the same room, it shows up by itself. Tap it, sign in, connect. [beat] Your
-> username is remembered next time.
+> **4.6** Already have an account and a new tablet? Tap the chip in the corner, then "Join or sign in". [beat]
+> Type your server's address, your username and password, and connect. [beat] If your server advertises itself on
+> the local network, it is listed under "Servers on this network" — one tap fills the address. [beat] Your username
+> is remembered next time.
 >
 > **4.7** The band is set. Next: putting music in it.
 
@@ -655,7 +667,7 @@ poster). Fallback: "Paste a link instead" (also a real UI path).
 | **Length** | 3:30 (narration 312 words ≈ 2.3 min of speech; the rest is watched action and cards) |
 | **Surfaces** | WEB |
 | **Goal** | The leader can build the band's repertoire: add songs, attach PDFs, type a chart, find songs again — and understands that one song can hold several files and each player picks theirs. |
-| **Perimeter — in** | "Add song" (title, artist); the song's Details (Key, Tempo, **Metre**, Notes, Tags); the **file pool** ("Files": "Upload file", "New chart", "New chart from lyrics"); the chart editor (`# title`, `## section`, chords over lyrics, live preview, "Save chart"), `{sot}…{eot}` tab blocks in one line, two columns in one line; **Transpose** ("Transpose to key"); **My files** ("In my stage selection") — Leo's guitar-tab-only selection; tags (chips, the band's tag cloud) and the Overview search ("Filter by title, artist or tag…", tag chips combine with AND); the Tags panel (rename/merge) in one beat. |
+| **Perimeter — in** | "Add song" (title, artist); the song's Details (Key, Tempo, **Metre**, Notes, Tags); the **file pool** ("＋ Upload file" → "Add to pool", "＋ New text chart", "＋ New tab", "＋ New chart from lyrics"); the chart editor (`# title`, `## section`, chords over lyrics, "Preview", "Save chart"), `{sot}…{eot}` tab blocks in one line, two columns in one line; **Transpose** ("Transpose…" → "Transpose to key" → "Preview" → "Apply"; "Also update the song key" ticked by default); **My files** (checkboxes per file; the ● on the file tab, tooltip "In my stage selection") — Leo's guitar-tab-only selection; tags (chips, the band's tag cloud) and the Overview search ("Filter by title, artist or tag…" — the box shows by itself only past 12 songs, or once a tag is clicked; tag chips combine with AND); the Tags panel (rename/merge, above the songs) in one beat. |
 | **Perimeter — out** | Annotation (E06); lyrics lookup over the network ("Search by song" — shown, but the take uses "…or paste the lyrics here", no third-party site on film); deleting songs. |
 
 **Prerequisites:** seeded isolated server (The Troubadours); for the new chart, **original lyrics written for the
@@ -668,11 +680,11 @@ charts).
 | Take | Surface | Beats asserted |
 |---|---|---|
 | `web-add-song` | WEB | Overview → "Add song" → Title "Lantern Light", Artist "The Troubadours" → song opens → Details: Key "D", Tempo 104, Metre "4/4", Tags `original`, `ballad` |
-| `web-new-chart` | WEB | Files → "New chart" → "Chart name" "Lead sheet" → type `# Lantern Light`, `## Verse`, two chord-over-lyric lines, `## Chorus` → preview updates → "Save chart" → file in the pool |
-| `web-transpose` | WEB | chart editor → "Transpose the chords" → "Transpose to key" E → preview chords change, lines unchanged |
-| `web-upload-pdf` | WEB | Files → "Upload file" → a PDF (fixture) → second file in the pool |
-| `web-my-files` | WEB (as leo) | House of the Rising Sun → My files: "Guitar tab" ticked "In my stage selection", others not |
-| `web-search-tags` | WEB | Overview → type "folk" → 2 songs → pick tag chip `public-domain` → AND → 1 song; Tags panel visible |
+| `web-new-chart` | WEB | Files → "＋ New text chart" → the editor opens pre-filled with `# Lantern Light` / `## Verse 1` → type two chord-over-lyric lines and `## Chorus` → click "Preview" → the page renders → "Save chart" → pool row named "Lantern Light". A second fixture chart shows `{sot}…{eot}`; `columns: 2` is shown on a chart **without** tab (a chart with tablature always stays in one column) |
+| `web-transpose` | WEB | reopen the saved chart → "Transpose…" → "Transpose to key" E → "Preview" → "Apply" → chords changed, lines unchanged, song key now E. ⚠ The editor currently shows a stale caveat ("Editing re-renders the PDF — layout may shift, so existing annotations on this chart can end up off their original spot.") that contradicts anchoring (T145) — fix the copy before shooting, or keep it out of frame |
+| `web-upload-pdf` | WEB | Files → "＋ Upload file" → pick a PDF (fixture) → "File name" → "Add to pool" → second file in the pool |
+| `web-my-files` | WEB (as leo) | House of the Rising Sun → My files: "Guitar tab" checked, others unchecked → the file tab shows ● (tooltip "In my stage selection") |
+| `web-search-tags` | WEB | Overview → click the `folk` tag pill on a song row → the search box appears with chip `folk` → 2 songs → click `public-domain` → AND → 1 song; Tags panel visible above the songs (the seeded band has 4 songs: the box only shows by itself past 12) |
 
 **Storyboard**
 
@@ -681,7 +693,7 @@ charts).
 | 5.1 | 0:00–0:06 | `TitleCard` | "05 · Songs and charts" |
 | 5.2 | 0:06–0:21 | WEB Overview of the seeded band (four songs, tag pills) | LT "Overview" |
 | 5.3 | 0:21–0:49 | WEB `web-add-song` | LTs "Add song" · "Metre" · "Tags" |
-| 5.4 | 0:49–1:45 | WEB `web-new-chart` (typing at reading speed, `Zoom` on the preview) | LTs "New chart" · "## section" |
+| 5.4 | 0:49–1:45 | WEB `web-new-chart` (typing at reading speed, `Zoom` on the preview) | LTs "New text chart" · "## section" · "Preview" |
 | 5.5 | 1:45–2:06 | WEB `web-transpose` | LT "Transpose to key" |
 | 5.6 | 2:06–2:27 | WEB `web-upload-pdf` | LT "Upload file" |
 | 5.7 | 2:27–2:52 | WEB `web-my-files` (Leo's view) | LT "In my stage selection" |
@@ -696,23 +708,26 @@ charts).
 > the tempo, and the metre — four-four here. [beat] Tags are free words that help you find songs later: original,
 > ballad, encore… Type one and press Enter.
 >
-> **5.4** A song can hold several files: a lead sheet, a guitar part, a drum chart. Together they are the song's
-> file pool. [beat] You can upload PDFs or images. Or you can type a chart. [pause] "New chart", give it a name, and
-> write it as plain text: a hash for the title, two hashes for a section, chords on the line above the words. [beat]
-> The preview on the right is the real page your band will read. [beat] Guitar tab goes between "start of tab" and
-> "end of tab" markers; one header line splits the page into two columns. [beat] Save, and the chart joins the pool.
+> **5.4** A song can hold several files: a lead sheet, a guitar part, a drum chart. Together they are the song's file
+> pool. [beat] You can upload PDFs or images. Or you can type a chart. [pause] "New text chart" starts with the
+> song's title already in place. Write the rest as plain text: two hashes for a section, chords on the line above
+> the words. [beat] Click "Preview", and you see the real page your band will read. [beat] Guitar tab goes between
+> "start of tab" and "end of tab" markers; and on a chart without tab, one header line splits the page into two
+> columns. [beat] Save, and the chart joins the pool, named after its title.
 >
-> **5.5** Because it is text, a chart can change key. Pick the target key, and every chord moves. [beat] The lines
+> **5.5** Because it is text, a chart can change key. "Transpose", pick the target key, preview, apply — every chord
+> moves, and the song's key follows. [beat] The lines
 > stay where they were, so any marks already drawn on the page stay on their words.
 >
-> **5.6** And a PDF you already have is one upload away.
+> **5.6** And a PDF you already have: "Upload file", pick it, "Add to pool".
 >
-> **5.7** Each player then chooses which of the song's files they want on stage. Leo plays guitar: on House of the
-> Rising Sun, he keeps only the guitar tab "in my stage selection". [beat] On his tablet, that is all he will see.
+> **5.7** Each player then chooses which of the song's files they want on stage. Leo plays guitar: on House of the Rising Sun, he ticks only the guitar tab. [beat] On his tablet, that is all he
+> will see.
 >
-> **5.8** As the repertoire grows, the Overview search finds songs by title, artist or tag. [beat] Pick a tag and it
-> becomes a filter; pick two, and only songs with both remain. [beat] The Tags panel next to it renames or merges
-> tags for the whole band — always telling you how many songs will change first.
+> **5.8** Tags make songs easy to find. Click a tag on any song, and it becomes a filter; click a second one, and only
+> songs with both remain. [beat] Once your repertoire passes a dozen songs, a search box finds them by title,
+> artist or tag as you type. [beat] The Tags panel above the songs renames or merges tags for the whole band —
+> always telling you how many songs will change first.
 >
 > **5.9** Next: drawing on the music, together.
 
@@ -726,7 +741,7 @@ charts).
 | **Length** | 4:00 (narration 344 words ≈ 2.6 min of speech; the rest is watched action and cards) |
 | **Surfaces** | WEB ×2 (Marie and Leo, `Split`), WEB single |
 | **Goal** | Every player understands the three kinds of layers and draws their first marks; the leader sees that edits are live and that the conductor's layer can be compulsory. |
-| **Perimeter — in** | The full-bleed editor; tools ("Move", "Select", "Pen", "Line", "Rect", "Ellipse", "Text", "Icon" → "Stamp icon", "Jump mark" as a teaser); style ("Colour", "Stroke width", presets "Outline"/"Box"/"**Highlight**", Line style Solid/Dashed/Dotted, Line ends Arrow…); "Drawing on: <layer>" with 👥 Band / 👤 Mine; the Layers panel: shared ("Form / sections"), conductor ("(conductor)", **"required"**, read-only), personal ("My notes", "Your layer"), show/hide, "New layer", "Lock layer"; realtime (two windows, a mark appears in the other); "Undo" (and its honest refusal "Can't undo — someone else changed this since."); marks stay on their words after a chart re-render (anchoring, one beat). |
+| **Perimeter — in** | The full-bleed editor; tools ("Move", "Select", "Pen", "Line", "Rect", "Ellipse", "Text", "Icon" → "Stamp icon", "Jump mark" as a teaser); style ("Colour", "Stroke width", presets ▢ "Outline" / ■ "Box" / ▨ "**Highlight**" (icon buttons, names in tooltips), "Line" Solid/Dashed/Dotted and "Start"/"End" None/Arrow/Circle/Square in the ⋯ style popover); "Drawing on: <layer>" with 👥 Band / 👤 Mine; the Layers panel: shared ("Form / sections" — also **"required"** in the seed), conductor ("(conductor)", "required", editable only by conductors), personal ("My notes" — others see them only if they switch them on; owner shown by the avatar tooltip "Your layer"), show/hide, "New layer", "Lock layer"; realtime (two windows, a mark appears in the other); "Undo" (and its honest refusal "Can't undo — someone else changed this since."); marks stay on their words after a chart re-render (anchoring, one beat). |
 | **Perimeter — out** | Cues and jump marks (E07); deleting mandatory layers (danger flow — one sentence at most). |
 
 **Prerequisites:** seeded server; two browser contexts (Marie, Leo) side by side at 960×1080 each for the `Split`
@@ -737,9 +752,9 @@ beats, one 1920×1080 context for the rest; *The Open Road* lead sheet open.
 | Take | Surface | Beats asserted |
 |---|---|---|
 | `web-editor-tour` | WEB | song opens full-bleed; the tool pill visible; "Fit page" |
-| `web-draw-tools` | WEB (Marie) | Highlight preset over "Capo 2" → Text "capo 2!" → Rect "Box" around Verse 2 → Line, Dashed, end Arrow → Icon "Stamp icon" ⚠ → each object exists in the layer (API check) |
-| `web-layers` | WEB (Marie) | Layers panel: "Form / sections" (Band), "Conductor cues" "(conductor)" "required", "My notes" "Your layer"; hide "My notes" → its marks vanish; show again |
-| `web-realtime` | WEB ×2 | Leo (conductor) draws an ellipse on the last G on "Conductor cues" → appears in Marie's window within 2 s; Marie cannot edit it (read-only) |
+| `web-draw-tools` | WEB (Marie) | Highlight preset over "Sing loud" on p.1 (the seed already highlights "Capo 2" — avoid stacking) → Text "louder!" → Rect ▢ "Outline" around Verse 2 → Line, "Line" Dashed, "End" Arrow → Icon "Stamp icon" ⚠ → each object exists in the layer (API check) |
+| `web-layers` | WEB (Marie) | Layers panel: "Form / sections" 👥 Band, "required" (checkbox disabled); "Conductor cues" "(conductor)" "required"; Marie's "My notes"; Sasha's "My notes" listed **off**; hide Marie's "My notes" → its marks vanish; show again |
+| `web-realtime` | WEB ×2 | Leo (conductor) draws an ellipse on "Conductor cues" → appears in Marie's window within 2 s; Marie (admin, not conductor) cannot edit it |
 | `web-undo` | WEB | draw → Ctrl+Z → gone |
 | `web-anchor` | WEB | on the text chart, a highlight on a word → transpose → the highlight still on the same word |
 
@@ -749,7 +764,7 @@ beats, one 1920×1080 context for the rest; *The Open Road* lead sheet open.
 |---|---|---|---|
 | 6.1 | 0:00–0:05 | `TitleCard` | "06 · Annotating together" |
 | 6.2 | 0:05–0:27 | WEB `web-editor-tour`, `Callout`s on the tool pill and the rail | LT "canvas-first" |
-| 6.3 | 0:27–1:27 | WEB `web-draw-tools` | LTs "Highlight" · "Text" · "Box" · "Dashed" · "Arrow" · "Stamp icon" |
+| 6.3 | 0:27–1:27 | WEB `web-draw-tools` | LTs "Highlight" · "Text" · "Outline" · "Dashed" · "Arrow" · "Stamp icon" |
 | 6.4 | 1:27–2:13 | `Diagram` (three layer bands stacked over the page) then WEB `web-layers` | LTs "shared" · "conductor · required" · "My notes" |
 | 6.5 | 2:13–3:00 | `Split` WEB ×2 `web-realtime` | LT "live" · "read-only" |
 | 6.6 | 3:00–3:20 | WEB `web-undo` | LT "Undo" |
@@ -761,21 +776,20 @@ beats, one 1920×1080 context for the rest; *The Open Road* lead sheet open.
 > **6.2** Open a song and the page fills the screen: the music first, the tools out of the way. [beat] The tool pill
 > is at the top; layers and the list of annotations live in the rail on the side.
 >
-> **6.3** Marie wants to remember the capo. She picks the highlight preset and drags over "Capo 2". [beat] A text
-> note next to it. [beat] A box around the second verse. [beat] A line, dashed, with an arrow at the end, to point
+> **6.3** Marie wants the chorus louder. She picks the highlight preset and drags over "Sing loud". [beat] A text note
+> next to it. [beat] An outline around the second verse. [beat] A line, dashed, with an arrow at the end, to point
 > at the repeat. [beat] And from the stamp palette, a warning sign. [pause] Every mark has a colour, a width, a style;
 > and every mark is saved the moment you lift the pen.
 >
 > **6.4** Where a mark goes matters more than how it looks. TroubaStack draws on layers, stacked over the page in
-> three bands. [beat] Shared layers belong to the whole band — like "Form and sections", the song's structure.
-> [beat] Conductor layers belong to the conductor. They can be marked "required": then every player sees them, and
-> nobody can hide them. [beat] And personal layers — "My notes" — are yours alone. Nobody else sees them, in Studio
-> or on stage. [pause] The "Drawing on" chip always says where your next mark will land, and who will see it:
+> three bands. [beat] Shared layers belong to the whole band — like "Form and sections", the song's structure. [beat] Conductor layers
+> belong to the conductor. [beat] Any band layer can be marked "required" — like the form here, and the
+> conductor's cues: then every player sees it, and nobody can hide it. [beat] And personal layers — "My notes" —
+> are yours: only you draw on them, and your bandmates don't see them unless they choose to switch them on. [pause] The "Drawing on" chip always says where your next mark will land, and who will see it:
 > the band, or just you. [beat] Any layer can be hidden from your own view with one click — except the required ones.
 >
 > **6.5** And it is live. Here are Marie and Leo, on two different computers. [beat] Leo, the conductor, circles the
-> last chord on his conductor layer. [pause] It appears on Marie's screen at once. [beat] She can see it, and she
-> cannot change it: the conductor's layer is read-only for everyone else.
+> last chord on his conductor layer. [pause] It appears on Marie's screen at once. [beat] She can see it, and she cannot change it: the conductor's layer is read-only for everyone who isn't a conductor.
 >
 > **6.6** Made a mistake? Undo takes back your last change. [beat] And if someone else has changed that mark since,
 > TroubaStack says so instead of silently overwriting their work.
@@ -795,7 +809,7 @@ beats, one 1920×1080 context for the rest; *The Open Road* lead sheet open.
 | **Length** | 3:15 (narration 274 words ≈ 2.0 min of speech; the rest is watched action and cards) |
 | **Surfaces** | WEB (cues editor, setlist rows, jump tool), TAB (cue flash, jump) |
 | **Goal** | Players set their personal song cues; the leader places a jump mark and sees it become one tap on stage. |
-| **Perimeter — in** | **"My cues"** ("Add a cue", icons, "Tint") → shown on the setlist rows → flashed on song entry on the tablet; **Jump mark** tool: "next: source" → "next: destination →", "Jump source placed — now place the destination it jumps to (Esc to cancel).", landmarks (segno, coda…), the tie, "Jumps to p.N" / "Jumped to from p.N", "→ p.2", "Swap jump direction", uniqueness; on stage: tap → "Go" → landing near the top with the green glow; ⚙ "Skip the go-to popup". |
+| **Perimeter — in** | **"My cues"** ("Add a cue", icons, "Tint") → shown on the setlist rows → flashed on song entry on the tablet; **Jump mark** tool: "next: source" → "next: destination →", "Jump source placed — now place the destination it jumps to (Esc to cancel).", landmarks (segno, coda…), the tie, "Jumps to p.N" / "Jumped to from p.N", "→ p.1" / "← p.2" (cross-page: no dashed tie — the tie is drawn only when both ends are on one page), "Swap jump direction", one sign-and-colour pair per part; on stage: tap → "Go" → landing near the top with a brief full-screen flash; ⚙ "Skip the go-to popup". |
 | **Perimeter — out** | Conductor cues as a *layer* (that is E06; said once to avoid the confusion). |
 
 **Prerequisites:** seeded server; the jump-mark fixture **not** applied (the jump is placed on camera); a bake +
@@ -805,10 +819,10 @@ download for the tablet beats (done by the take, or reuse E08's bake); emulator 
 
 | Take | Surface | Beats asserted |
 |---|---|---|
-| `web-my-cues` | WEB (Sasha) | The Open Road → "My cues" → "Add a cue" → bass icon → "Tint" Blue → saved; setlist "Sat @ The Anchor" row shows the icon |
-| `web-jump-place` | WEB (Leo) | "Jump mark" → segno on p.2 near "Riff: play 4x" (source) → segno at Verse 1 on p.1 (destination) → selected: "Jumps to p.1", "→ p.1" visible |
+| `web-my-cues` | WEB (Sasha) | **Amazing Grace** (the seed already gives her a bass cue on The Open Road) → "My cues" → "Color for new cue" Teal → "Add a cue" → keys icon → saved; setlist "Sat @ The Anchor" row shows it |
+| `web-jump-place` | WEB (Leo) | lead sheet: "Jump mark" → segno near the end of p.2 (source) → segno at Verse 1 on p.1 (destination) → select the source: "Jumps to p.1" + "→ p.1"; select the destination: "Jumped to from p.2" + "← p.2". (The jump fixture of §4.2 is NOT applied for this episode) |
 | `tab-cue-flash` | TAB | enter The Open Road → the cue flash (mic + red electric for Marie) visible ≥ 0.5 s |
-| `tab-jump` | TAB | portrait, page 3 → tap the segno → "Go" → page 2 with the glow → `marks` "landed" |
+| `tab-jump` | TAB | portrait, the source page → tap the segno → "Go" → the destination page with the arrival flash → `marks` "landed" |
 
 **Storyboard**
 
@@ -816,28 +830,26 @@ download for the tablet beats (done by the take, or reuse E08's bake); emulator 
 |---|---|---|---|
 | 7.1 | 0:00–0:06 | `TitleCard` | "07 · Cues and jump marks" |
 | 7.2 | 0:06–0:57 | WEB `web-my-cues` then TAB `tab-cue-flash` | LTs "My cues" · "Tint" |
-| 7.3 | 0:57–2:18 | WEB `web-jump-place` (`Zoom` on both ends, the tie) | LTs "Jump mark" · "source" · "destination" · "Jumps to p.1" |
+| 7.3 | 0:57–2:18 | WEB `web-jump-place` (`Zoom` on both ends, the tie) | LTs "Jump mark" · "source" · "destination" · "Jumps to p.1" · "→ p.1" |
 | 7.4 | 2:18–3:03 | TAB `tab-jump` | LT "Go" |
 | 7.5 | 3:03–3:15 | `EndCard` → "08 · Setlists and baking" | — |
 
 **Narration**
 
 > **7.2** Before a song starts, every player has a different question: which guitar? Do I sing? Is it my solo?
-> [beat] Song cues answer it. In a song, open "My cues", add a cue — a microphone, an electric guitar, a bass —
-> and give it a tint. [beat] Your cues show under each song in the setlist. [pause] And on stage, the moment you
+> [beat] Song cues answer it. In a song, open "My cues", pick a colour, and add a cue — a microphone, an electric guitar, a keyboard. [beat] Your cues show under each song in the setlist. [pause] And on stage, the moment you
 > enter the song, they flash big in the middle of the screen. One glance, and you know what to pick up. [beat] Cues
 > are personal: each player sets their own. The conductor's marks on the score are something else — a layer, as we
 > saw in the last episode.
 >
 > **7.3** Now, repeats. "Back to the segno", "jump to the coda" — on paper that means flipping pages with a hand you
 > don't have. [beat] Pick the "Jump mark" tool. First, place the source: where the jump is made — here, at the end
-> of the riff, "play four times". [beat] Then place the destination: back at verse one. [pause] Both ends get the same
-> sign and the same colour, joined by a dashed arrow. Select either end, and it tells you the way: "jumps to page
-> one". [beat] Need it the other way round? "Swap jump direction". [beat] Each sign and colour is used once per part,
-> so two jumps can never be confused.
+> of the riff, "play four times". [beat] Then place the destination: back at verse one. [pause] Both ends get the same sign and the same colour. Select either end, and it tells you the way — "jumps to
+> page one" — with a small arrow you can click to go there. [beat] Need it the other way round? "Swap jump
+> direction". [beat] Each sign-and-colour pair is used once per part, so two jumps can never be confused.
 >
-> **7.4** On the tablet, the sign becomes a button. Tap it, and confirm with "Go". [pause] You land on the
-> destination, placed near the top of the screen, with a short glow so your eye finds it. [beat] Trust it already?
+> **7.4** On the tablet, the sign becomes a button. Tap it, and confirm with "Go". [pause] You land on the destination, placed near the top of the screen, and the screen flashes briefly so you know
+> you've jumped. [beat] Trust it already?
 > In settings, "Skip the go-to popup" makes it a single tap.
 >
 > **7.5** Next: putting the songs in order, and sending them to every tablet.
@@ -854,7 +866,7 @@ download for the tablet beats (done by the take, or reuse E08's bake); emulator 
 | **Length** | 3:30 (narration 323 words ≈ 2.4 min of speech; the rest is watched action and cards) |
 | **Surfaces** | WEB (Setlists, setlist detail, bake), TAB (Home update row, Concerts offers) |
 | **Goal** | The leader builds a running order, bakes it, and every tablet picks up the new version; the viewer understands what a bake and a rev are. |
-| **Perimeter — in** | Setlists tab: "New concert" (Name, "Venue (optional)"); setlist detail: "Add a song from the band library…" → "Add to order", drag to reorder, per-item "Edit key / tempo / notes" (Key Bm + "Lift it a tone for the room.", "transpose chords" on a text chart), "Add an intermission" (no number, own page), "★ Bench · on call" ("To bench"); "Bake setlist" → the dialog ("Baking with: …", default layers) → "Baking — song 2 of 4" → "Rev N" in the timeline; "Download .tstage" / "Download PDF" (one line each); on the tablet: Home "Sat @ The Anchor — new version" → "Update" with progress → "Nothing to update"; Concerts "— update to rev N"; Freeze / Pin (one line: keep a version for the gig). |
+| **Perimeter — in** | Setlists tab: "New concert" (Name, "Venue (optional)"); setlist detail: "Add a song from the band library…" → "Add to order", drag to reorder, per-item ✎ (tooltip "Edit key / tempo / notes": Key, Tempo, "Performance note"; "transpose chords" on a text chart; "Preview chart" opens the saved result in a new tab), "Add an intermission" (no number, own page), "★ Bench · on call" (the ★ button, tooltip "Move to the bench (on call, outside the running order)"); "Bake setlist" → the dialog ("Baking with: …", default layers) → "Baking — song N of M: <title>" → the concert's bake row updated in place ("👥 Band · Rev N · K songs · by <who>" + date); "Download .tstage" / "Download PDF" (one line each); on the tablet: Home "Sat @ The Anchor — new version" → "Update" with progress → "Nothing to update"; Concerts "— update to rev N"; "Freeze (no updates)" / "Pin this version" (one line: keep a version for the gig). |
 | **Perimeter — out** | Live mode (E11); band-wide bundle internals (said as "one file for the whole band, each tablet shows its player"). |
 
 **Prerequisites:** seeded server, plus a baked rev 1 already on the emulator (so the bake produces an *update*);
@@ -864,9 +876,9 @@ emulator connected as Marie.
 
 | Take | Surface | Beats asserted |
 |---|---|---|
-| `web-setlist-build` | WEB | "New concert" "Friday at the Mill" → add three songs → drag The Open Road last → "Add an intermission" between 2 and 3 → numbers 1, 2, (Intermission), 3 → Greensleeves "To bench" |
-| `web-item-override` | WEB | House → "Edit key / tempo / notes" → Key "Bm", "transpose chords" ✓, note → "Preview" shows Bm chords |
-| `web-bake` | WEB | "Bake setlist" → dialog → "Bake" → progress text seen → timeline row "Rev 2" |
+| `web-setlist-build` | WEB | "New concert" "Friday at the Mill" → add three songs → drag The Open Road last → "Add an intermission" (appended at the end) → drag it between 2 and 3 → numbers 1, 2, (Intermission), 3 → Greensleeves ★ (Move to the bench). *Illustrative only: this concert is not baked; the bake and update beats use* **Sat @ The Anchor** |
+| `web-item-override` | WEB | Sat @ The Anchor → House → ✎ → Key "Bm" (seeded), "transpose chords" ✓, "Performance note" → Save → "Preview chart" (new tab) shows Bm chords |
+| `web-bake` | WEB | Sat @ The Anchor (rev 1 already baked by the fixture) → "Bake setlist" → dialog → "Bake" → "Baking — song n of 4: …" seen → the bake row reads "Rev 2" and "Download .tstage (rev 2)" |
 | `tab-update` | TAB | Home: "… — new version" → "Update" → "Downloading x / y MB" → "Installing…" → "Nothing to update"; concert opens on rev 2 (title card / Bakes row "rev 2") |
 
 **Storyboard**
@@ -874,7 +886,7 @@ emulator connected as Marie.
 | # | Time | Visual | On screen |
 |---|---|---|---|
 | 8.1 | 0:00–0:06 | `TitleCard` | "08 · Setlists and baking" |
-| 8.2 | 0:06–1:10 | WEB `web-setlist-build` | LTs "New concert" · "Running order" · "Intermission" · "Bench · on call" |
+| 8.2 | 0:06–1:10 | WEB `web-setlist-build` | LTs "New concert" · "Running order" · "Intermission" · "★ Bench · on call" |
 | 8.3 | 1:10–1:41 | WEB `web-item-override` | LTs "Key" · "transpose chords" |
 | 8.4 | 1:41–1:57 | `Diagram`: songs + layers → bake oven → one `.tstage` file, "rev 2" stamp | LT "bake" |
 | 8.5 | 1:57–2:36 | WEB `web-bake` | LTs "Bake setlist" · "Rev 2" |
@@ -884,8 +896,7 @@ emulator connected as Marie.
 **Narration**
 
 > **8.2** A gig is a setlist: songs, in order. On the Setlists tab, "New concert", a name, a venue if you like.
-> [beat] Add songs from the band's library, and drag them into the order you will play them. [beat] Need a break?
-> "Add an intermission": it gets its own page on stage, and it doesn't take a number, so the numbering stays the one
+> [beat] Add songs from the band's library, and drag them into the order you will play them. [beat] Need a break? "Add an intermission", and drag it into place: it gets its own page on stage, and it doesn't take a number, so the numbering stays the one
 > on your paper setlist. [beat] And songs you might play — the encore you're not sure about — go to the bench. They
 > travel with the concert, they can be reached on stage, but they stay out of the running order.
 >
@@ -899,11 +910,10 @@ emulator connected as Marie.
 > so the band can check they all have the same one.
 >
 > **8.5** "Bake setlist". [beat] The dialog asks which layers should be switched on by default when the concert
-> opens. Required layers are always on. [pause] The bake runs, song by song… [beat] and the timeline shows the new
-> rev, who baked it, and when.
+> opens. Required layers are always on. [pause] The bake runs, song by song… [beat] and the concert's row now shows the new rev, who baked it, and when.
 >
 > **8.6** On the tablets, there is nothing to send. Home simply says: new version. One tap on "Update"… [pause]
-> and the concert is current. Players who were offline get it the next time they connect. [beat] For the gig
+> and the concert is current. Players who were offline see "new version" the next time they connect. [beat] For the gig
 > itself, you can freeze a concert on a tablet, or pin a version, so nothing changes under you on the night.
 >
 > **8.7** Next: what the tablet does with it — on stage.
@@ -918,7 +928,7 @@ emulator connected as Marie.
 | **Length** | 3:45 (narration 329 words ≈ 2.4 min of speech; the rest is watched action and cards) |
 | **Surfaces** | TAB (landscape and portrait) |
 | **Goal** | A player can read a concert comfortably in any light and any position, and find any song in two taps. |
-| **Perimeter — in** | Opening a concert (Home "Resume «…»" or Concerts); "Who are you?" again in one beat (your part, your layers); immersive reading — **any tap shows or hides the chrome**, it hides itself; the chrome: ☰ song drawer, title card "Song 2/4 · 3–4/12", ✎, ⚙, ✕ (the only exit), ‹ ›; the meta strip (performance note · key · ♩=); page turns by swipe; **Reading mode** "Page" / "Width" / "Scroll" (Scroll: one column per song, swipe sideways to the next song); **two-up** facing pages in landscape + Page, a turn moves the whole spread, a spread never mixes two songs; the edge-of-concert glyph; the **song drawer** ("Songs", numbered rows, "On call", intermission divider); **Colour**: Normal · Warm · Night · Amber (Night/Amber invert the page, ink re-tinted to stay readable); Layers dialog ("Layers — <song>", "required", "Rehearsal notes · this device") in one beat; the reading position is remembered. |
+| **Perimeter — in** | Opening a concert (Home "Resume «…»" or the TroubaStage screen); "Who are you?" again in one beat (your part, your layers); immersive reading — **any tap shows or hides the chrome**, it hides itself; the chrome: ☰ song drawer, title card "Song 2/4 · 3–4/12", ✎, ⚙, ✕ (the only exit), ‹ ›; the meta strip on a song's first page (performance note · key; the tempo shows in the song drawer); page turns by swipe; **Reading mode** "Page" / "Width" / "Scroll" (Scroll: one column per song, swipe sideways to the next song); **two-up** facing pages in landscape + Page, a turn moves the whole spread, a spread never mixes two songs; the edge-of-concert glyph; the **song drawer** ("Songs", numbered rows, "On call", intermission divider); **Colour**: Normal · Warm · Night · Amber (Night/Amber invert the page, ink re-tinted to stay readable); Layers dialog ("Layers — <song>", the current song's layers, "required"; "Rehearsal notes · this device" only when this song has a note on this tablet) in one beat; the reading position is remembered. |
 | **Perimeter — out** | Pedals, metronome, clock (E10); notes (E11). |
 
 **Prerequisites:** emulator, connected, *Sat @ The Anchor* (rev with the jump fixture and an intermission from
@@ -930,7 +940,7 @@ E08) downloaded; identity Marie; demo mode; colour "Normal" at start.
 |---|---|---|
 | `tab-open-concert` | TAB portrait | Home "Resume «Sat @ The Anchor»" → page shown; tap → chrome visible; wait → chrome hidden |
 | `tab-reading-modes` | TAB portrait | ⚙ → "Reading mode" Width → page fills width, scrolls; Scroll → continuous column; swipe sideways → next song; back to Page |
-| `tab-twoup` | TAB landscape | rotate → two facing pages, label "2–3/…"; swipe → next spread; at last page → "›\|" glyph |
+| `tab-twoup` | TAB landscape | rotate → two facing pages (a spread label like "2–3/…" — fixture-dependent); swipe → next spread; on the last spread, one more swipe → "›\|" glyph |
 | `tab-drawer` | TAB landscape | ☰ → "Songs" with numbered rows + intermission divider + "On call" → tap song 3 → it opens |
 | `tab-colours` | TAB landscape | ⚙ "Colour" tapped ×3 → Warm, Night, Amber (pixel checks on the page background) |
 
@@ -951,27 +961,25 @@ E08) downloaded; identity Marie; demo mode; colour "Normal" at start.
 > **9.2** On Home, "Resume" reopens the last concert exactly where you left it — even if the tablet restarted.
 > [pause] On stage, the music takes the whole screen. [beat] Tap anywhere to bring back the controls, tap again to
 > hide them — and if you don't, they hide by themselves. [beat] At the top: the song list, the title and your
-> position, the note pencil, the settings, and the red cross: the only way out of a concert. [beat] Under the title,
-> the song's tempo, key, and the note your band left for tonight.
+> position, the note pencil, the settings, and the red cross: the only way out of a concert. [beat] On a song's first page, under the title: the note your band left for tonight, and the key.
 >
 > **9.3** Swipe to turn the page. [beat] How the page fits the screen is up to you. "Page" shows a whole page.
 > "Width" fills the width and scrolls down the page — bigger notes on a small tablet. [beat] "Scroll" lays out each
 > song as one long column; scroll down to read, swipe sideways to move to the next song.
 >
 > **9.4** Turn the tablet sideways in Page mode, and you get two facing pages, like an open book. [beat] One turn
-> moves the whole spread. A spread never mixes two songs: a new song always starts on the left. [beat] At the very
-> last page, this sign tells you there is nothing further — so a turn that does nothing never looks like a broken one.
+> moves the whole spread. A spread never mixes two songs: a new song always starts on the left. [beat] Try to turn past the last page, and this sign tells you there is nothing further — so a turn that does
+> nothing never looks like a broken one.
 >
 > **9.5** The song list jumps anywhere in the concert. Songs are numbered in running order; the intermission and
 > the songs on the bench are there too, unnumbered. [beat] Tap one, and you are there.
 >
-> **9.6** Stages are dark, rehearsal rooms are not. [beat] "Colour" cycles through four schemes. Normal, the white
+> **9.6** Stages are dark, rehearsal rooms are not. [beat] "Colour" steps through four schemes, darker and back. Normal, the white
 > page. Warm, a softer paper. [beat] Night turns the page dark, and Amber turns it dark with amber ink, which keeps
-> your eyes used to the dark. [beat] Annotation colours are adjusted in each scheme, so the band's red stays a red
-> you can read.
+> your eyes used to the dark. [beat] In Night and Amber, annotation colours are adjusted, so the band's red stays a red you can read.
 >
-> **9.7** And the Layers dialog shows, song by song, which layers you see — your part, the band's, the conductor's
-> required ones, and the rehearsal notes taken on this tablet. [beat] Next: playing without using your hands.
+> **9.7** And the Layers dialog shows which layers you see in the current song — your part, the band's, the required ones
+> — and lets you change it for this song only. [beat] Next: playing without using your hands.
 
 ⟂ merge seam — the six-episode cut joins E09 and E10 here (*On stage*).
 
@@ -985,11 +993,10 @@ E08) downloaded; identity Marie; demo mode; colour "Normal" at start.
 | **Length** | 3:30 (narration 311 words ≈ 2.3 min of speech; the rest is watched action and cards) |
 | **Surfaces** | TAB (emulator) + **HW insert** (real tablet + real pedal, demo concert only) |
 | **Goal** | A player sets up a pedal (keyboard-style or MIDI), uses the silent count-in and the clock, and trusts that nothing can throw them out mid-song. |
-| **Perimeter — in** | Built-in page turns: Bluetooth pedals that act as a keyboard work as-is (PageDown/arrows/Space), and the **volume keys** turn pages (by spread in two-up); **Parameters → "Foot pedal"**: "MIDI pedal: not connected" → "Connect"; "Learn" → "Learning Next page — press a pedal button." → "received: MIDI: PC 3 (ch1)" → "Learned."; "Forget learned buttons"; the **metronome capsule**: tap = a silent two-bar count-in in the song's metre (the pulsing border, the big beat number, amber downbeat), "∞" keeps it going, no sound ever; **Chronometer** "Start"/"Pause"/"Reset" and **"Show clock"** (Analog/Digital/Both), bottom-right; **"Lock swipe"** ("Stop an accidental scroll from changing the song — use ‹ › or a pedal."); **Back does nothing in a concert** — an edge swipe meant as a page turn can't leave the song; ✕ leaves; Back still closes the drawer and sheets. |
+| **Perimeter — in** | Built-in page turns: Bluetooth pedals that act as a keyboard work as-is (PageDown/arrows/Space), and the **volume keys** turn pages (by spread in two-up); **Parameters → "Foot pedal"**: "MIDI pedal: not connected" → "Connect"; "Learn" → "Learning Next page — press a pedal button." ("nothing received yet") → press → "Learned." → the row reads "learned: …" (the raw token, e.g. "MIDI:192,3"); "Forget learned buttons"; the **metronome capsule**: tap = a silent two-bar count-in in the song's metre (the pulsing border, the big beat number restarting each bar, amber downbeat; starting it hides the chrome), "∞" set **before** starting keeps it going, no sound ever; **Chronometer** "Start"/"Pause"/"Reset" and **"Show clock"** (Analog/Digital/Both), bottom-right; **"Lock swipe"** ("Stop an accidental scroll from changing the song — use ‹ › or a pedal." — it also stops swipe page turns in Page and Width); **Back does nothing in a concert** — an edge swipe meant as a page turn can't leave the song; ✕ leaves; Back still closes the drawer and sheets. |
 | **Perimeter — out** | Pedal hardware recommendations (none on film; "any pedal that acts as a keyboard, or a BLE-MIDI controller"). |
 
-**Prerequisites:** emulator as in E09 (song with a tempo/metre: House of the Rising Sun 6/8 ♩.=72 shows the 6/8
-count of 12); **HW insert**: VLL's tablet with **only the demo concert opened on screen**, a BLE-MIDI pedal paired;
+**Prerequisites:** emulator as in E09, **reading mode Page** (E10's lock-swipe beat switches to Scroll — the take restores Page at its end); House of the Rising Sun (6/8, ♩.=72) for the count-in; **HW insert**: VLL's tablet with **only the demo concert opened on screen**, a BLE-MIDI pedal paired;
 recorded with `adb screenrecord` while a phone films the foot (optional B-roll, §9 D5); the frames go through the
 privacy scan (§4.5) — the insert never shows Home, the concert list or the Notes tab.
 
@@ -998,10 +1005,10 @@ privacy scan (§4.5) — the insert never shows Home, the concert list or the No
 | Take | Surface | Beats asserted |
 |---|---|---|
 | `tab-volume-keys` | TAB | `KEYCODE_VOLUME_DOWN` → next spread (label changes) |
-| `tab-learn-midi` | **HW** | Parameters → Foot pedal → "Connect" → "MIDI pedal: connected" → "Learn" (Next page) → foot press → "received: MIDI: …" → "Learned." → back in the concert, foot press → page turns |
-| `tab-count-in` | TAB | House (6/8) → metronome → border pulses, numbers 1…12, stops by itself; ∞ on → keeps running across a page turn |
+| `tab-learn-midi` | **HW** | Parameters → Foot pedal → "Connect" → "MIDI pedal: connected" → "Learn" (Next page) → "Learning Next page — press a pedal button." / "nothing received yet" → foot press → "Learned." → row "learned: MIDI:…" → back in the concert, foot press → page turns |
+| `tab-count-in` | TAB | House (6/8) → metronome → chrome hides, border pulses, numbers 1…6 twice, stops by itself; then ∞ ON first → metronome → keeps running across a page turn |
 | `tab-clock-chrono` | TAB | ⚙ "Chronometer" "Start" → readout bottom-right running; "Show clock" on, "Both" |
-| `tab-lock-swipe` | TAB | Scroll mode, "Lock swipe" on → sideways swipe does not change the song; ‹ › still do |
+| `tab-lock-swipe` | TAB | Scroll mode, "Lock swipe" on → sideways swipe does not change the song; ‹ › still do → back to **Page** mode at the end (E11 needs it) |
 | `tab-back-guard` | TAB | 3 left-edge + 3 right-edge back gestures → same page label; ☰ open → Back → drawer closes, concert stays; ✕ → Home |
 
 **Storyboard**
@@ -1025,19 +1032,17 @@ privacy scan (§4.5) — the insert never shows Home, the concert list or the No
 >
 > **10.3** Some pedals speak MIDI instead, or have more buttons than the defaults cover. [beat] In Parameters,
 > under "Foot pedal", connect the MIDI pedal, then tap "Learn" next to "Next page" — and press the button you want.
-> [beat] The panel shows every press it receives, so you always know what the pedal really sends. [pause]
-> "Learned." [beat] Same for "Previous page". From now on, your foot turns the page.
+> [pause] "Learned." — and the row shows exactly what the pedal sends. [beat] Same for "Previous page". From now on, your foot turns the page.
 >
-> **10.4** The metronome capsule at the top gives you a silent count-in. Tap it: the page border pulses, and a big
-> number counts two bars in the song's metre — here six-eight, so twelve — and stops by itself. [beat] The
-> downbeat glows amber, so you see the one without counting. [beat] Tap the infinity sign to keep the beat going
-> through the song. [beat] It never makes a sound.
+> **10.4** The metronome capsule at the top gives you a silent count-in. Tap it: the page border pulses, and a big number counts two bars in the song's metre — in six-eight, one to six,
+> twice — and stops by itself. [beat] The
+> downbeat glows amber, so you see the one without counting. [beat] Switch on the infinity sign before you start, and the beat keeps going through the song. [beat] It never makes a sound.
 >
 > **10.5** In settings, a chronometer times the set — it keeps running even if the app is closed. And "Show clock"
 > puts the time of day in the corner: analog, digital, or both.
 >
-> **10.6** In Scroll mode, a sideways swipe changes the song. If you'd rather it couldn't, "Lock swipe" turns that
-> off; the arrows and the pedal still work.
+> **10.6** In Scroll mode, a sideways swipe changes the song. If you'd rather it couldn't, "Lock swipe" turns swiping off —
+> in every reading mode; the arrows, the pedal and the volume keys still work.
 >
 > **10.7** And one thing you will never do by accident: leave the concert. [beat] On many tablets, a swipe from
 > the edge of the screen means "back" — and a page turn that starts near the edge used to throw you out of the
@@ -1056,10 +1061,10 @@ privacy scan (§4.5) — the insert never shows Home, the concert list or the No
 | **Length** | 4:30 (narration 408 words ≈ 3.0 min of speech; the rest is watched action and cards) |
 | **Surfaces** | `Split` WEB + TAB, TAB, WEB |
 | **Goal** | The band understands the two loops that make rehearsals work: the conductor edits and the tablets follow (live mode), and the players scribble and Studio receives (rehearsal notes). |
-| **Perimeter — in** | **Rehearsal live mode** (Studio, admin): "Arm live mode · auto-bakes for 3 h" / "Go live (rehearsal)", the "LIVE" badge, every edit auto-bakes ~8 s after the last one, it switches itself off after 3 hours; on the tablet: ⚙ **"Auto-update"** ("Apply new bakes as they arrive", 👤 Just for you) → "Updated to rev N" with the page unmoved; **rehearsal notes**: ✎ → "Enter note mode?" ("Touch will draw, not turn pages. Pages still turn with a pedal or the volume keys.") → pencil, eraser, widths, colours → "✎ notes" badge → "Clear page" ("Clear this page?", "Clear which page?" in two-up) → the **✓** ("Finish notes"); the Notes tab: "Send all (N)", per-concert "Send all", "Sent to Studio ✓", "Sent", "Clear sent (N)" ("Studio keeps its copies"); in Studio: "✎ N" on the song list, the "Rehearsal notes (N)" underlay, "Go to page N", the viewer ("Look at this note on the page it was drawn on"), "Done, remove"; **auto-upload**: ⚙ "Auto-upload notes to Studio" "ON for 3 h · notes send as you draw", the banner "AUTO-UPLOAD ON — your notes are sending to Studio", "Removed here and in Studio"; the principle: a note is a scribble, *recopied* into a real annotation — it never becomes one by itself. |
+| **Perimeter — in** | **Rehearsal live mode** (Studio, admin): "Arm live mode · auto-bakes for 3 h" / "Go live (rehearsal)", the "LIVE" badge, every new mark on its songs auto-bakes ~8 s after the last one (chart, file and metadata edits do not), it switches itself off after 3 hours; on the tablet: ⚙ **"Auto-update"** ("Apply new bakes as they arrive", 👤 Just for you) → "Updated to rev N" with the page unmoved; **rehearsal notes**: ✎ → "Enter note mode?" ("Touch will draw, not turn pages. Pages still turn with a pedal or the volume keys.") → pencil, eraser, widths, colours → "✎ notes" badge → "Clear page" ("Clear this page?"; "Clear which page?" when both facing pages have a note; disabled when none does) → the **✓** ("Finish notes"); the Notes tab (TroubaStage screen → Bakes \| Notes): "Send all (N)" → "1 sent ✓" (a single-note Send says "Sent to Studio ✓"), per-concert "Send all", "Sent", "Clear sent (N)" ("Studio keeps its copies"); in Studio: "✎ N" on the song list, the "Rehearsal notes (N)" underlay, "Go to page N", the viewer ("Look at this note on the page it was drawn on"), "Done, remove"; **auto-upload**: ⚙ "Auto-upload notes to Studio" "ON for 3 h · notes send as you draw" (up to 3 h; off when you leave the concert, when a new bake arrives, or on a conflict), the banner "AUTO-UPLOAD ON — your notes are sending to Studio", "Removed here and in Studio"; the principle: a note is a scribble, *recopied* into a real annotation — it never becomes one by itself. |
 | **Perimeter — out** | Notes ageing ("Older than the current bake…") — one line at most. |
 
-**Prerequisites:** seeded server with a baked *Sat @ The Anchor*; emulator connected as Sasha (member) with the
+**Prerequisites:** seeded server with a baked *Sat @ The Anchor*; tablet reading mode **Page** (note mode refuses in Scroll with "Notes: switch to Page or Width"); emulator connected as Sasha (member) with the
 concert; WEB as Leo (conductor) for live mode — **live mode needs an admin to arm it**, so Marie arms it in a short
 beat first; the rehearsal-note beats send to the isolated server.
 
@@ -1067,10 +1072,10 @@ beat first; the rehearsal-note beats send to the isolated server.
 
 | Take | Surface | Beats asserted |
 |---|---|---|
-| `web-arm-live` | WEB (Marie) | setlist row ⋯ → "Arm live mode · auto-bakes for 3 h" → red dot / "LIVE" |
-| `split-live-edit` | WEB (Leo) + TAB (Sasha, Auto-update on) | Leo adds "breathe here" on the conductor layer → within ~10 s the timeline shows a new rev → the tablet shows "Updated to rev N" and the mark, **page label unchanged** |
+| `web-arm-live` | WEB (Marie) | setlist row ⋯ → "Arm live mode · auto-bakes for 3 h" → the row's pulsing "Live" chip; on the concert page the "LIVE" chip and banner |
+| `split-live-edit` | WEB (Leo) + TAB (Sasha, Auto-update on) | Leo adds "breathe here" on the conductor layer → ~8 s later the concert's bake row shows a new rev → within ~30 s (the tablet polls every 15 s) the tablet shows "Updated to rev N" and the mark, **page label unchanged** |
 | `tab-note-mode` | TAB | ✎ → "Enter note mode?" → "Enter" → handwriting (motionevent paths) in red → ✓ → "✎ notes" badge |
-| `tab-notes-send` | TAB | Concerts → Notes → "Send all (1)" (title row) → "Sent to Studio ✓" → "Sent" group 1 |
+| `tab-notes-send` | TAB | ✕ → TroubaStage → Notes → "Send all (1)" (title row) → "1 sent ✓" → "Sent" group 1 |
 | `web-note-viewer` | WEB (Leo) | Overview "✎ 1" on the song → open → "Rehearsal notes (1)" underlay on → "Go to page 1" → viewer → recopy as a real text mark → "Done, remove" |
 | `tab-auto-upload` | TAB | ⚙ "Auto-upload notes to Studio" on → banner under the menu → draw → server note count +1 without a Send → "Clear page" → "Removed here and in Studio" |
 
@@ -1094,22 +1099,21 @@ beat first; the rehearsal-note beats send to the isolated server.
 > changes reaching every tablet, and the players' scribbles reaching Studio.
 >
 > **11.3** First loop. Normally, nothing reaches the tablets until someone bakes. During a rehearsal, an admin can
-> arm live mode on the concert. [beat] For the next three hours, every change to its songs is baked automatically,
-> a few seconds after the last edit. [beat] Then it switches itself off — so a live mode you forgot about can never
+> arm live mode on the concert. [beat] For the next three hours, every new mark on its songs is baked automatically, a few seconds after the
+> last one. [beat] Then it switches itself off — so a live mode you forgot about can never
 > follow you to the gig.
 >
 > **11.4** On the tablet, each player decides: in settings, "Auto-update". [beat] Leo writes "breathe here" on his
-> conductor layer… [pause] a few seconds later, a new rev — and on Sasha's tablet, "Updated to rev seven". The mark
+> conductor layer… [pause] shortly after, a new rev — and on Sasha's tablet, "Updated to rev" and its number. The mark
 > is there. And she is still on her page: an update never moves you.
 >
 > **11.5** Second loop. In a rehearsal, players need to scribble — fast, on the page, without thinking about layers.
 > [beat] Tap the pencil, and confirm: in note mode, touch draws instead of turning pages; the pedal still turns
-> them. [pause] Write. A pencil, an eraser, three widths, four colours. [beat] "Clear page" wipes the whole note on
-> this page — on two facing pages, it asks which one. [beat] When you're done, the check mark. The page shows a small
+> them. [pause] Write. A pencil, an eraser, three widths, four colours. [beat] "Clear page" wipes the whole note on this page — and if both facing pages have notes, it asks which one. [beat] When you're done, the check mark. The page shows a small
 > "notes" badge from now on.
 >
 > **11.6** These notes stay on the tablet — they even work offline. When you're connected, send them: in the Notes
-> tab, "Send all". [beat] Sent notes move to their own group. "Clear sent" removes them from the tablet; Studio keeps
+> tab, "Send all" — it says how many were sent. [beat] Sent notes move to their own group. "Clear sent" removes them from the tablet; Studio keeps
 > its copies.
 >
 > **11.7** In Studio, the song now shows a pencil and a count. [beat] Open it: the note appears under the score as a
@@ -1117,9 +1121,8 @@ beat first; the rehearsal-note beats send to the isolated server.
 > as that page looked at the time. [pause] A rehearsal note is a scribble, not an annotation: someone recopies it
 > properly — here Leo turns it into a clean text mark — and then "Done, remove".
 >
-> **11.8** And when the page behind you won't change for a while, you can skip the "Send" step entirely. "Auto-upload
-> notes to Studio" turns on for three hours: a banner under the menu says so, and every note goes to Studio as you
-> draw. [beat] While it's on, clearing a page clears it in Studio too — and the message says exactly that. [beat] If
+> **11.8** And when the page behind you won't change for a while, you can skip the "Send" step entirely. "Auto-upload notes to Studio" turns on for up to three hours — until you leave the concert or a new version
+> arrives: a banner under the menu says so, and every note goes to Studio as you draw. [beat] While it's on, clearing a page clears it in Studio too — and the message says exactly that. [beat] If
 > a send fails, the banner says that as well, and keeps retrying.
 >
 > **11.9** Last episode: keeping all of this safe.
@@ -1134,7 +1137,7 @@ beat first; the rehearsal-note beats send to the isolated server.
 | **Length** | 3:30 (narration 324 words ≈ 2.3 min of speech; the rest is watched action and cards) |
 | **Surfaces** | TERM, WEB |
 | **Goal** | The leader knows exactly what to back up, how to restore, how to take the whole band elsewhere, and how to update the server — and that the band's music never depends on the project. |
-| **Perimeter — in** | The one thing to back up: the data volume (stop, tar, start — `deploy/backup.sh`); restore onto a fresh volume; **Export band** (Settings → "Export band (.zip)", the `.tband`: songs, files, annotations, setlists) and **"Import band…"** with the per-member choice ("Invite", "Create account", "Skip"); updating: `docker compose pull && docker compose up -d`, `/api/version` shows the exact build; bake retention (`TROUBA_BAKE_KEEP_REVS`, `troubacore gc`, a final-locked rev is never pruned); "Forgot the only admin's password?" `troubacore reset-password`; the tablets keep working offline whatever happens to the server. |
+| **Perimeter — in** | The one thing to back up: the data volume (stop the server, the documented `docker run … alpine tar` one-liner on the compose volume **`deploy_troubadata`**, start — `deploy/backup.sh` covers the plain-directory case only); restore onto a fresh volume; **Export band** (Settings → "Export band (.zip)", the `.tband`: songs, files, annotations, setlists) and **"Import band…"** with the per-member choice ("Invite", "Create account", "Skip"); updating: `docker compose pull && docker compose up -d`, `/api/version` shows the exact build; bake retention (`TROUBA_BAKE_KEEP_REVS`, `troubacore gc`, a final-locked rev is never pruned); "Forgot the only admin's password?" `troubacore reset-password`; the tablets keep working offline whatever happens to the server. |
 | **Perimeter — out** | PostgreSQL / git stores; systemd details. |
 
 **Prerequisites:** the E02 host (disposable), with the seeded band; TERM for backup/restore/update; WEB for export/import
@@ -1144,7 +1147,7 @@ beat first; the rehearsal-note beats send to the isolated server.
 
 | Take | Surface | Beats asserted |
 |---|---|---|
-| `term-backup` | TERM (real) | `docker compose stop troubacore` → the `tar` one-liner → `.tgz` exists → `start` |
+| `term-backup` | TERM (real) | `docker compose stop troubacore` → `docker run --rm -v deploy_troubadata:/data -v "$PWD":/backup alpine tar czf …` → `.tgz` exists → `start` |
 | `term-restore` | TERM (real) | fresh volume → untar → `up -d` → healthy → the band is there (curl `/api/bands` as Marie) |
 | `web-export-import` | WEB ×2 servers | Settings → "Export band (.zip)" → file → server 2 "Import band…" → member choices → "Import complete" → songs present |
 | `term-update` | TERM | `docker compose pull && docker compose up -d` → `curl …/api/version` shows a commit |
@@ -1178,9 +1181,15 @@ beat first; the rehearsal-note beats send to the isolated server.
 > **12.5** Updating TroubaStack is two commands: pull the new image, start it again. Your data stays in its volume.
 > [beat] The server tells you exactly which build it is running, at slash A-P-I slash version.
 >
-> **12.6** Two last things. Live mode can create many concert versions during a rehearsal: a retention setting keeps
-> only the latest few, and never deletes a version you locked for a gig. [beat] And if the only admin forgets their
-> password, one command on the server prints a one-time reset link.
+> **12.6** Two last things. Live mode can create many concert versions during a rehearsal: set a retention number,
+> run the clean-up command after the rehearsal, and only the latest few are kept — never a version you locked for a
+> gig. [beat] And if the only admin forgets their password: stop the server, run one command, and it prints a
+> one-time reset link, valid for a day.
+>
+> ⚠ **Doc bug found while checking (2026-10-08):** `deploy/README.md` documents `docker compose exec troubacore
+> troubacore reset-password <user>`, which runs against the *live* server — on the file backend the running server
+> never sees the token and overwrites it on its next flush. The working sequence is stop → `docker compose run --rm
+> troubacore reset-password <user>` → start. The GFX must show the working sequence; the README needs the fix.
 >
 > **12.7** And whatever happens to the server, the tablets keep every concert they downloaded, and keep working
 > offline. [pause] That's TroubaStack: your band's music, on a box you own, from the rehearsal room to the stage.
