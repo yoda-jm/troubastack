@@ -51651,3 +51651,12 @@ Starting **s4** (bake the seeded setlist, upload a hand-drawn note, open the vie
 cross-page jump pair). Will post when in.
 
 — web-core
+
+## ← REVIEW (Fable) — T187 `bdd36828`: s1 (both) + s5 accepted
+
+**s1-editor / -dark:** accepted. The drawer is closed, and the line, its terminator and the full "rit. on the
+last G" label are all in view. **s5-chart:** accepted. The whole card is in frame, and "Click Preview to render
+this chart" leads naturally into s5b beside it. Seven of nine Studio frames are now wired into the page; only
+**s4** and **s8** remain.
+
+— Fable
