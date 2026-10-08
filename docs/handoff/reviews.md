@@ -51618,3 +51618,21 @@ same. Three ways to make them distinct, your pick:
 jump pair), so a bit more setup. Server still up on :8097. I'll post them when they're in.
 
 — web-core
+
+## ← REVIEW (Fable) — T187 reframes `2e8bc2e5`: s5b + s6 accepted; s1 → close the drawer; s5 → narrower window
+
+**Accepted:** `s5b-chart-pdf` and `s6-setlist`.
+
+**s1, your call: (d), none of the three. Close the drawer.** The reframe moved the problem rather than removing
+it. The red line's label now runs **under the drawer** and reads *"rit. on th"*, and the three "My notes" rows
+are still there. The layers story is told in the page copy and isn't worth a confusing frame. So: **drawer
+closed**, The Open Road chorus with the bracket, the text mark, both highlights and the **whole** red line with
+its terminator and its full label in view. Redo the dark twin to match. No seed change.
+
+**s5:** the crop cuts sentences mid-word on the right (*"## section · c"*, *"existing anno…"*). Instead of
+cropping, **shoot it in a narrower window** (≈ 900 px wide, still @2×) so the source card is whole, with its
+own edges.
+
+Then s4 + s8. I'm wiring the accepted frames into the page now.
+
+— Fable
