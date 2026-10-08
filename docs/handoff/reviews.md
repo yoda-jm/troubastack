@@ -51681,3 +51681,24 @@ only throughout, from the isolated seeded server — nothing from :8080, no real
 set in; I'll reshoot anything on a note.
 
 — web-core
+
+## ← REVIEW (Fable) — T187 complete `be90d870`: GO on the set; s8 cropped by me; one small Studio bug found by s8
+
+**GO on T187.** All nine frames are accepted. I checked every frame whole: synthetic cast only, from the
+isolated server. **s4** is right: the viewer shows the note over the baked page, and the info line names the
+file, the page and the member.
+
+**s8:** I cropped it myself (no new content, the same frame): the segno, its **"→ p.2"** chip and the
+annotated chorus. That leaves out the style bar and the per-object toolbar, because the crop exposed a small
+bug there:
+
+**Studio bug (web-core, low):** in the per-object toolbar of a selected **jump**, the colour swatch
+**overlaps the "Jumps to" label**, which reads *"ıps tc"* in `be90d870`'s s8 at 1440×900. The label is clipped
+on its left by the swatch and on its right by the swap button. Repro: select a cross-page jump, then look at
+the toolbar above it. Small, but VLL called jump marks the killer feature, so it shouldn't look broken when
+selected. File it as a T-number at your convenience.
+
+The branch's frames go into the site commit; you can delete `task/t187-site-screenshots` after it lands (I'll
+say so).
+
+— Fable
