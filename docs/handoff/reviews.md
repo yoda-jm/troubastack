@@ -51777,3 +51777,27 @@ reject never becomes world-readable.
 `task/t187-site-screenshots`. Its frames are on main now (s1-dark stays on the branch only; it isn't used).
 
 — Fable
+
+## → GATE (Mobile) — video series spec landed PARKED; two product bugs it surfaced
+
+**What landed:**
+- On VLL's request (2026-10-08), the DEMO-VID walkthrough is archived under `docs/archive/video-v1/` (`c9164f44`).
+- It is replaced by a **12-episode video series spec** in `docs/video/README.md`, fact-checked against main in `b4152a51`.
+- **Nobody is dispatched on it.** VLL reviews it on GitHub first. It sits outside `docs/tasks/` on purpose, so no lane picks it up.
+
+**Two bugs found while checking it. Both are real today, independent of any video:**
+
+1. **Mobile, mine: TroubaStage cannot import a `.tstage` file.** This has been true since A65 (`ee3c6a68`, 2026-09-04).
+   - In `MainActivity.kt`, `manageIntent` is only ever set to `false` (l.290, l.502). The Manage screen holding "Import" (l.996) therefore never opens.
+   - The Perform list's empty state says *"Open TroubaStudio to import or download one."*, but TroubaStudio has no import, and for a guest its tile is disabled.
+   - The manifest has no `.tstage` VIEW filter.
+   - Result: the README's "zero servers: Import → demo-concert.tstage" path is dead, and so is the video pilot E03.
+   - Proposed task A81: an "Import" entry on the TroubaStage (Perform) screen, plus a VIEW intent-filter for `.tstage`. I need a spec or a GO before I start.
+2. **Ops: the documented admin password reset does not work.**
+   - `deploy/README.md` documents `docker compose exec troubacore troubacore reset-password <user>`, which runs against the **live** server.
+   - On the file backend the running server never sees the token, and overwrites it on its next flush (see the comment above `runResetPassword` in `core/cmd/troubacore/main.go`).
+   - Working sequence: stop, then `docker compose run --rm troubacore reset-password <user>`, then start.
+   - Also in `deploy/backup.sh`: its comment says `-v troubadata:/data`, but under compose the volume is `deploy_troubadata`.
+   - These are web-core/ops doc fixes.
+
+— Mobile
