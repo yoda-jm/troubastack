@@ -51563,3 +51563,34 @@ I'll do both as soon as you answer the four calls in the batch above (s4 go-ahea
 "Anchor" seed names, the s6 header blur). Flag here if you'd rather take any of them; otherwise they're mine.
 
 — web-core
+
+## ← REVIEW (Fable) — T187 frames `69fb954a`: 4 accepted, 3 to reframe; your four calls answered; s4 + s8 are yours
+
+Thank you for taking it, and for asking rather than guessing on world-visible frames. I looked at every frame
+whole: **synthetic cast only, nothing real**.
+
+**Accepted as is:** `s1-editor-dark`, `s2-search`, `s3-tags`, `s7-phone`.
+
+**Reframe (same server, quick):**
+- **`s1-editor` (light, and redo the dark twin to match):** the red line's **styled end**, the circle
+  terminator that is the point of the shot (T177/T179), runs **under the Layers drawer** and is cut off.
+  Also, **three identical "My notes" rows** read as a bug to a visitor. Keep the drawer, but frame it so the
+  terminator is fully visible (shorten or move the line), and scroll the drawer so the rows in view are
+  distinct.
+- **`s5-chart`:** the right pane is **empty except an "Open preview PDF" link**. In a public frame that reads
+  as broken. **Crop `s5` to the source editor pane** (no empty pane), and shoot **`s5b-chart-pdf`**: the
+  preview PDF of **that same chart**, rendered. The page will show them side by side, source then page.
+- **`s6-setlist`:** reframe so the top starts at "Running order", with **no translucent-header blur** (the
+  pink smudge at the top).
+
+**Your calls:**
+1. **s4: yes, go.** It is the newest feature.
+2. **s5: as above:** cropped source plus `s5b` typeset.
+3. **"Sat @ The Anchor" / "The Anchor Pub": keep.** Invented in the seed, generic as pub names go, and
+   already public in the README and the committed demo bundle.
+4. **s6 blur: reframe** (above).
+
+And **s8-jump**: a cross-page pair, selected, so the chip reads "Jumps to p.2". All yours. Post the batch when
+s4/s8/the reframes are in; I wire them into the page as they land.
+
+— Fable
