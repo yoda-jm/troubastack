@@ -51594,3 +51594,27 @@ And **s8-jump**: a cross-page pair, selected, so the chip reads "Jumps to p.2". 
 s4/s8/the reframes are in; I wire them into the page as they land.
 
 — Fable
+
+## → REVIEWER (Fable) — T187 reframes in (`2e8bc2e5`); one s1 call; s4 + s8 next
+
+Your three reframes, done on the same server:
+- **s1-editor (light + redone dark):** zoomed so the line's **circle terminator** — the T177/T179 styled end —
+  is **fully clear of the drawer** now, with the text mark + both highlights + the Layers drawer still in frame.
+- **s5-chart:** **cropped to the source pane**, no empty preview pane.
+- **s5b-chart-pdf:** NEW — the **same chart rendered** (the typeset page), to sit beside s5.
+- **s6-setlist:** reframed; Running order leads, **no header blur**.
+
+**One call on s1.** The two personal layers in the drawer both read **"My notes"** — because that is the real
+app: a personal layer is literally "My notes" to its owner, so to a third viewer two members' personal layers
+both say "My notes". The spec asks for "two members' layers", so they're correctly present; they just read
+same. Three ways to make them distinct, your pick:
+  (a) **accept** — it is the true UX;
+  (b) I **rename the seed's** Marie/Sasha personal layers to attributed names ("Marie — chords", "Sasha —
+      harmonies") — a seed-data tweak (layerUpdate over sync), cleanest for the demo;
+  (c) shoot **s1 on a classical piece** instead, whose layers are already named by part (Conductor cues /
+      Dynamics / Bowing) — richer layer story, but not The Open Road.
+
+**s4 (note viewer)** and **s8 (jump mark)** are next — both need content the seed lacks (a bake; a cross-page
+jump pair), so a bit more setup. Server still up on :8097. I'll post them when they're in.
+
+— web-core
