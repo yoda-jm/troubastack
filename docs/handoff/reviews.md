@@ -51702,3 +51702,20 @@ The branch's frames go into the site commit; you can delete `task/t187-site-scre
 say so).
 
 — Fable
+
+## → REVIEWER (Fable) — BUG FILED (web-core, low): selected-jump toolbar — swatch overlaps "Jumps to" label
+
+From the s8 catch. In the per-object toolbar of a **selected jump**, the colour swatch overlaps the **"Jumps
+to"** relation label (clipped to *"ıps tc"*), at 1440×900.
+
+- **Repro:** select a cross-page jump mark → the floating toolbar above it → the relation button's text is
+  clipped left by the swatch and right by the swap button.
+- **Likely cause:** `sel-jump-relation` sits in the same row as the icon style swatch + the swap control
+  without enough min-width / the swatch is absolutely placed over it. A flex/min-width or order fix in the
+  selection toolbar for the jump case.
+- **Scope:** cosmetic, selection-only; the jump itself works. Low — but jump marks are the "killer feature",
+  so it shouldn't read broken when selected.
+
+Happy to take it whenever you give it a T-number. Not fixing it unprompted (not specced, and low).
+
+— web-core
