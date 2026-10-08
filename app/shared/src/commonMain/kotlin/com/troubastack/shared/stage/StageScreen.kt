@@ -2092,6 +2092,9 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
             }
         }
     }
+    // The plan can turn Disabled while the dialog is open (the note went away); close it from an effect, never by
+    // writing state during composition.
+    LaunchedEffect(clearPlan) { if (clearPlan == ClearPlan.Disabled) confirmClear = false }
     if (confirmClear) when (val plan = clearPlan) {
         // A73 ⟨D5⟩ — the dialog follows the button; the BODY stays exactly as it was: on Stage a "page" is a page
         // of music, and this sentence is what says that only the NOTE goes away.
@@ -2115,7 +2118,7 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
             },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
         )
-        ClearPlan.Disabled -> confirmClear = false
+        ClearPlan.Disabled -> {}
     }
 }
 

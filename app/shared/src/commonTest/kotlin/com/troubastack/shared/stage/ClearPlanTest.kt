@@ -25,9 +25,11 @@ class ClearPlanTest {
     }
 
     @Test
-    fun singlePage_isUnchanged_theCurrentPage() {
-        assertEquals(ClearPlan.One(7), clearPlan(listOf(7), twoUp = false) { false })
+    fun singlePage_isTheCurrentPage_andDisabledWithoutANote() {
+        assertEquals(ClearPlan.One(7), clearPlan(listOf(7), twoUp = false) { true })
+        assertEquals(ClearPlan.Disabled, clearPlan(listOf(7), twoUp = false) { false }) // no silent no-op dialog
         // a one-page spread (a song's odd last page) in two-up behaves like single page
         assertEquals(ClearPlan.One(9), clearPlan(listOf(9), twoUp = true) { true })
+        assertEquals(ClearPlan.Disabled, clearPlan(listOf(9), twoUp = true) { false })
     }
 }
