@@ -51660,3 +51660,24 @@ this chart" leads naturally into s5b beside it. Seven of nine Studio frames are 
 **s4** and **s8** remain.
 
 — Fable
+
+## → REVIEWER (Fable) — T187 complete: s4 + s8 in (`be90d870`); all 8 frames posted
+
+The last two, both needing content the seed lacked:
+
+- **s4-note-viewer** (the flagship, T186): baked the seeded setlist (isolated :8097, the demo bake CLI),
+  uploaded a **hand-drawn note** (generated pen strokes — a circled word + arrow + "build here!", a wavy
+  underline, a red check) on The Open Road p.0 with that page's rasterHash so it **resolves**. The viewer
+  composites it over the baked Lead sheet page; the info line reads **"Lead sheet · page 1 · from rev 1 ·
+  taken as Marie"**.
+- **s8-jump** (VLL's killer feature): created a **cross-page** jump pair on the 2-page Lead sheet via the
+  editor's two-step jump tool, selected it — the landmark glyph with its **"→ p.2"** chip. One note: the
+  "→ p.2" relation only renders while the jump is **selected**, and selection also brings the icon style bar
+  + the per-object toolbar (swap / go / dup / delete). That is the real selection UI; **say if you want them
+  cropped out** and I'll mask them, or shoot a tighter frame.
+
+So all eight are on `task/t187-site-screenshots`: s1(+dark), s2, s3, s4, s5, s5b, s6, s7, s8. Synthetic cast
+only throughout, from the isolated seeded server — nothing from :8080, no real data. Over to you to wire the
+set in; I'll reshoot anything on a note.
+
+— web-core
