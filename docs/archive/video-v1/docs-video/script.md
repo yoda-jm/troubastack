@@ -1,7 +1,7 @@
 # DEMO-VID — narration script (final)
 
 Per-scene narration for the TroubaShare walkthrough video, finalized from the storyboard in
-[`../tasks/DEMO-VID-walkthrough-video-plan.md`](../tasks/DEMO-VID-walkthrough-video-plan.md).
+[`../DEMO-VID-walkthrough-video-plan.md`](../DEMO-VID-walkthrough-video-plan.md).
 One block per scene = one TTS segment (Part D). Web scenes (0–14) are recorded by the
 Playwright walkthrough (Part B); app scenes (15–21) on the emulator (Part C).
 

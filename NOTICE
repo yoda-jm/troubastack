@@ -15,8 +15,8 @@ Third-party demo assets
 The demo *sheet-music charts* under `docs/demo-charts/` are a mix of original,
 public-domain, and openly-licensed material. Most are original (written for
 this repo) or public domain. Two carry Creative Commons licenses and REQUIRE
-ATTRIBUTION wherever the demo is redistributed (including any walkthrough
-video — see DEMO-VID Part D):
+ATTRIBUTION wherever the demo is redistributed (including any explainer
+video — see docs/video/README.md, the credits card):
 
 - docs/demo-charts/canon-*.pdf — *Canon in D* (Canon per 3 Violini e Basso),
   J. Pachelbel (music: public domain). Typeset edition © 2015 Michael Fischer

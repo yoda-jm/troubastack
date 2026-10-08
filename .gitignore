@@ -55,14 +55,16 @@ playwright-report/
 deploy/apps/*.apk
 core/gen-mirrors
 
-# DEMO-VID Part B — generated recording artifacts (video is a release/hosting artifact, not versioned)
+# Playwright run artifacts (e2e + flowcheck); not versioned
 web/studio/test-results/
-web/studio/walkthrough/output/
 web/studio/flowcheck/output/
-core/troubadata-walkthrough/
 
-# DEMO-VID Part D — generated narration WAVs + assembled MP4 (release artifacts, not versioned)
-docs/video/output/
+# Video series (docs/video/) — generated takes, narration audio and renders are release artifacts, never
+# versioned. The retired DEMO-VID walkthrough lives in docs/archive/video-v1/.
+video/out/
+video/takes/
+video/audio/
+core/troubadata-walkthrough/
 
 # Local, real bands (NOT demo content) — each user's own band folder(s) that the seed
 # discovers (bands/<slug>/band.json + repertoire.json + source files, incl. copyrighted

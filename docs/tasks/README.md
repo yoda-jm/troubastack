@@ -309,7 +309,7 @@ To see one task's full story: `git log origin/main --oneline --grep='T94'`, then
 | B14 | [Seed your OWN band from a local folder](B14-local-band-folders.md) | `9cbc177` |
 | B15 | [Seed **all** a song's chart parts from its folder](B15-seed-multiple-chart-parts.md) | `0a82036` |
 | CFG01 | [A configuration file for troubacore](CFG01-configuration-file.md) | `78f968a` |
-| DEMO-VID | [TroubaShare walkthrough video](DEMO-VID-walkthrough-video-plan.md) | `b7bc748` +11 |
+| DEMO-VID | [TroubaShare walkthrough video](../archive/video-v1/DEMO-VID-walkthrough-video-plan.md) — **archived 2026-10-08**, superseded by the [video series](../video/README.md) | `b7bc748` +11 |
 | IOS01 | [Enable iOS targets + fill the Storage/WebView actuals](IOS01-ios-targets-and-actuals.md) | `8e53e42` |
 | IOS02 | [iosApp + simulator proof on GitHub's macOS runners](IOS02-simulator-ci.md) | `e786418` +6 |
 | IOS04 | [iOS Stage host: keep the screen awake during a performance](IOS04-stage-keep-awake.md) | `5946874` |
