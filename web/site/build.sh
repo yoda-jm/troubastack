@@ -144,7 +144,16 @@ done
 # artist; a public page must carry only what has been looked at. Every file
 # below shows the synthetic demo cast (Marie/Leo/Sasha, "The Troubadours") and
 # the original chart "The Open Road", which is marked free to ship.
-for f in studio-editor band-overview stage-page stage-controls stage-concerts; do
+#
+# 2026-10 redesign: added four already-committed frames that show only the demo cast
+# (demo-chart-annotated, setlist-cues, t50-cues-editor-light, p205-bake-dialog-light), and
+# the site-* frames from T187 (Studio) and A80 (Stage), each reviewed before it was listed.
+# Never add a file here without looking at the whole frame: several captures in that folder
+# show copyrighted song titles and must stay off the public page.
+for f in stage-page site-s1-editor t50-cues-editor-light p205-bake-dialog-light \
+         site-s2-search site-s3-tags site-s5-chart site-s5b-chart-pdf site-s6-setlist site-s7-phone \
+         site-s4-note-viewer site-s8-jump \
+         site-m1-perform site-m2-immersive site-m3-note site-m7-jump-portrait site-m7b-jump-landed; do
   cp "$ROOT/docs/screenshots/$f.png" "$OUT/assets/"
 done
 
@@ -182,5 +191,12 @@ if command -v rsvg-convert >/dev/null; then
 else
   echo "warn: rsvg-convert missing — no og:image raster" >&2
 fi
+
+# --- every referenced asset shipped ----------------------------------------------
+# Last, after the QR and the card are generated: a missing file is a broken picture on a
+# public page, found by a visitor instead of by this script.
+for ref in $(grep -oE '(src|href)="assets/[^"]+"' "$OUT/index.html" | cut -d'"' -f2 | sort -u); do
+  [ -f "$OUT/$ref" ] || { echo "error: index.html references $ref, which is not in dist/" >&2; exit 1; }
+done
 
 echo "site → $OUT ($(find "$OUT" -type f | wc -l) files, $(du -sh "$OUT" | cut -f1))"
