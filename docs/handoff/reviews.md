@@ -51719,3 +51719,46 @@ to"** relation label (clipped to *"ıps tc"*), at 1440×900.
 Happy to take it whenever you give it a T-number. Not fixing it unprompted (not specced, and low).
 
 — web-core
+
+## 2026-10-08 — Mobile: LANDED A79 drawer, stroke fix, A73; A80 Stage screenshots FOR REVIEW (`5bf44a7f`)
+
+### Landed (rebuilt green on current main first; SHAs checked against origin/main)
+
+- **A79 drawer** — `f88b784f`.
+- **Stroke-after-clear fix** — `9d87be89` (your GO on `94e2c8e1`, same patch).
+- **A73** — `4bc7695b` + `2b8a2451`; the second is your "+ one line": single-page "Clear page" is **Disabled**
+  without a note (`ClearPlanTest.singlePage_isTheCurrentPage_andDisabledWithoutANote`), and the Disabled→close
+  write moved out of composition into `LaunchedEffect(clearPlan)`. Landed without re-presenting, as you said;
+  the single-page-disabled device row rides the next session.
+
+### A80 — nine frames in `docs/screenshots/` (not wired into the site; every frame is yours to pass)
+
+| file | what | orientation |
+|---|---|---|
+| `site-m1-perform.png` | two-up, **warm**, chrome up (☰ · title + "Song 2/2 · 2–3/3" · metronome · ✎ ⚙ ✕), meta strip | landscape |
+| `site-m2-immersive.png` | the same spread, chrome hidden | landscape |
+| `site-m3-note.png` | note mode: a red circle + "×2" on the chorus, ✎ badge, note bar with **Clear page** and the **✓** | landscape |
+| `site-m4-notes-tab.png` | **Send all (2)** in the title row, concert header + Send all, two unsent notes by song, **Sent** expanded (Clear sent (1) · Clear) | landscape |
+| `site-m5-learn.png` | Parameters → Foot pedal, **mid-learn** ("Learning Next page — press a pedal button. nothing received yet") | landscape |
+| `site-m6-autoupload.png` | the armed banner **under the menu** (optional shot) | landscape |
+| `site-m7-jump.png` | tapping a segno: the **Go** confirmation over the spread, both segnos visible | landscape |
+| `site-m7b-jump-landed.png` | where it landed: page 2 with the arrival flash, destination segno top-left | portrait |
+| `site-m7-jump-portrait.png` | alternative m7 in portrait, so m7/m7b can be a matched pair (in two-up the destination is already on screen, so a landscape "landed" frame shows no movement) | portrait |
+
+**How (privacy by construction):** shot on an **emulator** at VLL's class (1200×1920 @ 280 dpi, Android 36), never
+his tablet. Data = the seed's *The Troubadours* / *Sat @ The Anchor*, baked on an **isolated** server (:18080,
+temp data dir; :8080 untouched; the emulator's connect screen also listed VLL's server — not touched). The Sent
+note in m4 was really sent to the isolated server. SystemUI **demo mode** for the status bar (10:00, no notification
+icons) on m4/m5; the Stage frames are immersive. App = main `2b8a2451`. No band/member/song of VLL's in any frame.
+
+**Spec erratum:** A80 says *"The demo bundle has jump marks (P206 seed)"* — it doesn't. `docs/demo/demo-concert.tstage`
+predates P206 (its pages carry no jump field) and `cmd/seed` creates none. I imported two `segno` icons
+(`jumpTo` source → destination, the shape `baker_p206_test.go` uses) on *The Open Road* via the admin
+`annotations/import`, then baked. T187 will hit the same gap for a Studio jump shot.
+
+**Filed, not fixed (A80 is no-UI-change):**
+1. The jump confirmation is a bare square **"Go"** — for the feature VLL calls the killer, worth a design look.
+2. Right after a jump lands, the page's note paints ~0.3 s late (m7b's first frame has no ink; frames 2–5 do) —
+   the note bitmap reloads on the page change. Cosmetic; noticeable only if you look for it.
+
+— Mobile
