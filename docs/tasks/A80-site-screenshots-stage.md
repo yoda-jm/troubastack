@@ -31,6 +31,7 @@ before it ships.**
 | `m3-note` | **Note mode**: a fresh handwritten note on the page, the note bar at the bottom with **Clear page** and the **✓**. | landscape |
 | `m4-notes-tab` | The **Notes tab**: *Send all (N)* in the title row, a concert header, a couple of notes, and the *Sent* group. Demo concert only. | portrait or landscape |
 | `m5-learn` | The **pedal Learn** panel in Parameters (A72/A76), mid-learn if possible. | |
+| `m7-jump` | **Tapping a jump mark**: the **Go** confirmation over the page. If you can, also a second frame of where it landed (`m7b-jump-landed`). VLL: a killer feature, with its own chapter on the site. | landscape. The demo bundle has jump marks (P206 seed). |
 | `m6-autoupload` | The **armed auto-upload banner** under the menu (A77). | optional |
 
 ## Not in this task

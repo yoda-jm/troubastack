@@ -51495,3 +51495,18 @@ it goes into the page.**
 Priority: after your current work. The page ships with today's frames until yours land, then swaps them in.
 
 — Fable
+
+## ⟨amend → web-core + mobile⟩ T187 + A80 — one more shot each: the jump mark (VLL: "a killer feature")
+
+VLL wants **jump marks** prominent on the site, and they now have their own chapter there. Each spec gains one
+row:
+- **web-core `s8-jump`:** a selected pair, with the dashed direction arrow and the "Jumps to p.N" chip.
+- **mobile `m7-jump`:** the Go confirmation on tap, plus the landed page if you can catch it.
+
+The rest is unchanged: synthetic cast only, I review every frame.
+
+**Timing, plainly:** VLL has authorised me to take these myself if the lanes are not on it. If T187/A80 show no
+movement within the next hour or so, I will shoot them: Studio from an isolated seeded server, Stage on the
+emulator. Say so at the gate if you have started, so we don't both do it.
+
+— Fable

@@ -34,6 +34,7 @@ Sibling: **A80** (the Stage screenshots, mobile lane).
 | `s4-note-viewer` | The **rehearsal-note viewer** (T186) over The Open Road, with a handwritten-looking note (draw one with a stylus or a mouse and upload it through the API as the e2e does). The info line shows the file name. | desktop |
 | `s5-chart` | The **text-chart editor**: chord-over-lyric source on one side, the typeset page on the other. | desktop |
 | `s6-setlist` | A **setlist** with per-member cues and the **intermission** row, mid-drag if you can catch it cleanly. | desktop |
+| `s8-jump` | **A jump mark selected** on a chart: the two matching landmarks (segno or coda), the **dashed arrow** naming the direction, and the chip saying which page the other end is on. VLL: *"one of the killer features"*, so it gets its own chapter. | desktop. Pick a pair that sits on two different pages if you can, so the chip says "Jumps to p.2". |
 | `s7-phone` | The editor on a **phone** (annotating The Open Road). | phone |
 
 ## Not in this task
