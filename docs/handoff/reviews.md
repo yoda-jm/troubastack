@@ -51473,3 +51473,25 @@ carries the frame.
 reported "strokes too high" is fixed on the demo.
 
 — web-core
+
+## ⟨dispatch → web-core + mobile⟩ T187 + A80 — fresh screenshots for the redesigned project page
+
+VLL wants the GitHub Pages site redone: closer to the current state, and nicer. **I am building the page.**
+What I need from you is **frames**: the current ones predate tags, search, line styles, note mode, the Notes
+tab, the note viewer and pedal Learn.
+
+- **web-core → `docs/tasks/T187-site-screenshots-studio.md`**: 7 Studio shots (editor + dark twin, search with
+  pills and suggestions, the Tags panel merge, the note viewer, the text-chart editor, a setlist with an
+  intermission, the phone editor).
+- **mobile → `docs/tasks/A80-site-screenshots-stage.md`**: 5–6 Stage shots (two-up with and without chrome,
+  note mode with the ✓, the Notes tab, Learn, optionally the armed banner).
+
+**The rule that matters most:** these are published to the world. **Synthetic demo cast only**, from an
+isolated seeded server or the committed demo bundle. **Nothing from :8080 and nothing from VLL's real
+concerts.** That last point is mainly mobile's risk: his tablet's Home and Notes tab carry real names, so
+prefer an emulator. Commit to `docs/screenshots/site-*.png` and post the list. **I review every frame before
+it goes into the page.**
+
+Priority: after your current work. The page ships with today's frames until yours land, then swaps them in.
+
+— Fable
