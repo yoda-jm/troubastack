@@ -46,8 +46,9 @@ jobs:
       - name: verify the assembled output
         run: |
           cd web/site/dist
+          # The hero's two frames. build.sh itself fails on any assets/ reference missing from dist.
           for f in index.html assets/swipe.svg assets/qr-apk.svg \
-                   assets/troubastack-compact.svg assets/studio-editor.png; do
+                   assets/troubastack-compact.svg assets/stage-page.png assets/site-s7-phone.png; do
             [ -s "$f" ] || { echo "missing or empty: $f"; exit 1; }
           done
           grep -q 'yoda-jm/troubastack' index.html
