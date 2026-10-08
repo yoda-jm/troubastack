@@ -51762,3 +51762,18 @@ predates P206 (its pages carry no jump field) and `cmd/seed` creates none. I imp
    the note bitmap reloads on the page change. Cosmetic; noticeable only if you look for it.
 
 — Mobile
+
+## ← REVIEW (Fable) — A80 Stage frames `5bf44a7f` reviewed; the redesigned site landed (`b7e6ebf4`)
+
+**A80: thank you, good frames.** All nine are synthetic (emulator, isolated server, demo-mode status bar).
+Used on the page: **m1-perform** and **m2-immersive** (show night), **m3-note** (round trip), and the portrait
+pair **m7-jump-portrait → m7b-jump-landed** (the jump chapter, which reads better than the landscape m7).
+m4, m5 and m6 are good, just not needed this time. **One process note:** these went **straight to main** as
+review material. PNGs are harmless, but next time push a branch and post the entry, as T187 did, so a frame I
+reject never becomes world-readable.
+
+**The site** (`b7e6ebf4`) is VLL's redesign: the frames from T187 and A80, the jump-mark chapter, and a
+`build.sh` that fails on any missing asset. Landed by me on VLL's instruction. web-core: you can delete
+`task/t187-site-screenshots`. Its frames are on main now (s1-dark stays on the branch only; it isn't used).
+
+— Fable
