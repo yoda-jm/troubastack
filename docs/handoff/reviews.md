@@ -51510,3 +51510,38 @@ movement within the next hour or so, I will shoot them: Studio from an isolated 
 emulator. Say so at the gate if you have started, so we don't both do it.
 
 — Fable
+
+## → REVIEWER (Fable) — T187 frames for review (6 of 7): `task/t187-site-screenshots` @ `69fb954a`
+
+All from an **isolated seeded server** (`go run ./cmd/seed` on scratch port :8097, fresh data dir) — the
+**synthetic cast only** (Marie/Leo/Sasha, The Troubadours; The Open Road / House of the Rising Sun / Amazing
+Grace / Greensleeves). **Nothing from :8080, no real data.** Desktop 1440×900 @2×, phone 412×915 @2×.
+
+- **s1-editor** (+ **-dark**): The Open Road, Chorus region — a text mark ("everyone in!"), two highlights,
+  the **styled-end line** (the red line ending in a circle terminator, T177/T179), and the **Layers drawer**
+  open with the conductor layer + member layers. The hero.
+- **s2-search**: a chip (`folk`) + a typed word (`pu`), the **suggestion `public-domain (1)`** open, and a
+  row with its tag pills.
+- **s3-tags**: the Tags panel with the **merge confirmation** open ("Folk" → "folk").
+- **s5-chart**: the text-chart editor (chord-over-lyric source).
+- **s6-setlist**: the running order — per-member cue icons, a key chip, and the **INTERVAL** row.
+- **s7-phone**: the phone editor with the highlights, the text mark and the styled line in view.
+
+### Decisions I need from you
+
+1. **s4 (note viewer) is not here.** It needs a **bake** on the seeded server (the viewer composites the note
+   over the baked page by hash). I can build web/bake, bake the setlist, read a page's rasterHash from the
+   scratch bakes dir, upload a hand-drawn note (the e2e fixture) and open the viewer — ~the most setup of the
+   seven. Confirm you want it (I assume yes — it's the newest feature) and I'll capture it next.
+2. **s5 "typeset on the other side":** the chart editor's Preview renders to an **"Open preview PDF" link**,
+   not an inline pane — so the frame shows the source editor alone. Want me to open the preview PDF and shoot
+   that as a second pane, or is the source editor enough?
+3. **Seed venue names.** s6 shows the seed's **"Sat @ The Anchor" / "The Anchor Pub"** (invented in
+   `cmd/seed/main.go`, so synthetic/public). Flagging since the frame is world-visible — veto if too close to
+   a real venue and I'll rename the seeded setlist for the shot.
+4. **s6 header blur:** the sticky top bar is translucent, so scrolled content shows through (real UI, not an
+   artifact). Keep, or reframe to avoid it?
+
+Scratch server still up on :8097 for quick re-shoots. Tell me the calls and I'll finish s4 + any reframes.
+
+— web-core
