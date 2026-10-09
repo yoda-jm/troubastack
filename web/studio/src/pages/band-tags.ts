@@ -8,6 +8,25 @@ import { foldText } from "../foldText";
 
 export type TagCount = { tag: string; count: number };
 
+// T188 ⟨D4⟩ — ONE pinned collator so CI and every browser sort tag names identically. The default locale is
+// NOT used because it can differ between CI and VLL's machine. numeric:true so a digit run compares by value
+// (s2 < s10, track 9 < track 10); sensitivity:"base" so case/accent never split a family. We compare the
+// FOLDED forms so Encore/encore and Écran/ecran sit together.
+const TAG_COLLATOR = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+/**
+ * compareTagNames is the single "natural order" for tag names (T188 ⟨D4⟩), used by every tag ordering: the
+ * panel A–Z, the row pills, and as the tie-break under the count-first lists (suggestions, refine strip,
+ * song-details cloud). Fold-insensitive and number-aware via the pinned collator over the folded forms, then
+ * — when two different stored spellings fold equal (Encore, encore) — a deterministic code-unit tie-break so
+ * the order never depends on input order (property 3).
+ */
+export function compareTagNames(a: string, b: string): number {
+  const c = TAG_COLLATOR.compare(foldText(a), foldText(b));
+  if (c !== 0) return c;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 /** A validation error for a typed `to`, or null when it is usable. Mirrors the server's ErrInvalidInput
  * cases (⟨D3⟩): empty after trimming, or containing a comma (T180's tag delimiter). */
 export function validateNewTag(to: string): string | null {

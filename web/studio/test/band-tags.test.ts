@@ -1,5 +1,38 @@
 import { describe, it, expect } from "vitest";
-import { validateNewTag, adoptOffer, planRename, deleteMessage, type TagCount } from "../src/pages/band-tags";
+import {
+  validateNewTag,
+  adoptOffer,
+  planRename,
+  deleteMessage,
+  compareTagNames,
+  type TagCount,
+} from "../src/pages/band-tags";
+
+describe("compareTagNames (T188 ⟨D4⟩ natural order)", () => {
+  const VEC = ["s10", "s2", "S1", "tv", "écran", "Encore", "encore", "zoo"];
+  const WANT = ["écran", "Encore", "encore", "S1", "s2", "s10", "tv", "zoo"];
+
+  it("sorts fold- and number-aware, with a deterministic fold tie-break", () => {
+    expect([...VEC].sort(compareTagNames)).toEqual(WANT);
+  });
+
+  it("tells natural order apart from the naive orders", () => {
+    const byteOrder = [...VEC].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    expect(byteOrder).not.toEqual(WANT);
+    // byte order's two real flaws, which the comparator fixes:
+    expect(byteOrder.indexOf("s10")).toBeLessThan(byteOrder.indexOf("s2")); // non-numeric: s10 before s2
+    expect(byteOrder[byteOrder.length - 1]).toBe("écran"); // accent (é=U+00E9) sinks to the end
+    expect(compareTagNames("s2", "s10")).toBeLessThan(0); // numeric-aware
+    expect(compareTagNames("écran", "zoo")).toBeLessThan(0); // folded into the e's, not after z
+  });
+
+  it("is order-independent (property 3): two different input orders give the same output", () => {
+    const shuffleA = ["encore", "Encore", "zoo", "s2", "tv", "S1", "s10", "écran"];
+    const shuffleB = ["tv", "s10", "écran", "S1", "encore", "s2", "Encore", "zoo"];
+    expect([...shuffleA].sort(compareTagNames)).toEqual(WANT);
+    expect([...shuffleB].sort(compareTagNames)).toEqual(WANT);
+  });
+});
 
 describe("validateNewTag (⟨D3⟩ server mirror)", () => {
   it("rejects empty / whitespace-only / comma, accepts a normal tag", () => {

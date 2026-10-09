@@ -2,6 +2,7 @@
 // DOM (the same shape as T180's tagInput.ts): a word is a LOOSE substring over title+artist+tags, a chip is a
 // STRICT whole-tag match, chips AND together, and folded spellings of one tag count as one.
 import { foldText } from "../foldText";
+import { compareTagNames } from "./band-tags";
 
 export type SearchSong = { id: string; title: string; artist?: string; tags?: string[] };
 
@@ -111,7 +112,7 @@ export function suggestForWord(
     const count = filterSongs(allSongs, [...chips, g.label], otherWords).length;
     out.push({ label: g.label, folded: g.folded, count });
   }
-  out.sort((a, b) => b.count - a.count || (a.label < b.label ? -1 : 1));
+  out.sort((a, b) => b.count - a.count || compareTagNames(a.label, b.label));
   return out.slice(0, limit);
 }
 
@@ -132,19 +133,21 @@ export function refineStrip(
     if (count >= listed.length) continue; // carried by every listed song → a no-op
     candidates.push({ label: g.label, folded: g.folded, count });
   }
-  candidates.sort((a, b) => b.count - a.count || (a.label < b.label ? -1 : 1));
+  candidates.sort((a, b) => b.count - a.count || compareTagNames(a.label, b.label));
   if (candidates.length <= limit) return { shown: candidates, hidden: 0 };
   return { shown: candidates.slice(0, limit), hidden: candidates.length - limit };
 }
 
 export type RowPill = { label: string; folded: string; active: boolean };
 
-/** A song's tags as row pills (⟨D6⟩ C1), ordered by BAND usage (most-used first, ties by name) so the same
- *  tag sits in the same place row to row. `bandRank` maps a folded tag to its band-wide song count. Bounded
- *  to `max` with the rest as `hidden`; a pill is `active` when it folds-equal to a current chip. */
+/** A song's tags as row pills (T181 ⟨D6⟩ C1), ordered by NATURAL NAME order (T188 ⟨D3⟩: compareTagNames) —
+ *  still one global order, so the same tag sits in the same place row to row (what band-count order gave),
+ *  but a tag family reads in family order. Bounded to `max` with the rest as `hidden`; a pill is `active`
+ *  when it folds-equal to a current chip.
+ *  (T188: the hidden pill behind `+N` is now the alphabetically last, not the least used — accepted; a
+ *  width-based cap is a separate task.) */
 export function rowPills(
   song: SearchSong,
-  bandRank: Map<string, number>,
   chips: string[],
   max = 3,
 ): { shown: RowPill[]; hidden: number } {
@@ -153,16 +156,9 @@ export function rowPills(
     const folded = foldText(t);
     return { label: t, folded, active: chipsFolded.has(folded) };
   });
-  pills.sort((a, b) => (bandRank.get(b.folded) ?? 0) - (bandRank.get(a.folded) ?? 0) || (a.label < b.label ? -1 : 1));
+  pills.sort((a, b) => compareTagNames(a.label, b.label));
   if (pills.length <= max) return { shown: pills, hidden: 0 };
   return { shown: pills.slice(0, max), hidden: pills.length - max };
-}
-
-/** Band-wide folded→song-count, for ordering row pills consistently across rows. */
-export function bandTagRank(allSongs: SearchSong[]): Map<string, number> {
-  const rank = new Map<string, number>();
-  for (const g of groupTags(allSongs)) rank.set(g.folded, g.songIds.size);
-  return rank;
 }
 
 /** The "what is filtering" line (⟨D4⟩): chips AND'd, then the free text. Empty when nothing filters. */

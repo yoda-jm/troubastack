@@ -2,6 +2,7 @@
 // a space is data not a delimiter, a trailing comma makes no empty tag, backspace removes exactly one, and
 // a fold-match joins the existing spelling instead of minting a second — are unit-testable without a DOM.
 import { foldText } from "../../foldText";
+import { compareTagNames } from "../band-tags";
 
 export type TagSuggestion = { tag: string; count: number };
 
@@ -93,6 +94,10 @@ export function suggest(
 export function cloud(vocab: Vocab, chosen: string[], n: number, showAll: boolean): { shown: TagSuggestion[]; hidden: number } {
   const chosenFolded = new Set(chosen.map(foldText));
   const available = vocab.filter((v) => !chosenFolded.has(foldText(v.tag)));
+  // T188 ⟨D4⟩ — stay count-first (the head of the distribution is what we usually use), but break ties on
+  // the natural name order instead of raw bytes, so the cloud matches the panel and the server order no
+  // longer leaks its byte tie-break here.
+  available.sort((a, b) => b.count - a.count || compareTagNames(a.tag, b.tag));
   if (showAll || available.length <= n) return { shown: available, hidden: 0 };
   return { shown: available.slice(0, n), hidden: available.length - n };
 }

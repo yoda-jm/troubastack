@@ -25,7 +25,6 @@ import { Avatar } from "../components/Avatar";
 import { NewItem } from "../components/NewItem";
 import { foldText } from "../foldText";
 import {
-  bandTagRank,
   caretWord,
   filterSongs,
   filterSummary,
@@ -340,17 +339,15 @@ const SONGS_PAGE = 12;
 // (the one place colour means "this is filtering"); a click toggles the filter.
 function RowTags({
   song,
-  rank,
   chips,
   onToggle,
 }: {
   song: Song;
-  rank: Map<string, number>;
   chips: string[];
   onToggle: (label: string) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
-  const { shown, hidden } = rowPills(song, rank, chips, showAll ? Number.POSITIVE_INFINITY : 3);
+  const { shown, hidden } = rowPills(song, chips, showAll ? Number.POSITIVE_INFINITY : 3);
   if (shown.length === 0) return null;
   return (
     <span className="song-row-tags" data-testid="song-row-tags">
@@ -473,7 +470,6 @@ function Songs({
   const filtered = withNotesFirst(matched, noteCounts);
   const shown = filtered.slice(0, limit);
 
-  const rank = useMemo(() => bandTagRank(songs), [songs]);
   const summary = filterSummary(chips, query);
   // ⟨D2⟩ suggestions are for the word under the caret only; ⟨D5⟩ the refine strip is over the LISTED songs.
   const typed = caretWord(query, caret).word;
@@ -712,7 +708,7 @@ function Songs({
                           </span>
                         )}
                       </Link>
-                      <RowTags song={s} rank={rank} chips={chips} onToggle={toggleTag} />
+                      <RowTags song={s} chips={chips} onToggle={toggleTag} />
                     </li>
                   ))}
                 </ul>

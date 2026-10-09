@@ -2,7 +2,6 @@
 // chips AND, folded spellings count as one, and every count means "songs if you pick it".
 import { describe, it, expect } from "vitest";
 import {
-  bandTagRank,
   caretWord,
   filterSongs,
   filterSummary,
@@ -118,21 +117,38 @@ describe("refineStrip (⟨D5⟩)", () => {
   });
 });
 
-describe("rowPills (⟨D6⟩ C1)", () => {
-  const rank = bandTagRank(SONGS);
-  it("a 5-tag song shows exactly 3 pills + hidden 2, in band-most-used order (not alphabetical)", () => {
+describe("rowPills (T181 ⟨D6⟩ C1, T188 ⟨D3⟩ natural order)", () => {
+  it("a 5-tag song shows exactly 3 pills + hidden 2, in NATURAL A–Z order (not band-count)", () => {
     const song: SearchSong = { id: "z", title: "Z", tags: ["zeta", "opener", "encore", "alpha", "slow blues"] };
-    const { shown, hidden } = rowPills(song, rank, [], 3);
+    const { shown, hidden } = rowPills(song, [], 3);
     expect(hidden).toBe(2);
-    // band usage: opener 3, encore 3, slow blues 2, (zeta/alpha 0). encore vs opener tie(3) → by name 'encore'<'opener'.
-    expect(shown.map((p) => p.label)).toEqual(["encore", "opener", "slow blues"]);
-    // alphabetical would have put 'alpha' first — it is not shown, proving order is by use
-    expect(shown.map((p) => p.label)).not.toContain("alpha");
+    // A–Z: alpha, encore, opener, slow blues, zeta → top 3.
+    expect(shown.map((p) => p.label)).toEqual(["alpha", "encore", "opener"]);
+    // the OLD band-count rule hid 'alpha' (count 0) and led with opener/encore (count 3); A–Z leads with alpha.
+    expect(shown[0].label).toBe("alpha");
+  });
+
+  it("T188: ordered by name, not band use — tv (the most-used tag) is NOT first", () => {
+    // A band where `tv` is the most-used tag: on 3 songs, vs cartoon 1, s2 1, video-game 2.
+    const band: SearchSong[] = [
+      { id: "1", title: "A", tags: ["tv", "video-game"] },
+      { id: "2", title: "B", tags: ["tv", "s2", "video-game"] },
+      { id: "3", title: "C", tags: ["tv", "cartoon"] },
+    ];
+    const count = (tag: string) => band.filter((s) => (s.tags ?? []).includes(tag)).length;
+    expect(count("tv")).toBeGreaterThan(count("video-game")); // assert the fixture: tv is most-used
+    expect(count("tv")).toBeGreaterThan(count("cartoon"));
+
+    const song: SearchSong = { id: "2", title: "B", tags: ["tv", "s2", "video-game", "cartoon"] };
+    const { shown, hidden } = rowPills(song, [], 3);
+    // A–Z: cartoon, s2, tv, video-game → top 3 + 1 hidden. The old rule would have led with tv.
+    expect(shown.map((p) => p.label)).toEqual(["cartoon", "s2", "tv"]);
+    expect(hidden).toBe(1);
   });
 
   it("a pill folding-equal to a chip is active; others are not", () => {
     const song: SearchSong = { id: "z", title: "Z", tags: ["opener", "encore"] };
-    const { shown } = rowPills(song, rank, ["Opener"], 3); // chip in a different case
+    const { shown } = rowPills(song, ["Opener"], 3); // chip in a different case
     expect(shown.find((p) => p.folded === "opener")?.active).toBe(true);
     expect(shown.find((p) => p.folded === "encore")?.active).toBe(false);
   });

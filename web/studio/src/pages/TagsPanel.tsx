@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, api } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useDialogs } from "../components/Dialog";
 import {
   adoptOffer,
+  compareTagNames,
   deleteMessage,
   planRename,
   validateNewTag,
@@ -11,12 +12,31 @@ import {
   type TaggedSong,
 } from "./band-tags";
 
+// T188 — the order toggle is remembered per browser; a broken localStorage means "default A–Z".
+type TagOrder = "az" | "used";
+const ORDER_KEY = "troubastack.tags.order";
+function readOrder(): TagOrder {
+  try {
+    return localStorage.getItem(ORDER_KEY) === "used" ? "used" : "az";
+  } catch {
+    return "az";
+  }
+}
+function writeOrder(o: TagOrder) {
+  try {
+    localStorage.setItem(ORDER_KEY, o);
+  } catch {
+    // per-viewer convenience only; a broken store just means the default next load
+  }
+}
+
 /**
- * T182 ⟨D1⟩ — the band's tag vocabulary as a panel: one row per STORED spelling (encore and Encore are two
- * rows, on purpose — this is where a reader cleans up that fragmentation), most-used first. A tag name is a
- * button that adds the tag as a search chip on the song list (§3, via onPick). Each row can rename (which
- * merges, ⟨D3⟩) or delete (⟨D4⟩), always behind a confirmation that states the consequence in numbers and
- * that it cannot be undone (⟨D5⟩) — the only safety a feature with no metadata history has.
+ * The band's tag vocabulary as a panel. T188 made it COMPACT: a chip cloud by default (one wrapping line of
+ * name+count chips, a click filters the song list, §3 onPick), in natural A–Z order (toggle to Most-used,
+ * remembered per browser). A STORED spelling is still its own chip — encore and Encore are two — which is
+ * what lets a reader see and clean up fragmentation. The cleanup lives in **Manage** mode, which switches to
+ * the T182 rows with Rename (which merges, ⟨D3⟩) and Delete (⟨D4⟩), each behind the T182 confirmation that
+ * states the consequence in numbers and that it cannot be undone (⟨D5⟩) — unchanged here.
  */
 export function TagsPanel({
   bandId,
@@ -35,7 +55,24 @@ export function TagsPanel({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // T188 ⟨D1⟩/⟨D2⟩ — chips by default, rows only in Manage (never persisted — it is a cleanup mode, not a
+  // way to read the panel). The A–Z/Most-used order IS remembered per browser.
+  const [manage, setManage] = useState(false);
+  const [order, setOrder] = useState<TagOrder>(() => readOrder());
+  const setOrderPersisted = useCallback((o: TagOrder) => {
+    setOrder(o);
+    writeOrder(o);
+  }, []);
   const { confirm, prompt } = useDialogs();
+
+  // T188 ⟨D2⟩/⟨D4⟩ — one natural order (compareTagNames) for A–Z; count-descending for Most-used with the
+  // same natural tie-break. The panel sorts on the CLIENT; it does not rely on the server's /tags order.
+  const ordered = useMemo(() => {
+    const t = [...tags];
+    if (order === "used") t.sort((a, b) => b.count - a.count || compareTagNames(a.tag, b.tag));
+    else t.sort((a, b) => compareTagNames(a.tag, b.tag));
+    return t;
+  }, [tags, order]);
 
   const load = useCallback(async () => {
     try {
@@ -165,6 +202,41 @@ export function TagsPanel({
       <div className="panel-head">
         <h2>Tags</h2>
         <span className="count">{tags.length}</span>
+        {tags.length > 0 && (
+          <span className="tags-head-controls">
+            {/* T188 ⟨D2⟩ — order toggle, A–Z default; remembered per browser. */}
+            <span className="segmented" role="group" aria-label="Tag order">
+              <button
+                type="button"
+                className={"seg-btn" + (order === "az" ? " on" : "")}
+                data-testid="tags-order-az"
+                aria-pressed={order === "az"}
+                onClick={() => setOrderPersisted("az")}
+              >
+                A–Z
+              </button>
+              <button
+                type="button"
+                className={"seg-btn" + (order === "used" ? " on" : "")}
+                data-testid="tags-order-used"
+                aria-pressed={order === "used"}
+                onClick={() => setOrderPersisted("used")}
+              >
+                Most used
+              </button>
+            </span>
+            {/* T188 ⟨D1⟩ — Manage switches to the T182 rows (Rename/Delete); not remembered. */}
+            <button
+              type="button"
+              className={"ghost-btn" + (manage ? " active" : "")}
+              data-testid="tags-manage"
+              aria-pressed={manage}
+              onClick={() => setManage((v) => !v)}
+            >
+              {manage ? "Done" : "Manage"}
+            </button>
+          </span>
+        )}
       </div>
       <div className="panel-body">
         <ErrorBanner message={error} />
@@ -177,9 +249,11 @@ export function TagsPanel({
           <p className="muted" data-testid="tags-empty">
             No tags yet — add them from a song’s details.
           </p>
-        ) : (
+        ) : manage ? (
+          // Manage mode: the T182 rows (name · count · Rename · Delete), in the selected order. All of
+          // T182's rename/merge/delete behaviour is unchanged — only when the rows are shown is new.
           <ul className="tag-list" data-testid="tag-list">
-            {tags.map((t) => (
+            {ordered.map((t) => (
               <li key={t.tag} className="tag-row" data-testid="tag-row">
                 <button
                   type="button"
@@ -216,6 +290,26 @@ export function TagsPanel({
               </li>
             ))}
           </ul>
+        ) : (
+          // Chip mode (default): a compact wrapping cloud, one chip look shared with the refine strip
+          // (.tag-cloud-item/.tag-cloud-count). A click filters the song list (T182 §3, onPick). No cap.
+          <div className="tag-cloud" data-testid="tag-cloud">
+            {ordered.map((t) => (
+              <button
+                key={t.tag}
+                type="button"
+                className="tag-cloud-item"
+                data-testid="tag-chip"
+                onClick={() => onPick(t.tag)}
+                title="Filter the song list by this tag"
+              >
+                {t.tag}
+                <span className="tag-cloud-count" data-testid="tag-chip-count">
+                  {t.count}
+                </span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </section>

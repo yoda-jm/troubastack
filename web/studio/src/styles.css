@@ -2262,3 +2262,16 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .note-viewer-actions { display: flex; align-items: center; gap: .4rem; }
 .note-viewer-spacer { flex: 1 1 auto; }
 .note-viewer-count { font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* T188 — the Tags panel head: order toggle (A–Z | Most used) + Manage, pushed right. The chip cloud reuses
+   the shared .tag-cloud / .tag-cloud-item / .tag-cloud-count (one chip look across the page). */
+.tags-head-controls { margin-left: auto; display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: .4rem; overflow: hidden; }
+.segmented .seg-btn {
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  padding: .12rem .5rem; font: inherit; font-size: .78rem;
+}
+.segmented .seg-btn + .seg-btn { border-left: 1px solid var(--border); }
+.segmented .seg-btn:hover { color: var(--fg); }
+.segmented .seg-btn.on { background: var(--brand-tint); color: var(--brand-strong); font-weight: 600; }
+@media (max-width: 480px) { .tags-head-controls { width: 100%; margin-left: 0; } }
