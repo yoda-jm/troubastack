@@ -6,7 +6,8 @@ which order) production starts. No lane picks this up from `docs/tasks/`: it del
 (its README lists the five lessons this spec is built on).
 **Decided (VLL, 2026-10-09):** English · a soft male voice · **12 episodes** · soft **original music composed
 for the series** · no real-world footage for now · published as a **YouTube playlist** embedded on the project
-site · the demo songs (to be improved, §5.4) · **vertical cuts too** · series name still open. See §9.
+site · the demo songs (to be improved, §5.4) · **vertical cuts too** · series name **"TroubaStack — From rehearsal
+room to stage"**. See §9.
 **Origin:** VLL, 2026-10-08 — *"a series of a dozen or half of that videos, with AI generated audio comments, text
 generated, and recordings of both the tablet and browser … episodes are meant to be in sequence, so probably start
 with general presentation, installations, stuffs like this."*
@@ -1287,7 +1288,7 @@ Ruled by VLL on 2026-10-09 unless marked **open**.
 | D5 | **Real-world footage** | **None for now** — screen only. E10's pedal moments are marked with a `Callout`. |
 | D6 | **Publishing** | **A YouTube playlist**, embedded on the project site (probably). Unlisted first, public after each episode's final gate. The `.webm` site copy stays in the build in case. |
 | D7 | **E02's live server on film** | **open** — default: a throwaway VPS + throwaway domain for one day (a real Let's Encrypt padlock). |
-| D8 | **Series name** | **open** — VLL has no idea yet. Candidates: *"TroubaStack — From rehearsal room to stage"* · *"Twelve bars of TroubaStack"* · *"The band book"* · *"Off the stand"* · just *"TroubaStack — episode N"*. Needed only at publish (title cards read the name from one config value). |
+| D8 | **Series name** | **"TroubaStack — From rehearsal room to stage"** (VLL, 2026-10-09). Title cards read it from one config value. |
 | D9 | **Vertical cuts** | **Yes** — one per episode, §3.5. |
 | D10 | **Demo content** | **The demo songs**, improved first — §5.4 (*DEMO-CONTENT*, not dispatched). |
 
