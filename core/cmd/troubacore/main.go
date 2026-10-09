@@ -12,8 +12,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -81,6 +83,15 @@ func main() {
 
 	// Relational ("normal web") domain: users/sessions, bands, members, invites,
 	// songs. Backend is swappable behind app.Repo (R8, ADR 0002).
+	// The file app store has ONE writer: hold its lock for the server's lifetime, so an offline CLI
+	// (reset-password, repair-blobs) run against this live dir is refused instead of being overwritten.
+	if cfg.Storage.AppStore == "file" {
+		lock, err := filerepo.LockDir(cfg.Storage.DataDir)
+		if err != nil {
+			log.Fatalf("troubacore: %v (%s) — is another server already running on it?", err, cfg.Storage.DataDir)
+		}
+		defer lock.Close()
+	}
 	appRepo, err := openAppRepo(cfg)
 	if err != nil {
 		log.Fatalf("troubacore: open app repo: %v", err)
@@ -190,7 +201,8 @@ func loadConfig() config.Config {
 // bootstrap. It opens the SAME app repo the server uses (TROUBA_APP_STORE), so
 // run it with the same env — and, on the file backend, while the server is
 // STOPPED: filerepo is a single-writer whole-file store, so a running server
-// would overwrite the freshly written token on its next flush.
+// would overwrite the freshly written token on its next flush. lockOfflineAppStore
+// enforces that (it refuses while the server holds the dir's lock).
 func runResetPassword(args []string) {
 	if len(args) != 1 || args[0] == "" {
 		log.Fatalf("usage: troubacore reset-password <username>")
@@ -201,6 +213,7 @@ func runResetPassword(args []string) {
 	if err != nil {
 		log.Fatalf("troubacore: %v", err)
 	}
+	defer lockOfflineAppStore(cfg, "reset-password "+args[0]).Close()
 	appRepo, err := openAppRepo(cfg)
 	if err != nil {
 		log.Fatalf("troubacore: open app repo: %v", err)
@@ -280,6 +293,7 @@ func runRepairBlobs(args []string) {
 	if err != nil {
 		log.Fatalf("troubacore: %v", err)
 	}
+	defer lockOfflineAppStore(cfg, "repair-blobs").Close()
 	appRepo, err := openAppRepo(cfg)
 	if err != nil {
 		log.Fatalf("troubacore: open app repo: %v", err)
@@ -344,6 +358,27 @@ func openStore(cfg config.Config) (store.Store, error) {
 // file persists to <data_dir>/app.json (zero infra). Postgres is a later step.
 // Swapping backends touches only this function; the rest of core depends on
 // app.Repo alone (I14).
+// lockOfflineAppStore takes the file app store's writer lock for an offline CLI that writes it, and
+// exits with the working recipe when the server holds it — a write into a live dir is silently lost
+// on the server's next flush. Returns a closer (a no-op for the mem backend, which has nothing to lose).
+func lockOfflineAppStore(cfg config.Config, cmd string) interface{ Close() error } {
+	if cfg.Storage.AppStore != "file" {
+		return io.NopCloser(nil)
+	}
+	lock, err := filerepo.LockDir(cfg.Storage.DataDir)
+	if errors.Is(err, filerepo.ErrLocked) {
+		log.Fatalf("troubacore: the server is running on %s — %s would be overwritten by it.\n"+
+			"Stop the server first, run this, then start it again. With Docker Compose:\n"+
+			"  docker compose stop troubacore\n"+
+			"  docker compose run --rm troubacore %s\n"+
+			"  docker compose start troubacore", cfg.Storage.DataDir, cmd, cmd)
+	}
+	if err != nil {
+		log.Fatalf("troubacore: %v", err)
+	}
+	return lock
+}
+
 func openAppRepo(cfg config.Config) (app.Repo, error) {
 	kind := cfg.Storage.AppStore
 	dir := cfg.Storage.DataDir

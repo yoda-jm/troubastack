@@ -10,9 +10,9 @@
 #   ./backup.sh backup  [DATA_DIR] [OUT_DIR]      # default DATA_DIR=./troubadata, OUT_DIR=.
 #   ./backup.sh restore <ARCHIVE> <DATA_DIR>      # DATA_DIR must be empty/absent
 #
-# Docker-volume deploy: the data lives in the `troubadata` volume, so run this against a
-# bind mount of it, e.g.:
-#   docker run --rm -v troubadata:/data -v "$PWD":/backup alpine \
+# Docker Compose deploy: the data lives in the `deploy_troubadata` volume (Compose prefixes
+# the project name, i.e. the directory). Stop troubacore, then tar the volume directly:
+#   docker run --rm -v deploy_troubadata:/data -v "$PWD":/backup alpine \
 #     tar czf /backup/troubastack-backup.tgz -C /data .
 set -euo pipefail
 

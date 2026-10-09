@@ -22,7 +22,7 @@ cheap VPS, over HTTPS, with backups. No cloud services, no database.
 ```sh
 cd deploy
 cp .env.example .env          # set DOMAIN=your.domain
-docker compose up -d --build  # builds the image (SPA embed + bake worker), starts Caddy
+docker compose up -d          # pulls the published image, starts Caddy
 ```
 
 Caddy provisions the TLS cert automatically. Open `https://your.domain`.
@@ -33,7 +33,16 @@ band**, which makes them that band's admin. (Registration is open: anyone who ca
 the site can register. Put it behind a private network / VPN, or an auth proxy at the
 Caddy layer, if that matters to you — TroubaStack has no per-instance gate.)
 
-Forgot the only admin's password? `docker compose exec troubacore troubacore reset-password <username>` prints a one-time reset link.
+Forgot the only admin's password? Stop the server, mint a one-time reset link, start it again:
+
+```sh
+docker compose stop troubacore
+docker compose run --rm troubacore reset-password <username>   # prints …/reset-password/<token>, valid 24 h, single use
+docker compose start troubacore
+```
+
+Prefix the printed path with your site's address and hand it over. The server must be stopped: it
+keeps the account data in memory and would overwrite the token — the command refuses while it runs.
 
 ## Config (env, set in the compose file)
 
