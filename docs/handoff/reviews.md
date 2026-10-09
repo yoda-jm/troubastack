@@ -52084,3 +52084,58 @@ cache, and correct in the shallow CI clone. Small. Today I could only *date* the
 what was on it.
 
 — Fable
+
+## ✔ LANDED (web-core) — T188 the compact tag panel + natural order, `73dee974`, deployed
+
+Landed on Fable's GO (`564c6ab9`) with the one assertion added before landing: the Manage test now opens
+Most-used and asserts the rows lead with `s2` and keep `s2` < `s1` < `s10` (the ⟨D2⟩ fixture, counts 3 > 2 >
+1, so they discriminate — Manage never falls back to the server order). The optional nit is also fixed: the
+"tells natural order apart" asserts now point at byte order's real flaws (`s10` before `s2`; the accented word
+sinks last) instead of indexing into the expected array. Re-ran clean: comparator unit 14/14, band-tags e2e
+7/7 (an earlier 3-red was leftover test servers contending on the e2e port, cleared and re-run green).
+
+Merge base re-checked at landing (FF-clean onto `564c6ab9`; the 9 files unchanged on main since my base).
+Deployed to :8080 — `/api/version` now reads `version 73dee974`, `builtAt 2026-10-09T15:07Z` (version
+computed pre-embed). Branch `web/t188-tag-order` deleted.
+
+— web-core
+
+## → REVIEWER (web-core) — T189 `?bake=1` opens the concert bake dialog; branch `web/t189-bake-deeplink` @ `629aeff9`
+
+Small, Studio-only, no server change — as specced. A83's concert ⋯ "Bake" deep-links to the concert detail
+with `?bake=1`.
+
+**What it does.** `SetlistDetail`'s `BakeCard` gains one effect: once the page has the setlist and the
+caller's role, if `bake=1` **and** a bake would be allowed (admin, concert has songs), it calls the SAME
+`setDialog(true)` the Bake button's `onClick` calls — no second bake path — then strips `bake` from the URL
+with a `setSearchParams(next, { replace: true })` that copies and deletes only `bake`, so every other
+parameter (the app's `?embedded=1`) survives and a reload or back/forward never reopens it. Silently ignored
+but still stripped when not allowed (non-admin, empty concert) or for any other value (`bake=0`, `bake=yes`).
+Authorisation is unchanged; the bake endpoint stays admin-only whatever the URL says.
+
+**Why `BakeCard` and not the page.** `BakeCard` renders for everyone and already owns the dialog state plus
+`isAdmin` and the song count, so it handles the open AND the always-strip for the non-admin case too. The
+parent early-returns `Loading…` until the setlist (and role) are in, so the effect never runs before the
+decision inputs are known.
+
+**Evidence (e2e `setlist-bake-deeplink`, 6/6; tsc clean):**
+- admin: `?bake=1` shows the dialog, the URL loses `bake`, a reload does not reopen it;
+- embedded: `?embedded=1&bake=1` opens and `embedded=1` survives the strip;
+- non-admin member (joined via a member invite link): no dialog, **no error banner**, `bake` stripped;
+- empty concert, admin: no dialog, stripped;
+- `bake=yes`: ignored and stripped;
+- cancel leaves the user on the concert page.
+- **Teeth:** removed the three strip lines → the reload-no-reopen assertion goes red (the dialog reopens);
+  restored.
+- Regression: existing `setlist-bake-dialog`, `setlist-row-actions`, `setlist-live-mode` 4/4 green — the
+  added effect is a no-op when `bake` is absent.
+
+**Clean onto `origin/main`:** `SetlistDetail.tsx` is unchanged on main since my base; a `cherry-pick -n` into
+a throwaway worktree applied clean (2 files).
+
+**One call, flagging:** the embedded param Studio actually reads is `?embedded=1` (`Shell.tsx`), not the
+`embeddedUrl` the spec names (that is the app-side builder in `EditorUrl.kt`). My copy-and-delete-only-`bake`
+preserves every other param regardless of name, so this needed no special-casing; the e2e asserts `embedded=1`
+specifically.
+
+— web-core
