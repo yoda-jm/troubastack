@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TroubaStack — collaborative sheet music for bands, self-hosted</title>
-<meta name="description" content="Annotate scores together in the rehearsal room, bake a setlist into one concert file, perform it offline on stage — and send the pencil note you made on the stand straight back to rehearsal. One Go binary you host yourself. Apache-2.0.">
+<title>TroubaStack — sheet music for your band, shared and ready on stage</title>
+<meta name="description" content="TroubaStack keeps your band's songs in one place: everyone marks up the same charts from a browser, setlists become one file, and each musician reads it on a tablet on stage — even with no internet. Free, open source, on a server you own.">
 <link rel="icon" href="assets/troubastack-minimal.svg" type="image/svg+xml">
 <meta property="og:title" content="TroubaStack">
-<meta property="og:description" content="From the rehearsal-room edit to the on-stage page turn — and back. Self-hosted on a box you own.">
+<meta property="og:description" content="Sheet music for your band: shared, annotated together, and ready on stage — even offline. Free and open source, on a server you own.">
 <!-- og: values must be ABSOLUTE — link unfurlers do not resolve them against the page,
      so a relative og:image renders the card without its picture, at exactly the moment
      the link is being shared. build.sh substitutes {{SITE_URL}} when it assembles dist/. -->
@@ -215,52 +215,6 @@ p:last-child { margin-bottom: 0; }
 .device.phone figcaption b  { color: var(--l2); }
 @media (max-width: 940px) { .duo { width: min(520px, 100%); margin-top: 16px; } }
 
-/* --- the loop ----------------------------------------------------------------
-   Six steps, numbered because they ARE a sequence — and the sixth hands back to
-   the second, which is the newest thing the product does. The return arrow is
-   drawn, not implied.                                                           */
-.loop { background: var(--tile); color: var(--on-dark); border-top: 1px solid var(--on-dark-rule); padding: clamp(46px, 6vw, 72px) 0 clamp(54px, 6vw, 80px); }
-.loop-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 28px; }
-.loop-head h2 { font-size: clamp(24px, 2.8vw, 32px); }
-.loop-head p { color: var(--on-dark-soft); max-width: 52ch; margin: 0; font-size: 15.5px; }
-.loop ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; position: relative; }
-.loop li {
-  position: relative; padding: 16px 16px 18px; border-radius: 14px;
-  background: rgba(255,255,255,.035); border: 1px solid var(--on-dark-rule);
-}
-.loop li a { text-decoration: none; display: block; }
-.loop li a:focus-visible { outline: 2px solid var(--l1); outline-offset: 4px; border-radius: 6px; }
-.loop .n { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; color: var(--on-dark-soft); }
-.loop .what { font-weight: 650; font-size: 16px; line-height: 1.3; margin: 4px 0 6px; }
-.loop .how { font-size: 13.5px; line-height: 1.5; color: var(--on-dark-soft); }
-.loop li.s .what { color: var(--l2); }
-.loop li.c .what { color: var(--l3); }
-.loop li.p .what { color: var(--l1); }
-.loop li:not(:last-child)::after {
-  content: ""; position: absolute; right: -9px; top: 26px; width: 8px; height: 8px;
-  border-top: 1.5px solid rgba(167,176,186,.6); border-right: 1.5px solid rgba(167,176,186,.6);
-  transform: rotate(45deg);
-}
-.loop li.new { border-color: rgba(225,49,152,.45); background: rgba(225,49,152,.07); }
-.loop .tag-new {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--tile); background: var(--l2); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px;
-}
-.return { display: block; width: 100%; height: 46px; margin-top: 6px; overflow: visible; }
-.return path { fill: none; stroke: var(--l2); stroke-width: 1.6; stroke-dasharray: 5 6; }
-.return text { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; fill: var(--l2); text-transform: uppercase; }
-@media (max-width: 1000px) {
-  .loop ol { grid-template-columns: repeat(3, 1fr); }
-  .loop li:nth-child(3)::after { display: none; }
-  .return { display: none; }
-  .loop .back-note { display: block; }
-}
-@media (max-width: 620px) {
-  .loop ol { grid-template-columns: 1fr; }
-  .loop li::after { display: none; }
-}
-.loop .back-note { display: none; margin-top: 14px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--l2); }
-
 /* --- sections --------------------------------------------------------------- */
 section { padding: clamp(68px, 8.5vw, 112px) 0; }
 .on-dark { background: linear-gradient(165deg, var(--tile-hi), var(--tile-lo)); color: var(--on-dark); }
@@ -273,20 +227,38 @@ section { padding: clamp(68px, 8.5vw, 112px) 0; }
 .section-head { max-width: 68ch; margin-bottom: clamp(34px, 4vw, 52px); }
 .section-head h2 { margin-bottom: 16px; }
 
-/* --- lately: a changelog, abridged ------------------------------------------
-   Dated entries in order — the structure is the chronology, so the dates are the
-   one place a monospace column carries information.                            */
-.lately { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 48px; }
-@media (max-width: 860px) { .lately { grid-template-columns: 1fr; } }
-.month { font-family: var(--mono); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 8px; border-bottom: 1px solid var(--rule); margin-bottom: 4px; }
-.entries { list-style: none; margin: 0; padding: 0; }
-.entries li { display: grid; grid-template-columns: 4.6em 1fr; gap: 14px; padding: 13px 0; border-bottom: 1px dashed var(--rule); }
-.entries li:last-child { border-bottom: 0; }
-.entries time { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); padding-top: 3px; font-variant-numeric: tabular-nums; }
-.entries b { display: block; font-weight: 650; font-size: 16px; line-height: 1.35; }
-.entries span { display: block; font-size: 14.5px; color: var(--ink-soft); line-height: 1.5; margin-top: 2px; }
-.entries .who { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
-.who.s { background: var(--l2); } .who.c { background: var(--l3); } .who.p { background: var(--l1); }
+/* --- who it is for -------------------------------------------------------- */
+.why { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+@media (max-width: 960px) { .why { grid-template-columns: 1fr; } }
+.why-card { background: var(--paper); border: 1px solid var(--rule); border-radius: 18px; padding: 26px 24px; position: relative; overflow: hidden; }
+.why-card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; }
+.why-card.w1::before { background: var(--l1); } .why-card.w2::before { background: var(--l2); } .why-card.w3::before { background: var(--l3); }
+.why-card .role { font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+.why-card.w1 .role { color: var(--l1-ink); } .why-card.w2 .role { color: var(--l2-ink); } .why-card.w3 .role { color: var(--l3-ink); }
+.why-card h3 { margin-bottom: 14px; }
+.why-card ul { margin: 0; padding: 0; list-style: none; font-size: 15.5px; color: var(--ink-soft); }
+.why-card li { position: relative; padding-left: 20px; margin-bottom: 9px; }
+.why-card li::before { content: ""; position: absolute; left: 0; top: .62em; width: 10px; height: 3px; border-radius: 2px; background: var(--rule); }
+.why-card.w1 li::before { background: var(--l1-ink); } .why-card.w2 li::before { background: var(--l2-ink); } .why-card.w3 li::before { background: var(--l3-ink); }
+.why-card li strong { color: var(--ink); font-weight: 600; }
+.why-card .more { display: inline-block; margin-top: 8px; font-size: 14.5px; color: var(--l3-ink); text-underline-offset: 3px; }
+
+/* --- what it offers: the index of the detail sections below ---------------- */
+.offers { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.offers a { display: block; height: 100%; padding: 16px 18px 17px; border-radius: 14px; background: rgba(255,255,255,.035); border: 1px solid var(--on-dark-rule); text-decoration: none; transition: border-color .16s ease, background-color .16s ease; }
+.offers a:hover { border-color: rgba(244,241,234,.34); background: rgba(255,255,255,.06); }
+.offers a:focus-visible { outline: 2px solid var(--l1); outline-offset: 3px; }
+.offers .what { display: flex; align-items: center; gap: 9px; font-weight: 650; font-size: 16px; line-height: 1.3; color: var(--on-dark); margin-bottom: 5px; }
+.offers .how { font-size: 14px; line-height: 1.5; color: var(--on-dark-soft); }
+.offers .go { color: var(--on-dark-soft); margin-left: auto; font-weight: 400; }
+
+/* --- for developers ---------------------------------------------------------- */
+.dev-points { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 40px; margin: 0 0 clamp(36px, 4vw, 52px); padding: 0; list-style: none; }
+@media (max-width: 860px) { .dev-points { grid-template-columns: 1fr; } }
+.dev-points li { padding: 14px 0; border-bottom: 1px dashed var(--rule); font-size: 15.5px; color: var(--ink-soft); }
+.dev-points li strong { display: block; color: var(--ink); font-weight: 650; font-size: 16px; margin-bottom: 2px; }
+.nav-jump { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 30px; font-size: 14.5px; color: var(--on-dark-soft); }
+.nav-jump a { color: var(--on-dark); text-underline-offset: 3px; }
 
 /* --- the three modules ------------------------------------------------------ */
 .layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
@@ -385,6 +357,16 @@ pre .k { color: var(--l1); }
 .qr-note { font-size: 12px; line-height: 1.5; color: var(--on-dark-soft); margin-top: 10px; text-align: left; }
 .qr-note .m { color: var(--on-dark); }
 
+
+/* outline button on a paper ground (the hero's ghost button is for the dark one) */
+.btn-ghost-ink { border-color: var(--rule); color: var(--ink); background: var(--paper); }
+.btn-ghost-ink:hover { border-color: var(--ink-soft); }
+/* the app QR inside a paper install card */
+.qr-light { margin: 4px 0 14px; text-align: left; }
+.qr-light .frame { border: 1px solid var(--rule); }
+.qr-light figcaption { color: var(--ink-soft); }
+.qr-light .qr-os { color: #21180A; }
+
 /* --- footer ----------------------------------------------------------------- */
 footer { padding: 44px 0 60px; border-top: 1px solid var(--rule); font-size: 14.5px; color: var(--ink-soft); background: var(--paper); }
 footer .cols { display: flex; flex-wrap: wrap; gap: 18px 34px; align-items: center; justify-content: space-between; }
@@ -419,7 +401,7 @@ footer a { color: var(--l3-ink); text-decoration-thickness: 1px; text-underline-
   </svg>
 </a>
 
-<!-- ══ HERO ═══════════════════════════════════════════════════════════════ -->
+<!-- ══ 1. WHAT IT IS ═════════════════════════════════════════════════════ -->
 <header class="hero">
   <svg class="staff" viewBox="0 0 1200 620" preserveAspectRatio="none" aria-hidden="true">
     <defs>
@@ -443,212 +425,116 @@ footer a { color: var(--l3-ink); text-decoration-thickness: 1px; text-underline-
         <img src="assets/troubastack-compact.svg" alt="" width="60" height="60">
         <div class="name">Trouba<em>Stack</em></div>
       </div>
-      <h1>From the rehearsal&#8209;room edit to the <span class="gold">on-stage page turn</span> — <span class="back">and back.<svg viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><path d="M4 13 C 70 5, 150 4, 296 9"/></svg></span></h1>
+      <h1>Sheet music for your band — <span class="gold">shared, marked up together, and</span> <span class="back">ready on stage.<svg viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><path d="M4 13 C 70 5, 150 4, 296 9"/></svg></span></h1>
       <p class="lede">
-        Sheet music and lyrics your whole band <strong>annotates together</strong>, a setlist
-        baked into <strong>one file each player carries offline</strong>, and a music stand where a
-        pencil note goes <strong>straight back to the next rehearsal</strong>. Self-hosted:
-        one Go binary, your data, no account with anyone.
+        TroubaStack keeps your band’s songs in one place. Everyone <strong>marks up the same
+        charts</strong> from a web browser. Before a gig, the setlist becomes <strong>one file</strong>,
+        and each musician reads it on a tablet — <strong>even with no internet</strong>.
       </p>
       <ul class="promises">
-        <li><span class="dot d1"></span>Performs with <strong>no network at all</strong></li>
-        <li><span class="dot d3"></span><strong>One binary</strong> on a box you own</li>
-        <li><span class="dot d2"></span>Open source, Apache-2.0</li>
+        <li><span class="dot d2"></span>Free and <strong>open source</strong></li>
+        <li><span class="dot d3"></span>Runs on <strong>a server you own</strong></li>
+        <li><span class="dot d1"></span><strong>Android</strong> app for the stage</li>
       </ul>
       <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/yoda-jm/troubastack">
-          <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
-          View on GitHub
-        </a>
-        <a class="btn btn-ghost" href="#run">Run it yourself</a>
+        <a class="btn btn-primary" href="#offers">See what it does</a>
+        <a class="btn btn-ghost" href="#install">Install it</a>
       </div>
-      <p class="also">or <a href="#app">get the Android app</a> — scan the code at the bottom of the page.</p>
     </div>
 
     <div class="duo">
       <figure class="device tablet">
         <img src="assets/stage-page.png" width="1200" height="1920"
              alt="TroubaStage on a portrait tablet, immersive: the lead sheet of “The Open Road” with chords over lyrics, a green Capo 2 highlight and a gold chorus bracket composited from the band’s annotations.">
-        <figcaption><b>Stage</b> · the tablet on the stand</figcaption>
+        <figcaption><b>On stage</b> · the tablet on the stand</figcaption>
       </figure>
       <figure class="device phone">
         <img src="assets/site-s7-phone.png" width="824" height="1830"
              alt="TroubaStudio on a phone: The Open Road being annotated — highlights, an “everyone in!” text mark and a red line ringing a chord, with the drawing tools above the score.">
-        <figcaption><b>Studio</b> · anywhere with a browser</figcaption>
+        <figcaption><b>In rehearsal</b> · any browser</figcaption>
       </figure>
     </div>
   </div>
 </header>
 
-<!-- ══ THE LOOP ═══════════════════════════════════════════════════════════ -->
-<nav class="loop" aria-label="How a song travels">
-  <div class="wrap">
-    <div class="loop-head">
-      <h2>One song, all the way round.</h2>
-      <p>Six steps, and the last one hands back to the second: what you scribble on stage comes home to rehearsal.</p>
-    </div>
-    <ol>
-      <li class="s"><a href="#rehearsal"><div class="n">01</div><div class="what">Bring the chart</div><div class="how">Upload a PDF or type chords over lyrics — Studio typesets it.</div></a></li>
-      <li class="s"><a href="#rehearsal"><div class="n">02</div><div class="what">Annotate together</div><div class="how">Everyone draws on the same page, live, each on their own layer.</div></a></li>
-      <li class="c"><a href="#setlists"><div class="n">03</div><div class="what">Bake the setlist</div><div class="how">Core flattens the running order into one concert file.</div></a></li>
-      <li class="p"><a href="#stage"><div class="n">04</div><div class="what">Perform offline</div><div class="how">The tablet reads a file. Pedal turns; tap a jump mark to take the D.S.</div></a></li>
-      <li class="p new"><a href="#roundtrip"><div class="n">05</div><div class="what">Scribble on the stand</div><div class="how">A pencil note during rehearsal, right on the page.</div></a></li>
-      <li class="s new"><a href="#roundtrip"><div class="n">06</div><div class="what">Find it at your desk<span class="tag-new">new</span></div><div class="how">It lands in Studio over the page it was drawn on.</div></a></li>
-    </ol>
-    <svg class="return" viewBox="0 0 1000 46" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M915 0 C 915 34, 880 38, 600 38 L 250 38 C 210 38, 250 34, 250 6"/>
-      <path d="M244 12 L250 4 L256 12" stroke-dasharray="none"/>
-      <text x="575" y="31" text-anchor="middle">back into rehearsal</text>
-    </svg>
-    <p class="back-note">↺ step 06 hands back to step 02</p>
-  </div>
-</nav>
-
-<!-- ══ LATELY ═════════════════════════════════════════════════════════════ -->
-<section id="lately">
+<!-- ══ 2. WHY YOU'D WANT IT ══════════════════════════════════════════════ -->
+<section id="why" class="alt">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow">Changelog, abridged</p>
-      <h2>What shipped <span class="mark">lately</span>.</h2>
-      <p class="lead">Built in the open, in small reviewed steps. The latest, newest first —
-      the full record is the commit history.</p>
+      <p class="eyebrow">Who it is for</p>
+      <h2>Why your band would want it</h2>
+      <p class="lead">No more paper stacks on the stand, PDFs lost in a group chat, or three versions
+      of the same song. One place for the music, and everyone reads the same thing.</p>
     </div>
-    <div class="lately">
-      <div>
-        <div class="month">October 2026</div>
-        <ul class="entries">
-          <li><time datetime="2026-10-07">Oct 7</time><div><b><i class="who s"></i>See a stage note on its page</b><span>A viewer shows a rehearsal note over the page as it was when you drew on it — even after the chart has changed.</span></div></li>
-          <li><time datetime="2026-10-07">Oct 7</time><div><b><i class="who c"></i>Notes find their file</b><span>A note drawn on the bass tab lands on the bass tab, not “page 3” of whichever file is open.</span></div></li>
-          <li><time datetime="2026-10-06">Oct 6</time><div><b><i class="who s"></i>A tag panel for the band</b><span>Rename, merge and delete tags across every song, with the exact number of songs touched before you confirm.</span></div></li>
-          <li><time datetime="2026-10-02">Oct 2</time><div><b><i class="who s"></i>Search by tag</b><span>Loose words, suggested tags with counts, tag chips that combine, and tags on every song row.</span></div></li>
-          <li><time datetime="2026-10-02">Oct 2</time><div><b><i class="who p"></i>Back never leaves a concert</b><span>An edge swipe meant as a page turn no longer drops you out mid-song.</span></div></li>
-          <li><time datetime="2026-10-01">Oct 1</time><div><b><i class="who s"></i>Tags on songs</b><span>Suggestions show how many songs already use a tag, so <em>encore</em> doesn’t become three spellings.</span></div></li>
-        </ul>
-      </div>
-      <div>
-        <div class="month">September 2026</div>
-        <ul class="entries">
-          <li><time datetime="2026-09-28">Sep 28</time><div><b><i class="who p"></i>An auto-upload window</b><span>Turn it on for a live session and your stage notes reach Studio as you draw — for three hours, then it switches itself off.</span></div></li>
-          <li><time datetime="2026-09-24">Sep 24</time><div><b><i class="who s"></i>Line styles and arrow ends</b><span>Dashed and dotted strokes for lines and shapes, and a chosen end for each side of a line.</span></div></li>
-          <li><time datetime="2026-09-20">Sep 20</time><div><b><i class="who p"></i>Bluetooth MIDI pedals, learned</b><span>Point a pedal at <em>next</em> and <em>previous</em> once — a keyboard pedal or a BLE-MIDI one.</span></div></li>
-          <li><time datetime="2026-09-12">Sep 12</time><div><b><i class="who s"></i>Stage notes reach Studio</b><span>Send what you drew on the stand to the band server; songs carrying one are flagged in the list.</span></div></li>
-          <li><time datetime="2026-09-08">Sep 8</time><div><b><i class="who c"></i>Charts that fit their column</b><span>Long chord lines wrap inside their column instead of shrinking the whole page.</span></div></li>
-          <li><time datetime="2026-09-07">Sep 7</time><div><b><i class="who c"></i>Intermissions</b><span>A labelled break in the running order, baked as a poster page of its own.</span></div></li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ══ THREE MODULES ══════════════════════════════════════════════════════ -->
-<section class="alt">
-  <div class="wrap">
-    <div class="section-head">
-      <p class="eyebrow">One name · two halves · three modules</p>
-      <h2>A troubadour composes. A joglar performs.</h2>
-      <p class="lead">
-        <strong>Trouba</strong>: editing and performing are different jobs with different
-        failure modes, so they are different programs. <strong>Stack</strong>: a pile of modules
-        rather than one monolith — an editor, a server that also bakes, a presenter — joined by
-        one authoritative server and one baked file. It is what the mark draws: three planes, stacked.
-      </p>
-    </div>
-
-    <div class="layers">
-      <article class="layer-card s2">
-        <div class="top"><img src="assets/troubastudio-compact.svg" alt="" width="64" height="64">
-          <div><div class="role">Compose · annotate</div><h3>Trouba<span class="tail-l2">Studio</span></h3></div></div>
-        <p>A fullscreen, canvas-first web editor. Everyone marks up the same chart at the same time.</p>
+    <div class="why">
+      <article class="why-card w1">
+        <div class="role">If you play in the band</div>
+        <h3>Your part, your notes, on stage</h3>
         <ul>
-          <li>Per-member layers, low-latency live ink</li>
-          <li>Shapes, highlights, text, conductor cues — with line styles and arrow ends</li>
-          <li>Jump marks: a matched pair of segno, coda or symbol, linked by a direction arrow</li>
-          <li>Text charts: chords over lyrics, typeset; transpose without moving a mark</li>
-          <li>Tags and search, and a tag panel that keeps the vocabulary clean</li>
-          <li>Stage notes shown under your annotations, to recopy properly</li>
+          <li><strong>Only what you need</strong> — your parts and your notes, on top of the band’s.</li>
+          <li><strong>Hands free</strong> — turn pages with a foot pedal or the tablet’s volume keys.</li>
+          <li><strong>Readable anywhere</strong> — dark colour schemes for a dim stage, two pages side by side on a wide tablet.</li>
+          <li><strong>No internet needed</strong> — the concert is on your tablet.</li>
+          <li><strong>Scribble during rehearsal</strong> — write on the page; the note reaches the band.</li>
         </ul>
+        <a class="more" href="#stage">Reading on stage →</a>
       </article>
-      <article class="layer-card s3">
-        <div class="top"><img src="assets/troubacore-compact.svg" alt="" width="64" height="64">
-          <div><div class="role">Serve · bake</div><h3>Trouba<span class="tail-l3">Core</span></h3></div></div>
-        <p>One Go binary holding the single authoritative truth — and the bake pipeline.</p>
+      <article class="why-card w2">
+        <div class="role">If you lead the band</div>
+        <h3>One repertoire, everyone in sync</h3>
         <ul>
-          <li>Bakes a setlist into one band-wide concert file, offered in-app</li>
-          <li>Studio pixels and baked pixels come from the same renderer</li>
-          <li>Marks anchored to their <em>words</em> — re-render the chart, they stay put</li>
-          <li>Knows which file and page every baked page came from</li>
-          <li>All state in one directory you back up with <code>tar</code></li>
+          <li><strong>One library</strong> for every song, chart and part the band plays.</li>
+          <li><strong>Your marks reach everyone</strong> — cues and structure that no one can miss or hide.</li>
+          <li><strong>Setlists in minutes</strong> — drag the songs into order, add a break, change a key for tonight.</li>
+          <li><strong>Sent to every tablet</strong> — one new version, and the whole band has it.</li>
+          <li><strong>Print when you need paper</strong> — the running order for the floor, the concert as a PDF.</li>
+          <li><strong>See rehearsal feedback</strong> — the players’ notes arrive on the page they wrote them on.</li>
         </ul>
+        <a class="more" href="#setlists">Setlists and concerts →</a>
       </article>
-      <article class="layer-card s1">
-        <div class="top"><img src="assets/troubastage-compact.svg" alt="" width="64" height="64">
-          <div><div class="role">Perform</div><h3>Trouba<span class="tail-l1">Stage</span></h3></div></div>
-        <p>The presenter, inside the mobile app. No account, no login, no network.</p>
+      <article class="why-card w3">
+        <div class="role">If you’re the band’s tech person</div>
+        <h3>Yours to run, nothing to rent</h3>
         <ul>
-          <li>Page turns from a keyboard or BLE-MIDI pedal, learned in one press</li>
-          <li>Four reading schemes — never a white flash in a blackout</li>
-          <li>Tap a jump mark and land on the passage it points at</li>
-          <li>Count-in, live tempo, facing pages on a wide tablet</li>
-          <li>Note mode: write on the page, send it to the band</li>
-          <li>Your layers, filtered to you — the file carries the whole band</li>
+          <li><strong>No subscription, no per-seat price</strong> — it is free software.</li>
+          <li><strong>Your data stays home</strong> — on a home server or a small rented one.</li>
+          <li><strong>A few commands to install</strong>, HTTPS included.</li>
+          <li><strong>One folder to back up</strong>.</li>
+          <li><strong>Open code</strong> you can read, change and contribute to.</li>
         </ul>
+        <a class="more" href="#install">Install it →</a>
       </article>
     </div>
   </div>
 </section>
 
-<!-- ══ REHEARSAL ══════════════════════════════════════════════════════════ -->
-<section id="rehearsal">
+<!-- ══ 3. WHAT IT OFFERS — the index ═════════════════════════════════════ -->
+<section id="offers" class="on-dark">
   <div class="wrap">
-    <div class="split">
-      <figure class="media shot">
-        <img src="assets/site-s1-editor.png" width="2880" height="1800"
-             alt="TroubaStudio’s editor on “The Open Road”: a gold bracket down the chorus, an “everyone in!” text mark, two highlighted lines, and a red ring on a chord whose line ends in “rit. on the last G”.">
-      </figure>
-      <div>
-        <p class="eyebrow l2">In the rehearsal room</p>
-        <h2>The marks are <span class="mark">the point</span>.</h2>
-        <p class="lead">
-          A band’s real knowledge lives in the margins — <em>capo 2</em>, <em>watch me here</em>,
-          <em>everyone in on the last chorus</em>. TroubaStack keeps those marks first-class: owned
-          by the member who made them, layered, and carried all the way onto the stage.
-        </p>
-        <ul class="feat-list l2">
-          <li><strong>Per-member layers</strong> — your fingering stays yours; the conductor’s cues reach everyone.</li>
-          <li><strong>Realtime</strong> — open the same song in two browsers and draw.</li>
-          <li><strong>Lines that say something</strong> — dashed, dotted, an arrow at either end.</li>
-          <li><strong>Jump marks</strong> — a matched pair of landmarks; on stage, tap one and land on the other (<a href="#jumps">more below</a>).</li>
-        </ul>
-      </div>
+    <div class="section-head">
+      <p class="eyebrow l1">At a glance</p>
+      <h2>What it offers</h2>
+      <p class="lead">Each item has its own section further down — click to jump to it.</p>
     </div>
+    <ul class="offers">
+      <li><a href="#charts"><div class="what"><span class="dot d2"></span>Charts, PDF or typed<span class="go">↓</span></div><div class="how">Upload a PDF, or type chords over lyrics and get a clean page.</div></a></li>
+      <li><a href="#annotate"><div class="what"><span class="dot d2"></span>Mark up together, live<span class="go">↓</span></div><div class="how">Highlights, text, shapes — everyone on the same page at once.</div></a></li>
+      <li><a href="#annotate"><div class="what"><span class="dot d2"></span>Your own layers<span class="go">↓</span></div><div class="how">Personal notes stay yours; the leader’s cues reach everyone.</div></a></li>
+      <li><a href="#jumps"><div class="what"><span class="dot d1"></span>“D.S. al coda” in one tap<span class="go">↓</span></div><div class="how">Tap a jump mark on stage and land on the passage it points to.</div></a></li>
+      <li><a href="#find"><div class="what"><span class="dot d2"></span>Tags and search<span class="go">↓</span></div><div class="how">Find songs the way the band talks about them.</div></a></li>
+      <li><a href="#setlists"><div class="what"><span class="dot d3"></span>Setlists to one file<span class="go">↓</span></div><div class="how">Order, breaks, keys — then one file for the whole band, and a PDF to print.</div></a></li>
+      <li><a href="#stage"><div class="what"><span class="dot d1"></span>Made for the stage<span class="go">↓</span></div><div class="how">Pedals, dark modes, facing pages, a silent count-in.</div></a></li>
+      <li><a href="#stage"><div class="what"><span class="dot d1"></span>Works offline<span class="go">↓</span></div><div class="how">No network needed while you play.</div></a></li>
+      <li><a href="#notes"><div class="what"><span class="dot d1"></span>Rehearsal notes come back<span class="go">↓</span></div><div class="how">Write on the tablet; find it in the editor later.</div></a></li>
+      <li><a href="#install"><div class="what"><span class="dot d3"></span>On your own server<span class="go">↓</span></div><div class="how">Install it in a few commands; your data stays yours.</div></a></li>
+      <li><a href="#dev"><div class="what"><span class="dot d3"></span>Open source<span class="go">↓</span></div><div class="how">Apache-2.0, documented and tested — read it, run it, fork it.</div></a></li>
+    </ul>
+  </div>
+</section>
 
-    <div class="split flip">
-      <div>
-        <p class="eyebrow l2">Sixty songs, one box</p>
-        <h2>Find a song by <span class="mark">what it is</span>.</h2>
-        <p class="lead">
-          Tag songs the way the band talks about them — <em>opener</em>, <em>slow blues</em>,
-          <em>needs work</em> — then find them the same way.
-        </p>
-        <ul class="feat-list l2">
-          <li><strong>Suggestions with counts</strong> — the existing tag is the easy path, so the vocabulary doesn’t fragment.</li>
-          <li><strong>Loose words, strict tags</strong> — type freely; a picked tag becomes a chip, and chips combine.</li>
-          <li><strong>Tags on every row</strong> — click one to filter by it.</li>
-          <li><strong>One panel to tidy them</strong> — rename, merge, delete, with the exact count before you confirm.</li>
-        </ul>
-      </div>
-      <div class="media stack2">
-        <figure class="shot">
-          <img src="assets/site-s2-search.png" width="2880" height="1800"
-               alt="The band’s song list in TroubaStudio: the search box holding a “folk” tag chip and the typed word “pu”, the suggestion “public-domain” with its song count, and House of the Rising Sun with its tag pills.">
-        </figure>
-        <figure class="shot">
-          <img src="assets/site-s3-tags.png" width="2880" height="1800"
-               alt="The band’s Tags panel with a merge confirmation open: “Folk” will be merged into “folk”, 1 song changes, “folk” will be on 3 — this cannot be undone.">
-        </figure>
-      </div>
-    </div>
-
+<!-- ══ 4. THE FEATURES IN DETAIL ═════════════════════════════════════════ -->
+<section id="charts">
+  <div class="wrap">
     <div class="split">
       <div class="media pair">
         <figure class="shot">
@@ -661,38 +547,95 @@ footer a { color: var(--l3-ink); text-decoration-thickness: 1px; text-underline-
         </figure>
       </div>
       <div>
-        <p class="eyebrow l2">No PDF? No problem</p>
-        <h2>Type the chords. <span class="mark">Get a page.</span></h2>
+        <p class="eyebrow l2">Charts</p>
+        <h2>Bring a PDF — or <span class="mark">type the chords</span></h2>
         <p class="lead">
-          Write a chart the way you would in a text message — chords on one line, lyrics under
-          them — and Studio typesets it: sections, columns, a performance note like
-          <code>(x3)</code> at the end of a chord line.
+          Each song holds its files: a lead sheet, a guitar tab, a drum part. Upload the PDFs you
+          already have, or write a chart as plain text — chords on one line, lyrics under them —
+          and TroubaStack lays it out as a clean page.
         </p>
         <ul class="feat-list l2">
-          <li><strong>Transpose</strong> per setlist item, and the annotations stay on their words.</li>
-          <li><strong>Two columns</strong> when the song is long — the width buys a larger type, not a denser page.</li>
+          <li><strong>Change the key</strong> of a typed chart in one step — your marks stay on their words.</li>
+          <li><strong>Two columns</strong> for long songs, so the text stays large.</li>
+          <li><strong>Each player picks their files</strong> — the guitarist can keep just the tab.</li>
         </ul>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ══ SETLISTS ═══════════════════════════════════════════════════════════ -->
+<section id="annotate" class="alt">
+  <div class="wrap">
+    <div class="split flip">
+      <div>
+        <p class="eyebrow l2">Marking up</p>
+        <h2>Everyone marks the <span class="mark">same page</span></h2>
+        <p class="lead">
+          A band’s real knowledge lives in the margins — <em>capo 2</em>, <em>watch me here</em>,
+          <em>everyone in on the last chorus</em>. Open a song in the browser and draw on it:
+          highlights, text, circles, arrows, music symbols.
+        </p>
+        <ul class="feat-list l2">
+          <li><strong>Live</strong> — open the same song on two computers; a mark appears on both.</li>
+          <li><strong>Layers</strong> — band layers for everyone, the leader’s cues, and personal notes your bandmates don’t see unless they choose to.</li>
+          <li><strong>Required layers</strong> — mark a layer as required and every player sees it on stage.</li>
+          <li><strong>Marks stick to the music</strong> — change the chart, and they stay on their words.</li>
+        </ul>
+      </div>
+      <figure class="media shot">
+        <img src="assets/site-s1-editor.png" width="2880" height="1800"
+             alt="TroubaStudio’s editor on “The Open Road”: a gold bracket down the chorus, an “everyone in!” text mark, two highlighted lines, and a red ring on a chord whose line ends in “rit. on the last G”.">
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="find">
+  <div class="wrap">
+    <div class="split">
+      <div class="media stack2">
+        <figure class="shot">
+          <img src="assets/site-s2-search.png" width="2880" height="1800"
+               alt="The band’s song list in TroubaStudio: the search box holding a “folk” tag chip and the typed word “pu”, the suggestion “public-domain” with its song count, and House of the Rising Sun with its tag pills.">
+        </figure>
+        <figure class="shot">
+          <img src="assets/site-s3-tags.png" width="2880" height="1800"
+               alt="The band’s Tags panel with a merge confirmation open: “Folk” will be merged into “folk”, 1 song changes, “folk” will be on 3 — this cannot be undone.">
+        </figure>
+      </div>
+      <div>
+        <p class="eyebrow l2">Finding songs</p>
+        <h2>Find a song by <span class="mark">what it is</span></h2>
+        <p class="lead">
+          Tag songs the way the band talks about them — <em>opener</em>, <em>slow blues</em>,
+          <em>needs work</em> — then search by title, artist or tag.
+        </p>
+        <ul class="feat-list l2">
+          <li><strong>Combine tags</strong> — pick two, and only songs with both remain.</li>
+          <li><strong>Suggestions with counts</strong>, so the band doesn’t end up with three spellings of the same tag.</li>
+          <li><strong>One panel to tidy them</strong> — rename or merge, with the number of songs affected shown first.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="setlists" class="alt">
   <div class="wrap">
     <div class="split flip">
       <div>
-        <p class="eyebrow l3">The running order</p>
-        <h2>Cut a setlist into <span class="mark">one file</span>.</h2>
+        <p class="eyebrow l3">Setlists and concerts</p>
+        <h2>From setlist to <span class="mark">every tablet</span></h2>
         <p class="lead">
-          Drag the songs into order, drop in an intermission, transpose a song for tonight’s
-          singer. Then bake: Core flattens every page, every layer and every member’s cues into a
-          single concert file the app downloads and keeps.
+          Drag the songs into order, add an intermission, change a key for tonight’s singer. Then
+          “bake” the setlist: TroubaStack turns it into one concert file, and every tablet in the
+          band is offered the new version.
         </p>
         <ul class="feat-list l3">
-          <li><strong>Personal song cues</strong> — an icon and a colour per member, flashed on song entry.</li>
+          <li><strong>Personal cues</strong> — each player marks what to get ready (an instrument, a mic), shown when the song starts.</li>
           <li><strong>Choose what shows</strong> — decide which layers are on when the concert opens.</li>
           <li><strong>One file for the whole band</strong> — each player sees their own view of it.</li>
+          <li><strong>Print it</strong> — the running order as a sheet for the floor or the sound engineer, and the whole concert as a PDF with your marks, as a paper backup.</li>
         </ul>
       </div>
       <div class="media stack2">
@@ -715,17 +658,15 @@ footer a { color: var(--l3-ink); text-decoration-thickness: 1px; text-underline-
   </div>
 </section>
 
-<!-- ══ ON STAGE ═══════════════════════════════════════════════════════════ -->
 <section id="stage" class="on-dark">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow l1">Show night</p>
-      <h2>The venue’s wifi will fail. It does not matter.</h2>
+      <p class="eyebrow l1">On stage</p>
+      <h2>Made for a music stand, late at night</h2>
       <p class="lead">
-        A concert is downloaded once and lives on the device as a single file. While you
-        perform, <strong>the app makes no request at all</strong> — aeroplane mode, a dead router,
-        a basement with no signal: the presenter is reading a file. Immersive by default, the
-        whole screen is the score; one tap brings the controls back.
+        The concert is downloaded once and kept on the tablet. While you play, the app needs
+        <strong>no network at all</strong> — no wifi, no signal, no problem. The whole screen is the
+        music; one tap brings back the controls.
       </p>
     </div>
 
@@ -741,33 +682,31 @@ footer a { color: var(--l3-ink); text-decoration-thickness: 1px; text-underline-
         </figure>
       </div>
       <div>
-        <p class="eyebrow l1">Ergonomics, not features</p>
-        <h2 style="font-size:clamp(24px,2.9vw,32px)">Built for a music stand, late at night.</h2>
         <ul class="feat-list">
-          <li><strong>Pedal page turns</strong> — a Bluetooth keyboard pedal or a BLE-MIDI one, taught with one press.</li>
-          <li><strong>Four reading schemes</strong> — paper, warm, night, amber — for a stage lit by one lamp.</li>
-          <li><strong>Count-in and a live tempo meter</strong> on the controls.</li>
-          <li><strong>Facing pages</strong> on a wide tablet; scroll mode when you prefer it.</li>
-          <li><strong>Hard to leave by accident</strong> — a stray edge swipe doesn’t end the concert.</li>
+          <li><strong>Page turns hands-free</strong> — a Bluetooth foot pedal (keyboard or MIDI), or the volume keys.</li>
+          <li><strong>Four colour schemes</strong> — normal, warm, night and amber, for any light.</li>
+          <li><strong>Facing pages</strong> on a wide tablet, or one long scrolling column.</li>
+          <li><strong>A silent count-in</strong> in the song’s tempo, and a clock for the set.</li>
+          <li><strong>Every song in two taps</strong> from the song list.</li>
+          <li><strong>Hard to leave by accident</strong> — a stray swipe never ends the concert.</li>
         </ul>
       </div>
     </div>
 
     <div class="split flip" id="jumps">
       <div>
-        <p class="eyebrow l1">The killer feature</p>
-        <h2>Tap the segno. <span class="gold-text">Land on the passage.</span></h2>
+        <p class="eyebrow l1">Jump marks</p>
+        <h2>Tap the sign. <span class="gold-text">Land on the passage.</span></h2>
         <p class="lead">
-          A chart says <em>D.S. al coda</em>, <em>back to the sign</em>, <em>to verse 2</em> — and on a
-          tablet that used to mean swiping back through pages mid-song, looking for a small symbol.
-          A jump mark makes the score do it.
+          A chart says <em>D.S. al coda</em> or <em>back to the sign</em> — on a tablet that used to
+          mean swiping back through pages mid-song, hunting for a small symbol. A jump mark does it
+          for you.
         </p>
         <ol class="trip on-dark-trip">
-          <li><strong>Place a pair in Studio</strong> — the source, then the destination. Both wear the same glyph and colour (segno, coda, a circle, a star), so a player matches them by eye, as on paper.</li>
-          <li><strong>See where it goes</strong> — select either end: a dashed arrow names the direction, a chip says which page the other end is on, one button swaps the way it points.</li>
-          <li><strong>Tap it on stage</strong> — a quick “Go”, or straight there if you switch the confirmation off. In scroll mode you land on the passage itself, not the top of its page.</li>
+          <li><strong>Place a pair in the editor</strong> — where you jump from, and where you land. Both get the same sign and colour, so you match them by eye, as on paper.</li>
+          <li><strong>Check the direction</strong> — select either end to see which page the other is on; one button swaps them.</li>
+          <li><strong>Tap it on stage</strong> — confirm with “Go”, and you’re there.</li>
         </ol>
-        <p class="lead" style="margin-top:18px;font-size:16px">The link is between the two marks, not a page number: re-render the chart, add a page, and it still points at the same passage.</p>
       </div>
       <div class="media stack2">
         <figure class="shot">
@@ -787,23 +726,22 @@ footer a { color: var(--l3-ink); text-decoration-thickness: 1px; text-underline-
   </div>
 </section>
 
-<!-- ══ THE ROUND TRIP ═════════════════════════════════════════════════════ -->
-<section id="roundtrip">
+<section id="notes">
   <div class="wrap">
     <div class="split flip">
       <div>
-        <p class="eyebrow l2">The loop closes</p>
+        <p class="eyebrow l2">Rehearsal notes</p>
         <h2>Write it on the stand. <span class="mark">Find it at your desk.</span></h2>
         <p class="lead">
-          Rehearsal is where the real corrections happen, and nobody puts the tablet down to open
-          a laptop. So Stage has a pencil: draw on the page, and the note goes back to Studio — as a
-          picture of what you wrote, to recopy properly, not as a mark that pretends to be finished.
+          Rehearsal is where the real corrections happen, and nobody puts the tablet down to open a
+          laptop. So the tablet has a pencil: write on the page, and the note goes back to the
+          editor, to be copied in properly later.
         </p>
         <ol class="trip">
-          <li><strong>Note mode on the tablet</strong> — write straight on the page you’re playing from.</li>
-          <li><strong>Send it</strong> — one tap for the lot, or an auto-upload window for a live session.</li>
-          <li><strong>See it in Studio</strong> — under your annotations, on the page it was drawn on, even if the chart has changed since.</li>
-          <li><strong>Recopy, then remove</strong> — the note was a reference; your annotation is the real thing.</li>
+          <li><strong>Write on the tablet</strong> — right on the page you’re playing from.</li>
+          <li><strong>Send it</strong> — one tap, or automatically during a rehearsal.</li>
+          <li><strong>See it in the editor</strong> — on the page it was written on.</li>
+          <li><strong>Copy it in, then remove it</strong> — the note was a reminder; the mark is the real thing.</li>
         </ol>
       </div>
       <div class="media stack2">
@@ -820,100 +758,113 @@ footer a { color: var(--l3-ink); text-decoration-thickness: 1px; text-underline-
   </div>
 </section>
 
-<!-- ══ RUN IT ═════════════════════════════════════════════════════════════ -->
-<section id="run" class="alt">
+<!-- ══ 5. FOR DEVELOPERS ═════════════════════════════════════════════════ -->
+<section id="dev" class="alt">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow l3">Self-hosted, on purpose</p>
-      <h2>Your band’s music, on <span class="mark">your own box</span>.</h2>
+      <p class="eyebrow l3">For developers</p>
+      <h2>Open source, and built to be read</h2>
+      <p class="lead">Apache-2.0, developed in the open in small reviewed steps. If you like clean
+      architecture, honest documentation and real tests, you’ll feel at home.</p>
+    </div>
+    <ul class="dev-points">
+      <li><strong>Three modules, one job each</strong> An editor, a server that also “bakes” concerts, and a presenter — editing and performing fail in different ways, so they are different programs.</li>
+      <li><strong>A modern, boring stack</strong> A single Go binary for the server; React + TypeScript for the editor; Kotlin + Compose Multiplatform for the app (Android today, iOS compiled in CI).</li>
+      <li><strong>Architecture written down first</strong> Numbered invariants, a design note per subsystem, decision records, and an honest list of what a real band still can’t do.</li>
+      <li><strong>Tested at every layer</strong> Go tests under the race detector, browser end-to-end tests with Playwright, Android unit tests, and an iOS compile — on every push.</li>
+      <li><strong>One pixel pipeline</strong> What you see in the editor and what the tablet shows come from the same renderer.</li>
+      <li><strong>Simple to self-host</strong> All state in one directory; a published Docker image; a plain config file with every option documented.</li>
+    </ul>
+    <div class="layers">
+      <article class="layer-card s2">
+        <div class="top"><img src="assets/troubastudio-compact.svg" alt="" width="64" height="64">
+          <div><div class="role">The editor · web</div><h3>Trouba<span class="tail-l2">Studio</span></h3></div></div>
+        <p>Where the band works on the music: charts, live annotation, layers, tags, setlists.</p>
+      </article>
+      <article class="layer-card s3">
+        <div class="top"><img src="assets/troubacore-compact.svg" alt="" width="64" height="64">
+          <div><div class="role">The server · Go</div><h3>Trouba<span class="tail-l3">Core</span></h3></div></div>
+        <p>Holds the band’s data and turns a setlist into a concert file.</p>
+      </article>
+      <article class="layer-card s1">
+        <div class="top"><img src="assets/troubastage-compact.svg" alt="" width="64" height="64">
+          <div><div class="role">The stage · app</div><h3>Trouba<span class="tail-l1">Stage</span></h3></div></div>
+        <p>Presents the concert on a tablet, fully offline. No account needed to read.</p>
+      </article>
+    </div>
+    <div class="cta" style="margin-top:30px">
+      <a class="btn btn-primary" href="https://github.com/yoda-jm/troubastack">
+        <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        Browse the source
+      </a>
+      <a class="btn btn-ghost-ink" href="https://github.com/yoda-jm/troubastack/blob/main/docs/ARCHITECTURE.md">Read the architecture</a>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 6. INSTALL IT ═════════════════════════════════════════════════════ -->
+<section id="install">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow l3">For the band’s tech person</p>
+      <h2>Install it in a few commands</h2>
       <p class="lead">
-        No SaaS, no seat pricing, no third party holding your setlists. A home server or a cheap
-        VPS is plenty — one binary behind Caddy, TLS provisioned automatically, and every byte of
-        state in one directory you back up with <code>tar</code>.
+        A home server or a small rented one is plenty. Your band’s data stays on it — in one
+        folder you back up with <code>tar</code>. No account with anyone.
       </p>
     </div>
 
     <div class="installs">
       <article class="install">
-        <h3>Run it for a band</h3>
-        <p class="sub">The supported install: Docker Compose + Caddy, automatic Let’s Encrypt certificates.</p>
-<pre><span class="c"># set DOMAIN=band.example.org</span>
-cp deploy/.env.example deploy/.env
-cd deploy
+        <h3>1 · The server</h3>
+        <p class="sub">Docker Compose with automatic HTTPS (Let’s Encrypt). No need to clone anything — point your domain at the machine, then:</p>
+<pre>mkdir deploy &amp;&amp; cd deploy
+R=https://raw.githubusercontent.com/yoda-jm/troubastack/main/deploy
+curl -fsSLO $R/docker-compose.yml
+curl -fsSLO $R/Caddyfile
+echo DOMAIN=<span class="k">band.example.org</span> &gt; .env
 docker compose <span class="k">up -d</span></pre>
-        <p class="foot">Pulls a published linux/amd64 image — no host toolchain. Or <code>docker pull vincentleligeour/troubastack:latest</code>; the README has the standalone <code>docker run</code> recipe.</p>
+        <p class="foot">Open your domain, create your account, then your band — you are its admin. The image is on <a href="https://hub.docker.com/r/vincentleligeour/troubastack">Docker Hub</a>; on a home network without a domain, one <code>docker run</code> is enough (see the <a href="https://github.com/yoda-jm/troubastack#or-pull-the-image-directly">README</a>).</p>
+      </article>
+      <article class="install" id="app">
+        <h3>2 · The tablets</h3>
+        <p class="sub">Each player installs the Android app, then scans the band’s invite QR code to join.</p>
+        <figure class="qr qr-light">
+          <a class="frame" href="{{APK_URL}}"><img src="assets/qr-apk.svg" alt="QR code linking to the latest Android app (debug APK) on GitHub Releases" width="132" height="132"></a>
+          <figcaption><span class="qr-os">Android</span> · scan to download</figcaption>
+        </figure>
+        <p class="foot">On the tablet itself, <a href="{{APK_URL}}">tap here to download</a>. The app also opens a concert file with no server at all.</p>
       </article>
       <article class="install">
-        <h3>Try it in a minute</h3>
-        <p class="sub">Builds the editor, embeds it, seeds a demo band and serves the whole thing locally.</p>
+        <h3>Just trying it?</h3>
+        <p class="sub">Run everything on your own computer with a demo band already set up.</p>
 <pre>make setup
 make <span class="k">demo</span>
 <span class="c"># → http://localhost:8080  marie / demo</span></pre>
-        <p class="foot">Needs Go 1.26+ and Node 24+. Add <code>pdftoppm</code> to bake PDFs. A baked demo concert is also committed to the repo — the app can present it with no server at all.</p>
-      </article>
-      <article class="install" id="app">
-        <h3>The app</h3>
-        <p class="sub">Kotlin/Compose Multiplatform — Android today, iOS proven in the simulator.</p>
-<pre>make <span class="k">app</span>
-adb install -r \
-  androidApp-debug.apk</pre>
-        <p class="foot">No toolchain? Scan the code below: every green build on <code>main</code> publishes a debug APK.</p>
+        <p class="foot">Needs Go 1.26+ and Node 24+ (and <code>pdftoppm</code> to bake PDFs).</p>
       </article>
     </div>
 
     <p class="honest">
-      <strong>Packaging status, honestly.</strong> <code>docker compose up</code> pulls a published
-      <strong>linux/amd64</strong> image — arm64 is a follow-up, so an arm home server still builds
-      from source. No store or F-Droid listing yet. The Android build below is the
-      <strong>debug APK</strong> on a rolling GitHub release — it installs straight from the link, but
-      is <strong>unsigned for release</strong>, so Android warns about an unknown source.
+      <strong>Where packaging stands.</strong> The published server image is for regular PCs and
+      servers (<strong>linux/amd64</strong>); on a Raspberry Pi or another ARM machine you build it
+      from source for now. The Android app is not in a store yet: it is a <strong>test build</strong>
+      from GitHub, so Android will ask you to allow installing it.
     </p>
-  </div>
-</section>
-
-<!-- ══ GITHUB BANNER ══════════════════════════════════════════════════════ -->
-<section>
-  <div class="wrap">
-    <div class="gh-banner">
-      <div>
-        <p class="eyebrow l1">Open source · Apache-2.0</p>
-        <h2>It’s all on GitHub.</h2>
-        <div class="repo">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
-          yoda-jm/troubastack
-        </div>
-        <p>
-          The architecture is written down before the code: numbered invariants, design notes per
-          subsystem, decision records, and an honest gap register saying what a real band still
-          cannot do. Read it, run it, fork it.
-        </p>
-        <div class="cta" style="margin-top:22px">
-          <a class="btn btn-primary" href="https://github.com/yoda-jm/troubastack">Browse the source</a>
-          <a class="btn btn-ghost" href="https://github.com/yoda-jm/troubastack/blob/main/docs/ARCHITECTURE.md">Read the invariants</a>
-        </div>
-      </div>
-      <figure class="qr">
-        <a class="frame" href="{{APK_URL}}"><img src="assets/qr-apk.svg" alt="QR code linking to the latest Android debug APK on GitHub Releases" width="132" height="132"></a>
-        <figcaption><span class="qr-os">Android</span> · get the app</figcaption>
-        <p class="qr-note">Scan it — or, on the phone itself, tap to download the latest
-        <span class="m">troubastage-debug.apk</span>. Debug-signed, not a store release.</p>
-      </figure>
-    </div>
   </div>
 </section>
 
 <footer>
   <div class="wrap cols">
     <div>
-      <strong style="color:var(--ink)">TroubaStack</strong> — collaborative sheet music for bands.
+      <strong style="color:var(--ink)">TroubaStack</strong> — sheet music for bands, shared and ready on stage.
       Licensed <a href="https://github.com/yoda-jm/troubastack/blob/main/LICENSE">Apache-2.0</a>.
       Demo charts carry their own licences; see the
       <a href="https://github.com/yoda-jm/troubastack/blob/main/NOTICE">NOTICE</a>.
     </div>
     <div class="badges">
-      <span class="badge">Go 1.26+</span>
-      <span class="badge">Node 24+</span>
-      <span class="badge">Kotlin / Compose</span>
+      <a class="badge" href="https://github.com/yoda-jm/troubastack" style="text-decoration:none;color:inherit">GitHub</a>
+      <span class="badge">Go · React · Kotlin</span>
     </div>
   </div>
 </footer>
