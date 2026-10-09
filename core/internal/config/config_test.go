@@ -36,6 +36,7 @@ func TestDefault(t *testing.T) {
 		"TROUBA_NO_MDNS":         "true", // mdns.enabled default
 		"TROUBA_MDNS_NAME":       "",
 		"TROUBA_APPS_DIR":        "",
+		"TROUBA_PUBLIC_URL":      "",
 		"TROUBA_PDFTOPPM":        "pdftoppm",
 		"TROUBA_NODE":            "node",
 		"TROUBA_BAKE_CLI":        "../web/bake/dist/cli.js",

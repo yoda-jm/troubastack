@@ -17,6 +17,8 @@ services:
       TROUBA_SECURE_COOKIES: "true"
       # No LAN mDNS advertising inside a container.
       TROUBA_NO_MDNS: "1"
+      # The site's address, so operator commands (reset-password) print a full link.
+      TROUBA_PUBLIC_URL: https://${DOMAIN:?set DOMAIN in deploy/.env}
     volumes:
       - troubadata:/data
     healthcheck:

@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"troubastack/core/internal/app"
@@ -234,7 +235,7 @@ func runResetPassword(args []string) {
 			if err != nil {
 				log.Fatalf("troubacore: reset-password %q: %v", args[0], err)
 			}
-			printReset(r.DisplayName, r.Username, r.Token)
+			printReset(cfg.Server.PublicURL, r.DisplayName, r.Username, r.Token)
 			return
 		}
 		if err != nil {
@@ -251,13 +252,23 @@ func runResetPassword(args []string) {
 	if err != nil {
 		log.Fatalf("troubacore: reset-password %q: %v", args[0], err)
 	}
-	printReset(u.DisplayName, u.Username, token)
+	printReset(cfg.Server.PublicURL, u.DisplayName, u.Username, token)
 }
 
-func printReset(displayName, username, token string) {
+func printReset(publicURL, displayName, username, token string) {
 	fmt.Printf("Password reset issued for %s (@%s).\n", displayName, username)
 	fmt.Println("Hand this one-time link to them — valid 24h, single use:")
-	fmt.Printf("  <your-server-origin>/reset-password/%s\n", token)
+	fmt.Printf("  %s\n", resetLink(publicURL, token))
+}
+
+// resetLink is the full link when the public address is configured (server.public_url /
+// TROUBA_PUBLIC_URL — the compose deploy derives it from DOMAIN), else the path behind a placeholder.
+func resetLink(publicURL, token string) string {
+	base := strings.TrimRight(strings.TrimSpace(publicURL), "/")
+	if base == "" {
+		base = "<your-server-origin>"
+	}
+	return base + "/reset-password/" + token
 }
 
 // runGC is the server operator's out-of-band retention pass (P202): it prunes OLD

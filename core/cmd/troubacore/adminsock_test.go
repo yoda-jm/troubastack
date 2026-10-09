@@ -51,3 +51,15 @@ func TestResetViaAbsentSocketSaysSo(t *testing.T) {
 		t.Fatalf("err = %v, want errNoAdminSocket", err)
 	}
 }
+
+func TestResetLinkUsesThePublicURLWhenSet(t *testing.T) {
+	for _, c := range []struct{ base, want string }{
+		{"https://band.example.org", "https://band.example.org/reset-password/tok"},
+		{" https://band.example.org/ ", "https://band.example.org/reset-password/tok"}, // trailing slash, spaces
+		{"", "<your-server-origin>/reset-password/tok"},
+	} {
+		if got := resetLink(c.base, "tok"); got != c.want {
+			t.Errorf("resetLink(%q) = %q, want %q", c.base, got, c.want)
+		}
+	}
+}

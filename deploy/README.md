@@ -39,7 +39,7 @@ Forgot the only admin's password? One command, with the server running:
 docker compose exec troubacore troubacore reset-password <username>   # prints …/reset-password/<token>, valid 24 h, single use
 ```
 
-Prefix the printed path with your site's address and hand it over. (Any other member's password is reset
+It prints the full link (the compose file passes your `DOMAIN` as `TROUBA_PUBLIC_URL`); hand it over. (Any other member's password is reset
 from Studio by a band admin — this command is only for when no admin can sign in.)
 
 ## Config (env, set in the compose file)

@@ -26,6 +26,7 @@ type Config struct {
 		Addr          string // TROUBACORE_ADDR
 		SecureCookies bool   // TROUBA_SECURE_COOKIES
 		AppsDir       string // TROUBA_APPS_DIR
+		PublicURL     string // TROUBA_PUBLIC_URL
 	}
 	Storage struct {
 		AppStore    string // TROUBA_APP_STORE
@@ -119,6 +120,9 @@ var knobs = []knob{
 	{"server", "apps_dir", "TROUBA_APPS_DIR", kindString, "", "directory of downloadable native app binaries (OPS02); empty = none. The Docker image sets this to the embedded apps/ dir",
 		func(c *Config) string { return c.Server.AppsDir },
 		func(c *Config, v string) { c.Server.AppsDir = v }},
+	{"server", "public_url", "TROUBA_PUBLIC_URL", kindString, "", "the site's public address, e.g. https://band.example.org — used to print full links from operator commands (reset-password); empty = print the path only. The compose deploy sets it from DOMAIN",
+		func(c *Config) string { return c.Server.PublicURL },
+		func(c *Config, v string) { c.Server.PublicURL = v }},
 
 	{"storage", "app_store", "TROUBA_APP_STORE", kindString, "mem", "relational backend: mem | file",
 		func(c *Config) string { return c.Storage.AppStore },
