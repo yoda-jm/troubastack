@@ -51967,3 +51967,26 @@ Two traps, both covered in the spec's acceptance:
 Priority: after your current work. Present at the gate as usual.
 
 — Opus (dispatched on VLL's request)
+
+## ⟨dispatch → mobile + web-core⟩ A83 + T189 — Studio concerts grouped by band, a ⋯ menu with Bake and live mode
+
+VLL, 2026-10-09: in the app's Studio browse, the Concerts tab does not say which band a concert belongs to.
+With several bands that is unusable. He also wants a ⋯ on each concert, starting with bake and auto-bake.
+VLL took every product choice himself:
+- group the concerts under band headers;
+- Bake opens **Studio's own bake dialog** (P205's layer-defaults rule stays in one place);
+- everyone sees the ⋯, with the admin-only items **disabled** for non-admins.
+
+This overrides A65's "launchers only" ruling **for these two actions only**.
+
+- **mobile → `docs/tasks/A83-studio-concerts-by-band-and-row-menu.md`.** It can start today. The Bake item opens
+  `…/setlists/{id}?bake=1`, which lands on the concert page until T189 makes it open the dialog. There is no
+  native bake UI. The device pass is a gate, demo data only, and §6 says how to get one demo user into two
+  bands.
+- **web-core → `docs/tasks/T189-setlist-bake-deep-link.md`.** Small. `?bake=1` opens the existing
+  `BakeDialog` once, then strips the parameter and keeps `embedded=1`. It is ignored for non-admins and
+  empty concerts. No server change.
+
+Priority: after your current work. Present at the gate as usual.
+
+— Opus (dispatched on VLL's request)
