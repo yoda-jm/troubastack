@@ -523,15 +523,15 @@ Strings in quotes are the UI's own words.
 | **Perimeter — in** | What you need (a box with Docker, a domain, ports 80/443); `deploy/.env` + `docker compose up -d`; automatic HTTPS (Caddy); the health check; first visitor registers; "New band" → you are admin; where the data lives (one volume = the backup unit, teaser for E12); the LAN-only variant (`docker run`, plain HTTP) in 30 s. |
 | **Perimeter — out** | systemd, building from source, `make demo` (developer path — a one-line mention for contributors), PostgreSQL, arm64 (said once as "amd64 today"), backups in detail (E12). |
 
-**Prerequisites:** a disposable VM/container host for the real `docker compose up -d` run (TERM footage of a real
-pull and start), its Caddy in `tls internal` or Let's Encrypt **staging** mode (no real cert on film is needed, but
-the padlock shot needs a valid one — see §9 D7), a throwaway domain. WEB against an **unseeded** isolated server.
+**Prerequisites (§9 D7):** a throwaway compose stack in Docker on the recording machine, `band.example.org` mapped
+to it in the hosts file, Caddy with `tls internal`, and a recording browser profile that trusts Caddy's local CA
+(padlock, no warning). The stack starts **empty** (no seed) — this episode creates the first account and band.
 
 **Takes**
 
 | Take | Surface | Beats asserted |
 |---|---|---|
-| `term-compose-up` | TERM (real) | `cp deploy/.env.example deploy/.env`; editor shows `DOMAIN=band.example.org`; `docker compose up -d` → pulls `vincentleligeour/troubastack:latest` → `troubacore` healthy in `docker compose ps`; `curl https://…/healthz` → `ok` |
+| `term-compose-up` | TERM (real) | `mkdir deploy && cd deploy`; `curl -fsSLO …/deploy/docker-compose.yml` and `…/Caddyfile` (the site's recipe); `echo DOMAIN=band.example.org > .env`; `docker compose up -d` → pulls `vincentleligeour/troubastack:latest` → `troubacore` healthy in `docker compose ps`; `curl https://…/healthz` → `ok` |
 | `term-docker-run` | TERM (recorded) | `docker pull …` then the 4-line `docker run … -e TROUBA_APP_STORE=file -e TROUBA_STORE=file -v troubadata:/data` |
 | `web-first-account` | WEB (empty server) | `/register` → account `marie` created → `/bands` empty → "+ New band" → field "New band name" "The Troubadours" → "Create band" → the band appears in the list (no navigation) → click it → Overview, Marie listed as admin |
 
@@ -559,9 +559,10 @@ the padlock shot needs a valid one — see §9 D7), a throwaway domain. WEB agai
 > sub-domain — pointing at that machine. [beat] And ports eighty and four-four-three open to the internet, so a
 > certificate can be issued automatically.
 >
-> **2.4** In the TroubaStack repository, go to the deploy folder. Copy the example settings file, and set one
-> line: your domain. [pause] Then start everything with docker compose up, dash d. [beat] Docker pulls the
-> TroubaStack image, starts the server, and starts Caddy, which fetches a certificate for your domain. [pause]
+> **2.4** You don't need to download the code. Make a folder called deploy, and fetch two small files from the
+> project: the compose file and the Caddy file. [beat] Then one line of settings: your domain. [pause] Start
+> everything with docker compose up, dash d. [beat] Docker pulls the TroubaStack image, starts the server, and starts
+> Caddy — which, with your real domain, gets a free Let's Encrypt certificate automatically. [pause]
 > After a minute, docker compose p s shows the server as healthy. You can ask it directly: the health check
 > answers "ok".
 >
@@ -1287,7 +1288,7 @@ Ruled by VLL on 2026-10-09 unless marked **open**.
 | D4 | **Music** | **Soft, original, composed for the series** — §3.4 (tools installed: fluidsynth + FluidR3_GM, sox, LilyPond, MuseScore). |
 | D5 | **Real-world footage** | **None for now** — screen only. E10's pedal moments are marked with a `Callout`. |
 | D6 | **Publishing** | **A YouTube playlist**, embedded on the project site (probably). Unlisted first, public after each episode's final gate. The `.webm` site copy stays in the build in case. |
-| D7 | **E02's live server on film** | **open** — default: a throwaway VPS + throwaway domain for one day (a real Let's Encrypt padlock). |
+| D7 | **E02's live server on film** | **A throwaway local server** (VLL, 2026-10-09): `band.example.org` (IANA-reserved, can never be a real host) mapped in the recording machine's hosts file to a throwaway compose stack in Docker; Caddy with `tls internal` (its local CA) instead of Let's Encrypt, which cannot issue for a non-public name; the recording browser profile trusts that CA, so the address bar shows a normal padlock. Narration rule: never claim the certificate on screen is Let's Encrypt — say "with your real domain, Caddy gets a free Let's Encrypt certificate automatically"; no close-up of certificate details. Offline, reshootable, nothing to buy. |
 | D8 | **Series name** | **"TroubaStack — From rehearsal room to stage"** (VLL, 2026-10-09). Title cards read it from one config value. |
 | D9 | **Vertical cuts** | **Yes** — one per episode, §3.5. |
 | D10 | **Demo content** | **The demo songs**, improved first — §5.4 (*DEMO-CONTENT*, not dispatched). |
