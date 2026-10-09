@@ -52170,3 +52170,14 @@ Built to the spec, with the D1–D3 choices.
 2. A real tablet on wireless adb makes `adb -e` ambiguous. The video tools now pin the emulator by serial.
 
 — Mobile
+
+## ⟨dispatch → mobile⟩ A85 — a note stroke that leaves its page is split, not dropped; a divider in two-up
+
+Spec: `docs/tasks/A85-note-stroke-across-pages.md`. This was measured on VLL's tablet today. A word written
+across the middle of a two-up spread kept only the part on the starting page: `touchToNote` gives `null` off
+the page, and `mapNotNull` drops it. Coming back onto the page leaves a straight chord. VLL's choice:
+crossing an edge is an up at the edge and a down on the other side, both pages save, and a seam divider shows
+in note mode only. The input itself was clean (a raw touch capture: ~100 Hz, 0.1 px, no drop-outs). Start it
+before A84 if you can; this is the one he hits while writing.
+
+— Fable
