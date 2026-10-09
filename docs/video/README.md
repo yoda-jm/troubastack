@@ -1,9 +1,12 @@
 # TroubaStack — the video series (spec v2)
 
-**Status:** **specced, parked — nobody is dispatched on it.** VLL reviews this on GitHub and decides when (and in
+**Status:** **specced, decisions taken (§9), parked — nobody is dispatched on it.** VLL reviews this on GitHub and decides when (and in
 which order) production starts. No lane picks this up from `docs/tasks/`: it deliberately does **not** live there.
 **Supersedes:** the single DEMO-VID walkthrough, archived in [`docs/archive/video-v1/`](../archive/video-v1/README.md)
 (its README lists the five lessons this spec is built on).
+**Decided (VLL, 2026-10-09):** English · a soft male voice · **12 episodes** · soft **original music composed
+for the series** · no real-world footage for now · published as a **YouTube playlist** embedded on the project
+site · the demo songs (to be improved, §5.4) · **vertical cuts too** · series name still open. See §9.
 **Origin:** VLL, 2026-10-08 — *"a series of a dozen or half of that videos, with AI generated audio comments, text
 generated, and recordings of both the tablet and browser … episodes are meant to be in sequence, so probably start
 with general presentation, installations, stuffs like this."*
@@ -20,7 +23,7 @@ with general presentation, installations, stuffs like this."*
 6. [Repository layout and the episode file format](#6-repository-layout-and-the-episode-file-format)
 7. [Production plan, waves and gates](#7-production-plan-waves-and-gates)
 8. [Episodes — full specs and narration](#8-episodes--full-specs-and-narration)
-9. [Open decisions for VLL](#9-open-decisions-for-vll)
+9. [Decisions](#9-decisions)
 10. [Appendix — glossary for the narrator, pronunciation, credits](#10-appendix)
 
 ---
@@ -89,11 +92,12 @@ seams with `⟂ merge seam`).
 | Captions | `.srt` + `.vtt` per episode, generated from the narration text (never from speech recognition — the text is known) |
 | Thumbnail | 1280×720 PNG, from a template (§3.3) |
 | Chapters | one per scene group, `MM:SS Title` list for the video description |
-| Language | **English narration**, English captions; French captions as a second track (§9 D3) |
+| Language | **English** narration and captions (decided, §9 D3) |
 
 ### 3.2 Voice and narration rules
 
-- **One narrator voice for the whole series**, AI-generated (§4.4), calm and warm, ~145 words per minute. Same
+- **One narrator voice for the whole series**, AI-generated (§4.4): **a soft male voice** (decided), calm and
+  warm, ~145 words per minute. Same
   voice, same settings, every episode — a series that changes voice reads as patched together.
 - **Second person, present tense, short sentences.** *"Tap the pencil. Draw. Tap the check mark."* Not *"the user
   can then proceed to…"*.
@@ -136,10 +140,63 @@ locally into Remotion, never from a CDN at render time.
 past 2× or slowed below 0.8× (a page turn played in slow motion lies about how it feels); freeze-frames are fine.
 **The tablet's own touch indicator is on** (`show_touches`), so every gesture is visible without a fake cursor.
 
-### 3.4 Music
+### 3.4 Music — composed for the series
 
-One CC0 / royalty-free instrumental bed for the series (acoustic, light), plus a 2-second sting for title and end
-cards. Ducked to −28 LUFS under narration, −20 in gaps. Credited on the `CreditsCard`. Choice is §9 D4.
+**Decided:** soft, original music, composed for TroubaStack — no stock library, so no licence to track and the
+series owns its sound. It is written as **text in the repo** and rendered by the build, like everything else.
+
+**Character.** Soft and unhurried, a rehearsal room at the end of the day: felt piano, a warm pad, a nylon-string
+guitar picking, a soft upright bass; no drums under narration (a brushed snare at most in the title sting). 76–84
+bpm, a major key with a gentle IV–vi colour; nothing that competes with a voice — no melody in the voice's
+range (≈ 100–300 Hz) while it speaks.
+
+**One theme, four cues.** A single four-bar motif carries the series identity:
+
+| Cue | Length | Use |
+|---|---|---|
+| `sting` | 3 s | the motif's first bar, piano + pad — `TitleCard`, `EndCard` |
+| `bed` | 64 bars, loops seamlessly | under narration; the motif returns every 16 bars, sparsely |
+| `bed-light` | same, piano and pad only | under dense explanation (E02, E12 terminal scenes) |
+| `outro` | 8 s | the motif resolved — the end card and the credits |
+
+Each product arc (§3.3) may tint the bed — Core: piano forward, Studio: guitar forward, Stage: pad and bass
+forward — the same notes, so twelve episodes still sound like one series.
+
+**Pipeline** (all installed on the dev box; all free software):
+- source: `video/music/theme.py` writes Standard MIDI (the notes are code — reviewable, diffable, re-voiceable),
+  or `video/music/*.ly` (LilyPond) if a cue is easier to write as notation;
+- render: `fluidsynth` with the **FluidR3_GM** SoundFont (MIT licence) → 48 kHz WAV; `sox` for fades, a soft
+  room reverb and the loop crossfade; MuseScore only to *look* at a cue as a score at review;
+- mix: Remotion places the cues; the ducking is sidechain-style — −30 LUFS under narration, −22 in gaps, 400 ms
+  ramps — computed from `timings.json`, so music never fights a word;
+- checks (§4.5): the bed's loop point is click-free (no sample discontinuity), the master meets −16 LUFS.
+
+**Review:** the four cues are a gate of their own — VLL listens to them (with a narration line over the bed)
+before the pilot render, the same way the voice is chosen. Credited on the `CreditsCard` as *"Music: composed for
+TroubaStack (CC-BY-SA 4.0, like the docs)"* — licence to confirm with VLL.
+
+### 3.5 Vertical cuts (decided)
+
+One **vertical cut per episode**, 1080×1920, 30–60 s, for Shorts and the project page: the episode's best beat
+(listed per episode below as *Vertical*), **burned-in captions** (large, centre-low), the tablet frame filling the
+height or the browser cropped to the action, the `sting` at the head and an end slate *"Full episode: <title>"*.
+They are cut **from the same takes and narration** — a Remotion composition per cut, `video/vertical/cuts.yaml`
+listing `episode, from-scene, to-scene, crop`; no extra shooting. Suggested beats:
+
+| Ep | Vertical beat |
+|---|---|
+| 01 | 1.5 — bake, and the tablet picks it up |
+| 02 | 2.4–2.5 — one settings line, one command, a padlocked site |
+| 03 | 3.5 — import a concert with no server |
+| 04 | 4.4 — scan a QR, you're in the band |
+| 05 | 5.4 — a chart typed as text |
+| 06 | 6.5 — two windows, one mark appears live |
+| 07 | 7.4 — D.S. al segno in one tap |
+| 08 | 8.6 — "new version" → Update |
+| 09 | 9.6 — Night and Amber |
+| 10 | 10.4 — the silent count-in |
+| 11 | 11.4 — live mode: a mark becomes a new rev on the tablet |
+| 12 | 12.2–12.3 — one volume, one tar: the whole backup |
 
 ---
 
@@ -186,7 +243,7 @@ the take (no `soft()` — archive lesson 2). Each take writes `take.mp4` + `mark
   hidden, then tap) and the landscape/portrait coordinate maps.
 - **Physical-hardware inserts** are the exception, used only where the emulator cannot fake it: a Bluetooth/
   BLE-MIDI pedal pressing pages (E10) — shot on a real tablet showing **only the demo concert** (§5), with the
-  screen recorded by `adb screenrecord` and, optionally, a phone camera filming the foot (B-roll, §9 D5).
+  screen recorded by `adb screenrecord` (no camera footage: §9 D5).
 
 **Terminal takes — VHS** (`video/takes/term/*.tape`)
 - [charmbracelet/vhs](https://github.com/charmbracelet/vhs) renders a `.tape` script (typed commands, sleeps, a
@@ -272,6 +329,24 @@ unchanged) → TTS (cached per line) → Remotion render → two-pass loudnorm �
 
 ---
 
+### 5.4 The demo content — what the series needs from it (VLL: *"probably with the demo songs (maybe need improvement)"*)
+
+Every frame uses the seeded demo band, **The Troubadours** (Marie admin, Leo conductor, Sasha member) and its
+songs, all original or public domain (`core/cmd/seed`, `docs/demo-charts/`, NOTICE). An audit against the
+episodes:
+
+| Need | Today | Improvement |
+|---|---|---|
+| A demo bundle that names its band | `docs/demo/demo-concert.tstage` predates band metadata → the tablet lists it under **"Unknown band"** (seen 2026-10-09) | re-bake the committed bundle from the current seed |
+| Jump marks for E07/E09 | the bundle has none; the seed creates none (A80 erratum) | a seeded segno pair on *The Open Road* (the shape `baker_p206_test.go` uses), baked into the bundle |
+| A chart typed live (E05) | — | the fixture `video/fixtures/charts/lantern-light.chart` — an **original** song written for the series |
+| Search box visible (E05) | it only shows past **12** songs; the band has 4 band songs | either film the tag-click path (as specced) or seed ≥ 13 songs — a few more originals |
+| Variety on stage (E09/E10) | 4/4, 3/4, 6/8 present; one tab chart; strings parts (Mozart, Pachelbel) | enough; a **two-column** chart without tab would show `columns: 2` (E05) |
+| Look of the pages | the charts are typeset plainly | worth one design pass before filming: they are on screen in every episode |
+
+These are **content** tasks (seed + bake + a few original charts), proposed as one task, *DEMO-CONTENT*, to run
+before the pilot — not dispatched; VLL's call.
+
 ## 6. Repository layout and the episode file format
 
 ```
@@ -287,7 +362,9 @@ video/                       ← new top-level dir (production code; outside doc
   remotion/                  the Remotion project: components (§3.3), one composition per episode
   episodes/
     ep01.yaml … ep12.yaml    the machine-readable episode (generated from §8 once, then the source of truth)
-  assets/                    music, brand exports (copied from docs/brand/dist), fonts
+  music/                     theme.py (+ *.ly) — the composed cues as source (§3.4); renders go to out/
+  assets/                    brand exports (copied from docs/brand/dist), fonts
+  vertical/                  the 9:16 cut list (§3.5)
   out/  takes/*.mp4  audio/  ← generated, gitignored (see .gitignore)
 ```
 
@@ -997,7 +1074,7 @@ E08) downloaded; identity Marie; demo mode; colour "Normal" at start.
 | **Perimeter — out** | Pedal hardware recommendations (none on film; "any pedal that acts as a keyboard, or a BLE-MIDI controller"). |
 
 **Prerequisites:** emulator as in E09, **reading mode Page** (E10's lock-swipe beat switches to Scroll — the take restores Page at its end); House of the Rising Sun (6/8, ♩.=72) for the count-in; **HW insert**: VLL's tablet with **only the demo concert opened on screen**, a BLE-MIDI pedal paired;
-recorded with `adb screenrecord` while a phone films the foot (optional B-roll, §9 D5); the frames go through the
+recorded with `adb screenrecord` (no foot B-roll for now, §9 D5 — a `Callout` "foot press" marks the moment); the frames go through the
 privacy scan (§4.5) — the insert never shows Home, the concert list or the Notes tab.
 
 **Takes**
@@ -1017,7 +1094,7 @@ privacy scan (§4.5) — the insert never shows Home, the concert list or the No
 |---|---|---|---|
 | 10.1 | 0:00–0:06 | `TitleCard` | "10 · On stage: hands-free" |
 | 10.2 | 0:06–0:31 | TAB `tab-volume-keys` (a key-press overlay) | LT "volume keys" |
-| 10.3 | 0:31–1:26 | HW `tab-learn-midi` (`Split`: screen + foot B-roll, if D5) | LTs "Foot pedal" · "Learn" · "Learned." |
+| 10.3 | 0:31–1:26 | HW `tab-learn-midi` (+ a "foot press" `Callout` on each press) | LTs "Foot pedal" · "Learn" · "Learned." |
 | 10.4 | 1:26–2:12 | TAB `tab-count-in` | LTs "count-in" · "∞" |
 | 10.5 | 2:12–2:36 | TAB `tab-clock-chrono` | LTs "Chronometer" · "Show clock" |
 | 10.6 | 2:36–2:55 | TAB `tab-lock-swipe` | LT "Lock swipe" |
@@ -1197,21 +1274,22 @@ beat first; the rehearsal-note beats send to the isolated server.
 
 ---
 
-## 9. Open decisions for VLL
+## 9. Decisions
 
-Each has a default, so production can start on the defaults if he prefers to decide later from the pilot.
+Ruled by VLL on 2026-10-09 unless marked **open**.
 
-| # | Decision | Options | Default |
-|---|---|---|---|
-| D1 | **Narrator voice engine** | Kokoro-82M (local, free, offline, reproducible) · ElevenLabs (most natural, paid, API key) · OpenAI `gpt-4o-mini-tts` (natural, paid) · a human recording (VLL or a friend — the scripts are written to be read aloud) | Kokoro; the pilot renders E03's first minute in all three AI options for a side-by-side listen |
-| D2 | **Twelve or six episodes** | the 12 of §2 · the 6-episode cut (merges in §2) | 12 (merges stay possible: the seams are marked) |
-| D3 | **Languages** | English narration + EN captions · + FR captions (translated, VLL proof-reads) · + a full French narration (a second TTS pass: the pipeline makes it cheap; on-screen UI stays English as the app is English) | EN + FR captions |
-| D4 | **Music** | one CC0 bed + sting (e.g. from FreePD / Pixabay CC0) · no music · commissioned | a CC0 bed, very low |
-| D5 | **Real-world B-roll** | none (screen only) · a phone filming the foot on the pedal (E10) and hands on a tablet on a music stand (E01, E03) | E10 foot only |
-| D6 | **Where it is published** | YouTube (a channel/playlist; embedded on the project page) · PeerTube · GitHub Release assets + the project page directly (`webm`, no third party; mind GitHub's size limits) | YouTube unlisted first → public after the final gate; the project page embeds the playlist |
-| D7 | **E02's live server on film** | a throwaway VPS + throwaway domain with a real Let's Encrypt cert · `tls internal` and no padlock shot | throwaway VPS + domain for one day |
-| D8 | **Series name** | "TroubaStack in twelve" · "From rehearsal room to stage" · just "TroubaStack — episode N" | "TroubaStack — From rehearsal room to stage" |
-| D9 | **Short vertical cuts** (30–60 s, burned-in captions) for social / the project page | none · one per episode (the best beat) | none for now; the pipeline supports it later |
+| # | Decision | Ruling |
+|---|---|---|
+| D1 | **Narrator voice** | **A soft male voice**, English, AI-generated. Engine still chosen by ear at the pilot: E03's first minute rendered with a soft male voice from each of Kokoro-82M (local, free — e.g. `am_michael`, `bm_george`), ElevenLabs and OpenAI `gpt-4o-mini-tts`, side by side. |
+| D2 | **Twelve or six episodes** | **Twelve.** (The merge seams stay marked; nothing is planned on them.) |
+| D3 | **Languages** | **English** narration and captions. |
+| D4 | **Music** | **Soft, original, composed for the series** — §3.4 (tools installed: fluidsynth + FluidR3_GM, sox, LilyPond, MuseScore). |
+| D5 | **Real-world footage** | **None for now** — screen only. E10's pedal moments are marked with a `Callout`. |
+| D6 | **Publishing** | **A YouTube playlist**, embedded on the project site (probably). Unlisted first, public after each episode's final gate. The `.webm` site copy stays in the build in case. |
+| D7 | **E02's live server on film** | **open** — default: a throwaway VPS + throwaway domain for one day (a real Let's Encrypt padlock). |
+| D8 | **Series name** | **open** — VLL has no idea yet. Candidates: *"TroubaStack — From rehearsal room to stage"* · *"Twelve bars of TroubaStack"* · *"The band book"* · *"Off the stand"* · just *"TroubaStack — episode N"*. Needed only at publish (title cards read the name from one config value). |
+| D9 | **Vertical cuts** | **Yes** — one per episode, §3.5. |
+| D10 | **Demo content** | **The demo songs**, improved first — §5.4 (*DEMO-CONTENT*, not dispatched). |
 
 ---
 
