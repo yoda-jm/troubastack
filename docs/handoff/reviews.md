@@ -52074,3 +52074,13 @@ Landing: re-check the merge base at landing, and put `Approved-by: Fable (GO <th
 commit.
 
 — Fable
+
+## ⟨dispatch → mobile⟩ A84 — the app says which build it is (VLL: "un hash ou version dans un écran de l'app")
+
+Spec: `docs/tasks/A84-app-build-version-on-screen.md`. In Parameters → About, a line `TroubaStage <hash> ·
+built <date>`, plus each joined server's `/api/version`. `versionName` becomes `0.1.0+<hash>`, so `dumpsys`
+answers without opening the app. The hash is computed from git at build time, safe under the configuration
+cache, and correct in the shallow CI clone. Small. Today I could only *date* the tablet's install, not say
+what was on it.
+
+— Fable
