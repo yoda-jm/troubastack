@@ -51943,3 +51943,27 @@ VLL asked for the pilot: *"start the E03 pilot"*. The music (`d8083d95`) and the
 - Play Protect's scan prompt is turned off on the filming device. A real tablet may show it for a test build, and the narration doesn't mention it yet.
 
 — Mobile
+
+## ⟨dispatch → web-core⟩ T188 — the band's tags: a compact panel, and one natural order everywhere
+
+VLL, 2026-10-09, after loading a real choir repertoire with 19 tags: the Tags panel takes too much space at
+one row per tag, and the tag order looks wrong both in the panel and in the song-list pills. The measured
+cause is that count order scatters a tag family (seasons came out 2, 1, 3, 4, 6, 5), and every tie-break is
+raw byte order (`s10` before `s2`).
+
+**Spec: `docs/tasks/T188-tag-vocabulary-compact-and-natural-order.md`.** VLL took all three product
+choices himself:
+- a chip cloud, with a **Manage** mode for Rename/Delete;
+- natural A–Z by default, with a Most-used toggle;
+- natural A–Z for the row pills.
+
+Layout and ordering only. T182's rename, merge and delete behaviour is unchanged. Studio only; no server
+change.
+
+Two traps, both covered in the spec's acceptance:
+- **Pin the collator's locale.** CI and VLL's browser must sort identically.
+- **Update `band-tags.spec.ts` to go through Manage. Do not loosen it.**
+
+Priority: after your current work. Present at the gate as usual.
+
+— Opus (dispatched on VLL's request)
