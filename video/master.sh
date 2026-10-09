@@ -25,11 +25,11 @@ LUFS="$(echo "$I" | /usr/bin/grep -oE 'I: +-?[0-9.]+' | /usr/bin/grep -oE -- '-?
 TP="$(echo "$I" | /usr/bin/grep -oE 'Peak: +-?[0-9.]+' | /usr/bin/grep -oE -- '-?[0-9.]+$')"
 DUR="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$OUT/ep$EP.mp4")"
 RES="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$OUT/ep$EP.mp4" | head -1 | sed 's/,$//')"
-CUES="$(/usr/bin/grep -c -- '-->' "$OUT/ep$EP.srt")"
+CUES="$(/usr/bin/grep -c -- '-->' "$OUT/captions/ep$EP.srt")"
 ok=1
 python3 -c "import sys; sys.exit(0 if abs(float('$LUFS') + 16) <= 1 else 1)" || { echo "FAIL loudness $LUFS LUFS (want -16 ±1)"; ok=0; }
 python3 -c "import sys; sys.exit(0 if float('$TP') <= -1.0 else 1)" || { echo "FAIL true peak $TP dBTP (want ≤ -1)"; ok=0; }
 [ "$RES" = "1920,1080,30/1" ] || { echo "FAIL video $RES (want 1920x1080 @30)"; ok=0; }
 [ "$CUES" -gt 0 ] || { echo "FAIL no captions"; ok=0; }
-echo "E$EP master: $OUT/ep$EP.mp4 — ${DUR%.*} s, $RES, $LUFS LUFS, true peak $TP dBTP, $CUES caption cues (+ .webm, .srt, .vtt)"
+echo "E$EP master: $OUT/ep$EP.mp4 — ${DUR%.*} s, $RES, $LUFS LUFS, true peak $TP dBTP, $CUES caption cues (+ .webm; captions/ep$EP.srt|vtt for YouTube)"
 [ "$ok" = 1 ]

@@ -196,8 +196,14 @@ def main():
     def ts(x, sep=","):
         h, m = int(x // 3600), int(x % 3600 // 60)
         return f"{h:02d}:{m:02d}:{x % 60:06.3f}".replace(".", sep)
-    (out / f"ep{ep}.srt").write_text("﻿" + "".join(f"{i + 1}\n{ts(a)} --> {ts(b)}\n{txt}\n\n" for i, (a, b, txt) in enumerate(cues)), encoding="utf-8")
-    (out / f"ep{ep}.vtt").write_text("WEBVTT\n\n" + "".join(f"{ts(a, '.')} --> {ts(b, '.')}\n{txt}\n\n" for a, b, txt in cues), encoding="utf-8")
+    # NOT beside the video: players (VLC, mplayer) auto-load a same-named .srt and would show the captions
+    # twice over the burned-in ones. These files are for YouTube's caption track (uploaded with a clean render).
+    cap = out / "captions"
+    cap.mkdir(exist_ok=True)
+    for stale in (out / f"ep{ep}.srt", out / f"ep{ep}.vtt"):
+        stale.unlink(missing_ok=True)
+    (cap / f"ep{ep}.srt").write_text("﻿" + "".join(f"{i + 1}\n{ts(a)} --> {ts(b)}\n{txt}\n\n" for i, (a, b, txt) in enumerate(cues)), encoding="utf-8")
+    (cap / f"ep{ep}.vtt").write_text("WEBVTT\n\n" + "".join(f"{ts(a, '.')} --> {ts(b, '.')}\n{txt}\n\n" for a, b, txt in cues), encoding="utf-8")
     print(f"E{ep}: {len(scenes)} scenes, {total:.1f} s ({plan['durationInFrames']} frames), {len(cues)} caption cues; "
           + ", ".join(f"{s['id']} {s['duration']:.1f}s" + (f" [{sum(1 for i in s['take']['timeline'] if i['kind'] == 'hold')} holds]" if 'take' in s else "") for s in scenes))
 
