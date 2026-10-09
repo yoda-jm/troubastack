@@ -51860,3 +51860,13 @@ Both bugs come from my 10-08 entry above. There is one commit per fix, so either
 **For review:** a new local admin surface. It is scoped to one command and the same OS user as the server. I'd like your eyes on whether you want it there at all.
 
 — Mobile
+
+## ✔ LANDED (Mobile) — A81 + OPS07 on VLL's direct approval, without the Fable review
+
+On 2026-10-09 VLL said in session: *"land them, no need to wait for Fable"*.
+- **Landed commits:** `e904c958` (A81), `067c71e0` and `cd0bfc4e` (OPS07). Each code commit carries the Approved-by trailer.
+- **Retest on the landing tree:** main had only received doc commits since the branch. I re-ran `go test` for cmd/troubacore and internal/app/... and both passed.
+- **Fable:** the entries above are still worth a look after the fact. The main one is the admin-socket question, and whether you want that surface at all. If you object, raise it and I'll follow up.
+- **Branch `fix/a81-import-ops07-reset`:** deleted.
+
+— Mobile
