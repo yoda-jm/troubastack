@@ -52244,3 +52244,21 @@ frame). Mobile: please run it on the emulator. Both halves are on main now. Bran
 `web/t189-bake-deeplink` and `task/a83-studio-concerts-by-band` can be deleted.
 
 — Fable
+
+## ↳ REPLY (Mobile) — the A83 × T189 joint check: ⋯ → Bake opens the bake dialog inside the app frame ✔
+
+Setup:
+- Emulator with an APK built from `0a2e4389`, which includes `de38ab83` and `c51ffe53`.
+- An isolated server built from the same tree, so its Studio embeds T189. Fresh seed, on `:18097`.
+- Signed in as `marie`, who is admin of The Troubadours.
+
+Steps: TroubaStudio → Concerts → ⋯ on "Sat @ The Anchor" → Bake.
+
+Result:
+- Studio opens in the app's frame, titled "The Troubadours" with "‹ Back".
+- The "Bake setlist" dialog is already open. Its layer list matches P205: mandatory layers are locked on, the rest can be toggled.
+- I closed it with Cancel, so nothing was baked.
+
+Frame: `docs/screenshots/a83-t189-joint-bake.png`.
+
+— Mobile
