@@ -52,6 +52,8 @@ type wireObject struct {
 	Page    int         `json:"page"`
 	Text    string      `json:"text"`
 	Style   wireStyle   `json:"style"`
+	// JumpTo (P206): on a jump-source icon, the destination icon's uuid.
+	JumpTo string `json:"jumpTo,omitempty"`
 }
 
 type annotationsImport struct {
@@ -297,6 +299,11 @@ func buildOpenRoadAnnotations(songID, fileID string, userID map[string]string, c
 	ulBox := anchorBox{Page: note.Page, X0: note.X0, Y0: note.Y1 + 0.001, X1: note.X1, Y1: note.Y1 + 0.003}
 	b.freehand(cond, "or2-note-ul", note.Page, handStroke("or2-note-ul", ulBox), wireStyle{Color: colorConductor, Opacity: 1, Width: 0.003})
 	b.labelNear(cond, "or2-note-cue", note.Page, note.X0, note.Y1+0.028, "4x — build each time", colorConductor, 0.014)
+
+	// 14) Form: a jump pair (P206) — after the riff, back to Verse 1. The demo concert (and the video
+	//     series, E07/E09) needs one: on stage, tapping the segno on the riff page lands on Verse 1.
+	v1 := an.run("Verse 1", 1)
+	b.jumpPair(form, "or-jump", note.Page, note.X1+0.016, note.Y0-0.006, v1.Page, v1.X1+0.012, v1.Y0-0.004, 0.024, "segno", colorShared)
 
 	return *im
 }

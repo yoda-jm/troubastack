@@ -303,8 +303,14 @@ func run(addr, password, only string, bands []string) error {
 			},
 			setlists: []setlistDef{{
 				name: "Sat @ The Anchor", eventDate: "2026-07-04", venue: "The Anchor Pub", notes: "60-minute set.",
-				overrides: []overrideDef{
+				// An explicit running order: the canonical import emits only the listed items, so an
+				// overrides-only list silently shrank the demo concert to the two overridden songs. All
+				// four songs, a break, the encore last — what the demo concert and the video series show.
+				items: []overrideDef{
 					{song: "House of the Rising Sun", keyOverride: "Bm", notes: "Lift it a tone for the room."},
+					{song: "Amazing Grace"},
+					{kind: app.SetlistKindIntermission, label: "Interval"},
+					{song: "Greensleeves"},
 					{song: "The Open Road", notes: "Encore — everyone in on the last chorus."},
 				},
 			}},

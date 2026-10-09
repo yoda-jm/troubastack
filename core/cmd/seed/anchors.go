@@ -404,6 +404,14 @@ func (b *builderCtx) labelNear(layerID, key string, page int, x, y float64, body
 }
 
 // iconAnchor stamps a tinted glyph (T51) at (x,y) with the given square size. "clear".
+// jumpPair places a P206 jump: two icons wearing the same glyph and colour, the SOURCE (at sx,sy on
+// srcPage) pointing at the DESTINATION (dx,dy on dstPage) by uuid — no page numbers, nothing to drift.
+func (b *builderCtx) jumpPair(layerID, key string, srcPage int, sx, sy float64, dstPage int, dx, dy, size float64, glyph, color string) {
+	b.iconAnchor(layerID, key+"-dst", dstPage, dx, dy, size, glyph, color)
+	b.iconAnchor(layerID, key+"-src", srcPage, sx, sy, size, glyph, color)
+	b.im.Objects[len(b.im.Objects)-1].JumpTo = objectID(b.songID, key+"-dst")
+}
+
 func (b *builderCtx) iconAnchor(layerID, key string, page int, x, y, size float64, glyph, color string) {
 	b.im.Objects = append(b.im.Objects, wireObject{
 		UUID: objectID(b.songID, key), LayerID: layerID, Type: "icon",

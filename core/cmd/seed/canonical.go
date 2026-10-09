@@ -78,6 +78,7 @@ type canonObject struct {
 	Points []canonPoint `json:"points,omitempty"`
 	Page   int          `json:"page,omitempty"`
 	Text   string       `json:"text,omitempty"`
+	JumpTo string       `json:"jumpTo,omitempty"` // P206: a jump source's destination uuid (bandio v2 field)
 	Style  canonStyle   `json:"style"`
 }
 type canonPoint struct {
@@ -362,7 +363,7 @@ func wireToCanon(im annotationsImport) canonAnnotations {
 	}
 	for _, o := range im.Objects {
 		co := canonObject{
-			UUID: o.UUID, Layer: o.LayerID, Type: o.Type, Page: o.Page, Text: o.Text,
+			UUID: o.UUID, Layer: o.LayerID, Type: o.Type, Page: o.Page, Text: o.Text, JumpTo: o.JumpTo,
 			Style: canonStyle{Color: o.Style.Color, Opacity: o.Style.Opacity, Width: o.Style.Width,
 				FontSize: o.Style.FontSize, Fill: o.Style.Fill, Stroke: o.Style.Stroke, Blend: o.Style.Blend},
 		}
