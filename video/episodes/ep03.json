@@ -110,12 +110,12 @@
         {
           "seg": 2,
           "mark": "tap:▶  TroubaStage",
-          "offset": -0.3
+          "offset": -1.0
         },
         {
           "seg": 3,
           "mark": "tap:demo-concert.tstage",
-          "offset": -0.6
+          "offset": -1.0
         },
         {
           "seg": 4,
@@ -157,7 +157,7 @@
         {
           "seg": 1,
           "mark": "tap:Sat @ The Anchor",
-          "offset": -0.4
+          "offset": -1.0
         },
         {
           "seg": 2,
