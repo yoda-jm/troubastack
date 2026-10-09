@@ -1,0 +1,20 @@
+{
+  "name": "@troubastack/video",
+  "private": true,
+  "description": "The video series composition (docs/video/README.md §4.3): Remotion, one composition per episode, driven by video/out/epNN/edit.json.",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.355",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.355"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.12",
+    "typescript": "5.9.2"
+  }
+}
