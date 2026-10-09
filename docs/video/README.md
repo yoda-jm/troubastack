@@ -1282,7 +1282,7 @@ Ruled by VLL on 2026-10-09 unless marked **open**.
 
 | # | Decision | Ruling |
 |---|---|---|
-| D1 | **Narrator voice** | **A soft male voice**, English, AI-generated. Engine still chosen by ear at the pilot: E03's first minute rendered with a soft male voice from each of Kokoro-82M (local, free — e.g. `am_michael`, `bm_george`), ElevenLabs and OpenAI `gpt-4o-mini-tts`, side by side. |
+| D1 | **Narrator voice** | **Kokoro `am_eric`** (VLL, 2026-10-09, picked by ear from six soft male voices over the bed). Local and free (kokoro-onnx + the system espeak-ng; the torch build of Kokoro does not install on Python 3.13 here). It reads fast (~195 wpm at speed 0.95): the TTS adapter sets the speed so the narration lands near 145 wpm. |
 | D2 | **Twelve or six episodes** | **Twelve.** (The merge seams stay marked; nothing is planned on them.) |
 | D3 | **Languages** | **English** narration and captions. |
 | D4 | **Music** | **Soft, original, composed for the series** — §3.4 (tools installed: fluidsynth + FluidR3_GM, sox, LilyPond, MuseScore). |
