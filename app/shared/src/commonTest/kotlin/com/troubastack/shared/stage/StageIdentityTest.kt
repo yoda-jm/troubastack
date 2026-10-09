@@ -7,6 +7,7 @@ import com.troubastack.shared.bundle.LayerImage
 import com.troubastack.shared.bundle.LoadResult
 import com.troubastack.shared.bundle.MemberCues
 import com.troubastack.shared.bundle.PageImages
+import com.troubastack.shared.bundle.PageJump
 import com.troubastack.shared.bundle.SongCue
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -84,6 +85,51 @@ class StageIdentityTest {
         val anon = state("")
         assertTrue(anon.layers.none { it.layerId == "mine-marie" || it.layerId == "mine-leo" })
         assertTrue(anon.layers.any { it.layerId == "cond" }) // shared layers remain
+    }
+
+    /** A82 — the shape a real bake produces: the conductor's REQUIRED layer is stamped with the conductor's
+     *  member id (core bakedOwner), not "". The fixture above models it as owner "" and so never saw the bug:
+     *  the owner filter dropped it for every other player, though it is mandatory (and printed). */
+    private fun bundleWithOwnedRequiredLayer() = ConcertBundle(
+        concertId = "c2",
+        roster = listOf(
+            BundleMember(memberId = MARIE, displayName = "Marie", role = "admin"),
+            BundleMember(memberId = LEO, displayName = "Leo", role = "conductor"),
+        ),
+        songs = listOf(
+            BakedSong(
+                songId = "b",
+                pages = listOf(PageImages(
+                    pageRasterRef = "b.png",
+                    overlays = listOf(
+                        layer("cues-leo", owner = LEO, role = "conductor", mandatory = true), // required, Leo's
+                        layer("notes-leo", owner = LEO),                                    // Leo's private notes
+                    ),
+                    jumps = listOf(
+                        PageJump(x0Permille = 100, y0Permille = 100, x1Permille = 200, y1Permille = 200, layerId = "cues-leo", owner = LEO),
+                        PageJump(x0Permille = 500, y0Permille = 500, x1Permille = 600, y1Permille = 600, layerId = "notes-leo", owner = LEO),
+                    ),
+                )),
+            ),
+        ),
+    )
+
+    @Test
+    fun a82_aRequiredLayer_isShownToEveryone_whoeverOwnsIt() {
+        for (viewer in listOf(MARIE, "")) { // another member, and an anonymous reader
+            val st = StageViewModel(LoadResult.Loaded(bundleWithOwnedRequiredLayer(), emptyList()), identity = viewer).state.value
+            val page = st.pages.first()
+            // composited and listed (as required) …
+            assertTrue(page.overlays.any { it.layerId == "cues-leo" }, "required layer composited for '$viewer'")
+            assertTrue(st.layers.any { it.layerId == "cues-leo" && it.mandatory }, "required layer listed for '$viewer'")
+            assertTrue("cues-leo" in st.visibleFor("b"), "required layer visible for '$viewer'")
+            // … its jump is tappable …
+            assertEquals("cues-leo", jumpAt(page, 150, 150, st.visibleFor("b"), viewer)?.layerId, "required jump hittable for '$viewer'")
+            // … while Leo's PRIVATE layer and its jump stay dropped (Stage 3b unchanged).
+            assertTrue(page.overlays.none { it.layerId == "notes-leo" })
+            assertTrue(st.layers.none { it.layerId == "notes-leo" })
+            assertNull(jumpAt(page, 550, 550, st.visibleFor("b") + "notes-leo", viewer), "a private jump never leaks")
+        }
     }
 
     @Test

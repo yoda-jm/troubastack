@@ -113,7 +113,9 @@ const val JUMP_LEAD_IN_FRACTION = 0.12
 fun jumpAt(page: StagePage, xPermille: Int, yPermille: Int, visibleLayers: Set<String>, identity: String): PageJump? =
     page.jumps.lastOrNull { j ->
         j.layerId in visibleLayers &&
-            visibleToIdentity(j.owner, identity) &&
+            // A82: page.overlays already passed the load filter, so a layer present there is one this viewer
+            // sees (shared, own, or mandatory) — its jump is hittable even when another member owns it.
+            (visibleToIdentity(j.owner, identity) || page.overlays.any { it.layerId == j.layerId }) &&
             xPermille in minOf(j.x0Permille, j.x1Permille)..maxOf(j.x0Permille, j.x1Permille) &&
             yPermille in minOf(j.y0Permille, j.y1Permille)..maxOf(j.y0Permille, j.y1Permille)
     }
@@ -470,9 +472,14 @@ internal fun cuesForIdentity(song: BakedSong, identity: String): List<SongCue> =
  * P205 Stage 3b — is this overlay shown to the viewer? A SHARED layer (owner "") or one the viewer
  * OWNS is kept; another member's personal layer is DROPPED at load — never composited, never listed
  * anywhere (the Layers dialog can't even show it). Anonymous (identity "") sees only shared layers.
+ *
+ * A82: a MANDATORY layer is always kept, whoever owns it. The bake stamps a conductor-zone layer with the
+ * conductor's member id, so the owner test alone dropped the conductor's required cues for every other
+ * player — while the printed concert (core bake.LayerVisible: mandatory first) showed them. Mandatory
+ * outranks identity here exactly as it does in [defaultVisible] and on paper (I12).
  */
 internal fun visibleToIdentity(overlay: LayerImage, identity: String): Boolean =
-    visibleToIdentity(overlay.owner, identity)
+    overlay.mandatory || visibleToIdentity(overlay.owner, identity)
 
 /** P205 owner rule, by raw owner string — shared ("") is visible to everyone; a personal owner only to
  *  that member. Used for overlays (above) AND P206 jump marks, so the two filters cannot drift. */
@@ -596,7 +603,8 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
                     // P206 §4.4: drop other members' personal JUMP marks in the SAME pass, from the SAME
                     // predicate — so an invisible tappable hotspot can never leak another member's private
                     // annotation. The per-song LAYER filter is dynamic and applied later, at hit-test (jumpAt).
-                    jumps = page.jumps.filter { visibleToIdentity(it.owner, identity) },
+                    // A82: a jump on a layer whose ink is kept (a mandatory one, whoever owns it) stays tappable.
+                    jumps = page.jumps.filter { j -> visibleToIdentity(j.owner, identity) || page.overlays.any { it.layerId == j.layerId && it.mandatory } },
                     status = if (rasterBad) PageStatus.UNAVAILABLE else PageStatus.READY,
                     displayNotes = song.displayNotes,
                     key = song.key,
