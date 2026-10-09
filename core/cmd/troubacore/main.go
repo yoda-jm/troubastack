@@ -97,6 +97,13 @@ func main() {
 		log.Fatalf("troubacore: open app repo: %v", err)
 	}
 	svc := app.NewService(appRepo)
+	// OPS07: operator commands (reset-password) reach THIS live service over a local unix socket, so
+	// they never write behind its back. Only the lock holder serves it; best-effort, never fatal.
+	if cfg.Storage.AppStore == "file" {
+		if err := serveAdminSocket(cfg.Storage.DataDir, svc); err != nil {
+			log.Printf("troubacore: %v — reset-password will need the server stopped", err)
+		}
+	}
 	// Song-file bytes live in a content-addressed blob store. The file backend
 	// persists under <data_dir>/blobs/; otherwise it is in-memory.
 	blobs, err := openBlobStore(cfg)
@@ -201,8 +208,10 @@ func loadConfig() config.Config {
 // bootstrap. It opens the SAME app repo the server uses (TROUBA_APP_STORE), so
 // run it with the same env — and, on the file backend, while the server is
 // STOPPED: filerepo is a single-writer whole-file store, so a running server
-// would overwrite the freshly written token on its next flush. lockOfflineAppStore
-// enforces that (it refuses while the server holds the dir's lock).
+// would overwrite the freshly written token on its next flush. So (OPS07): when
+// the server is running (it holds the data dir's lock), the command asks IT to
+// mint the token over the admin socket — one command, no downtime; when it is
+// stopped, the command writes directly, holding the lock meanwhile.
 func runResetPassword(args []string) {
 	if len(args) != 1 || args[0] == "" {
 		log.Fatalf("usage: troubacore reset-password <username>")
@@ -213,7 +222,26 @@ func runResetPassword(args []string) {
 	if err != nil {
 		log.Fatalf("troubacore: %v", err)
 	}
-	defer lockOfflineAppStore(cfg, "reset-password "+args[0]).Close()
+	if cfg.Storage.AppStore == "file" {
+		lock, err := filerepo.LockDir(cfg.Storage.DataDir)
+		if errors.Is(err, filerepo.ErrLocked) {
+			// The server is running: ask it.
+			r, err := requestResetViaSocket(cfg.Storage.DataDir, args[0])
+			if errors.Is(err, errNoAdminSocket) {
+				log.Fatalf("troubacore: the server running on %s does not answer on its admin socket (an older version?).\n"+
+					"Stop it, run this command again, then start it.", cfg.Storage.DataDir)
+			}
+			if err != nil {
+				log.Fatalf("troubacore: reset-password %q: %v", args[0], err)
+			}
+			printReset(r.DisplayName, r.Username, r.Token)
+			return
+		}
+		if err != nil {
+			log.Fatalf("troubacore: %v", err)
+		}
+		defer lock.Close() // stopped server: write directly, and keep a server from starting meanwhile
+	}
 	appRepo, err := openAppRepo(cfg)
 	if err != nil {
 		log.Fatalf("troubacore: open app repo: %v", err)
@@ -223,7 +251,11 @@ func runResetPassword(args []string) {
 	if err != nil {
 		log.Fatalf("troubacore: reset-password %q: %v", args[0], err)
 	}
-	fmt.Printf("Password reset issued for %s (@%s).\n", u.DisplayName, u.Username)
+	printReset(u.DisplayName, u.Username, token)
+}
+
+func printReset(displayName, username, token string) {
+	fmt.Printf("Password reset issued for %s (@%s).\n", displayName, username)
 	fmt.Println("Hand this one-time link to them — valid 24h, single use:")
 	fmt.Printf("  <your-server-origin>/reset-password/%s\n", token)
 }
@@ -358,7 +390,8 @@ func openStore(cfg config.Config) (store.Store, error) {
 // file persists to <data_dir>/app.json (zero infra). Postgres is a later step.
 // Swapping backends touches only this function; the rest of core depends on
 // app.Repo alone (I14).
-// lockOfflineAppStore takes the file app store's writer lock for an offline CLI that writes it, and
+// lockOfflineAppStore takes the file app store's writer lock for an offline CLI that writes it
+// (repair-blobs; reset-password goes through the admin socket instead), and
 // exits with the working recipe when the server holds it — a write into a live dir is silently lost
 // on the server's next flush. Returns a closer (a no-op for the mem backend, which has nothing to lose).
 func lockOfflineAppStore(cfg config.Config, cmd string) interface{ Close() error } {

@@ -33,16 +33,14 @@ band**, which makes them that band's admin. (Registration is open: anyone who ca
 the site can register. Put it behind a private network / VPN, or an auth proxy at the
 Caddy layer, if that matters to you — TroubaStack has no per-instance gate.)
 
-Forgot the only admin's password? Stop the server, mint a one-time reset link, start it again:
+Forgot the only admin's password? One command, with the server running:
 
 ```sh
-docker compose stop troubacore
-docker compose run --rm troubacore reset-password <username>   # prints …/reset-password/<token>, valid 24 h, single use
-docker compose start troubacore
+docker compose exec troubacore troubacore reset-password <username>   # prints …/reset-password/<token>, valid 24 h, single use
 ```
 
-Prefix the printed path with your site's address and hand it over. The server must be stopped: it
-keeps the account data in memory and would overwrite the token — the command refuses while it runs.
+Prefix the printed path with your site's address and hand it over. (Any other member's password is reset
+from Studio by a band admin — this command is only for when no admin can sign in.)
 
 ## Config (env, set in the compose file)
 
