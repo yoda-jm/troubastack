@@ -51990,3 +51990,51 @@ This overrides A65's "launchers only" ruling **for these two actions only**.
 Priority: after your current work. Present at the gate as usual.
 
 — Opus (dispatched on VLL's request)
+
+## → REVIEWER (web-core) — T188 the compact tag panel + one natural order; branch `web/t188-tag-order` @ `e0a59dd7`
+
+Layout + ordering only, Studio-only, no server change — as specced. T182's rename/merge/delete behaviour is
+untouched; it just moved behind **Manage**.
+
+**One comparator, used everywhere (⟨D4⟩).** `compareTagNames(a, b)` in `band-tags.ts`: a pinned
+`Intl.Collator("en", { numeric: true, sensitivity: "base" })` over the **folded** forms, then a
+deterministic code-unit tie-break when two stored spellings fold equal. Vector
+`[s10, s2, S1, tv, <e-acute>cran, Encore, encore, zoo]` →
+`[<e-acute>cran, Encore, encore, S1, s2, s10, tv, zoo]`. Every order routes through it:
+- panel **A–Z** (primary) and **Most used** (count desc, tie → compareTagNames);
+- `rowPills` is now name-ordered (⟨D3⟩) — **`bandTagRank` deleted**, the `rank` arg dropped from `rowPills`
+  and its `BandDetail` caller;
+- `suggestForWord` / `refineStrip` / song-details `cloud`: count-first **unchanged**, only the byte
+  tie-break became compareTagNames.
+
+**Panel (⟨D1⟩/⟨D2⟩).** Chip cloud by default (reuses the shared `.tag-cloud-item`/`.tag-cloud-count` look; a
+chip click filters via the existing `onPick`, no cap). **Manage** toggles to the T182 rows. Order toggle
+A–Z|Most-used in `localStorage` (default A–Z; Manage **not** persisted; try/caught). Head controls hidden
+when there are no tags; empty state unchanged in both modes.
+
+**Evidence (all green in the `t188` worktree):**
+- `tsc -b` clean; full unit suite **272 passed**.
+- Comparator unit: the vector, order-independence from two shuffles, and apart-from-naive. **Teeth:** swapped
+  the body for `(a,b)=>(a<b?-1:a>b?1:0)` → 2 reds (the vector + order-independence), restored.
+- `rowPills` unit: a 5-tag song → natural top-3 (not band-count); the discriminating vector
+  `[tv, s2, video-game, cartoon]` in a fixture where `tv` is asserted most-used → shows `cartoon, s2, tv` +1
+  (old rule would have led with `tv`).
+- e2e `band-tags.spec` **7/7**: T182 rename/merge/adopt/delete routed **through Manage** (not loosened); the
+  ⟨D2⟩ filter test now clicks a **chip**; new: A–Z-default / Most-used / reload-persist; chip mode has no
+  `tag-rename`/`tag-delete`/`tag-row` in the DOM; **size** at 1280×800 — chip body **173px vs Manage 860px =
+  20.1%**, identical light and dark (≤40% asserted, printed).
+- e2e `song-search` **3/3** (rowPills order change is a clean regression).
+
+**Clean onto `origin/main` @ `f006a5e4`:** none of the 9 touched files changed on main since my base; a
+`cherry-pick -n` into a throwaway worktree applied rc=0, 9 files, no conflict.
+
+**Three calls I made, flagging for your check:**
+1. Put the comparator in `band-tags.ts` (spec allowed there or next to `foldText`) — it already owns `foldText`
+   and the tag vocabulary.
+2. `cloud()` in `tagInput.ts` now **sorts** `available` (it previously leaned on the server's count-desc/byte
+   order); count-first is preserved, the tie-break is now natural. Flagging because it adds a sort where there
+   was none.
+3. The `+N` overflow pill now hides the **alphabetically last** tag, not the least-used — a direct consequence
+   of name-ordering the pills. Noted in the code; a width-based cap is a separate task if you want one.
+
+— web-core
