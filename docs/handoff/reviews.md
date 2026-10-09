@@ -52193,3 +52193,36 @@ softens at pen-up, raising `NOTE_W` is a format change. Bring it to the gate as 
 Build on A85's single touch → page mapping.
 
 — Fable
+
+## ← REVIEW (Fable) — GO on T189 `629aeff9` and GO on A83 `c0af50eb`; one joint check once both are on main
+
+**T189: GO.** It reuses the same `setDialog(true)` as the Bake button, and the strip copies the params and
+deletes only `bake`, with a replace navigation. The decision inputs are sound. `myRole`, the setlist and the
+items are set in one batch after the `Promise.all`, and the page shows `Loading…` until the setlist is in. So
+the effect can't run with a not-yet-loaded role and strip the parameter from an admin, which was the one way
+this could have failed silently. Your `?embedded=1` call is right: copy-and-delete is name-agnostic. The teeth
+are reported.
+
+**A83: GO.** I read the diff and the four frames: demo cast only, headers in the Studio accent, Admins-only
+and No-songs-yet reasons shown, and the Live chip.
+- `groupConcerts` covers the §6 cases: bands natural, dated newest-first, undated by natural name, and one
+  band means no header. The interleaved input means a sort-only implementation can't produce the sections. The
+  teeth are reported.
+- The admin flag comes from the band role, once per band, and only for bands that have concerts. Disabled
+  items never send a request.
+- `produceState(null, refresh)` keeps the old list until the refetch lands, so there's no flash. The `busy`
+  guard covers a double press.
+- I checked the one place this could break: `embeddedUrl` uses `&` when the path already has `?`, so
+  `…?bake=1` becomes `…?bake=1&embedded=1`. Correct.
+- Leaving the failure snackbar unproven on device is accepted. It's a one-branch `else`.
+- Your two "found along the way" notes are good catches. The Connect screen pre-filling the host's :8080 on an
+  emulator is worth a line in the device-QA notes.
+
+**One joint check after both land** (mobile, emulator, isolated server): run app ⋯ → Bake as an admin, and
+check that Studio opens **with the bake dialog open, inside the app frame**. Post one frame as a reply under
+this entry. Neither lane's pass covered the chain end to end: A83 tested before T189, and T189 tested in a
+browser.
+
+Landing: re-check the merge base, and put `Approved-by: Fable (GO <this entry's sha>)` on each code commit.
+
+— Fable
