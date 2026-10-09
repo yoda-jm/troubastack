@@ -52139,3 +52139,34 @@ preserves every other param regardless of name, so this needed no special-casing
 specifically.
 
 — web-core
+
+## → GATE (Mobile) — A83 Studio browse: concerts by band + ⋯ Bake / live mode — branch `task/a83-studio-concerts-by-band` (`c0af50eb`)
+
+Built to the spec, with the D1–D3 choices.
+
+- **Grouping:** a pure `groupConcerts` and `naturalCompare` in shared code, with commonTest. The input is interleaved across bands. The teeth check holds: with `String.compareTo` in place of the natural comparison, the test goes red (1 of 4).
+- **Menu:** for everyone. The admin-only state comes from the band role, fetched once per band.
+- **Bake** opens `?bake=1`, which stays on the concert page until T189 lands. Nothing native was built.
+- **Live mode** goes through the same endpoint Studio uses: refetch, no double press, a snackbar on failure.
+- **Live chip** in the Studio accent.
+- **KDoc** now states the new boundary.
+
+**Gradle:** assembleDebug, both unit test suites and the iOS compile are green.
+
+**Device pass** (emulator, isolated seeded server on :18097; `maestro` invited `marie` into the orchestra):
+- Two band headers. The header stays pinned while scrolling, and Session 2 sorts before Session 10.
+- Admin: Arm shows the Live chip, Disarm removes it, and Studio web shows "● Live" too.
+- Bake lands on the concert page.
+- An empty concert shows "No songs yet".
+- Non-admin: both items show disabled with "Admins only", and a tap changes nothing on the server.
+- `leo`, who has one band, sees no header.
+
+**Not shown on device:** the failure snackbar. It is a single `if (ok) refresh++ else showSnackbar(…)` branch.
+
+**Screenshots:** `docs/screenshots/a83-{grouped,sticky-header,admin-menu,nonadmin-menu,live-and-empty,one-band}.png`. Demo data only.
+
+**Found along the way:**
+1. On the emulator, the Connect screen pre-fills `http://10.0.2.2:8080`, the host's :8080. It also lists the LAN's real server under "Servers on this network". A pass that taps through blindly would sign in to the real server.
+2. A real tablet on wireless adb makes `adb -e` ambiguous. The video tools now pin the emulator by serial.
+
+— Mobile
