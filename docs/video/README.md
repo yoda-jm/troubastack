@@ -146,31 +146,31 @@ past 2× or slowed below 0.8× (a page turn played in slow motion lies about how
 **Decided:** soft, original music, composed for TroubaStack — no stock library, so no licence to track and the
 series owns its sound. It is written as **text in the repo** and rendered by the build, like everything else.
 
-**Character.** Soft and unhurried, a rehearsal room at the end of the day: felt piano, a warm pad, a nylon-string
-guitar picking, a soft upright bass; no drums under narration (a brushed snare at most in the title sting). 76–84
-bpm, a major key with a gentle IV–vi colour; nothing that competes with a voice — no melody in the voice's
-range (≈ 100–300 Hz) while it speaks.
+**Character — dreamy, major, atmospheric.** Third take (VLL, 2026-10-09). A piano/guitar General-MIDI draft
+was *"too cheesy, we hear the piano"*; a synthesised ambient one *"feels minor and not nice"*; VLL pointed at how
+his other project scores its quiet scenes, and this follows that recipe: MIDI written in code, rendered through
+FluidR3_GM, but only soft colours — a warm pad, slow harp rolls, celesta and music-box "stars", an upright bass,
+a whisper of strings in the middle section — with rootless major-seventh voicings over the bass and generous
+reverb sends. No piano, no drums, nothing to hum: the motif is a few sparse celesta notes every four bars.
+G major, 72 bpm: Gmaj7 · Cmaj7 · Em7 · Dsus / Gmaj7 · Cmaj7 · Am7 · D6, a B section from Cmaj7.
 
-**One theme, four cues.** A single four-bar motif carries the series identity:
+**Four cues.**
 
 | Cue | Length | Use |
 |---|---|---|
-| `sting` | 3 s | the motif's first bar, piano + pad — `TitleCard`, `EndCard` |
-| `bed` | 64 bars, loops seamlessly | under narration; the motif returns every 16 bars, sparsely |
-| `bed-light` | same, piano and pad only | under dense explanation (E02, E12 terminal scenes) |
-| `outro` | 8 s | the motif resolved — the end card and the credits |
+| `sting` | 7 s | a harp sweep up through Gmaj9, a music-box sparkle, one hanging celesta note — `TitleCard`, `EndCard` |
+| `bed` | 32 bars ≈ 107 s, loops seamlessly | under narration |
+| `bed-light` | same, pad + harp only, quieter | under dense explanation (E02, E12 terminal scenes) |
+| `outro` | 16 s | Cmaj7 → D6 → Gmaj7, the celesta landing on G — the end card and the credits |
 
-Each product arc (§3.3) may tint the bed — Core: piano forward, Studio: guitar forward, Stage: pad and bass
-forward — the same notes, so twelve episodes still sound like one series.
-
-**Pipeline** (all installed on the dev box; all free software):
-- source: `video/music/theme.py` writes Standard MIDI (the notes are code — reviewable, diffable, re-voiceable),
-  or `video/music/*.ly` (LilyPond) if a cue is easier to write as notation;
-- render: `fluidsynth` with the **FluidR3_GM** SoundFont (MIT licence) → 48 kHz WAV; `sox` for fades, a soft
-  room reverb and the loop crossfade; MuseScore only to *look* at a cue as a score at review;
-- mix: Remotion places the cues; the ducking is sidechain-style — −30 LUFS under narration, −22 in gaps, 400 ms
-  ramps — computed from `timings.json`, so music never fights a word;
-- checks (§4.5): the bed's loop point is click-free (no sample discontinuity), the master meets −16 LUFS.
+**Pipeline** (free software, on the dev box):
+- source: `video/music/theme.py` writes Standard MIDI (stdlib only) — the notes are code, reviewable and diffable;
+- render: `video/music/render.sh` — fluidsynth (gain 0.6) with FluidR3_GM (MIT), the beds' ringing tail folded
+  onto the head and cut at exactly 32 bars (seam check printed), levels by RMS (−18.3 dB; bed-light −21) under a
+  −1 dB peak ceiling;
+- mix: Remotion places the cues; the bed is ducked under narration (−12 dB in the preview mix) from
+  `timings.json`; the master is loudness-normalised to −16 LUFS;
+- checks (§4.5): click-free loop seam, master at −16 LUFS.
 
 **Review:** the four cues are a gate of their own — VLL listens to them (with a narration line over the bed)
 before the pilot render, the same way the voice is chosen. Credited on the `CreditsCard` as *"Music: composed for
@@ -363,7 +363,7 @@ video/                       ← new top-level dir (production code; outside doc
   remotion/                  the Remotion project: components (§3.3), one composition per episode
   episodes/
     ep01.yaml … ep12.yaml    the machine-readable episode (generated from §8 once, then the source of truth)
-  music/                     theme.py (+ *.ly) — the composed cues as source (§3.4); renders go to out/
+  music/                     theme.py + render.sh — the cues as MIDI source (§3.4); renders go to out/
   assets/                    brand exports (copied from docs/brand/dist), fonts
   vertical/                  the 9:16 cut list (§3.5)
   out/  takes/*.mp4  audio/  ← generated, gitignored (see .gitignore)
@@ -1285,7 +1285,7 @@ Ruled by VLL on 2026-10-09 unless marked **open**.
 | D1 | **Narrator voice** | **Kokoro `am_eric`** (VLL, 2026-10-09, picked by ear from six soft male voices over the bed). Local and free (kokoro-onnx + the system espeak-ng; the torch build of Kokoro does not install on Python 3.13 here). It reads fast (~195 wpm at speed 0.95): the TTS adapter sets the speed so the narration lands near 145 wpm. |
 | D2 | **Twelve or six episodes** | **Twelve.** (The merge seams stay marked; nothing is planned on them.) |
 | D3 | **Languages** | **English** narration and captions. |
-| D4 | **Music** | **Soft, original, composed for the series** — §3.4 (tools installed: fluidsynth + FluidR3_GM, sox, LilyPond, MuseScore). |
+| D4 | **Music** | **Dreamy, major, atmospheric** — §3.4: warm pad, harp, celesta, music box, upright bass; no piano, no drums. Third take, after "too cheesy" (piano/guitar GM) and "minor, not nice" (synthesised ambient) (VLL, 2026-10-09). Awaiting VLL's ear. |
 | D5 | **Real-world footage** | **None for now** — screen only. E10's pedal moments are marked with a `Callout`. |
 | D6 | **Publishing** | **A YouTube playlist**, embedded on the project site (probably). Unlisted first, public after each episode's final gate. The `.webm` site copy stays in the build in case. |
 | D7 | **E02's live server on film** | **A throwaway local server** (VLL, 2026-10-09): `band.example.org` (IANA-reserved, can never be a real host) mapped in the recording machine's hosts file to a throwaway compose stack in Docker; Caddy with `tls internal` (its local CA) instead of Let's Encrypt, which cannot issue for a non-public name; the recording browser profile trusts that CA, so the address bar shows a normal padlock. Narration rule: never claim the certificate on screen is Let's Encrypt — say "with your real domain, Caddy gets a free Let's Encrypt certificate automatically"; no close-up of certificate details. Offline, reshootable, nothing to buy. |
