@@ -26,7 +26,11 @@ build() {
 stop() {
   [ -s "$STATE/pid" ] || return 0
   local pid; pid="$(cat "$STATE/pid")"
-  if [ "$(readlink "/proc/$pid/exe" 2>/dev/null)" = "$BIN" ]; then kill "$pid"; fi   # only OUR binary
+  local exe; exe="$(readlink "/proc/$pid/exe" 2>/dev/null || true)"
+  # only OUR binary — a rebuilt one shows as "<path> (deleted)" while the old process still runs
+  if [ "$exe" = "$BIN" ] || [ "$exe" = "$BIN (deleted)" ]; then
+    kill "$pid"; for _ in $(seq 20); do [ -e "/proc/$pid" ] || break; sleep 0.2; done
+  fi
   rm -f "$STATE/pid"
 }
 
@@ -34,6 +38,7 @@ start() {
   local apk="${1:-$ROOT/app/androidApp/build/outputs/apk/debug/androidApp-debug.apk}"
   [ -x "$BIN" ] || build
   stop
+  if curl -sf "http://127.0.0.1:$PORT/healthz" >/dev/null; then echo "error: something else already serves :$PORT" >&2; exit 1; fi
   rm -rf "$STATE/data" "$STATE/apps" && mkdir -p "$STATE/data" "$STATE/apps"
   [ -s "$apk" ] && cp "$apk" "$STATE/apps/troubastage.apk"
   TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR="$STATE/data" TROUBA_NO_MDNS=1 \
