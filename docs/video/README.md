@@ -561,9 +561,9 @@ to it in the hosts file, Caddy with `tls internal`, and a recording browser prof
 >
 > **2.4** You don't need to download the code. Make a folder called deploy, and fetch two small files from the
 > project: the compose file and the Caddy file. [beat] Then one line of settings: your domain. [pause] Start
-> everything with docker compose up, dash d. [beat] Docker pulls the TroubaStack image, starts the server, and starts
+> everything with docker compose up -d. [beat] Docker pulls the TroubaStack image, starts the server, and starts
 > Caddy — which, with your real domain, gets a free Let's Encrypt certificate automatically. [pause]
-> After a minute, docker compose p s shows the server as healthy. You can ask it directly: the health check
+> After a minute, docker compose ps shows the server as healthy. You can ask it directly: the health check
 > answers "ok".
 >
 > **2.5** Open your domain in a browser. You get TroubaStack's "Log in" page, over HTTPS.
@@ -581,7 +581,7 @@ to it in the hosts file, Caddy with `tls internal`, and a recording browser prof
 > Episode twelve shows how.
 >
 > **2.8** No domain, or just trying it out on your home network? You can run the same image with a single
-> docker run command. This serves plain HTTP on port eight-zero-eight-zero — fine for a rehearsal room, not for
+> docker run command. This serves plain HTTP on port 8080 — fine for a rehearsal room, not for
 > the open internet. [beat] And set both store variables, as shown: without them, the server forgets everything
 > when it stops. [beat] The published image is for regular PC-type servers today; on a Raspberry Pi or another ARM
 > machine, you build it from source. [beat] And if you'd rather hack on TroubaStack itself, the README's "make demo"
@@ -645,10 +645,10 @@ exists) and seeded (Marie logged in, WEB).
 > connect to your band — which is the next episode. [beat] And the chip in the corner says who you are: for now,
 > a guest.
 >
-> **3.5** You do not need a server to try it. A concert is a single file — a dot-T-stage file. Copy one onto the
+> **3.5** You do not need a server to try it. A concert is a single file — a .tstage file. Copy one onto the
 > tablet from anywhere — email, a messenger, a USB stick — and import it. [beat] The project ships a demo concert.
-> Open TroubaStage, tap "Import", and pick the file. [beat] "Sat at The Anchor" appears in your library, with its
-> version number.
+> [beat] Open TroubaStage, and tap "Import". [beat] Pick the file. [beat] "Sat @ The Anchor" appears in your
+> library, with its version number.
 >
 > *(The import path was broken from A65 to A81 — fixed 2026-10-09, `e904c958`: "Import" now sits on the
 > TroubaStage screen, Bakes tab.)*
@@ -1254,7 +1254,7 @@ beat first; the rehearsal-note beats send to the isolated server.
 > them. [pause] "Import complete".
 >
 > **12.5** Updating TroubaStack is two commands: pull the new image, start it again. Your data stays in its volume.
-> [beat] The server tells you exactly which build it is running, at slash A-P-I slash version.
+> [beat] The server tells you exactly which build it is running, at /api/version.
 >
 > **12.6** Two last things. Live mode can create many concert versions during a rehearsal: set a retention number,
 > run the clean-up command after the rehearsal, and only the latest few are kept — never a version you locked for a
@@ -1331,6 +1331,10 @@ Ruled by VLL on 2026-10-09 unless marked **open**.
 | rev 7 | "rev seven" |
 | `docker compose up -d` | "docker compose up, dash d" |
 | `/api/version` | "slash A-P-I slash version" |
+| `.tstage` | "dot T-stage" |
+| `8080` | "eight-zero-eight-zero" |
+| `docker compose ps` | "docker compose P S" |
+| `Sat @ The Anchor` | "Sat at The Anchor" |
 | HTTPS · QR · PDF · VPN | spelled letter by letter |
 
 ### 10.3 Credits card (verbatim, from `NOTICE`)

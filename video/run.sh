@@ -23,5 +23,5 @@ if has takes; then
   esac
 fi
 has edit   && python3 "$V/build_edit.py" "$EP"
-has render && ( cd "$V/remotion" && npx remotion render src/index.ts "ep$EP" "out/ep$EP-raw.mp4" --codec=h264 --crf=18 --audio-bitrate=192k --log=error )
+has render && ( cd "$V/remotion" && npx remotion render src/index.ts "ep$EP" "out/ep$EP-raw.mp4" --codec=h264 --crf=18 --audio-bitrate=192k --timeout=120000 --log=error )
 has master && "$V/master.sh" "$EP"

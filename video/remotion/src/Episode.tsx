@@ -1,13 +1,14 @@
 import React from "react";
 import { AbsoluteFill, Audio, Freeze, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig, Easing } from "remotion";
-import { C, ARC } from "./theme";
+import { C, SANS } from "./theme";
 import { TitleCard, EndCard, CreditsCard, LowerThird, Callout } from "./components";
 
-type Seg = { text: string; start: number; end: number };
+type Step = { kind: "play"; from: number; to: number; rate: number } | { kind: "hold"; at: number; seconds: number };
+type Voice = { src: string; from: number; to: number; at: number; text: string };
 type Scene = {
   id: string; start: number; duration: number; card?: "title" | "end" | "credits";
-  narration?: { src: string; at: number; duration: number; segments: Seg[] };
-  take?: { src: string; parts: [number, number][]; rate: number; device: "tablet" | "browser" };
+  voice: Voice[]; segs: [number, number][];
+  take?: { src: string; timeline: Step[]; device: "tablet" | "browser" };
   marks?: Record<string, number>;
   lower?: { text: string; at?: number; seg?: number };
   zoom?: { mark: string; rect: number[] };
@@ -15,40 +16,43 @@ type Scene = {
 };
 export type Plan = {
   id: string; title: string; series: string; arc: string; next: string; fps: number; durationInFrames: number;
-  scenes: Scene[]; music: { sting: string; bed: string; outro: string; bedFrom: number; bedTo: number; outroAt: number };
+  scenes: Scene[]; cues: { from: number; to: number; text: string }[];
+  music: { sting: string; bed: string; outro: string; bedFrom: number; bedTo: number; outroAt: number };
 };
 
 const TAB = { w: 1200, h: 1920 };           // the filming tablet's screen, in take pixels
 const TAB_H = 960;                           // its on-screen height in the 1080p frame
 const TAB_S = TAB_H / TAB.h;
 const TAB_W = TAB.w * TAB_S;
-const TAB_LEFT = (1920 - TAB_W) / 2, TAB_TOP = (1080 - TAB_H) / 2;
+const TAB_LEFT = (1920 - TAB_W) / 2, TAB_TOP = (1080 - TAB_H) / 2 - 20;
 
-const segAt = (sc: Scene, i: number) => (sc.narration ? sc.narration.at + (sc.narration.segments[i]?.start ?? 0) : 0);
+const segStart = (sc: Scene, i: number) => sc.segs[i]?.[0] ?? 0;
 const segLen = (sc: Scene, i: number) => {
-  const n = sc.narration; if (!n) return 4;
-  const next = n.segments[i + 1]?.start ?? n.duration;
-  return Math.max(2.5, next - (n.segments[i]?.start ?? 0) + 0.4);
+  const s = sc.segs[i]; if (!s) return 4;
+  const next = sc.segs[i + 1]?.[0] ?? s[1] + 0.6;
+  return Math.max(2.5, next - s[0] + 0.3);
 };
 
-// The take's parts play back to back (a skip drops the stretch between them); after the last part the
-// final frame is held, so a voice that runs longer than the footage never waits on a black frame.
+/** The take's timeline: play steps (a source range at a rate) and hold steps (one frame, N seconds). */
 const Clip: React.FC<{ sc: Scene; fps: number }> = ({ sc, fps }) => {
   const t = sc.take!;
   let at = 0;
-  const parts = t.parts.map(([a, b], i) => {
-    const frames = Math.max(1, Math.floor(((b - a) / t.rate) * fps));
-    const video = <OffthreadVideo src={staticFile(t.src)} startFrom={Math.round(a * fps)} playbackRate={t.rate} muted
-      style={{ width: "100%", height: "100%" }} />;
-    const el = { key: i, from: at, frames, video };
-    at += frames;
-    return el;
-  });
-  const last = parts[parts.length - 1];
   return (
     <>
-      {parts.map((p) => <Sequence key={p.key} from={p.from} durationInFrames={p.frames} layout="none">{p.video}</Sequence>)}
-      <Sequence from={at} layout="none"><Freeze frame={last.frames - 1}>{last.video}</Freeze></Sequence>
+      {t.timeline.map((s, i) => {
+        const frames = Math.max(1, Math.round((s.kind === "play" ? (s.to - s.from) / s.rate : s.seconds) * fps));
+        const from = at;
+        at += frames;
+        const video = (
+          <OffthreadVideo src={staticFile(t.src)} startFrom={Math.round((s.kind === "play" ? s.from : s.at) * fps)}
+            playbackRate={s.kind === "play" ? s.rate : 1} muted style={{ width: "100%", height: "100%" }} />
+        );
+        return (
+          <Sequence key={i} from={from} durationInFrames={frames} layout="none">
+            {s.kind === "play" ? video : <Freeze frame={0}>{video}</Freeze>}
+          </Sequence>
+        );
+      })}
     </>
   );
 };
@@ -72,14 +76,10 @@ const Zoomed: React.FC<{ sc: Scene; fps: number; children: React.ReactNode }> = 
 const TakeScene: React.FC<{ sc: Scene; plan: Plan }> = ({ sc, plan }) => {
   const { fps } = useVideoConfig();
   const arc = plan.arc;
-  const overlays = (
-    <>
-      {sc.lower && (
-        <Sequence from={Math.round((sc.lower.seg !== undefined ? segAt(sc, sc.lower.seg) : sc.lower.at ?? 1) * fps)} durationInFrames={Math.round(4.5 * fps)} layout="none">
-          <LowerThird text={sc.lower.text} arc={arc} />
-        </Sequence>
-      )}
-    </>
+  const lower = sc.lower && (
+    <Sequence from={Math.round((sc.lower.seg !== undefined ? segStart(sc, sc.lower.seg) : sc.lower.at ?? 1) * fps)} durationInFrames={Math.round(4.5 * fps)} layout="none">
+      <LowerThird text={sc.lower.text} arc={arc} />
+    </Sequence>
   );
   if (sc.take!.device === "tablet") {
     const map = (x: number, y: number): [number, number] => [TAB_LEFT + x * TAB_S, TAB_TOP + y * TAB_S];
@@ -91,7 +91,7 @@ const TakeScene: React.FC<{ sc: Scene; plan: Plan }> = ({ sc, plan }) => {
           <Clip sc={sc} fps={fps} />
         </div>
         {(sc.callouts ?? []).map((c, i) => {
-          const start = c.mark !== undefined ? Math.max(0, (sc.marks?.[c.mark] ?? 0) - (c.before ?? 1)) : segAt(sc, c.seg ?? 0);
+          const start = c.mark !== undefined ? Math.max(0, (sc.marks?.[c.mark] ?? 0) - (c.before ?? 1)) : segStart(sc, c.seg ?? 0);
           const len = c.seconds ?? segLen(sc, c.seg ?? 0);
           return (
             <Sequence key={i} from={Math.round(start * fps)} durationInFrames={Math.round(len * fps)} layout="none">
@@ -99,15 +99,33 @@ const TakeScene: React.FC<{ sc: Scene; plan: Plan }> = ({ sc, plan }) => {
             </Sequence>
           );
         })}
-        {overlays}
+        {lower}
       </AbsoluteFill>
     );
   }
   return (
     <AbsoluteFill style={{ background: "#000" }}>
       <Zoomed sc={sc} fps={fps}><Clip sc={sc} fps={fps} /></Zoomed>
-      {overlays}
+      {lower}
     </AbsoluteFill>
+  );
+};
+
+/** Burned-in captions: white on a dark translucent bar at the bottom — readable over a white app screen
+ *  in any player (VLL: the player's white-on-white subtitles were hard to read and too big). */
+const Captions: React.FC<{ plan: Plan }> = ({ plan }) => {
+  const f = useCurrentFrame();
+  const t = f / plan.fps;
+  const cue = plan.cues.find((c) => t >= c.from && t < c.to);
+  if (!cue) return null;
+  return (
+    <div style={{ position: "absolute", left: 0, right: 0, bottom: 34, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+      <div style={{ maxWidth: 1240, background: "rgba(14,18,22,.78)", color: "#F4F1EA", fontFamily: SANS, fontSize: 32, lineHeight: 1.32,
+        fontWeight: 500, padding: "8px 22px 10px", borderRadius: 10, textAlign: "center", whiteSpace: "pre-line",
+        textShadow: "0 1px 2px rgba(0,0,0,.6)" }}>
+        {cue.text}
+      </div>
+    </div>
   );
 };
 
@@ -115,13 +133,12 @@ export const Episode: React.FC<{ planUrl: string; plan?: Plan }> = ({ plan }) =>
   const { fps } = useVideoConfig();
   if (!plan) return null;
   const F = (s: number) => Math.round(s * fps);
-  const speech = plan.scenes.filter((s) => s.narration).map((s) => [s.start + s.narration!.at, s.start + s.narration!.at + s.narration!.duration]);
+  const speech = plan.scenes.flatMap((s) => s.segs.map(([a, b]) => [s.start + a, s.start + b]));
   const m = plan.music;
   const bedVolume = (f: number) => {
     const t = f / fps + m.bedFrom;
-    const inSpeech = speech.some(([a, b]) => t > a - 0.4 && t < b + 0.4);
     const near = Math.min(...speech.map(([a, b]) => (t < a ? a - t : t > b ? t - b : 0)));
-    const duck = inSpeech ? 0.16 : interpolate(near, [0.4, 1.0], [0.16, 0.42], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+    const duck = interpolate(near, [0.4, 1.0], [0.16, 0.42], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
     const edge = Math.min(interpolate(t, [m.bedFrom, m.bedFrom + 2], [0, 1], { extrapolateRight: "clamp" }),
       interpolate(t, [m.bedTo - 2, m.bedTo], [1, 0], { extrapolateLeft: "clamp" }));
     return duck * edge;
@@ -134,9 +151,14 @@ export const Episode: React.FC<{ planUrl: string; plan?: Plan }> = ({ plan }) =>
           {sc.card === "end" && <EndCard next={plan.next} arc={plan.arc} len={F(sc.duration)} />}
           {sc.card === "credits" && <CreditsCard len={F(sc.duration)} />}
           {sc.take && <TakeScene sc={sc} plan={plan} />}
-          {sc.narration && <Sequence from={F(sc.narration.at)} layout="none"><Audio src={staticFile(sc.narration.src)} /></Sequence>}
+          {sc.voice.map((v, i) => (
+            <Sequence key={i} from={F(v.at)} durationInFrames={Math.max(1, F(v.to - v.from) + 2)} layout="none">
+              <Audio src={staticFile(v.src)} startFrom={F(v.from)} endAt={F(v.to) + 2} />
+            </Sequence>
+          ))}
         </Sequence>
       ))}
+      <Captions plan={plan} />
       <Audio src={staticFile(m.sting)} volume={0.9} />
       <Sequence from={F(m.bedFrom)} durationInFrames={F(m.bedTo - m.bedFrom)} layout="none">
         <Audio src={staticFile(m.bed)} loop volume={bedVolume} />

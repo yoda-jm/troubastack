@@ -81,11 +81,11 @@ export const LowerThird: React.FC<{ text: string; arc: string; len?: number }> =
   const inS = spring({ frame: f, fps, config: { damping: 18, mass: 0.6 } });
   const out = interpolate(f, [len - 10, len], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
-    <div style={{ position: "absolute", left: 80, bottom: 90, opacity: out, transform: `translateX(${(1 - inS) * -60}px)`,
+    <div style={{ position: "absolute", left: 64, top: 56, opacity: out, transform: `translateX(${(1 - inS) * -60}px)`,
       display: "flex", alignItems: "stretch", background: "rgba(20,26,31,.86)", borderRadius: 14, overflow: "hidden",
       boxShadow: "0 18px 40px -16px rgba(0,0,0,.6)" }}>
       <div style={{ width: 10, background: ARC[arc] }} />
-      <div style={{ padding: "18px 30px 20px 24px", fontFamily: SANS, fontWeight: 650, fontSize: 40, color: C.onDark }}>{text}</div>
+      <div style={{ padding: "14px 26px 16px 20px", fontFamily: SANS, fontWeight: 650, fontSize: 34, color: C.onDark }}>{text}</div>
     </div>
   );
 };

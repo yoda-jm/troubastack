@@ -1,8 +1,14 @@
 # word	spoken form (Kokoro reads the right column; captions keep the left)
+docker compose up -d	docker compose up, dash d
+docker compose ps	docker compose P S
+Sat @ The Anchor	Sat at The Anchor
+TroubaStudio	Trooba Studio
+/api/version	slash A P I slash version
 TroubaStack	Trooba Stack
 TroubaStage	Trooba Stage
-TroubaStudio	Trooba Studio
 TroubaCore	Trooba Core
+.tstage	dot T-stage
 tstage	T-stage
+8080	eight-zero-eight-zero
 APK	A P K
 iOS	eye O S

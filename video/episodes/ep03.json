@@ -17,7 +17,7 @@
       "narration": "3.2",
       "lower": {
         "text": "Get the app",
-        "at": 1.0
+        "seg": 1
       },
       "zoom": {
         "mark": "qr-visible",
@@ -27,7 +27,19 @@
           1.0,
           0.62
         ]
-      }
+      },
+      "sync": [
+        {
+          "seg": 1,
+          "mark": "menu-open",
+          "offset": -1.6
+        },
+        {
+          "seg": 2,
+          "mark": "qr-visible",
+          "offset": 0.4
+        }
+      ]
     },
     {
       "id": "3.3",
@@ -92,8 +104,25 @@
       "device": "tablet",
       "lower": {
         "text": "Import a .tstage",
-        "seg": 1
-      }
+        "seg": 2
+      },
+      "sync": [
+        {
+          "seg": 2,
+          "mark": "tap:▶  TroubaStage",
+          "offset": -0.3
+        },
+        {
+          "seg": 3,
+          "mark": "tap:demo-concert.tstage",
+          "offset": -0.6
+        },
+        {
+          "seg": 4,
+          "mark": "imported",
+          "offset": -0.2
+        }
+      ]
     },
     {
       "id": "3.6",
@@ -103,9 +132,9 @@
       "device": "tablet",
       "callouts": [
         {
-          "mark": "airplane",
-          "before": 1.6,
-          "seconds": 3.2,
+          "mark": "tap:Airplane mode",
+          "before": 0.6,
+          "seconds": 3.0,
           "rect": [
             772,
             222,
@@ -117,8 +146,35 @@
       ],
       "lower": {
         "text": "Who are you?",
-        "seg": 1
-      }
+        "seg": 2
+      },
+      "sync": [
+        {
+          "seg": 0,
+          "mark": "pull-down",
+          "offset": -0.5
+        },
+        {
+          "seg": 1,
+          "mark": "tap:Sat @ The Anchor",
+          "offset": -0.4
+        },
+        {
+          "seg": 2,
+          "mark": "who",
+          "offset": -0.2
+        },
+        {
+          "seg": 3,
+          "mark": "tap:Not now",
+          "offset": 0.6
+        },
+        {
+          "seg": 4,
+          "mark": "swipe",
+          "offset": -0.5
+        }
+      ]
     },
     {
       "id": "3.7",
