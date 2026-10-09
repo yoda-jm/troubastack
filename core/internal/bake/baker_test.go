@@ -602,8 +602,8 @@ func TestBake_PublishReclaimsOnConcurrentPublish(t *testing.T) {
 		once.Do(func() {
 			// A: a full bake to completion (publishes rev 1) inside B's window, using a
 			// hookless copy so it doesn't recurse. Same goroutine → t.Errorf is safe.
-			a := *b
-			a.afterNextRev = nil
+			// Built fresh, not `*b`: Baker holds a mutex (T185), and a copy would share no state anyway.
+			a := &Baker{svc: b.svc, eng: b.eng, raster: b.raster, overlays: b.overlays, bakesDir: b.bakesDir, now: b.now}
 			ab, _, err := a.Bake(context.Background(), bandID, setlistID, u, nil, "")
 			if err != nil {
 				t.Errorf("inner bake A failed: %v", err)
