@@ -61,8 +61,12 @@ const Zoomed: React.FC<{ sc: Scene; fps: number; children: React.ReactNode }> = 
   const k = interpolate(f, [at, at + 1.2 * fps], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) });
   const s = 1 + (Math.min(1.9, 1 / (x1 - x0), 1 / (y1 - y0)) - 1) * k;
   const cx = ((x0 + x1) / 2) * 1920, cy = ((y0 + y1) / 2) * 1080;
-  const tx = (960 - cx) * k, ty = (540 - cy) * k;
-  return <AbsoluteFill style={{ transform: `translate(${tx}px, ${ty}px) scale(${s})`, transformOrigin: `${cx}px ${cy}px` }}>{children}</AbsoluteFill>;
+  // scale about the top-left corner, aim the region's centre at the frame's centre, then clamp so the
+  // scaled picture always covers the frame (no black band at an edge)
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const tx = clamp(960 - cx * s, 1920 - 1920 * s, 0);
+  const ty = clamp(540 - cy * s, 1080 - 1080 * s, 0);
+  return <AbsoluteFill style={{ transform: `translate(${tx}px, ${ty}px) scale(${s})`, transformOrigin: "0 0" }}>{children}</AbsoluteFill>;
 };
 
 const TakeScene: React.FC<{ sc: Scene; plan: Plan }> = ({ sc, plan }) => {

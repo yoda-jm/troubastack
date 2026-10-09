@@ -20,11 +20,11 @@ ffmpeg -v error -y -i "$RAW" -c:v copy -af "loudnorm=I=-16:TP=-1.5:LRA=11:measur
 ffmpeg -v error -y -i "$OUT/ep$EP.mp4" -c:v libvpx-vp9 -crf 32 -b:v 0 -row-mt 1 -c:a libopus -b:a 128k "$OUT/ep$EP.webm"
 
 # checks (§4.5)
-I="$(ffmpeg -hide_banner -nostats -i "$OUT/ep$EP.mp4" -af ebur128=peak=true -f null - 2>&1 | /usr/bin/grep -A12 'Summary' )"
+I="$(ffmpeg -hide_banner -nostats -i "$OUT/ep$EP.mp4" -af ebur128=peak=true -f null - 2>&1 | /usr/bin/grep -A30 'Summary' )"
 LUFS="$(echo "$I" | /usr/bin/grep -oE 'I: +-?[0-9.]+' | /usr/bin/grep -oE -- '-?[0-9.]+$')"
 TP="$(echo "$I" | /usr/bin/grep -oE 'Peak: +-?[0-9.]+' | /usr/bin/grep -oE -- '-?[0-9.]+$')"
 DUR="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$OUT/ep$EP.mp4")"
-RES="$(ffprobe -v error -select_streams v -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$OUT/ep$EP.mp4")"
+RES="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$OUT/ep$EP.mp4" | head -1 | sed 's/,$//')"
 CUES="$(/usr/bin/grep -c -- '-->' "$OUT/ep$EP.srt")"
 ok=1
 python3 -c "import sys; sys.exit(0 if abs(float('$LUFS') + 16) <= 1 else 1)" || { echo "FAIL loudness $LUFS LUFS (want -16 ±1)"; ok=0; }
