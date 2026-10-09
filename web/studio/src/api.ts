@@ -416,6 +416,24 @@ export function pdfUrlFromBundle(downloadUrl: string): string {
   return downloadUrl.replace(/\/bundle$/, "/pdf");
 }
 
+/** The download name from a Content-Disposition header. The server (T162) sends both an exact UTF-8
+ *  `filename*=UTF-8''…` and an ASCII `filename="…"` fallback; prefer the exact one so "Café" stays "Café". */
+export function filenameFromDisposition(header: string | null, fallback: string): string {
+  const disp = header ?? "";
+  const ext = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(disp);
+  if (ext) {
+    try {
+      const name = decodeURIComponent(ext[1].trim());
+      if (name) return name;
+    } catch {
+      // malformed percent-encoding → fall through to the ASCII form
+    }
+  }
+  const plain = /filename\s*=\s*"([^"]*)"/i.exec(disp) ?? /filename\s*=\s*([^;]+)/i.exec(disp);
+  const name = plain?.[1].trim();
+  return name ? name : fallback;
+}
+
 export const api = {
   // ---- auth ----
   register: (input: { username: string; displayName: string; password: string; email?: string }) =>
@@ -700,6 +718,26 @@ export const api = {
   // one is in hand; the bare form (no revision) is only for callers without a SongFile.
   fileUrl: (fileId: string, revision?: number) =>
     revision != null ? `/api/files/${fileId}?rev=${revision}` : `/api/files/${fileId}`,
+
+  // FILEPDF — ONE song file as a printable A4 PDF with its annotations drawn on. `layerIds` is exactly the
+  // set of layers to print (the ones shown on screen); the server always adds mandatory layers. An empty
+  // list is sent as `layers=` (= no optional annotations), never omitted (omitted = the server's default
+  // view). Same shape as exportSetlist: the Blob plus the server's filename.
+  filePdf: async (
+    bandId: string,
+    songId: string,
+    fileId: string,
+    layerIds: string[],
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const layers = encodeURIComponent(layerIds.join(","));
+    const res = await fetch(`/api/bands/${bandId}/songs/${songId}/files/${fileId}/pdf?layers=${layers}`, {
+      credentials: "include",
+    });
+    if (!res.ok) {
+      await decode<void>(res); // throws ApiError with the server message
+    }
+    return { blob: await res.blob(), filename: filenameFromDisposition(res.headers.get("Content-Disposition"), "file.pdf") };
+  },
 
   // ---- per-member file selection ("my files") ----
   // The pool stays shared (listFiles); these endpoints are the caller's own

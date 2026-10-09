@@ -37,6 +37,7 @@ import {
   type UndoEntry,
 } from "../../editor";
 import { EditorToolbar } from "./Toolbar";
+import { FilePdfButton } from "./FilePdfButton";
 import { backTarget } from "./backTarget";
 import {
   RehearsalNotesChip,
@@ -1843,6 +1844,20 @@ export function Viewer({
             <div className="drawer-body">
               {drawerTab === "layers" ? (
                 <>
+                  {/* FILEPDF — print THIS file with what the layer toggles below show. In the rail, not the top
+                      bar: the rail is already scoped to the file being viewed, and the top bar's footprint stays
+                      put. ABOVE the list on purpose: a toggled layer checkbox re-lays out when it loses focus
+                      (the global input padding), which shifts everything below the list on the next mousedown —
+                      a control below would miss its first click. PDFs only (the server rasterizes a PDF). */}
+                  {isPdf && selectedFile && (
+                    <FilePdfButton
+                      bandId={bandId}
+                      songId={songId}
+                      fileId={selectedFile.id}
+                      layers={doc.layers}
+                      visible={visible}
+                    />
+                  )}
                   <LayersPanel
                     layers={sortedFileLayers}
                     visible={visible}

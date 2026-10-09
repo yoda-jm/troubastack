@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/bake"
@@ -39,6 +41,7 @@ func (a *BakeAPI) Mount(mux *http.ServeMux, authed func(authedHandler) http.Hand
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts", authed(a.listConcerts))
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/bundle", authed(a.downloadBundle))
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/pdf", authed(a.concertPDF))
+	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files/{fileId}/pdf", authed(a.filePDF)) // FILEPDF
 }
 
 // concertView is the client-facing projection of a baked concert. It is the proto
@@ -386,4 +389,68 @@ func (a *BakeAPI) concertPDF(w http.ResponseWriter, r *http.Request, u app.User)
 	w.Header().Set("Content-Disposition", contentDisposition("attachment", concertID+".pdf", "concert.pdf"))
 	w.Header().Set("Content-Length", strconv.Itoa(len(pdf)))
 	_, _ = w.Write(pdf)
+}
+
+// filePDF prints ONE file of a song's pool as an A4 PDF with its annotations drawn on it (FILEPDF) — no
+// concert, no rev: the bake's staging run for one file, composited in memory. Any band member may print.
+// `?layers=a,b` is the set of layers the caller shows on screen (an EMPTY value = no optional annotations);
+// absent, the default view of a fresh viewer is used (shared untagged + the caller's own). Mandatory layers
+// are always painted either way (bake.FileLayerVisibility).
+func (a *BakeAPI) filePDF(w http.ResponseWriter, r *http.Request, u app.User) {
+	bandID := r.PathValue("bandId")
+	songID := r.PathValue("songId")
+	fileID := r.PathValue("fileId")
+	if _, _, err := a.svc.GetBand(u, bandID); err != nil {
+		writeErr(w, err) // non-member → 403, unknown band → 404
+		return
+	}
+	if a.baker == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "bake not configured"})
+		return
+	}
+	requested, explicit := parseLayersParam(r.URL.Query())
+	visible, err := a.baker.FileLayerVisibility(songID, u.ID, requested, explicit)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	pdf, err := a.baker.FilePDF(r.Context(), bandID, songID, fileID, u, visible)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	// FilePDF already authorized + resolved the file; these lookups only name the download.
+	name := "file.pdf"
+	if song, serr := a.svc.SongForMember(u, bandID, songID); serr == nil {
+		if files, ferr := a.svc.SongFiles(u, bandID, songID); ferr == nil {
+			for _, f := range files {
+				if f.ID == fileID {
+					name = song.Title + " - " + bake.FileDisplayName(f) + ".pdf"
+					break
+				}
+			}
+		}
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", contentDisposition("attachment", name, "file.pdf"))
+	w.Header().Set("Content-Length", strconv.Itoa(len(pdf)))
+	_, _ = w.Write(pdf)
+}
+
+// parseLayersParam reads FILEPDF's `layers` query parameter: comma-separated layer ids, blanks dropped.
+// explicit reports whether the parameter was present at all — present-but-empty means "no optional layers",
+// which is NOT the same as absent (the default view).
+func parseLayersParam(q url.Values) (ids []string, explicit bool) {
+	raw, ok := q["layers"]
+	if !ok {
+		return nil, false
+	}
+	for _, v := range raw {
+		for _, id := range strings.Split(v, ",") {
+			if id = strings.TrimSpace(id); id != "" {
+				ids = append(ids, id)
+			}
+		}
+	}
+	return ids, true
 }

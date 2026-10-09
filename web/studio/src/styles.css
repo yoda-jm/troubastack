@@ -1583,6 +1583,9 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 
 .layer-controls { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .new-layer-btn, .delete-object-btn { padding: .35rem .6rem; font-size: .85rem; }
+/* FILEPDF — the rail's "Download PDF" for the file being viewed, at the top of the Layers tab. */
+.file-pdf-action { display: flex; flex-direction: column; align-items: flex-start; gap: .4rem; }
+.file-pdf-btn { padding: .35rem .6rem; font-size: .85rem; }
 .conn-pill.conn-open { background: var(--ok-bg); color: var(--ok-fg); }
 .conn-pill.conn-connecting { background: var(--warn-bg); color: var(--warn-fg); }
 .conn-pill.conn-closed { background: var(--error-bg); color: var(--error-fg); }
