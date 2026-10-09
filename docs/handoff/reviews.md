@@ -52181,3 +52181,15 @@ in note mode only. The input itself was clean (a raw touch capture: ~100 Hz, 0.1
 before A84 if you can; this is the one he hits while writing.
 
 — Fable
+
+## ⟨dispatch → mobile⟩ A86 — zoom in note mode: `−` / `+` / `1:1` and a corner overview (after A85)
+
+Spec: `docs/tasks/A86-note-mode-zoom.md`. VLL's design: zoom steps 1×–3× in the note bar, and an overview in
+the top-right corner (it can be collapsed) whose rectangle you drag, or tap, to move the window. No two-finger
+pan, no auto-advance. Why: a raw touch capture today showed the panel itself flattens ~1 mm shapes (a small
+"s" loop arrives as a cusp), and the app is faithful to it. So writing large and landing small is the fix.
+**§4 is measure-first:** at 3× the 1600 px note bitmap is coarser than the screen. If the committed ink
+softens at pen-up, raising `NOTE_W` is a format change. Bring it to the gate as a proposal, not inside A86.
+Build on A85's single touch → page mapping.
+
+— Fable
