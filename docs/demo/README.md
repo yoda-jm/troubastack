@@ -10,9 +10,10 @@ tab and text charts with purpose-built annotation layers, see
 Install the app (root README → "The mobile app"), share/push a file to the device,
 **Import**, and perform it fully offline.
 
-- **`demo-concert.tstage`** (**6 pages** — one default part per song: The Open
-  Road → *Lead sheet* (2pp), House of the Rising Sun → *Guitar tab*, Amazing Grace → *Lead
-  sheet*, Greensleeves → *Voice + guitar* (2pp)) — **PRIMARY: the band-wide bundle (P205)**:
+- **`demo-concert.tstage`** (**7 pages**, in running order — House of the Rising Sun →
+  *Guitar tab* (in Bm), Amazing Grace → *Lead sheet*, an **Interval** page, Greensleeves →
+  *Voice + guitar* (2pp), and the encore The Open Road → *Lead sheet* (2pp), which carries a
+  **jump mark**: the segno after the riff takes you back to Verse 1) — **PRIMARY: the band-wide bundle (P205)**:
   ONE artifact that serves the whole
   band. Each song bakes its **default shared-pool part** (the lowest-DisplayOrder file in
   its pool) and the bundle carries, per the P205 model:
@@ -149,3 +150,10 @@ artifact.
 > Its anchor manifest is regenerated from the same `chartpdf.RenderWithAnchors`, so the demo highlights
 > land on the new render identically (`TestAnchorTextMatchesPDF` + the ink test guard both green).
 > Structure unchanged: 4 songs, 6 default-part pages.
+>
+> Regenerated 2026-10-09 (**video series, DEMO-CONTENT**): the seed's setlist had silently
+> shrunk to its two overridden songs (the canonical import emits only listed items), and the
+> seed's jump pair was dropped on the way to the import (wireToCanon had no `jumpTo`). Both
+> fixed in `cmd/seed`; the bundle now names its band (no more "Unknown band" on the tablet),
+> runs four songs + an interval in a real running order, and carries one jump. Baked on an
+> isolated server from a fresh seed with a freshly built bake worker.
