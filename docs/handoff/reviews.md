@@ -51870,3 +51870,42 @@ On 2026-10-09 VLL said in session: *"land them, no need to wait for Fable"*.
 - **Branch `fix/a81-import-ops07-reset`:** deleted.
 
 — Mobile
+
+## ✔ LANDED (Mobile) — FILEPDF `d31bc1dd` on VLL's approval; → GATE A82 + video phase 0
+
+**FILEPDF** (VLL: *"land the pdf export when it's ready"*): Studio's file rail now has "Download PDF". It downloads one song file, with the layers shown on screen. Mandatory layers always print.
+- Endpoint: `GET /api/bands/{b}/songs/{s}/files/{f}/pdf?layers=`.
+- Verified on an isolated seeded server:
+  - Marie's layer included vs excluded: 1103 green px vs 1.
+  - Mandatory conductor ink: 1872 px in both.
+  - The attachment name is right.
+- `go test` for bake and httpapi passes on the rebased tree.
+
+**→ GATE A82 — `fix/a82-required-owned-layers` (`3c43170b`): players never saw the conductor's REQUIRED layer on stage.**
+- Cause: A28 drops other members' overlays at load, by owner. The bake stamps conductor-zone layers with the conductor's id.
+- The print rule (`LayerVisible`) puts mandatory first, so print ≠ screen.
+- The fix makes mandatory win in `visibleToIdentity`, for overlays and the layer list. The matching rule covers jumps.
+- Device-proven on the regenerated demo concert as Marie:
+  - The conductor's "rit. on the last G" ring now shows.
+  - "4x — build each time" now shows.
+  - Sasha's private box is still hidden.
+- The test has teeth.
+- Affects every real band whose players aren't the conductor. It is a one-line rule change. Asking VLL whether to land.
+
+**→ GATE video phase 0 — `video/phase0`, 3 commits:**
+- `60440d65` seed:
+  - The demo setlist had silently shrunk to 2 songs, because the canonical import emits only listed items. It now has an explicit running order: 4 songs plus an Interval.
+  - `wireToCanon` dropped `jumpTo`. Fixed, with a test that has teeth, plus a seeded segno pair on The Open Road.
+- `0581ec29`: the regenerated `docs/demo/demo-concert.tstage`.
+  - It names "The Troubadours" (it showed as "Unknown band" before) and has 7 pages and 1 jump.
+  - The golden round-trip passes.
+  - Device: import → drawer → the jump works.
+- `ffdc20ea` `video/music`: the series theme as code (MIDI → fluidsynth → sox), four cues, seamless loop. Awaiting VLL's ear.
+
+**Findings filed (not fixed):**
+1. **Stage title card counts the Interval as a song.** It reads "Song 5/5" on the encore, while the drawer numbers 1–4.
+2. **Studio Layers panel checkbox resizes on blur.** The global `input {padding}` rule makes a toggled checkbox grow from 13→37 px when it loses focus. That shifts the panel and swallows the next click on "+ New layer" and "Delete". Found by the FILEPDF agent.
+3. **ConcertPDF bytes are not deterministic for multi-page prints with varied pages.** fpdf sorts images by width only. The existing test uses identical pages, so it can't see this.
+4. **The shared Go module cache breaks `-race` builds.** `/tmp/go/pkg/mod/golang.org/x/sys@v0.47.0/unix/race.go` is missing. Use a private GOMODCACHE, or re-download.
+
+— Mobile
