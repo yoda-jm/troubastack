@@ -856,6 +856,9 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     }
 }
 
+// ".tstage" has no registered MIME type, so accept zip + anything and validate on import.
+private val TSTAGE_PICKER_TYPES = arrayOf("application/zip", "application/octet-stream", "*/*")
+
 @Composable
 private fun ConcertsScreen(
     context: Context,
@@ -886,7 +889,9 @@ private fun ConcertsScreen(
         if (uri != null) {
             val temp = copyToTemp(context, storage, uri)
             message = when (val r = BundleImporter(AndroidImportFs(storage)).import(temp)) {
-                is ImportResult.Imported -> "Imported ${r.concertId}"
+                // A81: name the concert, not its id — the id is a UUID nobody can read.
+                is ImportResult.Imported ->
+                    "Imported «${listConcerts(storage).firstOrNull { it.concertId == r.concertId }?.label ?: r.concertId}»"
                 is ImportResult.Failed -> r.reason
             }
             File(temp).delete()
@@ -983,6 +988,12 @@ private fun ConcertsScreen(
                             Text(if (line.sending) "Sending…" else "Send all (${line.count})")
                         }
                     }
+                    // A81: A65 made the Manage screen unreachable (nothing sets manageIntent any more), and its
+                    // Import button went with it — this is the only door to a .tstage now, so it lives here,
+                    // on the Bakes tab (the Notes tab owns this slot for "Send all"). Works with no server.
+                    if (stageTab == 0) {
+                        TextButton(onClick = { picker.launch(TSTAGE_PICKER_TYPES) }) { Text("Import") }
+                    }
                 }
                 // Manage-only affordances (import / download offers / edit / sign-in). Perform stays lean.
                 if (manage) {
@@ -992,8 +1003,7 @@ private fun ConcertsScreen(
                         TextButton(onClick = onConnect) { Text("Connect") }
                     }
                     TextButton(onClick = onEdit) { Text("Edit") }
-                    // ".tstage" has no registered MIME type, so accept zip + anything and validate on import.
-                    Button(onClick = { picker.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) {
+                    Button(onClick = { picker.launch(TSTAGE_PICKER_TYPES) }) {
                         Text("Import")
                     }
                 }
@@ -1026,7 +1036,7 @@ private fun ConcertsScreen(
             if (entries.isEmpty()) {
                 Text(
                     if (manage) "No concerts yet. Import a .tstage or Connect to download one."
-                    else "No concerts on device yet. Open TroubaStudio to import or download one.",
+                    else "No concerts on device yet. Import a .tstage file, or open TroubaStudio to download one.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
