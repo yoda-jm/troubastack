@@ -62,16 +62,29 @@ def main():
             vdur = probe(video)
             a = max(0.0, marks[sc["from"]] - 0.3)
             b = marks.get(sc.get("to", ""), vdur)
-            clip = b - a
+            # optional skip: drop a dead stretch (an install spinner) between two marks, with a little air
+            parts = [[a, b]]
+            if "skip" in sc:
+                s0, s1 = marks[sc["skip"][0]] + 0.8, marks[sc["skip"][1]] - 0.6
+                if a < s0 < s1 < b:
+                    parts = [[a, s0], [s1, b]]
+            clip = sum(q - p for p, q in parts)
             dur = LEAD + (narr["duration"] if narr else 0) + TAIL
             rate = min(MAX_RATE, max(1.0, clip / dur))
             src_name = f"{sc['take']}.mp4"
             if not (pub / src_name).exists():
                 stage(video, src_name)
-            r["take"] = {"src": f"ep{ep}/{src_name}", "from": round(a, 3), "to": round(b, 3), "rate": round(rate, 3),
-                         "device": sc.get("device", "browser")}
-            # marks relative to the scene (seconds of scene time), so overlays can hang on beats
-            r["marks"] = {k: round((v - a) / rate, 3) for k, v in marks.items() if a <= v <= b}
+            r["take"] = {"src": f"ep{ep}/{src_name}", "parts": [[round(p, 3), round(q, 3)] for p, q in parts],
+                         "rate": round(rate, 3), "device": sc.get("device", "browser")}
+            # marks relative to the scene (seconds of scene time, after skips), so overlays can hang on beats
+            def scene_time(v):
+                acc = 0.0
+                for p, q in parts:
+                    if p <= v <= q:
+                        return round((acc + v - p) / rate, 3)
+                    acc += q - p
+                return None
+            r["marks"] = {k: scene_time(v) for k, v in marks.items() if scene_time(v) is not None}
             for key in ("lower", "zoom", "callouts"):
                 if key in sc:
                     r[key] = sc[key]

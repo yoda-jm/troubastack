@@ -7,11 +7,11 @@ type Seg = { text: string; start: number; end: number };
 type Scene = {
   id: string; start: number; duration: number; card?: "title" | "end" | "credits";
   narration?: { src: string; at: number; duration: number; segments: Seg[] };
-  take?: { src: string; from: number; to: number; rate: number; device: "tablet" | "browser" };
+  take?: { src: string; parts: [number, number][]; rate: number; device: "tablet" | "browser" };
   marks?: Record<string, number>;
   lower?: { text: string; at?: number; seg?: number };
   zoom?: { mark: string; rect: number[] };
-  callouts?: { seg: number; rect: number[]; label: string }[];
+  callouts?: { seg?: number; mark?: string; before?: number; seconds?: number; rect: number[]; label: string }[];
 };
 export type Plan = {
   id: string; title: string; series: string; arc: string; next: string; fps: number; durationInFrames: number;
@@ -31,15 +31,24 @@ const segLen = (sc: Scene, i: number) => {
   return Math.max(2.5, next - (n.segments[i]?.start ?? 0) + 0.4);
 };
 
+// The take's parts play back to back (a skip drops the stretch between them); after the last part the
+// final frame is held, so a voice that runs longer than the footage never waits on a black frame.
 const Clip: React.FC<{ sc: Scene; fps: number }> = ({ sc, fps }) => {
   const t = sc.take!;
-  const clipFrames = Math.max(1, Math.floor(((t.to - t.from) / t.rate) * fps));
-  const video = <OffthreadVideo src={staticFile(t.src)} startFrom={Math.round(t.from * fps)} playbackRate={t.rate} muted
-    style={{ width: "100%", height: "100%" }} />;
+  let at = 0;
+  const parts = t.parts.map(([a, b], i) => {
+    const frames = Math.max(1, Math.floor(((b - a) / t.rate) * fps));
+    const video = <OffthreadVideo src={staticFile(t.src)} startFrom={Math.round(a * fps)} playbackRate={t.rate} muted
+      style={{ width: "100%", height: "100%" }} />;
+    const el = { key: i, from: at, frames, video };
+    at += frames;
+    return el;
+  });
+  const last = parts[parts.length - 1];
   return (
     <>
-      <Sequence durationInFrames={clipFrames} layout="none">{video}</Sequence>
-      <Sequence from={clipFrames} layout="none"><Freeze frame={clipFrames - 1}>{video}</Freeze></Sequence>
+      {parts.map((p) => <Sequence key={p.key} from={p.from} durationInFrames={p.frames} layout="none">{p.video}</Sequence>)}
+      <Sequence from={at} layout="none"><Freeze frame={last.frames - 1}>{last.video}</Freeze></Sequence>
     </>
   );
 };
@@ -77,11 +86,15 @@ const TakeScene: React.FC<{ sc: Scene; plan: Plan }> = ({ sc, plan }) => {
         <div style={{ position: "absolute", left: TAB_LEFT, top: TAB_TOP, width: TAB_W, height: TAB_H, borderRadius: 22, overflow: "hidden", background: "#000" }}>
           <Clip sc={sc} fps={fps} />
         </div>
-        {(sc.callouts ?? []).map((c, i) => (
-          <Sequence key={i} from={Math.round(segAt(sc, c.seg) * fps)} durationInFrames={Math.round(segLen(sc, c.seg) * fps)} layout="none">
-            <Callout rect={c.rect} label={c.label} arc={arc} map={map} len={Math.round(segLen(sc, c.seg) * fps)} />
-          </Sequence>
-        ))}
+        {(sc.callouts ?? []).map((c, i) => {
+          const start = c.mark !== undefined ? Math.max(0, (sc.marks?.[c.mark] ?? 0) - (c.before ?? 1)) : segAt(sc, c.seg ?? 0);
+          const len = c.seconds ?? segLen(sc, c.seg ?? 0);
+          return (
+            <Sequence key={i} from={Math.round(start * fps)} durationInFrames={Math.round(len * fps)} layout="none">
+              <Callout rect={c.rect} label={c.label} arc={arc} map={map} len={Math.round(len * fps)} />
+            </Sequence>
+          );
+        })}
         {overlays}
       </AbsoluteFill>
     );

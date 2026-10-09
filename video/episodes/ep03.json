@@ -5,24 +5,131 @@
   "arc": "stage",
   "next": "04 · Your band: invite, roles, join",
   "scenes": [
-    { "id": "3.1", "card": "title", "seconds": 5.5 },
-    { "id": "3.2", "take": "web-get-the-app", "from": "studio-ready", "narration": "3.2",
-      "lower": { "text": "Get the app", "at": 1.0 },
-      "zoom": { "mark": "qr-visible", "rect": [0.62, 0.0, 1.0, 0.62] } },
-    { "id": "3.3", "take": "tab-install", "from": "start", "to": "home", "narration": "3.3", "device": "tablet",
-      "lower": { "text": "Install from your server", "at": 1.0 } },
-    { "id": "3.4", "take": "tab-install", "from": "home", "narration": "3.4", "device": "tablet",
+    {
+      "id": "3.1",
+      "card": "title",
+      "seconds": 5.5
+    },
+    {
+      "id": "3.2",
+      "take": "web-get-the-app",
+      "from": "studio-ready",
+      "narration": "3.2",
+      "lower": {
+        "text": "Get the app",
+        "at": 1.0
+      },
+      "zoom": {
+        "mark": "qr-visible",
+        "rect": [
+          0.62,
+          0.0,
+          1.0,
+          0.62
+        ]
+      }
+    },
+    {
+      "id": "3.3",
+      "take": "tab-install",
+      "from": "start",
+      "to": "home",
+      "narration": "3.3",
+      "device": "tablet",
+      "lower": {
+        "text": "Install from your server",
+        "at": 1.0
+      },
+      "skip": [
+        "installing",
+        "installed"
+      ]
+    },
+    {
+      "id": "3.4",
+      "take": "tab-install",
+      "from": "home",
+      "narration": "3.4",
+      "device": "tablet",
       "callouts": [
-        { "seg": 1, "rect": [42, 266, 1158, 448], "label": "TroubaStage" },
-        { "seg": 2, "rect": [42, 478, 1158, 641], "label": "TroubaStudio" },
-        { "seg": 3, "rect": [1010, 54, 1158, 116], "label": "Guest" }
-      ] },
-    { "id": "3.5", "take": "tab-import-demo", "from": "start", "narration": "3.5", "device": "tablet",
-      "lower": { "text": "Import a .tstage", "seg": 1 } },
-    { "id": "3.6", "take": "tab-perform-offline", "from": "start", "narration": "3.6", "device": "tablet",
-      "callouts": [ { "seg": 0, "rect": [1000, 0, 1200, 44], "label": "Airplane mode" } ],
-      "lower": { "text": "Who are you?", "seg": 1 } },
-    { "id": "3.7", "card": "end", "narration": "3.7", "seconds": 6.0 },
-    { "id": "credits", "card": "credits", "seconds": 5.0 }
+        {
+          "seg": 1,
+          "rect": [
+            42,
+            266,
+            1158,
+            448
+          ],
+          "label": "TroubaStage"
+        },
+        {
+          "seg": 2,
+          "rect": [
+            42,
+            478,
+            1158,
+            641
+          ],
+          "label": "TroubaStudio"
+        },
+        {
+          "seg": 3,
+          "rect": [
+            1010,
+            54,
+            1158,
+            116
+          ],
+          "label": "Guest"
+        }
+      ]
+    },
+    {
+      "id": "3.5",
+      "take": "tab-import-demo",
+      "from": "start",
+      "narration": "3.5",
+      "device": "tablet",
+      "lower": {
+        "text": "Import a .tstage",
+        "seg": 1
+      }
+    },
+    {
+      "id": "3.6",
+      "take": "tab-perform-offline",
+      "from": "start",
+      "narration": "3.6",
+      "device": "tablet",
+      "callouts": [
+        {
+          "mark": "airplane",
+          "before": 1.6,
+          "seconds": 3.2,
+          "rect": [
+            772,
+            222,
+            1087,
+            325
+          ],
+          "label": "Airplane mode"
+        }
+      ],
+      "lower": {
+        "text": "Who are you?",
+        "seg": 1
+      }
+    },
+    {
+      "id": "3.7",
+      "card": "end",
+      "narration": "3.7",
+      "seconds": 6.0
+    },
+    {
+      "id": "credits",
+      "card": "credits",
+      "seconds": 5.0
+    }
   ]
 }

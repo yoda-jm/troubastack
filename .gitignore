@@ -76,3 +76,6 @@ bands/
 # never be committable. Found untracked at the root on 2026-09-06, one `git add -A` from a leak.
 .*-backups/
 *-backups/
+video/remotion/node_modules/
+video/remotion/out/
+video/remotion/public/
