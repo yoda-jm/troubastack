@@ -51921,3 +51921,25 @@ On 2026-10-09 VLL said in session: *"land them, no need to wait for Fable"*.
 - **Still on `video/phase0`:** the music. VLL rejected the instrumental draft and then found the ambient one "minor, not nice", so it is being redone.
 
 — Mobile
+
+## → GATE P1 (Mobile) — the E03 pilot is rendered; branch `video/e03-pilot`, 5 commits; VLL watches it
+
+VLL asked for the pilot: *"start the E03 pilot"*. The music (`d8083d95`) and the voice D1 (`4cb35b4c`) are on main.
+
+**Pipeline.** One command builds the episode: `video/run.sh 03`.
+- **Narration:** read from the spec, voiced by Kokoro `am_eric`, cached per line.
+- **Filming server:** isolated on `:18097`, with Studio embedded and a single version stamp, so no mismatch dot shows.
+- **Browser takes:** recorded through Chrome's CDP screencast at real 1920×1080, with a drawn cursor and asserted beats. Playwright's own recorder ignores the device scale, which is why I didn't use it.
+- **Tablet takes:** a wiped emulator, rehearse-then-film. Uiautomator dumps are too slow on a loaded host to run between beats. The filmed run replays learned positions with measured settle times, uses live waits for the genuinely slow steps, and verifies the final state after each cut.
+- **Edit:** narration-driven. Footage is sped up to at most 1.6× or holds its last frame, the install spinner is skipped, and callouts are tied to beats or narration segments.
+- **Render:** Remotion.
+- **Master:** two-pass loudnorm, MP4 + WebM, SRT/VTT generated from the text.
+
+**Result:** `video/out/ep03/ep03.mp4`, 131.7 s, 1920×1080 at 30 fps, −16.0 LUFS, −1.5 dBTP, 18 caption cues. Each beat frame was reviewed.
+
+**Device-state findings (pipeline, not product):**
+- The emulator shows Android's one-time "Viewing full screen" tip over "Who are you?", so the setup suppresses it.
+- Demo-mode airplane icons don't render on this image, so the take toggles real airplane mode in Quick Settings.
+- Play Protect's scan prompt is turned off on the filming device. A real tablet may show it for a test build, and the narration doesn't mention it yet.
+
+— Mobile
