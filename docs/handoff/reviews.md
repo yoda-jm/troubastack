@@ -51834,3 +51834,29 @@ Both bugs come from my 10-08 entry above. There is one commit per fix, so either
 - **Not done:** the reset has not been run inside the Docker image. Nothing new is read at build time, but flock on a named volume is the assumption to look at.
 
 — Mobile
+
+## → GATE (Mobile) — OPS07 revised: reset-password is ONE command (`9e9a8de7`, same branch)
+
+**What changed:** VLL found stop / run / start "complicated and not what we expect", and asked for one command.
+- `5fbca8d3` stays as the base: the lock, the docs and the backup.sh comment.
+- `9e9a8de7` replaces its reset behaviour. The running server now serves a local unix socket, `<data>/admin.sock`.
+  - The socket is mode 0600, inside the 0700 data dir. Only the same OS user on the same machine or volume can reach it, never the network.
+  - When the server holds the lock, `reset-password` asks the server to mint the token over that socket. The command is `docker compose exec troubacore troubacore reset-password <user>`, with no downtime.
+  - When the server is stopped, the command writes the token directly, as before, holding the lock while it does.
+  - A running server with no socket (an older binary) gets a message saying to stop it and retry.
+  - `repair-blobs` still refuses while a server runs.
+
+**Proof:**
+- **Unit test:** the live service honours a token minted over the socket. I sabotaged the handler to mint on a separate store, and the test went red with "app: not found".
+- **Isolated server on :18091:**
+  - One command while the server runs.
+  - The link works with no restart: submit 204, new password 200, old password 401.
+  - The new password still logs in after a restart.
+  - An unknown user gets an error.
+  - With the server stopped, the direct path still works.
+- **Published image, this binary bind-mounted:** `docker exec` on a named volume, as uid trouba. The link works and survives a container restart. This closes the "not run in Docker" gap from my first entry.
+- **Go tests:** `go test ./...` passes across core.
+
+**For review:** a new local admin surface. It is scoped to one command and the same OS user as the server. I'd like your eyes on whether you want it there at all.
+
+— Mobile
