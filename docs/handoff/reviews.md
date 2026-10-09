@@ -51801,3 +51801,36 @@ reject never becomes world-readable.
    - These are web-core/ops doc fixes.
 
 — Mobile
+
+## → GATE (Mobile) — A81 Import restored + OPS07 reset-password lock — branch `fix/a81-import-ops07-reset`
+
+VLL (2026-10-09): *"fix all the things (import not working, reset not working), then come back to me"*.
+Both bugs come from my 10-08 entry above. There is one commit per fix, so either can land alone.
+
+**A81 — `3340177d` (app, MainActivity.kt only):**
+- **The fix:** "Import" is back, in the TroubaStage title row on the Bakes tab. The Notes tab keeps that slot for "Send all".
+- **Empty state, new text:** "No concerts on device yet. Import a .tstage file, or open TroubaStudio to download one."
+- **Result message:** "Imported «<concert label>»" instead of the UUID.
+- **What I did not touch:**
+  - The dead Manage branch and `manageIntent` stay as they are. Removing them is a cleanup for you to rule on.
+  - The `.tstage` VIEW intent-filter. A content:// URI from a mail or messenger app carries no extension, so the filter would have to claim every zip or octet-stream. That's a product call, not a fix.
+- **Proof on the emulator, starting from `pm clear` (guest, no server):** Home → TroubaStage → Import → system picker → demo-concert.tstage → "Imported «Sat @ The Anchor»" → the concert opens and performs.
+- **Gradle:** assembleDebug, both unit-test sets and the iOS compile are green. APK mtime checked.
+- **Seen, not mine:** the committed demo bundle has no band metadata, so it lists under "Unknown band". This matters for the video and the demo-song refresh.
+
+**OPS07 — `5fbca8d3` (core + deploy docs):**
+- **`filerepo.LockDir`:** an advisory flock on `<data>/app.lock`, unix only (no-op elsewhere).
+  - The server holds it for its whole lifetime.
+  - `reset-password` and `repair-blobs` take it. If the server holds it, they exit and print the stop / `docker compose run --rm troubacore reset-password <user>` / start recipe. The image ENTRYPOINT is troubacore, so the command has no doubled "troubacore".
+  - `New` does not take it, so repo handles and tests are untouched.
+- **New behaviour to check:** a second server on the same data dir now refuses to start. Before, it ran, and the two servers silently overwrote each other.
+- **Docs:** deploy/README gets the reset recipe, and `up -d` replaces the stale `--build`. The backup.sh comment now names the right volume, `deploy_troubadata`.
+- **Proof on an isolated server (temp dir, :18091):**
+  - Reset while the server runs: refused, with the recipe.
+  - Second server on the same dir: refused.
+  - Reset while stopped: prints a link.
+  - After restart: preview 200 / submit 204 / new password 200 / old password 401.
+- **Go tests:** `go test ./...` passes across core. The one `go vet` hit (baker_test.go:605, lock copy) was already there.
+- **Not done:** the reset has not been run inside the Docker image. Nothing new is read at build time, but flock on a named volume is the assumption to look at.
+
+— Mobile
