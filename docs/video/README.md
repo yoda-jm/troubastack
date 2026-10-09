@@ -615,8 +615,8 @@ exists) and seeded (Marie logged in, WEB).
 |---|---|---|
 | `web-get-the-app` | WEB | account menu → "📱 Get the app" → the "Get TroubaStage" panel with a QR (the item exists only when the server was built with an APK in `deploy/apps/` — the fixture builds it so) |
 | `tab-install` | TAB | the APK installs (package present), app icon on the launcher, first launch → Home with "Guest" chip, TroubaStage tile "Perform · import or download a concert", TroubaStudio tile disabled "Sign in to manage concerts" |
-| `tab-import-demo` | TAB | TroubaStage tile → Concerts → "Import" → system picker → `demo-concert.tstage` → row "Sat @ The Anchor" with "rev N" |
-| `tab-perform-offline` | TAB | airplane mode on (status bar icon) → open the concert → "Who are you?" → "Not now" → page 1 shown → swipe → page 2 |
+| `tab-import-demo` | TAB | "▶ TroubaStage" tile → TroubaStage screen (Bakes tab, "No concerts on device yet. Import a .tstage file, …") → "Import" → system picker → Downloads → `demo-concert.tstage` → "Imported «Sat @ The Anchor»", the row under "The Troubadours" with "rev 1" |
+| `tab-perform-offline` | TAB | airplane mode on (status bar icon) → tap "Sat @ The Anchor" → "Who are you?" → "Not now" → page 1 (House of the Rising Sun) shown → swipe → the next page |
 
 **Storyboard**
 
@@ -650,12 +650,8 @@ exists) and seeded (Marie logged in, WEB).
 > Open TroubaStage, tap "Import", and pick the file. [beat] "Sat at The Anchor" appears in your library, with its
 > version number.
 >
-> ⚠ **Blocked — product bug, found while checking this spec (2026-10-08):** the "Import" button has been
-> unreachable since A65 (`ee3c6a68`, 2026-09-04): `manageIntent` is only ever set to `false`, so the Manage screen
-> that holds "Import" never opens, and the Perform list says *"No concerts on device yet. Open TroubaStudio to import
-> or download one."* — while TroubaStudio is disabled for a guest. There is also no `.tstage` VIEW intent-filter, so a
-> tapped file cannot open the app. **E03 (the pilot) cannot be shot until this is fixed**; the narration above
-> describes the intended path (import from the TroubaStage screen) and must be re-checked against the fix.
+> *(The import path was broken from A65 to A81 — fixed 2026-10-09, `e904c958`: "Import" now sits on the
+> TroubaStage screen, Bakes tab.)*
 >
 > **3.6** Now put the tablet in airplane mode. [pause] Open the concert. [beat] TroubaStage asks "Who are you?" —
 > each player sees their own part, their own layers and their own cues. You can pick a name or say "Not now".
