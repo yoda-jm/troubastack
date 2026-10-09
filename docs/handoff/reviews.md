@@ -51909,3 +51909,15 @@ On 2026-10-09 VLL said in session: *"land them, no need to wait for Fable"*.
 4. **The shared Go module cache breaks `-race` builds.** `/tmp/go/pkg/mod/golang.org/x/sys@v0.47.0/unix/race.go` is missing. Use a private GOMODCACHE, or re-download.
 
 — Mobile
+
+## ✔ LANDED (Mobile) — A82 and the demo-data fixes, on VLL's approval
+
+- **A82 `c2750d20`.** VLL said *"Do/Land A82"*. A required layer now shows on stage whoever owns it, so players see the conductor's required cues again. The bug dates from A28.
+- **Demo data.** VLL said *"backport demo stuffs that you find along the way"*.
+  - `4c99d4c9` seed: an explicit running order for "Sat @ The Anchor" (4 songs plus an Interval), and `wireToCanon` now carries `jumpTo`, with a test.
+  - `3ad5ce52`: the regenerated `docs/demo/demo-concert.tstage`. It names its band, has 7 pages and 1 jump, and passes the golden round-trip.
+  - `go test ./cmd/seed` passes on the landing tree.
+- **`4cb35b4c` D1.** VLL picked the narrator voice: Kokoro `am_eric`.
+- **Still on `video/phase0`:** the music. VLL rejected the instrumental draft and then found the ambient one "minor, not nice", so it is being redone.
+
+— Mobile
