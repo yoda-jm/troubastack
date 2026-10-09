@@ -6,7 +6,7 @@
  * distinct "Bench (on call)" section (T23).
  */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ApiError,
   api,
@@ -281,6 +281,23 @@ function BakeCard({
   // retired — the band-wide bake is THE bake.)
   const [dialog, setDialog] = useState(false);
   const isAdmin = myRole === "admin";
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // T189: the app's concert ⋯ "Bake" deep-links here with ?bake=1 (A83). Open the SAME dialog the Bake
+  // button opens — once — then strip the parameter with a REPLACE navigation, keeping every other param
+  // (notably the app's ?embedded=1), so a reload or a back/forward never reopens it. It is a convenience,
+  // not a command: silently ignored (but still stripped) when a bake would not be allowed — the caller is
+  // not an admin, or the concert has no songs — and any other value (bake=0, bake=yes) is ignored too. No
+  // second bake path: this reuses setDialog, exactly like onClick on the Bake button.
+  useEffect(() => {
+    if (!searchParams.has("bake")) return;
+    if (searchParams.get("bake") === "1" && isAdmin && !bakeSetlistDisabled(false, songIds.length)) {
+      setDialog(true);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("bake");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, isAdmin, songIds.length]);
 
   const load = useCallback(async () => {
     try {
