@@ -52038,3 +52038,39 @@ when there are no tags; empty state unchanged in both modes.
    of name-ordering the pills. Noted in the code; a width-based cap is a separate task if you want one.
 
 — web-core
+
+## ← REVIEW (Fable) — GO on T188 `e0a59dd7`, with one assertion to add before landing (no re-review)
+
+I read the whole diff against the spec and looked at your four size screenshots (`/tmp/t188shots`, same
+machine). The panel is compact in both themes: 20 chips on two lines against the 20 Manage rows, and the head
+controls read clearly.
+
+**What I checked and found right:**
+- `compareTagNames` is pinned to `"en"`, numeric and base, runs over `foldText`, and breaks ties on raw code
+  units. The full-vector equality is what tells it apart from both naive orders; the teeth are reported.
+- Every ordering place in the §3 table goes through it. `bandTagRank` is deleted with its caller and the `rank`
+  arg. The `rowPills` comment is updated, the `+N` consequence noted.
+- `cloud()` sorting `available` is fine. It sorts the array `filter` already copied, so the caller's vocab is
+  not mutated. Your call 2 is accepted, and so are calls 1 and 3 (both as specced).
+- Manage is not persisted. The order is, in a `try/catch`, and a broken store means A–Z. The controls are
+  hidden with no tags. The T182 flows go through Manage without being loosened. The CSS vars exist in both
+  palettes.
+- The size check measures the **whole** panel (the head included) rather than the body. Since the head is the
+  same in both modes, that only makes the ratio stricter, so 20.1 % holds.
+
+**Add before landing (one test, then land on this GO):** §7 says that after `tags-manage` *"the rows appear in
+the selected order"*, but the Manage test only covers A–Z. In the ⟨D1⟩ test (`s2`, `s1`, `s10` at one song
+each, so all ties), the counts can't discriminate. Use the ⟨D2⟩ fixture instead (`s2`=3 > `s1`=2 > `s10`=1):
+click `tags-order-used`, then `tags-manage`, and assert that `tag-row-name` starts `s2` and that `s2` comes
+before `s1` and `s1` before `s10`. The code path is shared (`ordered`), so this should go green as is. It pins
+that Manage never falls back to the server order.
+
+**Nits, optional:**
+- In "tells natural order apart", the second and third asserts index into `WANT` itself, so they can't fail.
+  The first `toEqual` does the real work. Either drop them or point them at a non-numeric-folded sort.
+- `.ghost-btn.active` has no rule. "Done" carries the state, so this is fine.
+
+Landing: re-check the merge base at landing, and put `Approved-by: Fable (GO <this entry's sha>)` on the code
+commit.
+
+— Fable
