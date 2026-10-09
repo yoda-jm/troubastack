@@ -144,6 +144,11 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         val name: String,
         val eventDate: String, // ISO yyyy-mm-dd, or "" when the concert has none
         val venue: String,     // or "" when none
+        // A83 ⟨D2⟩⟨D3⟩ — what the row's ⋯ menu needs, all from the same list call:
+        val songCount: Int = 0,          // 0 ⇒ Bake disabled ("No songs yet", Studio's empty-concert guard)
+        val lastBakedAt: Long? = null,   // unix seconds; non-null ⇒ the item reads "Re-bake"
+        val liveUntil: String? = null,   // RFC 3339; Go's zero time "0001-01-01T00:00:00Z" means off
+        val isAdmin: Boolean = false,    // the caller's role in this concert's BAND (bake / live are admin-only)
     )
 
     @Serializable private data class SetlistsResp(val setlists: List<SetlistRow> = emptyList())
@@ -152,6 +157,9 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         val name: String = "",
         val eventDate: String = "",
         val venue: String = "",
+        val songCount: Int = 0,
+        val lastBakedAt: Long? = null,
+        val liveUntil: String? = null,
     )
 
     /** A65 — the user's bands (id + name + isAdmin), for the Bands tab. /api/bands has no role, so each
@@ -166,8 +174,9 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         }.getOrDefault(emptyList())
     }
 
-    /** A65 — every concert across the user's bands, newest-dated first, undated last (a missing date must
-     *  not sort to the top of a date-ordered list — Fable's omitempty caution). */
+    /** A65/A83 — every concert across the user's bands, with what the row menu needs. The ORDER and the band
+     *  sections are decided by the pure [com.troubastack.shared.studio.groupConcerts]; the admin flag comes
+     *  from the band role, fetched ONCE per band (not per concert). */
     suspend fun fetchStudioConcerts(): List<StudioConcert> {
         val ck = cookie() ?: return emptyList()
         return runCatching {
@@ -176,15 +185,31 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
             for (b in bands) {
                 val resp = client.get("$baseUrl/api/bands/${b.id}/setlists") { header("Cookie", ck) }
                 if (!resp.status.isSuccess()) continue
-                resp.body<SetlistsResp>().setlists.forEach {
-                    out += StudioConcert(it.id, b.id, b.name, it.name, it.eventDate, it.venue)
+                val rows = resp.body<SetlistsResp>().setlists
+                if (rows.isEmpty()) continue
+                val admin = isAdminOfBand(b.id)
+                rows.forEach {
+                    out += StudioConcert(it.id, b.id, b.name, it.name, it.eventDate, it.venue,
+                        songCount = it.songCount, lastBakedAt = it.lastBakedAt, liveUntil = it.liveUntil, isAdmin = admin)
                 }
             }
-            out.sortedWith(
-                compareByDescending<StudioConcert> { it.eventDate.isNotEmpty() } // dated before undated
-                    .thenByDescending { it.eventDate },                          // newest date first
-            )
+            out
         }.getOrDefault(emptyList())
+    }
+
+    @Serializable private data class LiveReq(val live: Boolean)
+
+    /** A83 ⟨D2⟩ — arm or disarm rehearsal live mode: the SAME endpoint Studio uses (P201/T132). Admin-only on
+     *  the server; the menu only reflects that. True when the server accepted the change. */
+    suspend fun setConcertLive(bandId: String, setlistId: String, live: Boolean): Boolean {
+        val ck = cookie() ?: return false
+        return runCatching {
+            client.post("$baseUrl/api/bands/$bandId/setlists/$setlistId/live") {
+                header("Cookie", ck)
+                contentType(ContentType.Application.Json)
+                setBody(LiveReq(live))
+            }.status.isSuccess()
+        }.getOrDefault(false)
     }
 
     // A65 — invite links for the room QR. The invite LOGIC stays server-side (create/list/revoke via the

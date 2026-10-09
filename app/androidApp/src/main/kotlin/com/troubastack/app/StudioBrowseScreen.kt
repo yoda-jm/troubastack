@@ -2,6 +2,18 @@ package com.troubastack.app
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import com.troubastack.shared.studio.groupConcerts
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,8 +70,11 @@ internal fun brandTitle(product: String, accent: Color, ink: Color) = buildAnnot
  * across the user's bands, newest-dated first; Bands is the band list. A row taps straight into the
  * Studio WebView at that context ([onOpen] with the deep-link path + the band name for the frame title).
  *
- * LAUNCHERS ONLY (Fable's ruling): name/date/venue + tap-to-open, and NOTHING else — no create, rename,
- * delete or search. All authoring stays in Studio (I10); this screen only chooses what to open.
+ * LAUNCHERS, plus TWO row actions (A83). A65's ruling was "name/date/venue + tap-to-open, and NOTHING else";
+ * VLL overrode it on 2026-10-09 for exactly two concert actions, in a ⋯ menu: **Bake** (which opens Studio's
+ * OWN bake dialog through a deep link — no native bake UI, so P205's "never capture layer defaults silently"
+ * keeps one dialog in one place) and **Arm / Disarm live mode**. Create, rename, delete, search and all other
+ * authoring stay in Studio (I10). Concerts are grouped under band headers (A83 ⟨D1⟩, [groupConcerts]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,19 +114,125 @@ fun StudioBrowseScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ConcertsTab(transport: HttpTransport, onOpen: (String, String, String) -> Unit) {
-    val rows by produceState<List<HttpTransport.StudioConcert>?>(null) { value = transport.fetchStudioConcerts() }
-    ListScaffold(rows, empty = "No concerts yet") { list ->
-        items(list, key = { it.bandId + "/" + it.setlistId }) { c ->
-            LauncherRow(
-                title = c.name.ifBlank { "Untitled concert" },
-                meta = concertMeta(c),
-                onClick = { onOpen("/bands/${c.bandId}/setlists/${c.setlistId}", c.bandName, c.bandId) },
+    var refresh by remember { mutableIntStateOf(0) }
+    val rows by produceState<List<HttpTransport.StudioConcert>?>(null, refresh) { value = transport.fetchStudioConcerts() }
+    val sections = remember(rows) {
+        rows?.let { groupConcerts(it, { c -> c.bandId }, { c -> c.bandName }, { c -> c.name }, { c -> c.eventDate }) }
+    }
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf<String?>(null) } // the concert whose live toggle is in flight
+    Box(Modifier.fillMaxSize()) {
+        ListScaffold(rows, empty = "No concerts yet") { _ ->
+            sections.orEmpty().forEach { section ->
+                if (section.showHeader) {
+                    stickyHeader(key = "band-" + section.bandId) { BandHeader(section.bandName) }
+                }
+                items(section.concerts, key = { it.bandId + "/" + it.setlistId }) { c ->
+                    val live = isLive(c.liveUntil)
+                    LauncherRow(
+                        title = c.name.ifBlank { "Untitled concert" },
+                        meta = concertMeta(c),
+                        onClick = { onOpen("/bands/${c.bandId}/setlists/${c.setlistId}", c.bandName, c.bandId) },
+                        badge = if (live) ({ LiveChip() }) else null,
+                        trailing = {
+                            ConcertMenu(
+                                concert = c,
+                                live = live,
+                                busy = busy == c.setlistId,
+                                // Bake opens Studio's own dialog (T189 makes ?bake=1 open it; before T189 the link
+                                // lands on the concert page, where the Bake button is). Nothing native.
+                                onBake = { onOpen("/bands/${c.bandId}/setlists/${c.setlistId}?bake=1", c.bandName, c.bandId) },
+                                onToggleLive = {
+                                    busy = c.setlistId
+                                    scope.launch {
+                                        val ok = transport.setConcertLive(c.bandId, c.setlistId, !live)
+                                        busy = null
+                                        if (ok) refresh++ else snackbar.showSnackbar("Couldn't change live mode")
+                                    }
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+        }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+/** A83 ⟨D1⟩ — the band a run of concerts belongs to; pinned while its concerts scroll (stickyHeader). */
+@Composable
+private fun BandHeader(name: String) {
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            name.ifBlank { "Unnamed band" },
+            style = MaterialTheme.typography.titleSmall,
+            color = LocalBrandAccents.current.studio,
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 6.dp),
+        )
+    }
+}
+
+/** A83 — "Live", like Studio's live chip: rehearsal live mode is on for this concert. */
+@Composable
+private fun LiveChip() {
+    val pink = LocalBrandAccents.current.studio
+    Text(
+        "Live",
+        style = MaterialTheme.typography.labelSmall,
+        color = pink,
+        modifier = Modifier.border(1.dp, pink, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 1.dp),
+    )
+}
+
+/** A83 ⟨D2⟩⟨D3⟩ — the row's ⋯ menu. Everyone sees it; for a non-admin both items are DISABLED with the reason
+ *  ("Admins only", from the band role — never from a failed call). Built so more items can join later. */
+@Composable
+private fun ConcertMenu(concert: HttpTransport.StudioConcert, live: Boolean, busy: Boolean, onBake: () -> Unit, onToggleLive: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Text("⋯", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            val admin = concert.isAdmin
+            MenuEntry(
+                label = if (concert.lastBakedAt != null) "Re-bake" else "Bake",
+                reason = when { !admin -> "Admins only"; concert.songCount == 0 -> "No songs yet"; else -> null },
+                enabled = admin && concert.songCount > 0,
+                onClick = { open = false; onBake() },
+            )
+            MenuEntry(
+                label = if (live) "Disarm live mode" else "Arm live mode · auto-bakes for 3 h",
+                reason = if (!admin) "Admins only" else null,
+                enabled = admin && !busy,
+                onClick = { open = false; onToggleLive() },
             )
         }
     }
 }
+
+@Composable
+private fun MenuEntry(label: String, reason: String?, enabled: Boolean, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = {
+            Column {
+                Text(label)
+                if (reason != null) Text(reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        enabled = enabled,
+        onClick = onClick,
+    )
+}
+
+/** Live while `liveUntil` is in the future on the device clock; Go's zero time (year 1) and absence are off. */
+private fun isLive(liveUntil: String?): Boolean =
+    liveUntil != null && runCatching { java.time.Instant.parse(liveUntil).isAfter(java.time.Instant.now()) }.getOrDefault(false)
 
 @Composable
 private fun BandsTab(transport: HttpTransport, onOpen: (String, String, String) -> Unit, onShowQr: (String, String) -> Unit) {
@@ -142,12 +263,16 @@ private fun <T> ListScaffold(rows: List<T>?, empty: String, content: androidx.co
     }
 }
 
-/** One tappable launcher row: title + optional grey meta line, with an optional [trailing] action. */
+/** One tappable launcher row: title (+ an optional [badge] after it) + optional grey meta line, with an
+ *  optional [trailing] action. */
 @Composable
-private fun LauncherRow(title: String, meta: String, onClick: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
+private fun LauncherRow(title: String, meta: String, onClick: () -> Unit, trailing: (@Composable () -> Unit)? = null, badge: (@Composable () -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                badge?.invoke()
+            }
             if (meta.isNotEmpty()) {
                 Text(meta, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
