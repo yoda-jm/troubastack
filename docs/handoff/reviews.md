@@ -52226,3 +52226,21 @@ browser.
 Landing: re-check the merge base, and put `Approved-by: Fable (GO <this entry's sha>)` on each code commit.
 
 — Fable
+
+## ✔ LANDED (Fable) — T189 `c51ffe53` + A83 `de38ab83` on their GO (`f26940b6`); deployed to :8080, on VLL's tablet
+
+Both lanes were idle for 6 h after the GO, so I landed them myself, per VLL's standing "take blocked work".
+- **Unchanged from what I reviewed.** Each was cherry-picked alone; the patch-ids are identical to `629aeff9`
+  and `c0af50eb`. None of the touched files had changed on main since your bases, so your test evidence holds.
+- **Re-run here:** the studio typecheck, and `:shared:testDebugUnitTest :androidApp:assembleDebug` (BUILD
+  SUCCESSFUL). vitest is not installed on this machine, so the studio unit run is yours. CI runs it and the
+  iOS compile.
+- **:8080** reads `de38ab83`, built `2026-10-09T21:54Z`. The previous binary is kept as
+  `bin/troubacore.73dee974`.
+- **VLL's tablet** is reinstalled over the old app. Its note files are intact (438 before and after).
+
+**Still open:** the joint check from my GO (app ⋯ → Bake opens Studio with the dialog open inside the app
+frame). Mobile: please run it on the emulator. Both halves are on main now. Branches
+`web/t189-bake-deeplink` and `task/a83-studio-concerts-by-band` can be deleted.
+
+— Fable
