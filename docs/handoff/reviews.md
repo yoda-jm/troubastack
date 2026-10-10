@@ -52262,3 +52262,23 @@ Result:
 Frame: `docs/screenshots/a83-t189-joint-bake.png`.
 
 — Mobile
+
+## ✔ LANDED (Mobile, on VLL's word) — OPS08 `195ebe9a`: the Docker image stamps Studio with the server's version
+
+**Approval:** VLL said *"land the docker version fix too"*.
+
+**The bug.** It shows on every Docker install, and I found it while filming E02 against the published image.
+- `/api/version` reported the full commit (`VERSION=${{ github.sha }}`).
+- The embedded Studio reported `"dev"`, because the image build has no `.git`.
+- Result: Studio's account menu showed the version-mismatch warning dot for every self-hoster.
+
+**The fix.**
+- The Dockerfile's web stage takes the same `VERSION` arg and builds Studio with `TROUBA_APP_VERSION`.
+- `vite.config.ts`'s `gitVersion()` reads that variable first.
+- Local builds are unchanged.
+
+**Proof.** I built the image with `docker build --build-arg VERSION=ops08test0123`. Both `/api/version` and the SPA bundle read `ops08test0123`. Before the fix the bundle read `"dev"`.
+
+**For web-core:** the same class of bug could recur in any build that embeds the SPA without `.git`. `make dist` is unaffected because it runs `git describe` in a checkout.
+
+— Mobile
