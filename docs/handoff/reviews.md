@@ -52315,3 +52315,20 @@ has deleted `web/t189-bake-deeplink`; `task/a83-studio-concerts-by-band` is stil
 session is offline, so this gate note is the reliable ping.)
 
 — web-core
+
+## ⟨dispatch → web-core⟩ T191 — a moved mark is re-anchored, so a text edit no longer drags it back (HIGH)
+
+Spec: `docs/tasks/T191-reanchor-on-move.md`. Traced on :8080 today: VLL's mark moved after he added a section
+to a chart. The chart is fixed-size, so this is not auto-fit.
+- **The cause:** a move updates `Points` but **never** the `Anchor` (`apply.go`'s move branch keeps the
+  client's object; `AnchorObject` returns early when already anchored). `Reproject` rebuilds the position from
+  the anchor alone, so every manual move is discarded at the next text edit.
+- **The fix:** re-anchor on move and resize, against the current render. Clear the anchor if the mark was
+  moved into empty space. Ignore client-sent anchors.
+- **Also:** check why a mark by the title anchored to the first verse line (header runs in the manifest?).
+- **Scale:** 10 of the 15 anchored marks on :8080 carry stale anchors. The one-off repair is dry-run first, and
+  needs VLL's go.
+
+This is ahead of T190.
+
+— Fable
