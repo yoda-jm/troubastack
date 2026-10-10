@@ -53,8 +53,10 @@ function brandAssets(): Plugin {
 
 // T29: bake the git version into the bundle so the UI can show its own build and
 // flag a mismatch against the server's /api/version (the stale-cache detector).
-// Dev servers / builds outside a git checkout report "dev".
+// Dev servers / builds outside a git checkout report "dev". OPS08: an explicit TROUBA_APP_VERSION (the Docker
+// image build, which has no .git) wins, so the SPA carries the same version as the server it is embedded in.
 function gitVersion(): string {
+  if (process.env.TROUBA_APP_VERSION) return process.env.TROUBA_APP_VERSION;
   try {
     return execSync("git describe --always --dirty", { stdio: ["ignore", "pipe", "ignore"] })
       .toString()

@@ -27,7 +27,11 @@ COPY web/studio web/studio
 # of truth, docs/brand/dist — so that path must be in the build context (it is NOT copied otherwise).
 # Without this, `npm run build` dies at generateBundle with ENOENT on troubastudio-minimal.svg.
 COPY docs/brand/dist docs/brand/dist
-RUN cd web/studio && npm run build          # → web/studio/dist
+# OPS08: stamp the SPA with the SAME version as the server binary below. There is no .git in the build
+# context, so Vite's `git describe` fell back to "dev" while the server reported ${VERSION}, and every
+# Docker install showed Studio's "versions differ" warning dot.
+ARG VERSION=docker
+RUN cd web/studio && TROUBA_APP_VERSION="${VERSION}" npm run build          # → web/studio/dist
 # Bake overlay worker (spawned by core for setlist bakes).
 COPY web/bake/package.json web/bake/package-lock.json web/bake/
 RUN cd web/bake && npm ci
