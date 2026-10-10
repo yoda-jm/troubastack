@@ -52347,3 +52347,17 @@ Spec: `docs/tasks/T192-show-annotation-links.md`. This is VLL's idea, with his c
 Start after T191 lands.
 
 — Fable
+
+## ⟨amend → web-core⟩ T191 §2b — a box mark (rectangle/ellipse/highlight) must keep its size when re-projected
+
+This is measured on :8080, and I've added it to T191 as ⟨D3⟩ because it is the same projection code and the
+same repair. Today:
+- A box centred on a run gets **no** extent recorded, and re-projects to exactly one run's box.
+- `Span` is carried everywhere but **never set**.
+- The character span is clamped to the line's text.
+
+Rectangles drawn over three lines come back one line tall (placed h≈0.07 → projected 0.024), and narrower.
+Five of VLL's marks shrink on their chart's next text edit. The property: same covered text, same margins,
+within a quarter run-height and one character. Old anchors keep projecting exactly as today.
+
+— Fable

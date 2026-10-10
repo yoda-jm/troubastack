@@ -64,6 +64,51 @@ report which.**
 - If they are present but don't overlap horizontally, report it and leave it. After ⟨D1⟩, a re-placed mark
   re-anchors to whatever is nearest at its new position anyway.
 
+## 2b. ⟨D3⟩ A box keeps its size when it is re-projected (added 2026-10-11, measured on :8080)
+
+**Found while answering VLL "et les rectangles sur du texte, c'est lié comment ?".** A box-like mark
+(rectangle, ellipse, highlight; ≤ 2 points) re-projects to **exactly its run's box**, so it loses its own
+size:
+- **Height.** `AnchorAt` records `Offset` **only** when the mark is *beside* a run. A box whose centre is *on*
+  a run gets no offset, and `Project` then returns the run's own height. A rectangle drawn around **three
+  lines**, centred on the middle one, comes back **one line tall**.
+- **Span.** `domain.SourceAnchor.Span` (T172 R2) is carried end to end (export, sync, HTTP), but **nothing ever
+  sets it**: `AnchorAt` never records a far run.
+- **Width.** `CharStart`/`CharEnd` are clamped to the run's text, so a box drawn wider than its line comes back
+  only as wide as the text.
+
+**Measured on :8080's current data**, placed size against what the next re-projection will give:
+- three rectangles drawn over ~3 lines: placed height 0.067–0.072 → projected **0.024** (one line), and
+  width 0.33–0.38 → 0.29–0.31;
+- one rectangle over 2 lines: 0.044 → 0.024;
+- one ellipse on a tab line: 0.027 → 0.016.
+
+All of them are currently shown at their placed size, because their render hash is current. **They shrink on
+the next text edit of their chart.**
+
+**Property:** after any reflow that keeps the covered text, a box mark covers the **same text with the same
+margins**, to within a quarter of a run-height vertically and one character horizontally. In practice:
+- **Vertical:** record the vertical extent **always**, not only beside a run: top and bottom in run-heights
+  relative to the first and last covered runs. Record the far run as `Span` when the box covers more than one
+  run (the runs whose vertical centre lies inside the box). Project the top from the first run and the bottom
+  from the `Span` run, so a section that reflows taller makes the box taller with it.
+- **Horizontal:** allow the character span to extend **beyond** the run's text (a negative start, or an end
+  past its length), measured in the run's average character width. A box wider than its line keeps its
+  margin. No `RelX` in page units (domain's rule stands: a semantic measure, not a geometric one).
+- **Backward compatibility:** an anchor written before this keeps today's behaviour exactly. Presence stays
+  structural, as T172 ruled.
+- **Freehand marks** (more than 2 points) already keep their shape (`remap` scales their bbox). This section
+  is for box marks.
+
+**Acceptance (Go):**
+- A rectangle around lines 2–4 of a fixture; insert a line above it; re-project. It still covers lines 2–4's
+  text, and its height is within a quarter run-height of three lines. **Teeth:** drop the `Span`; the height
+  collapses to one line, and the test goes red.
+- A rectangle wider than its line keeps its right margin after a reflow, within one character width.
+- A pre-change anchor (no extent recorded) projects exactly as today: a byte-identical box.
+
+The §3 repair re-anchors these five marks too, from their current (correct) size, with ⟨D3⟩'s rule.
+
 ## 3. The 10 marks already carrying a stale anchor
 
 A **one-off repair**, run against VLL's :8080 data **only with his go-ahead** and with a dated `app.json` +
