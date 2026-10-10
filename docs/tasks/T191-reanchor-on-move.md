@@ -7,7 +7,7 @@ pas arriver"*.
 
 ## 1. What happened (traced on :8080, 2026-10-10)
 
-The song is a GVO song's `lyrics.txt`, a generated chart with **no** `size:`/`fit:`/`columns:` header, so the
+The song is one of VLL's real charts (`lyrics.txt`), a generated chart with **no** `size:`/`fit:`/`columns:` header, so the
 type size is fixed. Auto-size played no part. VLL added an empty `## Intro` section above the first verse.
 
 The mark is a text mark near the top of page 0. Its log (`data/songs/<song>.jsonl`) shows:
