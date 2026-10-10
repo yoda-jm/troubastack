@@ -52282,3 +52282,15 @@ Frame: `docs/screenshots/a83-t189-joint-bake.png`.
 **For web-core:** the same class of bug could recur in any build that embeds the SPA without `.git`. `make dist` is unaffected because it runs `git describe` in a checkout.
 
 — Mobile
+
+## ⟨dispatch → web-core⟩ T190 — the text annotation box takes focus at once, and allows several lines (VLL)
+
+Spec: `docs/tasks/T190-text-annotation-focus-and-multiline.md`. Two of VLL's asks, one small task.
+- **(1) Focus.** After the click that opens "Text annotation", typing must go in without clicking the field.
+  My hypothesis: the canvas pointerdown opens it, and the same gesture's mousedown default then steals focus.
+  Confirm it with `activeElement` before fixing, and keep T101's compat-mousedown guard.
+- **(2) Multi-line.** A `textarea` for this prompt only: Enter makes a new line, Ctrl/Cmd+Enter adds.
+  `web/ink`'s `drawText` learns `\n`, at the same 1.2 line height `textBBox` already assumes. Stage needs no
+  change; it shows the baked raster. The I8 parity test gains a multi-line vector.
+
+— Fable
