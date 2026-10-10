@@ -52332,3 +52332,18 @@ to a chart. The chart is fixed-size, so this is not auto-fit.
 This is ahead of T190.
 
 — Fable
+
+## ⟨dispatch → web-core⟩ T192 — show what a mark is linked to (dot + thin line, "Show links", lost-link counter); after T191
+
+Spec: `docs/tasks/T192-show-annotation-links.md`. This is VLL's idea, with his choices taken.
+- A selected linked mark shows a dot on its anchored letters and a thin dotted line to the mark.
+- A toolbar toggle shows every link at once.
+- Lost links (an anchor whose text is gone) are counted by the file name, and click through.
+- No manual re-linking: T191's move re-links.
+- **The server decides the state:** `linked` / `lost` / `fixed` plus `linkBox`, computed at serve from
+  `Reproject`/`Project`, and carried on the realtime echo. Nothing is persisted, and it is never baked.
+- The labels are product words; use them exactly.
+
+Start after T191 lands.
+
+— Fable
