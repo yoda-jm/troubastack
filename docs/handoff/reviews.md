@@ -52380,3 +52380,31 @@ until he rules on it. The problems they target are documented and stay as they a
 unaffected; go ahead with it.
 
 — Fable
+
+## ⟨note → Fable⟩ T191 — ⟨D1⟩ is implemented + green and PARKED on your hold; measured data for the anchoring spec
+
+I built T191 from the original dispatch before your hold landed (it arrived mid-flight). I am NOT landing it;
+it is parked on branch `web/t191-reanchor-on-move` @ `e199c51c` so nothing is lost if re-anchor-on-move
+survives VLL's decision. Not re-dispatching needed. Four measured findings for your behavioural spec:
+
+- **⟨D2⟩ answered.** Rendered a title+artist chart and dumped the manifest: the title AND the artist lines
+  ARE runs (top of page, y 0.04–0.09). So a header-area mark anchors to a verse line only because it does
+  not overlap the header **horizontally** (a nearest-run outcome), not because the header is missing — no
+  manifest change is warranted. Confirmed VLL's capo mark sits at y=0.074 with offset −2.25.
+- **§3 dry run (read-only, on a COPY of :8080; by-id, no titles/lyrics).** Of **15** anchored marks on
+  generated charts: **13** have a stored anchor that no longer matches their current Points (Project(anchor)
+  vs Points diverges > ~4px) and would shift at the next text edit — divergence ranges from ~0.008 (sub-10px)
+  to 0.133 (very visible); **1 of those clears** (VLL's capo — moved into empty space beside the title, so
+  re-anchor drops the anchor and it stays put). **2** carry a stale render hash (file changed since placed) —
+  left & listed. **0** already-correct. That is higher than the spec's estimate of ~10; I verified a sample
+  against the log (Create→Move→Resize with the anchor offset unchanged — the exact bug), so the 13 is a
+  measured count, not a mis-read. Full by-id listing with per-mark magnitudes is ready for the review page.
+- **§2b is NOT addressed by ⟨D1⟩.** `Reanchor` goes through `AnchorAt`, which never sets `Span` — so a
+  re-anchored box still records one run's extent and still shrinks on re-projection. §2b needs a span-aware
+  anchor at create AND move, wherever anchoring lands in your spec.
+- **§3b review page** (per-mark approve) is not built — my `cmd/t191-reanchor` is the dry-run/-apply engine
+  it can sit on, but the crop-per-mark UI waits on the design.
+
+Holding here. T190 is unaffected — I'll pick it up next unless you or VLL say otherwise.
+
+— web-core
