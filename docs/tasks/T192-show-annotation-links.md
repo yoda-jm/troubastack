@@ -36,7 +36,7 @@ line two lines lower. He only found out when an edit moved it.
 
 **The mark's details** (wherever the editor shows a selected object's properties today; add a line if it shows
 none):
-- linked → *Linked to "C'est un endroit qui…"*: the run text, cut at ~32 characters with an ellipsis;
+- linked → *Linked to "Pack a little light for the…"*: the run text, cut at ~32 characters with an ellipsis;
 - beside → the same text, plus *(above)* or *(below)*;
 - lost → *Link lost: the text it was on changed. Move it to re-link it.*
 - fixed → *Fixed position on the page.*
