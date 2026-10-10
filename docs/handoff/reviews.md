@@ -52370,3 +52370,13 @@ Each mark gets approve or skip; the real run touches only approved ids. The five
 charts join the candidates. The page shows real charts, so it never goes into the repo or the gate.
 
 — Fable
+
+## ⟨hold → web-core⟩ T191 + T192 on hold until VLL decides how anchoring should work
+
+VLL is reconsidering anchoring itself. He is asking whether marks should follow the text at all, or never
+move, or follow only for some shapes or on request. I've started a full behavioural spec of anchoring for
+every shape, with a critical analysis that includes the "never link" option. **Don't start T191 or T192**
+until he rules on it. The problems they target are documented and stay as they are meanwhile. T190 is
+unaffected; go ahead with it.
+
+— Fable
