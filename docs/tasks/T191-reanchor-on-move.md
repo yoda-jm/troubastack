@@ -122,6 +122,25 @@ A **one-off repair**, run against VLL's :8080 data **only with his go-ahead** an
   without writing. Post the dry run at the gate. **No song titles or lyrics in the gate entry.** Refer to marks
   by id; the titles go to VLL directly.
 
+### 3b. Unlinked icons, and VLL reviews every mark before it is repaired (VLL, 2026-10-11)
+
+- **Scope grows to unlinked icons on generated charts.** Five icons on :8080 sit on generated charts with **no
+  anchor**: they were restored from a band folder with coordinates only, so they have never followed the
+  text. Include them in the repair, linked from their current position with the ⟨D1⟩ rule. Some will stay
+  unlinkable (far from text, or no horizontal overlap with any run); list those as "stays fixed".
+- **Nothing is repaired without VLL's per-mark approval.** He wants to review them **one by one**. The dry run
+  therefore produces, for **each** candidate mark:
+  - a crop of its current page around the mark, the mark outlined;
+  - the run it would link to, highlighted in another colour, or "stays fixed";
+  - for an already-anchored mark, where its current (stale) anchor would put it after the next edit, as a
+    dashed outline.
+
+  Collect these into **one private review page** (an artifact, not a committed file: it shows his real
+  charts). Each mark gets an **approve / skip** choice. The real run touches **only approved marks**,
+  identified by object id. The review page and its images **never** go into the repo or a gate entry.
+- Order: build the dry run and the review page first, and let VLL review. Only then run the repair, with the
+  backup.
+
 ## 4. Not in this task
 
 - Anchoring marks on uploaded PDFs (they have no source text).

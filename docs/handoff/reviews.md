@@ -52361,3 +52361,12 @@ Five of VLL's marks shrink on their chart's next text edit. The property: same c
 within a quarter run-height and one character. Old anchors keep projecting exactly as today.
 
 — Fable
+
+## ⟨amend → web-core⟩ T191 §3b — the repair also covers unlinked icons, and VLL approves each mark one by one
+
+VLL wants to review every mark before any repair. The dry run becomes a **private review page**: per mark,
+a crop with the mark, the run it would link to (or "stays fixed"), and where a stale anchor would send it.
+Each mark gets approve or skip; the real run touches only approved ids. The five unlinked icons on generated
+charts join the candidates. The page shows real charts, so it never goes into the repo or the gate.
+
+— Fable
