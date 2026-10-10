@@ -2,11 +2,15 @@ import React from "react";
 import { AbsoluteFill, Audio, Freeze, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig, Easing } from "remotion";
 import { C, SANS } from "./theme";
 import { TitleCard, EndCard, CreditsCard, LowerThird, Callout } from "./components";
+import { Terminal, BrowserFrame, StackDiagram, RevealList } from "./scenes2";
 
 type Step = { kind: "play"; from: number; to: number; rate: number } | { kind: "hold"; at: number; seconds: number };
 type Voice = { src: string; from: number; to: number; at: number; text: string };
 type Scene = {
-  id: string; start: number; duration: number; card?: "title" | "end" | "credits";
+  id: string; start: number; duration: number; card?: "title" | "end" | "credits" | "diagram-stack" | "list";
+  term?: { events: { kind: "cmd" | "out"; text: string; at: number; typing?: number }[]; cols: number; frame: "full" | "small" };
+  frame?: { url: string }; urls?: { mark: string; path: string }[];
+  heading?: string; items?: { text: string; seg: number }[];
   voice: Voice[]; segs: [number, number][];
   take?: { src: string; timeline: Step[]; device: "tablet" | "browser" };
   marks?: Record<string, number>;
@@ -103,11 +107,29 @@ const TakeScene: React.FC<{ sc: Scene; plan: Plan }> = ({ sc, plan }) => {
       </AbsoluteFill>
     );
   }
+  if (sc.frame) {
+    return <FramedTake sc={sc} plan={plan} lower={lower} />;
+  }
   return (
     <AbsoluteFill style={{ background: "#000" }}>
       <Zoomed sc={sc} fps={fps}><Clip sc={sc} fps={fps} /></Zoomed>
       {lower}
     </AbsoluteFill>
+  );
+};
+
+/** A browser take inside a window frame whose address follows the page (the `urls` marks). */
+const FramedTake: React.FC<{ sc: Scene; plan: Plan; lower: React.ReactNode }> = ({ sc, lower }) => {
+  const f = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const t = f / fps;
+  let path = "";
+  for (const u of sc.urls ?? []) if ((sc.marks?.[u.mark] ?? Infinity) <= t) path = u.path;
+  return (
+    <>
+      <BrowserFrame url={sc.frame!.url + path}><Zoomed sc={sc} fps={fps}><Clip sc={sc} fps={fps} /></Zoomed></BrowserFrame>
+      {lower}
+    </>
   );
 };
 
@@ -151,6 +173,14 @@ export const Episode: React.FC<{ planUrl: string; plan?: Plan }> = ({ plan }) =>
           {sc.card === "end" && <EndCard next={plan.next} arc={plan.arc} len={F(sc.duration)} />}
           {sc.card === "credits" && <CreditsCard len={F(sc.duration)} />}
           {sc.take && <TakeScene sc={sc} plan={plan} />}
+          {sc.term && <Terminal events={sc.term.events} cols={sc.term.cols} small={sc.term.frame === "small"} />}
+          {sc.card === "diagram-stack" && <StackDiagram segs={sc.segs} />}
+          {sc.card === "list" && <RevealList heading={sc.heading ?? ""} items={sc.items ?? []} segs={sc.segs} arc={plan.arc} />}
+          {(sc.term || sc.card === "diagram-stack" || sc.card === "list") && sc.lower && (
+            <Sequence from={F(sc.lower.seg !== undefined ? (sc.segs[sc.lower.seg]?.[0] ?? 0) : sc.lower.at ?? 1)} durationInFrames={F(4.5)} layout="none">
+              <LowerThird text={sc.lower.text} arc={plan.arc} />
+            </Sequence>
+          )}
           {sc.voice.map((v, i) => (
             <Sequence key={i} from={F(v.at)} durationInFrames={Math.max(1, F(v.to - v.from) + 2)} layout="none">
               <Audio src={staticFile(v.src)} startFrom={F(v.from)} endAt={F(v.to) + 2} />

@@ -96,8 +96,55 @@ def main():
         narr = lines.get(sc.get("narration", ""))
         voice = []  # one entry per placed sentence: {src, from, to, at, text} — `at` in scene seconds
         segs_out = []
-        if "card" in sc:
+        if "term" in sc:
+            # TERMINAL: replay a cast — commands typed, then the real output at its rhythm (idle gaps compressed),
+            # sentences anchored to cast marks with the terminal pausing for the voice (same rule as footage)
+            cast = json.loads((takes_dir / f"{sc['term']}.cast.json").read_text())
+            anchors = {x["mark"]: x["seg"] for x in sc.get("sync", [])}
+            segs = narr["segments"] if narr else []
+            src_line = stage(out / "audio" / narr["file"], f"{sc['id']}.wav") if narr else None
+            cursor, voice_free, last_real, nxt = LEAD, LEAD, None, 0
+            events = []
+
+            def place(i, at):
+                nonlocal voice_free
+                sg = segs[i]
+                length = sg["end"] - sg["start"]
+                voice.append({"src": src_line, "from": sg["start"], "to": sg["end"], "at": round(at, 3), "text": sg["text"]})
+                segs_out.append([round(at, 3), round(at + length, 3)])
+                voice_free = at + length
+
+            for ev in cast["events"]:
+                if ev["kind"] == "mark":
+                    i = anchors.get(ev["label"])
+                    if i is not None:
+                        while nxt < i:  # unanchored sentences before this one follow each other
+                            place(nxt, voice_free + (GAP if nxt else 0)); nxt += 1
+                        start = max(cursor, voice_free + (GAP if i else 0))
+                        cursor = start  # the terminal waits for the narrator
+                        place(i, start); nxt = i + 1
+                    continue
+                if last_real is not None:
+                    cursor += min(max(0.0, ev["t"] - last_real), 1.2)  # a long wait becomes a short pause
+                last_real = ev["t"]
+                if ev["kind"] == "cmd":
+                    typing = min(2.6, 0.3 + 0.045 * len(ev["text"]))
+                    events.append({"kind": "cmd", "text": ev["text"], "at": round(cursor, 3), "typing": round(typing, 3)})
+                    cursor += typing + 0.35
+                else:
+                    events.append({"kind": "out", "text": ev["text"], "at": round(cursor, 3)})
+            while nxt < len(segs):
+                place(nxt, voice_free + (GAP if nxt else 0)); nxt += 1
+            dur = max(cursor + 1.5, voice_free + TAIL)
+            r["term"] = {"events": events, "cols": cast["cols"], "frame": sc.get("frame", "full")}
+            for key in ("lower",):
+                if key in sc:
+                    r[key] = sc[key]
+        elif "card" in sc:
             r["card"] = sc["card"]
+            for key in ("items", "heading", "lower"):
+                if key in sc:
+                    r[key] = sc[key]
             if narr:
                 src = stage(out / "audio" / narr["file"], f"{sc['id']}.wav")
                 for sg in narr["segments"]:
@@ -142,7 +189,7 @@ def main():
             dur = end
             r["take"] = {"src": stage(video, f"{sc['take']}.mp4"), "timeline": tl.items, "device": sc.get("device", "browser")}
             r["marks"] = {k: tl.out_time(v) for k, v in marks.items() if tl.out_time(v) is not None}
-            for key in ("lower", "zoom", "callouts"):
+            for key in ("lower", "zoom", "callouts", "frame", "urls"):
                 if key in sc:
                     r[key] = sc[key]
         r["voice"] = voice
@@ -155,6 +202,7 @@ def main():
     for name in ("sting", "bed", "outro"):
         stage(music / f"{name}.wav", f"{name}.wav")
     end_start = next(s["start"] for s in scenes if s.get("card") == "end")
+    first_body = next(s["start"] for s in scenes if s.get("card") != "title")
 
     # captions from the known text (never speech recognition, §3.1): plain characters every player decodes,
     # lines of at most 42 characters, at most two lines per cue, each sentence's time shared out by length
@@ -189,7 +237,7 @@ def main():
         "fps": FPS, "durationInFrames": int(round(total * FPS)), "scenes": scenes,
         "cues": [{"from": a, "to": b, "text": c} for a, b, c in cues],
         "music": {"sting": f"ep{ep}/sting.wav", "bed": f"ep{ep}/bed.wav", "outro": f"ep{ep}/outro.wav",
-                  "bedFrom": scenes[1]["start"], "bedTo": end_start, "outroAt": end_start},
+                  "bedFrom": first_body, "bedTo": end_start, "outroAt": end_start},
     }
     (pub / "edit.json").write_text(json.dumps(plan, indent=1))
 

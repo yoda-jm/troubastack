@@ -578,7 +578,7 @@ to it in the hosts file, Caddy with `tls internal`, and a recording browser prof
 >
 > **2.7** Everything this server knows lives in one place: the data volume. Songs, annotations, concerts —
 > all of it. [beat] Nothing in there can be rebuilt from anywhere else, so it is the one thing to back up.
-> Episode twelve shows how.
+> [beat] Episode twelve shows how.
 >
 > **2.8** No domain, or just trying it out on your home network? You can run the same image with a single
 > docker run command. This serves plain HTTP on port 8080 — fine for a rehearsal room, not for

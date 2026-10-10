@@ -1,0 +1,48 @@
+{
+  "id": "02",
+  "title": "Install the server",
+  "series": "TroubaStack — From rehearsal room to stage",
+  "arc": "core",
+  "next": "03 · Get the app on your tablet",
+  "scenes": [
+    { "id": "2.1", "card": "title", "seconds": 5.5 },
+    { "id": "2.2", "card": "diagram-stack", "narration": "2.2", "lower": { "text": "One program · one data folder", "seg": 1 } },
+    { "id": "2.3", "card": "list", "narration": "2.3", "heading": "You need three things",
+      "items": [
+        { "text": "A machine with Docker and its compose plugin", "seg": 1 },
+        { "text": "A domain name pointing at that machine", "seg": 2 },
+        { "text": "Ports 80 and 443 open to the internet", "seg": 3 }
+      ] },
+    { "id": "2.4", "term": "term-compose-up", "narration": "2.4",
+      "sync": [
+        { "seg": 0, "mark": "before:mkdir" },
+        { "seg": 1, "mark": "before:env" },
+        { "seg": 2, "mark": "before:up" },
+        { "seg": 4, "mark": "before:ps" }
+      ],
+      "lower": { "text": "docker compose up -d", "seg": 2 } },
+    { "id": "2.5", "take": "web-first-account", "from": "login-page", "to": "register-form", "narration": "2.5",
+      "frame": { "url": "https://band.example.org" }, "urls": [{ "mark": "login-page", "path": "/login" }],
+      "lower": { "text": "HTTPS, automatic", "seg": 0 } },
+    { "id": "2.6", "take": "web-first-account", "from": "register-form", "narration": "2.6",
+      "frame": { "url": "https://band.example.org" },
+      "urls": [{ "mark": "register-form", "path": "/register" }, { "mark": "my-bands-empty", "path": "/bands" }, { "mark": "band-overview", "path": "/bands/the-troubadours" }],
+      "sync": [
+        { "seg": 1, "mark": "register-form", "offset": 0.2 },
+        { "seg": 2, "mark": "my-bands-empty", "offset": -0.2 },
+        { "seg": 3, "mark": "band-overview", "offset": 0.3 }
+      ],
+      "lower": { "text": "The first account", "seg": 1 } },
+    { "id": "2.7", "card": "list", "narration": "2.7", "heading": "One volume is your band",
+      "items": [
+        { "text": "Songs, files, annotations, concerts, accounts", "seg": 0 },
+        { "text": "Nothing in it can be rebuilt from elsewhere", "seg": 1 },
+        { "text": "Back it up — episode 12 shows how", "seg": 2 }
+      ] },
+    { "id": "2.8", "term": "term-docker-run", "frame": "small", "narration": "2.8",
+      "sync": [ { "seg": 0, "mark": "before:pull" }, { "seg": 1, "mark": "before:run" } ],
+      "lower": { "text": "LAN only · plain HTTP", "seg": 0 } },
+    { "id": "2.9", "card": "end", "narration": "2.9", "seconds": 5.0 },
+    { "id": "credits", "card": "credits", "seconds": 5.0 }
+  ]
+}
