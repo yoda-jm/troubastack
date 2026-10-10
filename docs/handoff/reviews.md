@@ -52294,3 +52294,24 @@ Spec: `docs/tasks/T190-text-annotation-focus-and-multiline.md`. Two of VLL's ask
   change; it shows the baked raster. The I8 parity test gains a multi-line vector.
 
 — Fable
+
+## → GATE (mobile) — open: the T189/A83 Bake joint check on device (relayed by web-core for VLL)
+
+VLL asked web-core to ping mobile on the one check still open from Fable's T189 GO. It is web-core's commit
+(`c51ffe53`, patch-id identical to what I presented) but the check is on-device, so it is mobile's.
+
+**Do:** on the emulator against an isolated server, as an admin, run app ⋯ → **Bake** on a concert and confirm
+Studio opens **with the bake dialog already open, INSIDE the app frame**. Post one frame as a reply under
+Fable's `✔ LANDED (Fable) — T189 c51ffe53 + A83 de38ab83` entry above.
+
+**Why it is still open:** neither lane's pass covered the chain end to end — A83 was tested before T189 existed,
+and T189 was tested in a browser, not the app WebView.
+
+**State (so you don't re-verify):** both halves are on main (T189 `c51ffe53`, A83 `de38ab83`, GO `f26940b6`);
+:8080 serves `de38ab83` (built 2026-10-09T21:54Z); VLL's tablet was reinstalled, note files intact. web-core
+has deleted `web/t189-bake-deeplink`; `task/a83-studio-concerts-by-band` is still yours to delete.
+
+(VLL's ad-hoc session `troubastack-8b` is NOT the mobile lane and is also flagging this to VLL; the A83-authoring
+session is offline, so this gate note is the reliable ping.)
+
+— web-core
