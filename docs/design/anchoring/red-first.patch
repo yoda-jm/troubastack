@@ -1,0 +1,1167 @@
+diff --git a/core/internal/app/bandio_anchor_matrix_test.go b/core/internal/app/bandio_anchor_matrix_test.go
+new file mode 100644
+index 00000000..16cd4696
+--- /dev/null
++++ b/core/internal/app/bandio_anchor_matrix_test.go
+@@ -0,0 +1,167 @@
++package app_test
++
++// The export/import column of the annotation-anchoring matrix (see chartpdf/anchor_matrix_test.go): a band
++// folder round trip, per shape, on a GENERATED chart. P30: a linked mark comes back with the same link and
++// render hash. P31: a mark that arrives WITHOUT a link (an old folder, coordinates only) is linked on
++// import when it sits on or beside text, exactly as the HTTP import path does. Known-red cells skip unless
++// ANCHOR_RED=1.
++
++import (
++	"reflect"
++	"testing"
++
++	"troubastack/core/internal/chartpdf"
++	"troubastack/core/internal/domain"
++	"troubastack/core/internal/testutil"
++)
++
++const matrixChart = "# The Open Road\n\n## Verse 1\nG            D\nPack a little light for the road ahead\n" +
++	"Em           C\nLeave the porch light on when the sun goes down\n"
++
++// knownRedBandio: red on today's code (baseline 2026-10-11). Delete a line when its fix lands.
++var knownRedBandio = map[string][2]string{
++	"freehand/import_links_unlinked_mark":  {"P31", "import-link"},
++	"line/import_links_unlinked_mark":      {"P31", "import-link"},
++	"rect/import_links_unlinked_mark":      {"P31", "import-link"},
++	"ellipse/import_links_unlinked_mark":   {"P31", "import-link"},
++	"text/import_links_unlinked_mark":      {"P31", "import-link"},
++	"highlight/import_links_unlinked_mark": {"P31", "import-link"},
++	"icon/import_links_unlinked_mark":      {"P31", "import-link"},
++	"jump_pair/import_links_unlinked_mark": {"P31", "import-link"},
++}
++
++func TestAnchorMatrixBandio(t *testing.T) {
++	shapes := map[string]domain.ObjectType{
++		"freehand": domain.TypeFreehand, "line": domain.TypeLine, "rect": domain.TypeRect,
++		"ellipse": domain.TypeEllipse, "text": domain.TypeText, "highlight": domain.TypeHighlight,
++		"icon": domain.TypeIcon, "jump_pair": domain.TypeIcon,
++	}
++	order := []string{"freehand", "line", "rect", "ellipse", "text", "highlight", "icon", "jump_pair"}
++	for _, shape := range order {
++		for _, linked := range []bool{true, false} {
++			shape, linked := shape, linked
++			name := shape + "/export_import_round_trip"
++			if !linked {
++				name = shape + "/import_links_unlinked_mark"
++			}
++			t.Run(name, func(t *testing.T) {
++				if r, ok := knownRedBandio[name]; ok {
++					testutil.AnchorKnownRed(t, r[0], r[1])
++				}
++				runBandioCell(t, shape, shapes[shape], linked)
++			})
++		}
++	}
++}
++
++func runBandioCell(t *testing.T, shape string, typ domain.ObjectType, linked bool) {
++	src := newStack()
++	admin, err := src.svc.Register("owner", "Owner", "password123", "")
++	if err != nil {
++		t.Fatal(err)
++	}
++	band, err := src.svc.CreateBand(admin, "Demo Band")
++	if err != nil {
++		t.Fatal(err)
++	}
++	song, err := src.svc.CreateSong(admin, band.ID, "The Open Road", "Demo")
++	if err != nil {
++		t.Fatal(err)
++	}
++	f, err := src.svc.CreateTextChart(admin, band.ID, song.ID, matrixChart)
++	if err != nil {
++		t.Fatal(err)
++	}
++	apply := func(m domain.Mutation) {
++		t.Helper()
++		if _, err := src.eng.Apply(song.ID, m); err != nil {
++			t.Fatal(err)
++		}
++	}
++	apply(domain.Mutation{Kind: domain.KindLayerCreate, AuthorID: admin.ID, Layer: &domain.Layer{
++		ID: "L1", FileID: f.ID, Name: "Marks", OwnerID: domain.SharedOwner, Zone: domain.ZoneShared, Access: domain.AccessRW,
++	}})
++
++	_, anchors, err := chartpdf.RenderWithAnchors(matrixChart)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var line chartpdf.Anchor
++	for _, a := range anchors {
++		if a.Text == "Leave the porch light on when the sun goes down" {
++			line = a
++		}
++	}
++	h := line.Y1 - line.Y0
++	box := []domain.Point{{X: line.X0 + 0.05, Y: line.Y0 + 0.1*h}, {X: line.X0 + 0.15, Y: line.Y1 - 0.1*h}}
++	pts := box
++	switch shape {
++	case "text":
++		pts = box[:1]
++	case "freehand":
++		pts = []domain.Point{box[0], {X: box[1].X, Y: box[0].Y}, box[1], {X: box[0].X, Y: box[1].Y}}
++	}
++	objs := []domain.Object{{UUID: "m1", LayerID: "L1", Type: typ, Page: 0, Version: 1, OwnerID: admin.ID,
++		Points: pts, Text: map[bool]string{true: "star", false: ""}[typ == domain.TypeIcon],
++		Style: domain.Style{Color: "#e11d48", Opacity: 1, Width: 0.003, FontSize: 0.02}}}
++	if typ == domain.TypeText {
++		objs[0].Text = "softly"
++	}
++	if shape == "jump_pair" {
++		d := objs[0]
++		d.UUID = "m2"
++		objs[0].JumpTo = "m2"
++		objs = append(objs, d)
++	}
++	for i := range objs {
++		if linked {
++			objs[i] = chartpdf.AnchorObject(objs[i], anchors, f.BlobHash)
++			if objs[i].Anchor == nil {
++				t.Fatal("fixture: the mark did not link at creation")
++			}
++		}
++		o := objs[i]
++		apply(domain.Mutation{Kind: domain.KindCreate, UUID: o.UUID, AuthorID: admin.ID, Object: &o})
++	}
++
++	zipBytes, _, err := src.svc.ExportBand(admin, src.eng, band.ID)
++	if err != nil {
++		t.Fatalf("export: %v", err)
++	}
++	tgt := newStack()
++	importer, err := tgt.svc.Register("owner", "Owner", "password123", "")
++	if err != nil {
++		t.Fatal(err)
++	}
++	rep, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes, nil)
++	if err != nil {
++		t.Fatalf("import: %v", err)
++	}
++	songs, _ := tgt.repo.SongsOfBand(rep.Band.ID)
++	snap, err := tgt.eng.Head(songs[0].ID)
++	if err != nil {
++		t.Fatal(err)
++	}
++	got := map[string]domain.Object{}
++	for _, o := range snap.LiveObjects() {
++		got[o.UUID] = o
++	}
++	for _, want := range objs {
++		g, ok := got[want.UUID]
++		if !ok {
++			t.Fatalf("%s did not survive the round trip", want.UUID)
++		}
++		if linked {
++			// P30: the link and the render it was computed on come back unchanged.
++			if !reflect.DeepEqual(g.Anchor, want.Anchor) || g.PointsRenderHash != want.PointsRenderHash {
++				t.Errorf("%s: link %+v / %q after import, want %+v / %q", want.UUID, g.Anchor, g.PointsRenderHash, want.Anchor, want.PointsRenderHash)
++			}
++		} else if g.Anchor == nil {
++			// P31: a coordinates-only mark on a generated chart, sitting on a line, is linked on import.
++			t.Errorf("%s: imported onto a generated chart with no link, though it sits on a line of text", want.UUID)
++		}
++		if want.JumpTo != "" && g.JumpTo != want.JumpTo {
++			t.Errorf("%s: jump pairing lost on import (%q, want %q)", want.UUID, g.JumpTo, want.JumpTo)
++		}
++	}
++}
+diff --git a/core/internal/chartpdf/anchor_matrix_test.go b/core/internal/chartpdf/anchor_matrix_test.go
+new file mode 100644
+index 00000000..9d860fd6
+--- /dev/null
++++ b/core/internal/chartpdf/anchor_matrix_test.go
+@@ -0,0 +1,817 @@
++package chartpdf
++
++// The annotation-anchoring matrix: one subtest per (shape × event) cell, each asserting the DESIRED
++// property from the anchoring spec (P-ids in the cell table), not today's behaviour. Cells known to be red
++// on today's code are listed in knownRed and skip unless ANCHOR_RED=1 (testutil.AnchorKnownRed).
++//
++//	ANCHOR_RED=1 go test ./internal/chartpdf/ -run AnchorMatrix -v     (the full picture)
++//	go test ./internal/chartpdf/                                        (CI: known-red cells skip)
++//
++// The harness drives the PRODUCTION functions at three seams, each named SEAM below:
++//   - create  → AnchorObject (what sync/apply.go KindCreate and the import path call);
++//   - move / resize / restyle → mirrors sync/apply.go's default branch TODAY: the client's points are
++//     taken, the client's anchor and render hash ride along unchanged (no re-anchor). When T191 lands, this
++//     seam must call the new re-anchor function; the sync-level cells (anchor_matrix_sync_test.go) observe
++//     the real apply path;
++//   - a source edit or re-layout → a fresh RenderWithAnchors + Reproject (what serve and bake call).
++//
++// Fixture text is synthetic (no real song). The target line deliberately carries a typo ("lihgt") so the
++// typo cells can fix it.
++
++import (
++	"crypto/sha256"
++	"fmt"
++	"math"
++	"strings"
++	"testing"
++
++	"troubastack/core/internal/domain"
++	"troubastack/core/internal/testutil"
++)
++
++const (
++	mxT     = "Leave the porch lihgt on when the sun goes down" // the target line T (typo on purpose)
++	mxTLong = mxT + " and the town asleep"                      // fits at the default size, wraps at 16 pt
++	mxRow   = "Em           C"                                  // T's chord row
++	mxB     = "Every mile is a song we have not sung"           // last line of verse 1 (free space below)
++	mxC     = "Take me where the river bends"                   // a chorus line (jump destination)
++	mxV3    = mxB                                               // the line a moved mark is moved onto
++)
++
++func mxBody(target string) string {
++	return "## Verse 1\n" +
++		"G            D\nPack a little light for the road ahead\n" +
++		mxRow + "\n" + target + "\n" +
++		"G            D\n" + mxB + "\n\n" +
++		"## Chorus\n" +
++		"C        G\nOh the open road\n" +
++		"D            G\n" + mxC + "\n\n" +
++		"## Verse 2\n" +
++		"G            D\nMorning finds us somewhere new\n" +
++		"Em           C\nCoffee cold and the radio on\n"
++}
++
++func mxSrc(header, body string) string {
++	if header != "" {
++		header += "\n"
++	}
++	return "# The Open Road\n" + header + "\n" + body
++}
++
++func mxReplace(t *testing.T, s, old, new string) string {
++	t.Helper()
++	if !strings.Contains(s, old) {
++		t.Fatalf("fixture edit: %q not found", old)
++	}
++	return strings.Replace(s, old, new, 1)
++}
++
++// ---- frames: a line's own coordinate system (characters across, line-heights down) ----
++
++type mxFrame struct {
++	page          int
++	x0, y0, cw, h float64
++}
++
++func mxFrameOf(a Anchor) mxFrame {
++	n := float64(len([]rune(a.Text)))
++	return mxFrame{page: a.Page, x0: a.X0, y0: a.Y0, cw: (a.X1 - a.X0) / n, h: a.Y1 - a.Y0}
++}
++
++func (f mxFrame) at(ch, rel float64) domain.Point {
++	return domain.Point{X: f.x0 + ch*f.cw, Y: f.y0 + rel*f.h}
++}
++
++// mxIdent names a line by its text and source-order occurrence; prefix matches a wrapped line's first
++// visual segment.
++type mxIdent struct {
++	text   string
++	occ    int
++	prefix bool
++}
++
++func (w *mxWorld) frame(id mxIdent) (mxFrame, bool) {
++	if !id.prefix {
++		a, ok := runAt(w.anchors, id.text, id.occ)
++		return mxFrameOf(a), ok
++	}
++	seen := 0
++	for _, i := range sourceOrder(w.anchors) {
++		a := w.anchors[i]
++		if strings.HasPrefix(id.text, a.Text) && strings.HasPrefix(a.Text, "Leave the porch") {
++			seen++
++			if seen == id.occ {
++				return mxFrameOf(a), true
++			}
++		}
++	}
++	return mxFrame{}, false
++}
++
++// ---- the world: one chart's current source + render ----
++
++type mxWorld struct {
++	t       *testing.T
++	src     string
++	anchors []Anchor
++	hash    string
++}
++
++func newMxWorld(t *testing.T, src string) *mxWorld {
++	w := &mxWorld{t: t}
++	w.setSrc(src)
++	return w
++}
++
++func (w *mxWorld) setSrc(src string) {
++	w.t.Helper()
++	_, a, err := RenderWithAnchors(src)
++	if err != nil {
++		w.t.Fatalf("render: %v", err)
++	}
++	w.src, w.anchors = src, a
++	w.hash = fmt.Sprintf("%x", sha256.Sum256([]byte(src)))
++}
++
++func (w *mxWorld) must(id mxIdent) mxFrame {
++	w.t.Helper()
++	f, ok := w.frame(id)
++	if !ok {
++		w.t.Fatalf("fixture: line %q #%d not in the render", id.text, id.occ)
++	}
++	return f
++}
++
++// ---- marks ----
++
++type mxMark struct {
++	obj    domain.Object
++	placed []domain.Point // where the user put it (after any move/resize)
++	ref    mxIdent        // the line it should follow
++	keepX  bool           // margin mark: x is page-fixed, y follows the line (P4)
++	fixed  bool           // far mark: should never link (P5)
++}
++
++var mxShapes = []string{"freehand", "line", "rect", "ellipse", "text", "highlight", "icon", "jump_pair"}
++
++func loop(cx, cy, rx, ry float64, n int) []domain.Point {
++	pts := make([]domain.Point, 0, n)
++	for i := 0; i < n; i++ {
++		a := 2 * math.Pi * float64(i) / float64(n)
++		pts = append(pts, domain.Point{X: cx + rx*math.Cos(a), Y: cy + ry*math.Sin(a)})
++	}
++	return pts
++}
++
++func square(cx, cy, side float64) []domain.Point {
++	return []domain.Point{{X: cx - side/2, Y: cy - side/2}, {X: cx + side/2, Y: cy + side/2}}
++}
++
++func mxType(shape string) domain.ObjectType {
++	switch shape {
++	case "freehand":
++		return domain.TypeFreehand
++	case "line":
++		return domain.TypeLine
++	case "rect":
++		return domain.TypeRect
++	case "ellipse":
++		return domain.TypeEllipse
++	case "text":
++		return domain.TypeText
++	case "highlight":
++		return domain.TypeHighlight
++	}
++	return domain.TypeIcon
++}
++
++// build places the shape in the given variant on the world's current render. Geometry is realistic: a
++// rectangle is drawn with a margin around its line, an ellipse rings a word, a line is an arrow drawn
++// right-to-left (so a flip is visible), an icon is a stamp a little taller than the line.
++func (w *mxWorld) build(shape, variant string, tID mxIdent) []mxMark {
++	t := w.t
++	t.Helper()
++	fT := w.must(tID)
++	fB := w.must(mxIdent{mxB, 1, false})
++	fC := w.must(mxIdent{mxC, 1, false})
++	n := float64(len([]rune(tID.text)))
++	if tID.prefix {
++		n = 30
++	}
++	mk := func(pts []domain.Point, ref mxIdent) mxMark {
++		o := domain.Object{UUID: shape + "-" + variant, Type: mxType(shape), Page: w.must(ref).page,
++			Points: pts, Style: domain.Style{Color: "#e11d48", Opacity: 1, Width: 0.003, FontSize: 0.02}}
++		switch shape {
++		case "text":
++			o.Text = "softly"
++		case "icon", "jump_pair":
++			o.Text = "star"
++		}
++		cp := append([]domain.Point(nil), pts...)
++		return mxMark{obj: o, placed: cp, ref: ref}
++	}
++	bID := mxIdent{mxB, 1, false}
++	cID := mxIdent{mxC, 1, false}
++	var out []mxMark
++	switch variant {
++	case "on":
++		switch shape {
++		case "freehand":
++			c := fT.at(17.5, 0.5)
++			out = append(out, mk(loop(c.X, c.Y, 8*fT.cw, 1.0*fT.h, 24), tID))
++		case "line":
++			out = append(out, mk([]domain.Point{fT.at(30, 0.6), fT.at(5, 0.6)}, tID))
++		case "rect":
++			out = append(out, mk([]domain.Point{fT.at(-2, -0.4), fT.at(n+2, 1.4)}, tID))
++		case "ellipse":
++			out = append(out, mk([]domain.Point{fT.at(8.5, -0.5), fT.at(16.5, 1.5)}, tID))
++		case "text":
++			out = append(out, mk([]domain.Point{fT.at(20, 0.1)}, tID))
++		case "highlight":
++			out = append(out, mk([]domain.Point{fT.at(5, 0.05), fT.at(20, 0.95)}, tID))
++		case "icon":
++			c := fT.at(12, 0.5)
++			out = append(out, mk(square(c.X, c.Y, 1.6*fT.h), tID))
++		case "jump_pair":
++			c := fT.at(28, 0.5)
++			d := fC.at(10, 0.5)
++			out = append(out, mk(square(c.X, c.Y, 1.6*fT.h), tID), mk(square(d.X, d.Y, 1.6*fC.h), cID))
++		}
++	case "beside": // just under the last line of verse 1, in the gap before the chorus
++		switch shape {
++		case "freehand":
++			var p []domain.Point
++			for i := 0; i <= 12; i++ {
++				p = append(p, fB.at(2+float64(i)*28/12, 1.15+0.3*float64(i%2)))
++			}
++			out = append(out, mk(p, bID))
++		case "line":
++			out = append(out, mk([]domain.Point{fB.at(30, 1.3), fB.at(2, 1.3)}, bID))
++		case "rect":
++			out = append(out, mk([]domain.Point{fB.at(2, 1.1), fB.at(30, 1.5)}, bID))
++		case "ellipse":
++			out = append(out, mk([]domain.Point{fB.at(5, 1.1), fB.at(15, 1.5)}, bID))
++		case "text":
++			out = append(out, mk([]domain.Point{fB.at(5, 1.1)}, bID))
++		case "highlight":
++			out = append(out, mk([]domain.Point{fB.at(2, 1.05), fB.at(30, 1.45)}, bID))
++		case "icon":
++			c := fB.at(10, 1.35)
++			out = append(out, mk(square(c.X, c.Y, 0.5*fB.h), bID))
++		case "jump_pair":
++			c := fB.at(10, 1.35)
++			d := fC.at(10, 1.35)
++			out = append(out, mk(square(c.X, c.Y, 0.5*fB.h), bID), mk(square(d.X, d.Y, 0.5*fC.h), cID))
++		}
++	case "margin": // right of every line's text, level with T (where VLL's margin icons sit)
++		y := func(f mxFrame, rel float64) float64 { return f.y0 + rel*f.h }
++		var m []mxMark
++		switch shape {
++		case "freehand":
++			m = append(m, mk(loop(0.87, y(fT, 0.5), 0.03, 0.8*fT.h, 24), tID))
++		case "line":
++			m = append(m, mk([]domain.Point{{X: 0.85, Y: y(fT, -0.5)}, {X: 0.85, Y: y(fT, 1.5)}}, tID))
++		case "rect", "ellipse":
++			m = append(m, mk([]domain.Point{{X: 0.84, Y: y(fT, -0.2)}, {X: 0.90, Y: y(fT, 1.2)}}, tID))
++		case "text":
++			m = append(m, mk([]domain.Point{{X: 0.84, Y: y(fT, 0.1)}}, tID))
++		case "highlight":
++			m = append(m, mk([]domain.Point{{X: 0.84, Y: y(fT, 0)}, {X: 0.90, Y: y(fT, 1)}}, tID))
++		case "icon":
++			m = append(m, mk(square(0.87, y(fT, 0.5), 1.2*fT.h), tID))
++		case "jump_pair":
++			m = append(m, mk(square(0.87, y(fT, 0.5), 1.2*fT.h), tID), mk(square(0.87, y(fC, 0.5), 1.2*fC.h), cID))
++		}
++		for i := range m {
++			m[i].keepX = true
++		}
++		out = m
++	case "far": // the blank lower half of the page
++		var m []mxMark
++		switch shape {
++		case "freehand":
++			m = append(m, mk(loop(0.4, 0.68, 0.08, 0.02, 24), tID))
++		case "line":
++			m = append(m, mk([]domain.Point{{X: 0.5, Y: 0.68}, {X: 0.3, Y: 0.7}}, tID))
++		case "rect", "ellipse", "highlight":
++			m = append(m, mk([]domain.Point{{X: 0.3, Y: 0.66}, {X: 0.5, Y: 0.70}}, tID))
++		case "text":
++			m = append(m, mk([]domain.Point{{X: 0.3, Y: 0.66}}, tID))
++		case "icon":
++			m = append(m, mk(square(0.4, 0.68, 0.03), tID))
++		case "jump_pair":
++			m = append(m, mk(square(0.4, 0.68, 0.03), tID), mk(square(0.6, 0.68, 0.03), cID))
++		}
++		for i := range m {
++			m[i].fixed = true
++			m[i].obj.Page = 0
++		}
++		out = m
++	case "multi": // covers T's chord row, T, the next chord row and the next lyric (mxB)
++		row := w.must(mxIdent{mxRow, 1, false})
++		top := row.y0 - 0.1*row.h
++		bot := fB.y0 + 1.1*fB.h
++		x0, x1 := fT.at(2, 0).X, fT.at(30, 0).X
++		var pts []domain.Point
++		switch shape {
++		case "freehand":
++			pts = loop((x0+x1)/2, (top+bot)/2, (x1-x0)/2, (bot-top)/2, 24)
++		case "line":
++			pts = []domain.Point{{X: x1, Y: top}, {X: x0, Y: bot}}
++		case "rect", "ellipse", "highlight":
++			pts = []domain.Point{{X: x0, Y: top}, {X: x1, Y: bot}}
++		default:
++			return nil
++		}
++		// Rigid follow (P12, a DECISION): a multi-line mark follows the TOPMOST line it covers and never
++		// stretches; if the lines inside it move apart, it is flagged rather than reshaped.
++		out = append(out, mk(pts, mxIdent{mxRow, 1, false}))
++	}
++	if shape == "jump_pair" && len(out) == 2 {
++		out[0].obj.UUID, out[1].obj.UUID = "jump-src", "jump-dst"
++		out[0].obj.JumpTo = "jump-dst"
++	}
++	return out
++}
++
++// ---- expectations ----
++
++func mapPt(p domain.Point, from, to mxFrame, keepX bool) domain.Point {
++	x := to.x0 + (p.X-from.x0)/from.cw*to.cw
++	if keepX {
++		x = p.X
++	}
++	return domain.Point{X: x, Y: to.y0 + (p.Y-from.y0)/from.h*to.h}
++}
++
++// expected maps a mark's placed points from its line's frame in the old render to the same line's frame
++// in the new one: a rigid move with the line, scaled only by a type-size change (P8, P9). A multi-line mark
++// is referenced to its topmost line, so the same map applies (P12).
++func expected(m mxMark, old, cur *mxWorld, oldRef, newRef mxIdent) ([]domain.Point, mxFrame) {
++	f, g := old.must(oldRef), cur.must(newRef)
++	out := make([]domain.Point, len(m.placed))
++	for i, p := range m.placed {
++		out[i] = mapPt(p, f, g, m.keepX)
++	}
++	return out, g
++}
++
++type mxTol struct{ x, y float64 }
++
++func lineTol(g mxFrame) mxTol { return mxTol{x: g.cw, y: 0.25 * g.h} }
++
++// checkGeom compares a mark to its expected points, per shape: a line and a freehand point by point IN
++// ORDER (direction and stroke order matter, P10); boxes by their bounds; text by its anchor point; an icon
++// by its bounds AND its size (P11).
++func checkGeom(t *testing.T, shape string, got domain.Object, want []domain.Point, wantPage int, tol mxTol, keepX bool) {
++	t.Helper()
++	tx := tol.x
++	if keepX {
++		tx = 0.002
++	}
++	if got.Page != wantPage {
++		t.Errorf("%s: on page %d, want page %d", got.UUID, got.Page, wantPage)
++		return
++	}
++	near := func(a, b domain.Point) bool { return math.Abs(a.X-b.X) <= tx && math.Abs(a.Y-b.Y) <= tol.y }
++	switch shape {
++	case "line", "freehand":
++		if len(got.Points) != len(want) {
++			t.Errorf("%s: %d points, want %d", got.UUID, len(got.Points), len(want))
++			return
++		}
++		for i := range want {
++			if !near(got.Points[i], want[i]) {
++				t.Errorf("%s: point %d at (%.4f,%.4f), want (%.4f,%.4f) ±(%.4f,%.4f)", got.UUID, i,
++					got.Points[i].X, got.Points[i].Y, want[i].X, want[i].Y, tx, tol.y)
++				return
++			}
++		}
++	case "text":
++		if len(got.Points) == 0 || !near(got.Points[0], want[0]) {
++			t.Errorf("%s: anchor point %v, want %v", got.UUID, got.Points, want[0])
++		}
++	default:
++		gx0, gy0, gx1, gy1 := boundsOf(got.Points)
++		wx0, wy0, wx1, wy1 := boundsOf(want)
++		if math.Abs(gx0-wx0) > tx || math.Abs(gx1-wx1) > tx || math.Abs(gy0-wy0) > tol.y || math.Abs(gy1-wy1) > tol.y {
++			t.Errorf("%s: box x[%.4f,%.4f] y[%.4f,%.4f], want x[%.4f,%.4f] y[%.4f,%.4f] ±(%.4f,%.4f)", got.UUID,
++				gx0, gx1, gy0, gy1, wx0, wx1, wy0, wy1, tx, tol.y)
++			return
++		}
++		if shape == "icon" || shape == "jump_pair" {
++			gs, ws := math.Min(gx1-gx0, gy1-gy0), math.Min(wx1-wx0, wy1-wy0)
++			if math.Abs(gs-ws) > 0.1*ws {
++				t.Errorf("%s: icon drawn at size %.4f, want %.4f ±10%%", got.UUID, gs, ws)
++			}
++		}
++	}
++}
++
++// status is what T192 would show, computed from today's data: fixed (no link), linked (a link resolved on
++// the current render), lost (a link whose text is gone: its cache stays stale).
++func status(o domain.Object, w *mxWorld) string {
++	switch {
++	case o.Anchor == nil:
++		return "fixed"
++	case o.PointsRenderHash == w.hash:
++		return "linked"
++	}
++	return "lost"
++}
++
++// ---- events ----
++
++type mxEvent struct {
++	name   string
++	props  string
++	vari   string                              // fixture variant
++	base   func(t *testing.T) string           // source before; nil = the default chart
++	target mxIdent                             // the line T as named in base
++	pre    string                              // "", "move", "resize", "restyle"
++	edit   func(t *testing.T, s string) string // the source change; nil = create-only cell
++	after  func(id mxIdent) mxIdent            // how the followed line is named afterwards
++	expect string                              // linked | fixed | follow | exact | lost | transpose
++	multi  bool                                // only for shapes with a multi-line form
++}
++
++var tID = mxIdent{mxT, 1, false}
++
++func insertAbove(t *testing.T, s string) string {
++	return mxReplace(t, s, "## Verse 1\n", "## Verse 1\nHold the map up to the light\n")
++}
++
++func mxHeader(h string) func(t *testing.T, s string) string {
++	return func(t *testing.T, s string) string {
++		return mxReplace(t, s, "# The Open Road\n", "# The Open Road\n"+h+"\n")
++	}
++}
++
++var mxEvents = []mxEvent{
++	{name: "create_on_run", props: "P2", vari: "on", expect: "linked"},
++	{name: "create_beside_run", props: "P3", vari: "beside", expect: "linked"},
++	{name: "create_margin", props: "P4", vari: "margin", expect: "linked"},
++	{name: "create_far", props: "P5", vari: "far", expect: "fixed"},
++	{name: "move_then_edit", props: "P23 P8", vari: "on", pre: "move", edit: insertAbove, expect: "follow"},
++	{name: "resize_then_edit", props: "P24 P8", vari: "on", pre: "resize", edit: insertAbove, expect: "follow"},
++	{name: "restyle_then_edit", props: "P25 P8", vari: "on", pre: "restyle", edit: insertAbove, expect: "follow"},
++	{name: "edit_unrelated_line", props: "P13", vari: "on", expect: "exact",
++		edit: func(t *testing.T, s string) string {
++			return mxReplace(t, s, "Pack a little light", "Pack a little lamp")
++		}},
++	{name: "insert_line_above", props: "P8", vari: "on", edit: insertAbove, expect: "follow"},
++	{name: "delete_line_above", props: "P8", vari: "on", expect: "follow",
++		edit: func(t *testing.T, s string) string {
++			return mxReplace(t, s, "G            D\nPack a little light for the road ahead\n", "")
++		}},
++	{name: "section_added_above", props: "P8", vari: "on", expect: "follow",
++		edit: func(t *testing.T, s string) string {
++			return mxReplace(t, s, "## Verse 1\n", "## Intro\nG  D  G  D\n\n## Verse 1\n")
++		}},
++	{name: "typo_linked_line", props: "P19", vari: "on", expect: "follow",
++		edit:  func(t *testing.T, s string) string { return mxReplace(t, s, "lihgt", "light") },
++		after: func(id mxIdent) mxIdent { id.text = strings.Replace(id.text, "lihgt", "light", 1); return id }},
++	{name: "typo_then_edit", props: "P19 P8", vari: "on", expect: "follow",
++		edit: func(t *testing.T, s string) string {
++			return insertAbove(t, mxReplace(t, s, "lihgt", "light"))
++		},
++		after: func(id mxIdent) mxIdent { id.text = strings.Replace(id.text, "lihgt", "light", 1); return id }},
++	{name: "delete_linked_line", props: "P20", vari: "on", expect: "lost",
++		edit: func(t *testing.T, s string) string { return mxReplace(t, s, mxRow+"\n"+mxT+"\n", "") }},
++	{name: "duplicate_inserted_before", props: "P14", vari: "on", expect: "follow",
++		edit: func(t *testing.T, s string) string {
++			return mxReplace(t, s, "## Verse 1\n", "## Verse 1\n"+mxRow+"\n"+mxT+"\n")
++		},
++		after: func(id mxIdent) mxIdent { id.occ++; return id }},
++	{name: "multiline_reflow", props: "P6 P7 P8", vari: "multi", edit: insertAbove, expect: "follow", multi: true},
++	{name: "multiline_insert_inside", props: "P12", vari: "multi", expect: "follow", multi: true,
++		edit: func(t *testing.T, s string) string {
++			return mxReplace(t, s, mxT+"\n", mxT+"\nAnd the dog asleep beside the door\n")
++		}},
++	{name: "size_change", props: "P9", vari: "on", edit: mxHeader("size: 16"), expect: "follow"},
++	{name: "fit_change", props: "P9", vari: "on", edit: mxHeader("fit: page"), expect: "follow"},
++	{name: "columns_change", props: "P16 P15", vari: "on", edit: mxHeader("columns: 2"), expect: "follow",
++		// two columns narrow the measure, so T wraps: follow its first visual segment
++		after: func(id mxIdent) mxIdent { id.prefix = true; return id }},
++	{name: "size_change_wrapped_line", props: "P15", vari: "on", edit: mxHeader("size: 16"), expect: "follow",
++		base:   func(t *testing.T) string { return mxSrc("", mxBody(mxTLong)) },
++		target: mxIdent{mxTLong, 1, false},
++		after:  func(id mxIdent) mxIdent { return mxIdent{mxTLong, 1, true} }},
++	{name: "transpose_bake", props: "P18", vari: "on", expect: "transpose"},
++	{name: "page_count_shrink", props: "P17 P29", vari: "on", expect: "follow",
++		base: func(t *testing.T) string {
++			return mxReplace(t, mxSrc("", mxBody(mxT)), mxRow+"\n"+mxT, "{np}\n"+mxRow+"\n"+mxT)
++		},
++		edit: func(t *testing.T, s string) string { return mxReplace(t, s, "{np}\n", "") }},
++	{name: "beside_then_edit", props: "P3 P8", vari: "beside", edit: insertAbove, expect: "follow"},
++	{name: "margin_then_edit", props: "P4 P8", vari: "margin", edit: insertAbove, expect: "follow"},
++	{name: "far_then_edit", props: "P5", vari: "far", edit: insertAbove, expect: "exact"},
++}
++
++// knownRed: the cells that fail on today's code (baseline 2026-10-11, see red-first-baseline.md), as
++// {properties, the work expected to fix it}. Delete a line when its fix lands; the cell then runs in CI.
++// Fix labels: T191 (re-link on move/resize), T191-D3 (record the full extent + span), shape-rules (line
++// direction, fixed-size stamps and text), line-identity (follow a source LINE through edits, duplicates
++// and re-wrapping, not a text+occurrence), margin-link (margin marks follow the line they are level with:
++// a DECISION for VLL).
++var knownRed = map[string][2]string{
++	"freehand/create_margin":              {"P4", "margin-link"},
++	"freehand/move_then_edit":             {"P23 P8", "T191"},
++	"freehand/resize_then_edit":           {"P24 P8", "T191"},
++	"freehand/restyle_then_edit":          {"P25 P8", "T191-D3"},
++	"freehand/edit_unrelated_line":        {"P13", "T191-D3"},
++	"freehand/insert_line_above":          {"P8", "T191-D3"},
++	"freehand/delete_line_above":          {"P8", "T191-D3"},
++	"freehand/section_added_above":        {"P8", "T191-D3"},
++	"freehand/typo_linked_line":           {"P19", "line-identity"},
++	"freehand/typo_then_edit":             {"P19 P8", "line-identity"},
++	"freehand/duplicate_inserted_before":  {"P14", "line-identity"},
++	"freehand/size_change":                {"P9", "T191-D3"},
++	"freehand/fit_change":                 {"P9", "T191-D3"},
++	"freehand/columns_change":             {"P16 P15", "line-identity"},
++	"freehand/size_change_wrapped_line":   {"P15", "line-identity"},
++	"freehand/page_count_shrink":          {"P17 P29", "T191-D3"},
++	"freehand/margin_then_edit":           {"P4 P8", "margin-link"},
++	"line/create_margin":                  {"P4 P10", "margin-link"},
++	"line/move_then_edit":                 {"P23 P8 P10", "T191"},
++	"line/resize_then_edit":               {"P24 P8 P10", "T191"},
++	"line/restyle_then_edit":              {"P25 P8 P10", "shape-rules"},
++	"line/edit_unrelated_line":            {"P13 P10", "shape-rules"},
++	"line/insert_line_above":              {"P8 P10", "shape-rules"},
++	"line/delete_line_above":              {"P8 P10", "shape-rules"},
++	"line/section_added_above":            {"P8 P10", "shape-rules"},
++	"line/typo_linked_line":               {"P19 P10", "line-identity"},
++	"line/typo_then_edit":                 {"P19 P8 P10", "line-identity"},
++	"line/duplicate_inserted_before":      {"P14 P10", "line-identity"},
++	"line/multiline_reflow":               {"P6 P7 P8 P10", "shape-rules"},
++	"line/multiline_insert_inside":        {"P12 P10", "shape-rules"},
++	"line/size_change":                    {"P9 P10", "shape-rules"},
++	"line/fit_change":                     {"P9 P10", "shape-rules"},
++	"line/columns_change":                 {"P16 P15 P10", "line-identity"},
++	"line/size_change_wrapped_line":       {"P15 P10", "line-identity"},
++	"line/page_count_shrink":              {"P17 P29 P10", "shape-rules"},
++	"line/beside_then_edit":               {"P3 P8 P10", "shape-rules"},
++	"line/margin_then_edit":               {"P4 P8 P10", "margin-link"},
++	"rect/create_margin":                  {"P4", "margin-link"},
++	"rect/move_then_edit":                 {"P23 P8", "T191"},
++	"rect/resize_then_edit":               {"P24 P8", "T191"},
++	"rect/restyle_then_edit":              {"P25 P8", "T191-D3"},
++	"rect/edit_unrelated_line":            {"P13", "T191-D3"},
++	"rect/insert_line_above":              {"P8", "T191-D3"},
++	"rect/delete_line_above":              {"P8", "T191-D3"},
++	"rect/section_added_above":            {"P8", "T191-D3"},
++	"rect/typo_linked_line":               {"P19", "line-identity"},
++	"rect/typo_then_edit":                 {"P19 P8", "line-identity"},
++	"rect/duplicate_inserted_before":      {"P14", "line-identity"},
++	"rect/size_change":                    {"P9", "T191-D3"},
++	"rect/fit_change":                     {"P9", "T191-D3"},
++	"rect/columns_change":                 {"P16 P15", "line-identity"},
++	"rect/size_change_wrapped_line":       {"P15", "line-identity"},
++	"rect/page_count_shrink":              {"P17 P29", "T191-D3"},
++	"rect/margin_then_edit":               {"P4 P8", "margin-link"},
++	"ellipse/create_margin":               {"P4", "margin-link"},
++	"ellipse/move_then_edit":              {"P23 P8", "T191"},
++	"ellipse/resize_then_edit":            {"P24 P8", "T191"},
++	"ellipse/restyle_then_edit":           {"P25 P8", "T191-D3"},
++	"ellipse/edit_unrelated_line":         {"P13", "T191-D3"},
++	"ellipse/insert_line_above":           {"P8", "T191-D3"},
++	"ellipse/delete_line_above":           {"P8", "T191-D3"},
++	"ellipse/section_added_above":         {"P8", "T191-D3"},
++	"ellipse/typo_linked_line":            {"P19", "line-identity"},
++	"ellipse/typo_then_edit":              {"P19 P8", "line-identity"},
++	"ellipse/duplicate_inserted_before":   {"P14", "line-identity"},
++	"ellipse/size_change":                 {"P9", "T191-D3"},
++	"ellipse/fit_change":                  {"P9", "T191-D3"},
++	"ellipse/columns_change":              {"P16 P15", "line-identity"},
++	"ellipse/size_change_wrapped_line":    {"P15", "line-identity"},
++	"ellipse/page_count_shrink":           {"P17 P29", "T191-D3"},
++	"ellipse/margin_then_edit":            {"P4 P8", "margin-link"},
++	"text/create_margin":                  {"P4 P11", "margin-link"},
++	"text/move_then_edit":                 {"P23 P8 P11", "T191"},
++	"text/edit_unrelated_line":            {"P13 P11", "shape-rules"},
++	"text/typo_linked_line":               {"P19 P11", "line-identity"},
++	"text/typo_then_edit":                 {"P19 P8 P11", "line-identity"},
++	"text/duplicate_inserted_before":      {"P14 P11", "line-identity"},
++	"text/columns_change":                 {"P16 P15 P11", "line-identity"},
++	"text/size_change_wrapped_line":       {"P15 P11", "line-identity"},
++	"text/margin_then_edit":               {"P4 P8 P11", "margin-link"},
++	"highlight/create_margin":             {"P4", "margin-link"},
++	"highlight/move_then_edit":            {"P23 P8", "T191"},
++	"highlight/resize_then_edit":          {"P24 P8", "T191"},
++	"highlight/typo_linked_line":          {"P19", "line-identity"},
++	"highlight/typo_then_edit":            {"P19 P8", "line-identity"},
++	"highlight/duplicate_inserted_before": {"P14", "line-identity"},
++	"highlight/columns_change":            {"P16 P15", "line-identity"},
++	"highlight/size_change_wrapped_line":  {"P15", "line-identity"},
++	"highlight/margin_then_edit":          {"P4 P8", "margin-link"},
++	"icon/create_margin":                  {"P4 P11", "margin-link"},
++	"icon/move_then_edit":                 {"P23 P8 P11", "T191"},
++	"icon/resize_then_edit":               {"P24 P8 P11", "T191"},
++	"icon/restyle_then_edit":              {"P25 P8 P11", "shape-rules"},
++	"icon/edit_unrelated_line":            {"P13 P11", "shape-rules"},
++	"icon/insert_line_above":              {"P8 P11", "shape-rules"},
++	"icon/delete_line_above":              {"P8 P11", "shape-rules"},
++	"icon/section_added_above":            {"P8 P11", "shape-rules"},
++	"icon/typo_linked_line":               {"P19 P11", "line-identity"},
++	"icon/typo_then_edit":                 {"P19 P8 P11", "line-identity"},
++	"icon/duplicate_inserted_before":      {"P14 P11", "line-identity"},
++	"icon/size_change":                    {"P9 P11", "shape-rules"},
++	"icon/fit_change":                     {"P9 P11", "shape-rules"},
++	"icon/columns_change":                 {"P16 P15 P11", "line-identity"},
++	"icon/size_change_wrapped_line":       {"P15 P11", "line-identity"},
++	"icon/page_count_shrink":              {"P17 P29 P11", "shape-rules"},
++	"icon/beside_then_edit":               {"P3 P8 P11", "shape-rules"},
++	"icon/margin_then_edit":               {"P4 P8 P11", "margin-link"},
++	"jump_pair/create_margin":             {"P4 P11 P28", "margin-link"},
++	"jump_pair/move_then_edit":            {"P23 P8 P11 P28", "T191"},
++	"jump_pair/resize_then_edit":          {"P24 P8 P11 P28", "T191"},
++	"jump_pair/restyle_then_edit":         {"P25 P8 P11 P28", "shape-rules"},
++	"jump_pair/edit_unrelated_line":       {"P13 P11 P28", "shape-rules"},
++	"jump_pair/insert_line_above":         {"P8 P11 P28", "shape-rules"},
++	"jump_pair/delete_line_above":         {"P8 P11 P28", "shape-rules"},
++	"jump_pair/section_added_above":       {"P8 P11 P28", "shape-rules"},
++	"jump_pair/typo_linked_line":          {"P19 P11 P28", "line-identity"},
++	"jump_pair/typo_then_edit":            {"P19 P8 P11 P28", "line-identity"},
++	"jump_pair/delete_linked_line":        {"P20 P11 P28", "shape-rules"},
++	"jump_pair/duplicate_inserted_before": {"P14 P11 P28", "line-identity"},
++	"jump_pair/size_change":               {"P9 P11 P28", "shape-rules"},
++	"jump_pair/fit_change":                {"P9 P11 P28", "shape-rules"},
++	"jump_pair/columns_change":            {"P16 P15 P11 P28", "line-identity"},
++	"jump_pair/size_change_wrapped_line":  {"P15 P11 P28", "line-identity"},
++	"jump_pair/page_count_shrink":         {"P17 P29 P11 P28", "shape-rules"},
++	"jump_pair/beside_then_edit":          {"P3 P8 P11 P28", "shape-rules"},
++	"jump_pair/margin_then_edit":          {"P4 P8 P11 P28", "margin-link"},
++}
++
++func TestAnchorMatrix(t *testing.T) {
++	for _, shape := range mxShapes {
++		for _, ev := range mxEvents {
++			shape, ev := shape, ev
++			if ev.multi && (shape == "icon" || shape == "text" || shape == "jump_pair") {
++				continue // N/A: a stamp or a text label has no multi-line form
++			}
++			t.Run(shape+"/"+ev.name, func(t *testing.T) {
++				if r, ok := knownRed[shape+"/"+ev.name]; ok {
++					testutil.AnchorKnownRed(t, r[0], r[1])
++				}
++				runCell(t, shape, ev)
++			})
++		}
++	}
++}
++
++func runCell(t *testing.T, shape string, ev mxEvent) {
++	src := mxSrc("", mxBody(mxT))
++	if ev.base != nil {
++		src = ev.base(t)
++	}
++	target := tID
++	if ev.target.text != "" {
++		target = ev.target
++	}
++	w := newMxWorld(t, src)
++	if ev.name == "size_change_wrapped_line" { // precondition: the line is one run now and wraps at 16 pt
++		if _, ok := runAt(w.anchors, mxTLong, 1); !ok {
++			t.Fatal("fixture: the long line already wraps at the default size")
++		}
++	}
++	if ev.name == "page_count_shrink" && w.must(target).page != 1 {
++		t.Fatal("fixture: the target line is not on page 2")
++	}
++	marks := w.build(shape, ev.vari, target)
++	if len(marks) == 0 {
++		t.Skip("N/A")
++	}
++
++	// SEAM create: what sync/apply.go KindCreate (via httpapi.chartAnchorer) and the import path call.
++	objs := make([]domain.Object, len(marks))
++	for i, m := range marks {
++		objs[i] = AnchorObject(m.obj, w.anchors, w.hash)
++	}
++
++	switch ev.expect {
++	case "linked":
++		for i, m := range marks {
++			wantRef := m.ref
++			a := objs[i].Anchor
++			if a == nil {
++				t.Errorf("%s: not linked at creation, want linked to %q", objs[i].UUID, wantRef.text)
++				continue
++			}
++			if a.RunText != wantRef.text || a.Occurrence != wantRef.occ {
++				t.Errorf("%s: linked to %q #%d, want %q #%d", objs[i].UUID, a.RunText, a.Occurrence, wantRef.text, wantRef.occ)
++			}
++		}
++		return
++	case "fixed":
++		for _, o := range objs {
++			if o.Anchor != nil {
++				t.Errorf("%s: linked to %q, want fixed (no text within reach)", o.UUID, o.Anchor.RunText)
++			}
++		}
++		return
++	}
++
++	// SEAM move/resize/restyle: today's sync/apply.go default branch takes the client object as is — the
++	// new points, the OLD anchor, the current render hash. T191 replaces this with a re-anchor.
++	for i := range marks {
++		switch ev.pre {
++		case "move":
++			from, to := w.must(marks[i].ref), w.must(mxIdent{mxV3, 1, false})
++			if marks[i].ref.text == mxC { // the jump destination stays put
++				continue
++			}
++			dy := to.y0 - from.y0
++			for j := range objs[i].Points {
++				objs[i].Points[j].Y += dy
++				marks[i].placed[j].Y += dy
++			}
++			marks[i].ref = mxIdent{mxV3, 1, false}
++			objs[i].PointsRenderHash = w.hash
++		case "resize":
++			x0, y0, _, _ := boundsOf(objs[i].Points)
++			for j := range objs[i].Points {
++				p := &objs[i].Points[j]
++				p.X, p.Y = x0+(p.X-x0)*1.5, y0+(p.Y-y0)*1.5
++				marks[i].placed[j] = *p
++			}
++			objs[i].PointsRenderHash = w.hash
++		case "restyle":
++			objs[i].Style.Color = "#2563eb"
++		}
++	}
++
++	old := &mxWorld{t: t, src: w.src, anchors: w.anchors, hash: w.hash}
++	if ev.expect == "transpose" {
++		// The bake: marks are projected against the STORED (untransposed) render, then composited on the
++		// transposed raster. P18: every mark sits on the same words of the transposed page.
++		from, _ := ParseKey("G")
++		to, _ := ParseKey("A")
++		tr, err := TransposeToKey(w.src, "A", from, to)
++		if err != nil {
++			t.Fatal(err)
++		}
++		out, _ := Reproject(objs, w.anchors, w.hash) // current hash: a no-op, as in stageFile
++		cur := newMxWorld(t, tr)
++		for i, m := range marks {
++			want, g := expected(m, old, cur, m.ref, m.ref)
++			checkGeom(t, shape, out[i], want, g.page, mxTol{0.001, 0.001}, false)
++		}
++		return
++	}
++
++	// SEAM edit: a source change re-renders the chart; serve and bake call Reproject.
++	w.setSrc(ev.edit(t, w.src))
++	out, _ := Reproject(objs, w.anchors, w.hash)
++
++	for i, m := range marks {
++		o := out[i]
++		expect := ev.expect
++		if expect == "lost" && m.ref.text != target.text {
++			expect = "follow" // a jump destination on another line: its line survives
++		}
++		switch expect {
++		case "lost":
++			if st := status(o, w); st != "lost" {
++				t.Errorf("%s: status %s, want lost (its line was deleted)", o.UUID, st)
++			}
++			for j := range m.placed {
++				if o.Points[j] != m.placed[j] {
++					t.Errorf("%s: a lost mark moved (point %d %v → %v); it must stay where it was", o.UUID, j, m.placed[j], o.Points[j])
++					break
++				}
++			}
++		case "exact":
++			if m.fixed {
++				if o.Anchor != nil {
++					t.Errorf("%s: a far mark is linked to %q", o.UUID, o.Anchor.RunText)
++				}
++				for j := range m.placed {
++					if o.Points[j] != m.placed[j] {
++						t.Errorf("%s: a fixed mark moved", o.UUID)
++						break
++					}
++				}
++				continue
++			}
++			want, g := expected(m, old, w, m.ref, m.ref)
++			checkGeom(t, shape, o, want, g.page, mxTol{0.001, 0.001}, m.keepX)
++		case "follow":
++			newRef := m.ref
++			if ev.after != nil && m.ref.text != mxC && m.ref.text != mxB {
++				newRef = ev.after(m.ref)
++			}
++			if _, ok := w.frame(newRef); !ok {
++				t.Fatalf("fixture: followed line %q #%d missing after the edit", newRef.text, newRef.occ)
++			}
++			if st := status(o, w); st != "linked" {
++				t.Errorf("%s: status %s after the edit, want linked", o.UUID, st)
++			}
++			want, g := expected(m, old, w, m.ref, newRef)
++			checkGeom(t, shape, o, want, g.page, lineTol(g), m.keepX)
++		}
++	}
++	if shape == "jump_pair" && (len(out) != 2 || out[0].JumpTo != out[1].UUID) {
++		t.Errorf("jump pairing lost: source JumpTo=%q", out[0].JumpTo)
++	}
++}
+diff --git a/core/internal/sync/anchor_matrix_sync_test.go b/core/internal/sync/anchor_matrix_sync_test.go
+new file mode 100644
+index 00000000..091008bd
+--- /dev/null
++++ b/core/internal/sync/anchor_matrix_sync_test.go
+@@ -0,0 +1,136 @@
++package sync
++
++// The realtime half of the annotation-anchoring matrix (see chartpdf/anchor_matrix_test.go): what the hub
++// does to a mark's LINK when it is moved, resized, restyled or re-texted. Each cell asserts the DESIRED
++// property (P-ids from the anchoring spec); known-red cells skip unless ANCHOR_RED=1.
++//
++// The assertions are on the applied mutation only, so they hold whichever way the fix is built (a new
++// re-anchor seam, or AnchorMark after clearing): "the server decides the link, never the client" (P26).
++
++import (
++	"testing"
++
++	"troubastack/core/internal/domain"
++	"troubastack/core/internal/testutil"
++)
++
++// headEngine records the applied mutation and serves a HEAD holding one stored, linked mark.
++type headEngine struct {
++	fakeEngine
++	head domain.Snapshot
++	got  domain.Mutation
++}
++
++func (e *headEngine) Apply(_ string, m domain.Mutation) (domain.Mutation, error) {
++	e.got = m
++	return m, nil
++}
++func (e *headEngine) Head(string) (domain.Snapshot, error) { return e.head, nil }
++
++var storedLink = domain.SourceAnchor{RunText: "stored line", Occurrence: 1, CharStart: 0, CharEnd: 6}
++
++func runSyncCell(t *testing.T, kind string, client *anchorJSON) domain.Mutation {
++	t.Helper()
++	stored := domain.Object{UUID: "o1", LayerID: "l1", Type: domain.TypeRect, Version: 3, OwnerID: "u",
++		Points: []domain.Point{{X: 0.1, Y: 0.1}, {X: 0.3, Y: 0.15}}, Anchor: storedLink.Clone(),
++		PointsRenderHash: "render-now"}
++	eng := &headEngine{
++		fakeEngine: fakeEngine{
++			layer:      domain.Layer{ID: "l1", OwnerID: "u", Zone: domain.ZoneShared, Access: domain.AccessRW},
++			layerFound: true, objExists: true,
++		},
++		head: domain.Snapshot{Objects: []domain.Object{stored}},
++	}
++	hub := &Hub{eng: eng, applyLocks: map[string]*muRef{}}
++	hub.SetAnchorer(&stubAnchorer{})
++	r := &room{songID: "s1", conns: map[*conn]struct{}{}}
++	c := &conn{hub: hub, room: r, songID: "s1", authorID: "u", role: "member", send: make(chan []byte, 4)}
++	r.conns[c] = struct{}{}
++
++	pts := []pointJSON{{X: 0.1, Y: 0.4}, {X: 0.3, Y: 0.45}} // moved/resized somewhere else
++	if kind == "setStyle" || kind == "setText" {
++		pts = []pointJSON{{X: 0.1, Y: 0.1}, {X: 0.3, Y: 0.15}}
++	}
++	c.handleMutation(mutationJSON{Kind: kind, UUID: "o1", Object: &objectJSON{
++		UUID: "o1", LayerID: "l1", Type: "rect", Points: pts, Anchor: client, PointsRenderHash: "render-now",
++		Style: styleJSON{Color: "#2563eb"}, Text: "x",
++	}})
++	if eng.got.Object == nil {
++		t.Fatal("the mutation was not applied")
++	}
++	return eng.got
++}
++
++// knownRedSync: red on today's code (baseline 2026-10-11). Delete a line when its fix lands.
++var knownRedSync = map[string][2]string{
++	"move/relinks_server_side":          {"P23 P26", "T191"},
++	"move/old_link_not_kept":            {"P23", "T191"},
++	"resize/relinks_server_side":        {"P24 P26", "T191"},
++	"setStyle/keeps_stored_link":        {"P25 P26", "T191"},
++	"setText/keeps_stored_link":         {"P25 P26", "T191"},
++	"setStyle/missing_link_not_dropped": {"P25 P26", "T191"},
++}
++
++func TestAnchorMatrixSync(t *testing.T) {
++	forged := &anchorJSON{RunText: "client line", Occurrence: 1, CharStart: 0, CharEnd: 6}
++	same := &anchorJSON{RunText: storedLink.RunText, Occurrence: 1, CharStart: 0, CharEnd: 6}
++	cells := []struct {
++		name, kind string
++		client     *anchorJSON
++		check      func(t *testing.T, got *domain.SourceAnchor)
++	}{
++		// P23/P26: a move re-links from the new position, decided by the server. Today the client's anchor
++		// is applied as sent, so a forged (or merely stale) one survives.
++		{"move/relinks_server_side", "move", forged, func(t *testing.T, got *domain.SourceAnchor) {
++			if got != nil && got.RunText == "client line" {
++				t.Errorf("a move applied the client's link %q; the server must decide it (re-link or clear)", got.RunText)
++			}
++			if got != nil && got.RunText == storedLink.RunText {
++				t.Errorf("a move kept the pre-move link %q; it must re-link from where the mark now is", got.RunText)
++			}
++		}},
++		// P23: the realistic case, the client echoing back the anchor it was served. Still wrong to keep.
++		{"move/old_link_not_kept", "move", same, func(t *testing.T, got *domain.SourceAnchor) {
++			if got != nil && got.RunText == storedLink.RunText {
++				t.Errorf("a move kept the pre-move link %q (the measured bug: the mark jumps back at the next edit)", got.RunText)
++			}
++		}},
++		{"resize/relinks_server_side", "resize", same, func(t *testing.T, got *domain.SourceAnchor) {
++			if got != nil && got.RunText == storedLink.RunText && got.CharEnd == 6 {
++				t.Errorf("a resize kept the pre-resize link unchanged; it must re-link with the new extent")
++			}
++		}},
++		// P25: restyle / text change keep the STORED link (P26: never the client's).
++		{"setStyle/keeps_stored_link", "setStyle", forged, func(t *testing.T, got *domain.SourceAnchor) {
++			if got == nil || got.RunText != storedLink.RunText {
++				t.Errorf("a restyle changed the link to %+v; it must keep the stored %q", got, storedLink.RunText)
++			}
++		}},
++		{"setText/keeps_stored_link", "setText", forged, func(t *testing.T, got *domain.SourceAnchor) {
++			if got == nil || got.RunText != storedLink.RunText {
++				t.Errorf("a text change changed the link to %+v; it must keep the stored %q", got, storedLink.RunText)
++			}
++		}},
++		{"setStyle/echoed_link_kept", "setStyle", same, func(t *testing.T, got *domain.SourceAnchor) {
++			if got == nil || got.RunText != storedLink.RunText {
++				t.Errorf("a restyle dropped the link: %+v", got)
++			}
++		}},
++		// P26 also covers a client that drops the field: a restyle must not unlink the mark.
++		{"setStyle/missing_link_not_dropped", "setStyle", nil, func(t *testing.T, got *domain.SourceAnchor) {
++			if got == nil {
++				t.Errorf("a restyle sent without the anchor field unlinked the mark; the server must keep the stored link")
++			}
++		}},
++	}
++	for _, c := range cells {
++		c := c
++		t.Run(c.name, func(t *testing.T) {
++			if r, ok := knownRedSync[c.name]; ok {
++				testutil.AnchorKnownRed(t, r[0], r[1])
++			}
++			got := runSyncCell(t, c.kind, c.client)
++			c.check(t, got.Object.Anchor)
++		})
++	}
++}
+diff --git a/core/internal/testutil/anchorred.go b/core/internal/testutil/anchorred.go
+new file mode 100644
+index 00000000..b8f4cda8
+--- /dev/null
++++ b/core/internal/testutil/anchorred.go
+@@ -0,0 +1,23 @@
++package testutil
++
++import (
++	"os"
++	"testing"
++)
++
++// AnchorKnownRed marks a test of the annotation-anchoring matrix (docs: anchoring spec, properties P1…)
++// whose DESIRED property is known to fail on today's code. It skips the test unless ANCHOR_RED=1, so plain
++// `go test ./...` stays green while
++//
++//	ANCHOR_RED=1 go test ./internal/chartpdf/ ./internal/sync/ ./internal/app/ -run AnchorMatrix -v
++//
++// shows the whole red/green picture. A fix flips a cell by deleting its AnchorKnownRed call (or its entry
++// in the matrix's knownRed table): the test then runs in CI and must pass.
++//
++// prop names the spec property the test asserts; task names the task expected to fix it.
++func AnchorKnownRed(t *testing.T, prop, task string) {
++	t.Helper()
++	if os.Getenv("ANCHOR_RED") != "1" {
++		t.Skipf("known red: %s, fixed by %s (ANCHOR_RED=1 runs it)", prop, task)
++	}
++}
