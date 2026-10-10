@@ -62,6 +62,46 @@ func (c *chartAnchorer) AnchorMark(songID string, o domain.Object) (out domain.O
 	return chartpdf.AnchorObject(o, anchors, hash)
 }
 
+// ReanchorMoved recomputes a moved/resized mark's anchor from where it NOW is (T191), so a manual move is
+// not discarded the next time the chart's text changes. It is the move/resize counterpart of AnchorMark,
+// and enforces the same rule: the SERVER owns the anchor. The object's layer and its baseline anchor are
+// read from HEAD (not the client's payload — a move need not carry a trustworthy layerId, and its sent
+// Anchor is ignored outright). It only re-anchors on a generated chart, and only when the move was made
+// against the CURRENT render (the mutation's PointsRenderHash equals the file's current render hash) — a
+// move from a stale tab keeps the old anchor rather than re-anchoring against a render the user never saw.
+// A new position over no run clears the anchor (chartpdf.Reanchor), freezing the mark where it was put.
+// Best-effort + panic-safe: any failure leaves the mark as drawn.
+func (c *chartAnchorer) ReanchorMoved(songID string, o domain.Object) (out domain.Object) {
+	out = o
+	defer func() {
+		if recover() != nil {
+			out = o
+		}
+	}()
+	stored, ok := c.eng.Object(songID, o.UUID)
+	if !ok {
+		return o // unknown object: leave the client's object as-is
+	}
+	// Baseline from HEAD, overriding whatever Anchor/PointsRenderHash the client sent (ignore client anchor).
+	out.Anchor = stored.Anchor
+	out.PointsRenderHash = stored.PointsRenderHash
+	if stored.LayerID == "" {
+		return out
+	}
+	layer, lok := c.eng.Layer(songID, stored.LayerID)
+	if !lok || layer.FileID == "" {
+		return out // no source-backed file → nothing to anchor against; keep the stored anchor
+	}
+	anchors, curHash, aok := c.anchorsFor(layer.FileID)
+	if !aok {
+		return out // uploaded/unrenderable, or a divergent render → can't re-anchor safely; keep stored anchor
+	}
+	if o.PointsRenderHash != curHash {
+		return out // moved on a stale render the user never saw: keep the old anchor; the next move fixes it
+	}
+	return chartpdf.Reanchor(out, anchors, curHash) // recompute from the NEW points; clears if un-anchorable
+}
+
 // anchorsFor resolves the current (anchor manifest, render hash) for a generated file, rendering once per
 // (fileID, BlobHash) and caching the outcome across creates. ok=false for an uploaded/unknown/unrenderable
 // file (no source to anchor against) OR a fresh render that does not reproduce the stored blob byte-for-

@@ -338,6 +338,24 @@ func (e *Engine) ObjectLayer(songID, uuid string) (layer domain.Layer, layerFoun
 	return l, lok, true
 }
 
+// Object returns a copy of the object identified by uuid from the song's current HEAD (live or
+// tombstoned), and whether it is present. Read under the song's single-writer lock; the result is a Clone
+// so the caller can mutate it without touching HEAD. Used by the T191 re-anchorer, which must decide a
+// move's new anchor from the SERVER's stored object (its layer and its current anchor), never the client's.
+func (e *Engine) Object(songID, uuid string) (domain.Object, bool) {
+	se, err := e.song(songID)
+	if err != nil {
+		return domain.Object{}, false
+	}
+	se.mu.Lock()
+	defer se.mu.Unlock()
+	o, ok := se.objects[uuid]
+	if !ok {
+		return domain.Object{}, false
+	}
+	return o.Clone(), true
+}
+
 // SnapshotAt returns a past revision from the store (read-only view; design/01).
 func (e *Engine) SnapshotAt(songID string, revision uint64) (domain.Snapshot, error) {
 	return e.st.SnapshotAt(songID, revision)

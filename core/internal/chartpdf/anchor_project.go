@@ -241,6 +241,27 @@ func AnchorObject(o domain.Object, anchors []Anchor, renderHash string) domain.O
 	return o
 }
 
+// Reanchor recomputes a MOVED or RESIZED mark's anchor from where it NOW is (its current Points), against
+// `anchors` (the render the user moved on) + its `renderHash` (T191). Unlike AnchorObject it does NOT skip
+// an already-anchored mark — a move's whole point is that the stale anchor must be replaced, or the mark
+// snaps back to its old words at the next reflow. Two outcomes, mirroring create's own refusal (T172):
+//   - the new position is over or within 3 run-heights of an overlapping run → re-anchor there;
+//   - the new position is in empty space → CLEAR the anchor, so the mark keeps the coordinates the user
+//     chose and Reproject never drags it back to the place they moved it away from.
+//
+// Either way PointsRenderHash is stamped to `renderHash`: the Points ARE current on that render (the user
+// just put them there), so no reprojection is due until the next source edit.
+func Reanchor(o domain.Object, anchors []Anchor, renderHash string) domain.Object {
+	x0, y0, x1, y1 := boundsOf(o.Points)
+	if sa, ok := AnchorAt(anchors, o.Page, x0, y0, x1, y1); ok {
+		o.Anchor = &sa
+	} else {
+		o.Anchor = nil
+	}
+	o.PointsRenderHash = renderHash
+	return o
+}
+
 // Reproject re-projects any mark whose cached Points are STALE (has an Anchor and PointsRenderHash != the
 // current renderHash) onto the current render, and restamps the hash. Used at SERVE and BAKE so a mark
 // follows its words after a reflow. Marks with no anchor, or already current, pass through untouched; a

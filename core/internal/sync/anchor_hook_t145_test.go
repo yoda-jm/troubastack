@@ -24,6 +24,9 @@ type stubAnchorer struct {
 	called     bool
 	gotSongID  string
 	gotLayerID string
+
+	reanchored   bool // T191: ReanchorMoved was consulted
+	reanchorUUID string
 }
 
 func (s *stubAnchorer) AnchorMark(songID string, o domain.Object) domain.Object {
@@ -32,6 +35,14 @@ func (s *stubAnchorer) AnchorMark(songID string, o domain.Object) domain.Object 
 	s.gotLayerID = o.LayerID
 	o.Anchor = &domain.SourceAnchor{RunText: "chorus line", Occurrence: 0, CharStart: 0, CharEnd: 11}
 	o.PointsRenderHash = "render-hash-xyz"
+	return o
+}
+
+func (s *stubAnchorer) ReanchorMoved(songID string, o domain.Object) domain.Object {
+	s.reanchored = true
+	s.reanchorUUID = o.UUID
+	o.Anchor = &domain.SourceAnchor{RunText: "moved line", Occurrence: 1, CharStart: 0, CharEnd: 10}
+	o.PointsRenderHash = "render-after-move"
 	return o
 }
 
@@ -70,6 +81,74 @@ func TestCreateRoutesThroughAnchorer(t *testing.T) {
 	}
 	if eng.got.Object.PointsRenderHash != "render-hash-xyz" {
 		t.Fatalf("applied object render hash = %q, want render-hash-xyz", eng.got.Object.PointsRenderHash)
+	}
+}
+
+// TestMoveAndResizeRouteThroughReanchorer is the T191 forward fix's counterpart to the create test: a move
+// or a resize is handed to ReanchorMoved BEFORE Apply, and the anchor it recomputes rides into the applied
+// mutation (so a manual placement is not discarded at the next text edit).
+func TestMoveAndResizeRouteThroughReanchorer(t *testing.T) {
+	for _, kind := range []string{"move", "resize"} {
+		eng := &recEngine{fakeEngine: fakeEngine{
+			layer:      domain.Layer{ID: "l1", OwnerID: "u", Zone: domain.ZoneShared, Access: domain.AccessRW},
+			layerFound: true,
+			objExists:  true, // the move target exists in HEAD, so the write authorizes
+		}}
+		hub := &Hub{eng: eng, applyLocks: map[string]*muRef{}}
+		anc := &stubAnchorer{}
+		hub.SetAnchorer(anc)
+
+		r := &room{songID: "s1", conns: map[*conn]struct{}{}}
+		c := &conn{hub: hub, room: r, songID: "s1", authorID: "u", role: "member", send: make(chan []byte, 4)}
+		r.conns[c] = struct{}{}
+
+		c.handleMutation(mutationJSON{
+			Kind:   kind,
+			UUID:   "o1",
+			Object: &objectJSON{UUID: "o1", LayerID: "l1", Type: "freehand"},
+		})
+
+		if !anc.reanchored {
+			t.Fatalf("%s: ReanchorMoved was not consulted", kind)
+		}
+		if anc.reanchorUUID != "o1" {
+			t.Fatalf("%s: ReanchorMoved got uuid %q, want o1", kind, anc.reanchorUUID)
+		}
+		if eng.got.Object == nil || eng.got.Object.Anchor == nil || eng.got.Object.Anchor.RunText != "moved line" {
+			t.Fatalf("%s: applied object did not carry the re-anchored anchor: %+v", kind, eng.got.Object)
+		}
+		if eng.got.Object.PointsRenderHash != "render-after-move" {
+			t.Fatalf("%s: applied render hash = %q, want render-after-move", kind, eng.got.Object.PointsRenderHash)
+		}
+	}
+}
+
+// TestSetStyleAndSetTextKeepAnchor is the negative guard: a restyle or a text edit does not move the mark,
+// so it must NOT re-anchor — only move/resize route through ReanchorMoved.
+func TestSetStyleAndSetTextKeepAnchor(t *testing.T) {
+	for _, kind := range []string{"setStyle", "setText"} {
+		eng := &recEngine{fakeEngine: fakeEngine{
+			layer:      domain.Layer{ID: "l1", OwnerID: "u", Zone: domain.ZoneShared, Access: domain.AccessRW},
+			layerFound: true,
+			objExists:  true,
+		}}
+		hub := &Hub{eng: eng, applyLocks: map[string]*muRef{}}
+		anc := &stubAnchorer{}
+		hub.SetAnchorer(anc)
+
+		r := &room{songID: "s1", conns: map[*conn]struct{}{}}
+		c := &conn{hub: hub, room: r, songID: "s1", authorID: "u", role: "member", send: make(chan []byte, 4)}
+		r.conns[c] = struct{}{}
+
+		c.handleMutation(mutationJSON{
+			Kind:   kind,
+			UUID:   "o1",
+			Object: &objectJSON{UUID: "o1", LayerID: "l1", Type: "freehand"},
+		})
+
+		if anc.reanchored {
+			t.Fatalf("%s must not re-anchor (it does not move the mark)", kind)
+		}
 	}
 }
 

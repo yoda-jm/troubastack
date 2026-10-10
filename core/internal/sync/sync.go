@@ -52,6 +52,10 @@ type Engine interface {
 // does the anchoring. It must be best-effort — return the object unchanged on any failure, never panic.
 type ChartAnchorer interface {
 	AnchorMark(songID string, o domain.Object) domain.Object
+	// ReanchorMoved recomputes a moved/resized mark's anchor from its NEW position (T191), so a manual move
+	// is not thrown away at the next text edit. The server decides the anchor: the client's sent Anchor is
+	// ignored. Like AnchorMark it is best-effort — it returns the object unchanged on any failure.
+	ReanchorMoved(songID string, o domain.Object) domain.Object
 }
 
 // Hub fans realtime annotation traffic across clients and drives ONE apply engine

@@ -109,6 +109,14 @@ func (c *conn) handleMutation(in mutationJSON) {
 			}
 			o.UUID = uuid
 			o.Version = curVer + 1
+			// T191 forward fix: a move or resize re-anchors the mark from WHERE IT NOW IS, so a manual
+			// placement is not discarded at the next text edit (Reproject rebuilds position from the anchor
+			// alone). A setStyle/setText does not move the mark, so it keeps its anchor — only move/resize
+			// re-anchor. Best-effort + nil-safe, exactly like the create path above; the anchorer owns the
+			// decision (generated chart only, current render only, server-decided anchor).
+			if (kind == domain.KindMove || kind == domain.KindResize) && c.hub.anchorer != nil {
+				o = c.hub.anchorer.ReanchorMoved(c.songID, o)
+			}
 			m.Object = &o
 			m.BaseVersion = curVer
 			m.UUID = uuid
