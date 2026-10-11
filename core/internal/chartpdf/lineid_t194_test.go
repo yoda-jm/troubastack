@@ -473,8 +473,9 @@ func TestLineID_HistoryIsBounded(t *testing.T) {
 		li = CarryLineIdentity(li, src, ns, gen, CarryOptions{FromRender: fmt.Sprint(k), ToRender: fmt.Sprint(k + 1)})
 		src = ns
 	}
-	if len(li.History) != maxLineHistory {
-		t.Fatalf("history has %d steps, want %d", len(li.History), maxLineHistory)
+	// T195 re-review: the cap folds the oldest steps into one, so the chain still starts at render "0".
+	if len(li.History) != maxLineHistory || li.History[0].FromRender != "0" {
+		t.Fatalf("history has %d steps from %q, want %d from \"0\"", len(li.History), li.History[0].FromRender, maxLineHistory)
 	}
 }
 

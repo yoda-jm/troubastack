@@ -524,28 +524,111 @@ func waypointBelow(anchors []Anchor, page int, x0, y0 float64) string {
 	return best
 }
 
-// F3 (T195 review), the pure half: the reviewer's vector — a mark whose chart is saved 40 times, more than
-// maxLineHistory, then edited before its word. Projected LAZILY from its first render, its character map
-// is gone (check, 4 characters off). Re-based at every save (RebaseOnRender, what SaveChartSource now
-// does), it lands on its word, linked. Both halves are asserted, so the test also shows why eager exists.
-func TestRebaseOnRender_OutlivesTheBoundedHistory(t *testing.T) {
+// F3 (T195 review), LAZILY (re-review): the reviewer's vector — a mark whose chart is saved 40 times, more
+// than the 32 steps kept as recorded, then edited before its word. Projected from its first render it lands
+// on its word, linked: the history keeps every step a live link needs. Three ways round: no compaction at
+// all; compaction keeping the mark's render (what a serve does); and, the control, compaction that does
+// NOT keep it — the steps it needed are dropped and it becomes check, which shows the keep set is what
+// makes the difference.
+func TestProject_LazyFollowOutlivesManySaves(t *testing.T) {
 	src := "# T\n\n## Verse\nthe kettle hums a quiet tune\nbeneath a paper moon\n\n## Notes\nnote 0\n"
 	w := lw(t, src)
 	line := lineRun(t, w, "beneath a paper moon")
-	lazy := LinkMark(domain.Object{UUID: "m", Type: domain.TypeIcon, Page: line.Page, Points: rectAround(line, 0, 1, 16, 18)}, w.chart())
-	eager := lazy
+	o := LinkMark(domain.Object{UUID: "m", Type: domain.TypeIcon, Page: line.Page, Points: rectAround(line, 0, 1, 16, 18)}, w.chart())
 	for i := 1; i <= 40; i++ {
 		w.setSrc(strings.Replace(w.src, fmt.Sprintf("note %d\n", i-1), fmt.Sprintf("note %d\n", i), 1))
-		eager, _ = RebaseOnRender(eager, w.chart())
 	}
 	w.setSrc(strings.Replace(w.src, "beneath a paper moon", "beneath a big paper moon", 1))
 	nl := lineRun(t, w, "beneath a big paper moon")
 	want := nl.X0 + 20*cw(nl)
-	if got := ProjectMark(eager, w.chart()); got.Link.State != domain.LinkLinked || !near(got.Points[0].X, want, cw(nl)/4) {
-		t.Errorf("re-based at every save: state %s, x %.4f, want linked at %.4f", got.Link.State, got.Points[0].X, want)
+	full := w.li
+	kept, changed := full.Compact(map[string]bool{o.Link.Render: true})
+	if !changed || len(kept.History) != recentLineHistory+1 {
+		t.Fatalf("compaction kept %d steps (changed %v), want %d recent + 1 for the referenced render", len(kept.History), changed, recentLineHistory)
 	}
-	if got := ProjectMark(lazy, w.chart()); got.Link.State != domain.LinkCheck {
-		t.Errorf("projected lazily past the history: state %s — the bound no longer bites, re-check why eager exists", got.Link.State)
+	dropped, _ := full.Compact(map[string]bool{"a-render-nobody-has": true})
+	for _, c := range []struct {
+		name  string
+		li    LineIdentity
+		state domain.LinkState
+	}{{"uncompacted", full, domain.LinkLinked}, {"compacted_keeping_it", kept, domain.LinkLinked}, {"compacted_without_it", dropped, domain.LinkCheck}} {
+		r := w.chart()
+		r.Lines = c.li
+		got := ProjectMark(o, r)
+		if got.Link.State != c.state {
+			t.Errorf("%s: state %s, want %s", c.name, got.Link.State, c.state)
+		}
+		if c.state == domain.LinkLinked && !near(got.Points[0].X, want, cw(nl)/4) {
+			t.Errorf("%s: x %.4f, want %.4f (on \"moon\")", c.name, got.Points[0].X, want)
+		}
+	}
+}
+
+// The history's two bounds, and that neither breaks a referenced chain: the save-time cap folds the oldest
+// steps into ONE cumulative step from the oldest render (whose character maps compose: a mark there still
+// follows two edits of its line), and Compact leaves one step per referenced render plus the recent ones.
+func TestLineID_HistoryKeepsWhatLinksNeed(t *testing.T) {
+	gen := idGen()
+	src := "# T\n\nthe road goes on\nnote\n"
+	li := NewLineIdentity(src, gen)
+	step := func(ns, from, to string) {
+		li = CarryLineIdentity(li, src, ns, gen, CarryOptions{FromRender: from, ToRender: to})
+		src = ns
+	}
+	step("# T\n\nthe long road goes on\nnote\n", "r0", "r1")     // "road" 4 → 9
+	step("# T\n\nthe long old road goes on\nnote\n", "r1", "r2") // "road" 9 → 13
+	for k := 2; k < maxLineHistory+40; k++ {                     // unrelated edits: the last line flips between two spellings
+		ns := strings.Replace(src, "note\n", "nota\n", 1)
+		if ns == src {
+			ns = strings.Replace(src, "nota\n", "note\n", 1)
+		}
+		step(ns, fmt.Sprintf("r%d", k), fmt.Sprintf("r%d", k+1))
+	}
+	if len(li.History) > maxLineHistory {
+		t.Fatalf("history has %d steps, want ≤ %d", len(li.History), maxLineHistory)
+	}
+	id := li.IDs[2]
+	cur := li.History[len(li.History)-1].ToRender
+	path, ok := li.CharMapSince("r0", cur, id)
+	if !ok {
+		t.Fatal("the save-time cap broke the chain from the oldest render")
+	}
+	if n, exact := path.Map(4); n != 13 || !exact {
+		t.Errorf("'road' through the folded steps → %d (exact %v), want 13", n, exact)
+	}
+	if _, ok := li.CharMapSince("r5", cur, id); ok {
+		t.Error("a render inside the folded run still resolves; the cap is not doing what it says")
+	}
+	c, _ := li.Compact(map[string]bool{"r0": true, "r100": true})
+	if len(c.History) != recentLineHistory+2 {
+		t.Errorf("compacted to %d steps, want %d recent + 2 referenced", len(c.History), recentLineHistory)
+	}
+	for _, from := range []string{"r0", "r100"} {
+		if _, ok := c.CharMapSince(from, cur, id); !ok {
+			t.Errorf("compaction broke the chain from referenced render %s", from)
+		}
+	}
+}
+
+// T195 re-review: every link the server itself writes passes the import gate (P30 would otherwise drop it),
+// including an end-of-line reference at a small type size, which sits ~30 lh from its reference point.
+func TestValidLink_AcceptsServerWrittenLinks(t *testing.T) {
+	long := "the longest line of this whole chart goes right across the column to its far edge"
+	for _, head := range []string{"size: 6", "size: 8", "size: 11", "size: 20", "fit: page"} {
+		src := "# T\n" + head + "\n\n## Verse\nhi\n" + long + "\n"
+		if head == "fit: page" {
+			src += strings.Repeat("filler line\n", 160)
+		}
+		w := lw(t, src)
+		short, lg := lineRun(t, w, "hi"), lineRun(t, w, long)
+		h := short.Y1 - short.Y0
+		for _, x := range []float64{lg.X1 - 0.03, short.X0 + 0.5*cw(short), 0.95} { // end, char, margin
+			o := LinkMark(domain.Object{UUID: "e", Type: domain.TypeIcon, Page: short.Page,
+				Points: []domain.Point{{X: x, Y: short.Y0}, {X: x + 0.02, Y: short.Y0 + h}}}, w.chart())
+			if !ValidLink(o.Link) {
+				t.Errorf("%s, x %.2f: a link the server just wrote fails ValidLink: %+v", head, x, o.Link)
+			}
+		}
 	}
 }
 

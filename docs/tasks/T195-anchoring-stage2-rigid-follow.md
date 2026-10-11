@@ -150,17 +150,17 @@ Stage 4 re-links the rest with VLL's approval.
   landing between `SetChartSource` and the id carry would see ids that do not describe the source. It would
   re-derive and **store** fresh ones, and the carry would start from those, so every link on the chart would
   read lost. Now:
-  - `saveChartSource` holds the file's line lock across the file, source and id writes (and, since the
-    review, the eager re-placing of §11 F3);
+  - `saveChartSource` holds the file's line lock across the file, source and id writes;
   - `ChartLines`, and the new `ChartRenderForFile`, read the source under the same lock;
   - `LocateChartLine` goes through `ChartRenderForFile`.
 - **Render cache.** `ChartRenderForFile` memoises `ChartAnchorsIfCurrent` by (source hash, blob hash), as
   an LRU of 256 entries (review F5). Every realtime move and restyle needs the manifest. Measured on a
   100-line chart: about 10 ms uncached, about 80 µs cached. Both keys are content hashes, so an entry is
   never stale.
-- **T194's `Rederived` flag** is consulted per mark (`predatesRederive`). It is **cleared after a save
-  re-places every linked mark of the file** (review F3): each link is then measured on a render after the
-  re-derivation, so the flag has nothing left to say. If any mark could not be re-placed, the flag is kept.
+- **T194's `Rederived` flag is consulted per mark and never cleared** (`predatesRederive`). T194 said
+  "stage 2 clears it", but the state is computed per mark at serve time, and clearing the flag would erase
+  the answer for marks not yet served. (`f2cceb40` cleared it after an eager rebase; that rebase is
+  reverted, §12.)
 
 ## 8. Decisions on spec points that were wrong or ambiguous (flag at the gate)
 
@@ -182,12 +182,13 @@ Stage 4 re-links the rest with VLL's approval.
 7. **A move whose `pointsRenderHash` is empty is treated as current.** Studio always sends back the hash it
    was served.
 8. **The stroke width is not scaled by k.** It is a pen property, not geometry. B3 does not say.
-9. **Projection is eager at save, and lazy everywhere else** (reversed by the review, F3). The first version
-   was lazy only, and it decayed: a mark untouched while its chart was saved more than `maxLineHistory` (32)
-   times lost its character map. It landed 4 characters off, and "check". `SaveChartSource` now re-places
-   every linked mark of the chart on the new render (§11). Serve, bake and the WS snapshot still project
-   whatever a save did not re-place. The state is persisted at every write: create, move, resize, restyle,
-   and each save.
+9. **Projection is lazy** (serve, bake, WS snapshot), and no save writes a mark. `f2cceb40` tried eager
+   rebase at save, and the re-review reverted it (§12). It broke stale-view moves (P27): a peer's drag on R1
+   was added to a stored box already on R2, landing 3 lines off. It also cost O(marks) writes under the
+   file lock at every save (about 465 ms and 50 revisions for 50 marks), and its writes bypassed the
+   realtime hub. Instead, the line-id **history keeps every step a live link needs** (§12), which is what
+   the lazy decay actually was. The state is persisted at every write of the mark: create, move, resize,
+   restyle.
 
 ## 9. Tests
 
@@ -292,26 +293,14 @@ the JSON encode failed.
 - `chartpdf.ValidLink` requires:
   - a known state and `xRef`;
   - a line unless fixed;
-  - finite numbers, with `lh` in [0.002, 0.2] and `|dx|, |dy|` ≤ 50;
+  - finite numbers, with `lh` in [0.002, 0.2] and `|dx|·lh, |dy|·lh` ≤ 2 pages (in page units since the
+    re-review: an end-of-line link at a small type size is legitimately ~30 lh from its point);
   - sane character offsets and peers.
 - Both import paths (HTTP and band folder) drop an invalid link and re-link the mark (P31).
 - `project()` returns the stored mark as **lost** if any result is non-finite.
 
-**F3: lazy projection decayed after 32 saves. Now eager rebase** (`app/chartmarks_t195.go`).
-- **The rebase.** `SaveChartSource`, under the file's line lock and after the id carry, re-places every
-  live linked mark on that chart's layers (`chartpdf.RebaseOnRender`). Each changed mark is written as a
-  normal `move` mutation, attributed to the saver, with `BaseVersion = the version read` and `Version + 1`.
-- **Concurrency.** A concurrent edit wins the engine's LWW check. The rebase then re-reads that mark and
-  re-bases the edit, up to 2 retries, so the edit is never overwritten.
-- **Lost marks.** A lost mark's state is persisted, at its stored coordinates.
-- **The flag.** The `Rederived` flag is cleared when every mark was re-placed (§7).
-- **Wiring.** `Service.WithAnnotationEngine(eng)`, set in `cmd/troubacore`. Tools that never call it
-  (`mkbaked`, tests) stay lazy.
-- **Known gap.** These writes do not go through the realtime hub, so a peer with the song open gets no
-  echo. Its next GET or reconnect shows the re-placed marks. Meanwhile, a move from that stale view is P27's
-  stale-view case: the link is kept, the offset is shifted, and the state is check.
-- **The save** now renders once with `RenderWithAnchors` (the same bytes), reusing the manifest for the
-  rebase.
+**F3: lazy projection decayed after 32 saves.** The eager rebase that fixed it in `f2cceb40` is
+**reverted**; §12 has the replacement.
 
 **F4: two sabotages passed every matrix cell.** 46 new cells:
 - `typo_lengthens_before` (`Leave the` → `Leave all the`, +4 characters before most marks);
@@ -338,11 +327,69 @@ slides inward (`TestLink_ScaledMarginStampStaysOnThePage`).
 |---|---|---|
 | F1 | serve keeps the old hash, no `RelinkMoved` fallback | `P21: a lost mark moved onto a line (through the real client echo) is lost, want linked`; `P23: a fixed mark … is fixed`; `§6: an old-style mark … has link <nil>` |
 | F2 | imports trust every link, no finite guard | `a forged imported link broke GET /annotations: 200, 0 bytes` |
-| F3 | the save does not re-place | `after 41 saves the untouched icon is check, want linked`; `save 1: the mark was not re-placed on the new render` |
-| F3 | a rebase that loses the LWW race gives up | `the re-placing gave up after losing the race` |
+| F3 | (superseded by §12) | |
 | F4 | ignore the character map | `freehand-on: point 0 at (0.3722,0.1793), want (0.4246,0.1793)` (13 cells) |
 | F4 | right margin referenced to the line's end | `icon-margin: box x[0.9629,0.9868] …, want x[0.8581,0.8819]` (16 cells) |
 | decision 4 | no clamp | `the scaled stamp spans x [0.9500, 1.0150]: off the page` |
+
+## 12. Re-review (on `f2cceb40`): eager rebase reverted, the history keeps what links need
+
+F1, F2, F4, F5 and the decision-4 clamp were verified. F3's eager rebase was not.
+
+**N1: the eager rebase broke P27.**
+- A peer holding render R1 drags a mark after someone saved R2. The stale path in `RelinkMoved` adds
+  `(moved box − stored box)/LH`. The moved box was on R1, but the eager rebase had already put the stored
+  box on R2.
+- The mark landed back at its R1 position, 3 lines off, and became "check". `065ae932` was right.
+- The eager rebase also cost O(marks) writes under the file lock on every save (N2), and made in-flight
+  drags lose races (N3).
+- **Reverted:** `rebaseChartMarks`, `MarkStore`/`WithAnnotationEngine` and its wiring, `RebaseOnRender`,
+  the save-time mutations, and their tests (`PersistsLost`, `RebaseNeverOverwritesAConcurrentEdit`).
+- **The save is back to its 065ae932 shape:** `Render`, the id carry, no mark written. It keeps F5's
+  per-file lock and `derefBlob` outside it.
+
+**F3, fixed in the T194 history (option ii: cumulative steps).** No step a live link needs is dropped.
+
+| piece | what it does |
+|---|---|
+| `recentLineHistory` = 32 | The newest steps are always kept exactly as recorded. A link written now is measured on the current render, which is always inside this window. |
+| `LineIdentity.Compact(keep)` | Folds the older steps into **one cumulative step per still-referenced render**, from that render to the next referenced one (or to the recent window). Each line id's character maps are composed in order by `composeCharMap`; a character is kept only if every step kept it. Steps that no kept render reaches are dropped, and a broken chain (a re-derivation step) is never composed across. |
+| who calls `Compact` | The serve path, which holds the song's marks anyway: `projectSnapshot` callers (GET `/annotations` and the realtime join snapshot) → `compactHistories` → `Service.CompactChartLines`. `keep` is every `link.render` of a mark on that file, tombstones included because a restore may bring one back. It costs a read, and a write only when there is something to fold. |
+| `maxLineHistory` = 512 | The hard cap at **save**, for a chart saved many times with no read in between. The save path never reads the annotation store, renders or takes another lock. Past the cap, the oldest steps are folded into one cumulative step from the oldest render. Only a link on a render inside that folded run loses its map: "check", never a wrong guess, and only after 512 saves without a single read. |
+
+- **Memory bound:** `len(History) ≤ min(512, 32 + the number of distinct renders the file's links
+  reference)`. A step holds only the maps of the lines it modified: a few dozen bytes.
+- **Composition is exact for kept characters.** A deleted character's fallback position after composition
+  is "just after the last character kept by both steps", which can differ slightly from mapping step by
+  step. It is inexact either way, so the mark is "check" either way.
+
+**Also from the re-review folder:** the server wrote links that its own import gate could reject. An
+end-of-line link at a small type size sits about 30 lh from its point, close to the old bound of 50 lh, and
+a smaller type size would have crossed it. `ValidLink` now bounds offsets in page units
+(`|dx|·lh, |dy|·lh ≤ 2`). `TestValidLink_AcceptsServerWrittenLinks` covers end, char and margin links at
+sizes 6, 8, 11, 20 and `fit: page`.
+
+**Tests.**
+- `TestProject_LazyFollowOutlivesManySaves` (chartpdf): the 40-save vector lands on its word, linked,
+  uncompacted and compacted with the mark's render kept. The control, compacted without it, becomes check.
+- `TestLineID_HistoryKeepsWhatLinksNeed`: the cap folds the oldest steps, and "road" still maps through two
+  folded edits, 4 → 13. A render inside the folded run no longer resolves. `Compact` keeps 32 + 2 steps and
+  both chains.
+- `TestLineID_HistoryIsBounded` (T194): updated. The capped chain still starts at the first render.
+- `TestSaveChartSource_UntouchedMarkFollowsLazilyThroughManySaves` (renamed from the eager test): a serve
+  compaction at save 36, version still 1 (the save wrote nothing), linked on "moon".
+- `TestE2E_UntouchedMarkSurvivesManySaves`: a real GET at save 36 compacts the history to ≤ 33 steps.
+- **N1, permanent:** `TestE2E_StalePeerDragLandsRelativeToItsLine`. A peer's served object from R1, a save
+  to R2, then a drag of +0.05 over websocket. The mark is linked, on its line, 0.05 further right.
+
+**Red → green.**
+
+| what | red line |
+|---|---|
+| N1 at `f2cceb40` (eager on; the cell appended to that tree) | `a stale-peer drag on the link's own render is a known shift: state check, want linked`; `point 0 at (0.08810,0.24414), want (0.08810,0.30343)` |
+| stale-path offset broken (the drag not added) | `stale-peer drag lands relative to its line: point 0 at (0.03810,0.30343), want (0.08810,0.30343)`; `the stale-view move landed 0.0000 below the unmoved projection` |
+| `Compact` ignores the keep set | `after 41 saves the untouched icon is check, want linked` (E2E); `after 41 saves: state check, x 0.2081, want linked at 0.2505` (app); `compaction kept 32 steps …` |
+| the cap drops instead of folding (the old behaviour) | `history has 512 steps from "10", want 512 from "0"`; `the save-time cap broke the chain from the oldest render` |
 
 ## 10. Open questions
 

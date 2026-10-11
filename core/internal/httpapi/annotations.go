@@ -159,7 +159,9 @@ func (a *AnnotationsAPI) getAnnotations(w http.ResponseWriter, r *http.Request, 
 // marks are served exactly as stored. Best-effort + read-only; the caller is a member of the song, and the
 // charts are resolved through the layers of this very snapshot.
 func (a *AnnotationsAPI) reprojectSnapshot(u app.User, bandID, songID string, snap domain.Snapshot) domain.Snapshot {
-	return projectSnapshot(snap, a.chartRenderFor(u, bandID, songID))
+	out := projectSnapshot(snap, a.chartRenderFor(u, bandID, songID))
+	compactHistories(a.svc, snap) // T195: the line-id history keeps what these links need, no more
+	return out
 }
 
 // chartRenderFor returns a resolver of a song's generated charts' current renders (nil for an uploaded or

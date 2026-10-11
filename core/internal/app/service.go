@@ -35,9 +35,6 @@ type Service struct {
 	// bakes is the narrow read-only seam into the bake package used to label a rehearsal
 	// note "page changed" (T170 §3.4). Nil is legitimate — see WithBakeLookup.
 	bakes BakeLookup
-	// marks is the annotation engine (T195 review F3): a chart save re-places the marks linked to that chart
-	// eagerly, through it. nil (tests, offline tools) leaves the projection lazy at serve and bake.
-	marks MarkStore
 }
 
 // NewService wires a Service over a Repo with production defaults. The blob store
@@ -1361,7 +1358,7 @@ func (s *Service) saveChartSource(caller User, bandID, songID, fileID string, ba
 	if baseRevision != f.Revision {
 		return SongFile{}, fmt.Errorf("%w: chart was changed by someone else — reload", ErrConflict)
 	}
-	pdf, saveAnchors, err := chartpdf.RenderWithAnchors(source) // the same bytes as Render, plus the manifest
+	pdf, err := chartpdf.Render(source)
 	if err != nil {
 		return SongFile{}, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
@@ -1395,13 +1392,9 @@ func (s *Service) saveChartSource(caller User, bandID, songID, fileID string, ba
 	// Best-effort on purpose (Fable review): the source and the render are already persisted, so failing the
 	// request here would tell the editor "not saved" about a save that happened — its retry then 409s. A
 	// failed id write is caught on the next read (SourceHash mismatch → RederiveMismatch).
-	if err := s.carryLineIdentityLocked(fileID, oldSource, source, old, hash, linesByIndex); err == nil {
-		// T195 review F3: re-place every linked mark of this chart on the new render NOW, under the same
-		// lock, so a live link's history is only ever one step deep (a lazily projected mark that sat out
-		// more than maxLineHistory saves lost its character map). Best-effort, like the id carry: the save
-		// has happened; a mark that could not be re-placed is still projected lazily at serve and bake.
-		s.rebaseChartMarks(caller, f, source, hash, saveAnchors)
-	}
+	// T195: no mark is written here. Projection is lazy (serve, bake, the join snapshot); the history the
+	// carry appends keeps every step a live link still needs (LineIdentity.Compact, chartpdf/lineid_t194.go).
+	_ = s.carryLineIdentityLocked(fileID, oldSource, source, old, hash, linesByIndex)
 	unlock()
 	if old != hash {
 		s.derefBlob(old) // release the previous render if nothing else points at it (outside the line lock)

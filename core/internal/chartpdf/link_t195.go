@@ -643,16 +643,18 @@ func finiteMark(o domain.Object) bool {
 }
 
 // The bounds a believable link stays within (ValidLink). A line-height is a fraction of the page height:
-// the renderer's smallest type is far above 0.002 and its largest title far below 0.2. An offset of 50
-// line-heights is past any linking reach (3 lh) plus any mark's own size.
+// the renderer's smallest type is far above 0.002 and its largest title far below 0.2. The offsets are
+// bounded IN PAGE UNITS (|dx|·lh, |dy|·lh ≤ 2 pages): measured in line-heights, an end-of-line mark at a
+// small type size is legitimately ~30 lh from its reference point (T195 re-review), and a bound in lh
+// would reject links the server itself writes. Peers' offsets, likewise.
 const (
-	linkMinLH     = 0.002
-	linkMaxLH     = 0.2
-	linkMaxOffset = 50.0
+	linkMinLH         = 0.002
+	linkMaxLH         = 0.2
+	linkMaxPageOffset = 2.0
 )
 
 // ValidLink reports whether a link that came from OUTSIDE the server (an import, a band folder) is one
-// the server could have written: a known state, a line id unless fixed, finite numbers within sane bands,
+// the server could have written: a known state, a line id unless fixed, finite numbers within sane bands (offsets ≤ 2 pages),
 // sane character offsets. Both import paths drop an invalid link and re-link the mark by the rule (P31)
 // instead of keeping it (T195 review F2: a forged lh of 5e-324 made k infinite and broke GET for the song).
 func ValidLink(l *domain.MarkLink) bool {
@@ -679,7 +681,7 @@ func ValidLink(l *domain.MarkLink) bool {
 			return false
 		}
 	}
-	if l.LH < linkMinLH || l.LH > linkMaxLH || math.Abs(l.DX) > linkMaxOffset || math.Abs(l.DY) > linkMaxOffset {
+	if l.LH < linkMinLH || l.LH > linkMaxLH || math.Abs(l.DX*l.LH) > linkMaxPageOffset || math.Abs(l.DY*l.LH) > linkMaxPageOffset {
 		return false
 	}
 	if l.Wrap < 0 || l.Cols < 0 || (l.Char != nil && *l.Char < 0) || (l.XRef == xrefChar && l.Char == nil) {
@@ -689,31 +691,11 @@ func ValidLink(l *domain.MarkLink) bool {
 		return false
 	}
 	for _, p := range l.Peers {
-		if p.Line == "" || p.Wrap < 0 || !finite(p.Rel) || math.Abs(p.Rel) > linkMaxOffset {
+		if p.Line == "" || p.Wrap < 0 || !finite(p.Rel) || math.Abs(p.Rel*l.LH) > linkMaxPageOffset {
 			return false
 		}
 	}
 	return true
-}
-
-// RebaseOnRender is the EAGER half of the projection (T195 review F3): what a chart save stores for one
-// mark. It returns the mark moved onto r with its link re-measured there (Render = r.Hash, the character
-// offsets mapped, the state persisted), and whether that differs from o. A lost mark keeps its stored
-// coordinates and link, with its state set to lost. Re-basing on every save keeps a live link's history
-// one step deep, so it never outlives the bounded LineIdentity history.
-func RebaseOnRender(o domain.Object, r ChartRender) (domain.Object, bool) {
-	p := project(o, r)
-	if p.rebase == nil {
-		if p.obj.Link != nil && o.Link != nil && p.obj.Link.State == domain.LinkLost && o.Link.State != domain.LinkLost {
-			out := o.Clone()
-			out.Link.State = domain.LinkLost
-			return out, true
-		}
-		return o, false
-	}
-	out := p.obj
-	out.Link = p.rebase
-	return out, true
 }
 
 // runForChar finds the run of a line (any visual line) that draws rune offset c; c past the end of the

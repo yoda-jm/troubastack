@@ -259,3 +259,21 @@ func cachedAnchorsIfCurrent(source, blobHash string) ([]chartpdf.Anchor, bool) {
 	}
 	return anchors, ok
 }
+
+// CompactChartLines folds the line-id history of a generated file down to what its links still need (T195
+// re-review): keep is every render a mark's stage-2 link on this file references. Called from the SERVE
+// path, which holds the song's marks anyway, so a save never reads the annotation store, renders or writes
+// marks. A no-op (no write) while the history is short; otherwise one id-record write under the file's
+// line lock. Best-effort: an error leaves the longer history, which is still correct.
+func (s *Service) CompactChartLines(fileID string, keep map[string]bool) error {
+	defer lockLines(fileID)()
+	li, err := s.repo.GetChartLineIdentity(fileID)
+	if err != nil {
+		return err
+	}
+	next, changed := li.Compact(keep)
+	if !changed {
+		return nil
+	}
+	return s.repo.SetChartLineIdentity(fileID, next)
+}

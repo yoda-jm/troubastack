@@ -39,10 +39,26 @@ import (
 // matches) unpaired.
 const modifiedPairMin = 0.6
 
-// maxLineHistory bounds LineIdentity.History. Each step holds only the character maps of the lines that
-// step modified, so it is small; 32 saves is far more than a mark can lag behind its chart, and a mark that
-// lags further gets ok=false from CharMapSince (stage 2: "to check"), never a wrong guess.
-const maxLineHistory = 32
+// The history keeps, for every render a LIVE link still references, an unbroken chain of steps from that
+// render to the current one (T195 review: a step a live link needs must never be dropped — dropping it made
+// a mark untouched over 32 saves lose its character map, 4 characters off and "check").
+//
+//   - recentLineHistory: the newest steps are always kept exactly as recorded. A link written now is
+//     measured on the current render, which is the newest step's ToRender, so it is always covered.
+//   - Compact (called at serve, where the song's live links are known: httpapi projectSnapshot →
+//     app.Service.CompactChartLines) folds the older steps into ONE cumulative step per still-referenced
+//     render — from that render to the next referenced one — and drops the steps no link needs. After it,
+//     len(History) ≤ recentLineHistory + the number of distinct renders the file's links reference.
+//   - maxLineHistory is the hard cap for a chart saved many times with no serve in between (the save path
+//     never reads the annotation store, renders nothing and takes no extra lock): past it the oldest steps
+//     are folded into one cumulative step from the oldest render. Only a link on a render INSIDE that
+//     folded run loses its map (check, never a wrong guess), and only after 512 saves without a single read.
+//
+// A step holds the character maps of the lines it modified only, so a step is a few dozen bytes.
+const (
+	recentLineHistory = 32
+	maxLineHistory    = 512
+)
 
 // LineIdentity is one generated file's line identity: IDs[i] is the stable id of source line i of the
 // source whose SourceHash it carries (chartLines(source), so len(IDs) == the line count, blank lines and
@@ -456,10 +472,7 @@ func CarryLineIdentity(prev LineIdentity, oldSource, newSource string, newID fun
 			step.Maps[id] = BuildCharMap(oldLines[o], newLines[j])
 		}
 	}
-	next.History = append(append([]LineStep(nil), prev.History...), step)
-	if len(next.History) > maxLineHistory {
-		next.History = next.History[len(next.History)-maxLineHistory:]
-	}
+	next.History = capHistory(append(append([]LineStep(nil), prev.History...), step))
 	return next
 }
 
@@ -489,10 +502,7 @@ func (li LineIdentity) WithRerender(fromRender, toRender string) LineIdentity {
 	if fromRender == toRender {
 		return li
 	}
-	li.History = append(append([]LineStep(nil), li.History...), LineStep{FromRender: fromRender, ToRender: toRender})
-	if len(li.History) > maxLineHistory {
-		li.History = li.History[len(li.History)-maxLineHistory:]
-	}
+	li.History = capHistory(append(append([]LineStep(nil), li.History...), LineStep{FromRender: fromRender, ToRender: toRender}))
 	return li
 }
 
@@ -564,4 +574,110 @@ func LocateLine(li LineIdentity, source string, anchors []Anchor, id, fromRender
 	sort.SliceStable(loc.Runs, func(i, j int) bool { return loc.Runs[i].SrcSeg < loc.Runs[j].SrcSeg })
 	loc.CharMap, loc.CharMapKnown = li.CharMapSince(fromRender, currentRender, id)
 	return loc, true
+}
+
+// capHistory enforces maxLineHistory by folding the oldest steps into one cumulative step (see above).
+func capHistory(h []LineStep) []LineStep {
+	if len(h) <= maxLineHistory {
+		return h
+	}
+	n := len(h) - maxLineHistory + 1 // fold this many oldest steps into one
+	if !chained(h[:n]) {
+		return h[n-1:] // a broken chain cannot be composed: those links had no map already
+	}
+	return append([]LineStep{composeSteps(h[:n])}, h[n:]...)
+}
+
+// chained reports whether consecutive steps join (each step starts at the render the previous one ended).
+func chained(h []LineStep) bool {
+	for i := 1; i < len(h); i++ {
+		if h[i].FromRender != h[i-1].ToRender {
+			return false
+		}
+	}
+	return true
+}
+
+// Compact returns li with its history reduced to what the links on its file still need: keep holds every
+// render some link (live or tombstoned) references. The newest recentLineHistory steps stay as recorded;
+// older steps are folded into one cumulative step per kept render (from it to the next kept render, or to
+// the start of the recent window), and steps reachable from no kept render are dropped. A no-op (same
+// value, false) when there is nothing to fold.
+func (li LineIdentity) Compact(keep map[string]bool) (LineIdentity, bool) {
+	n := len(li.History)
+	if n <= recentLineHistory {
+		return li, false
+	}
+	old, rest := li.History[:n-recentLineHistory], li.History[n-recentLineHistory:]
+	var out, seg []LineStep
+	flush := func() {
+		if len(seg) > 0 {
+			out = append(out, composeSteps(seg))
+			seg = nil
+		}
+	}
+	for i, st := range old {
+		if i > 0 && st.FromRender != old[i-1].ToRender {
+			flush() // a broken chain: nothing before it can be followed past it
+		}
+		switch {
+		case keep[st.FromRender]:
+			flush()
+			seg = []LineStep{st}
+		case len(seg) > 0:
+			seg = append(seg, st)
+		}
+	}
+	flush()
+	if len(out) == len(old) {
+		return li, false
+	}
+	li.History = append(out, rest...)
+	return li, true
+}
+
+// composeSteps folds consecutive, chained steps into one: from the first's render to the last's, each line
+// id's character maps composed in order (a line modified in several steps gets one map).
+func composeSteps(steps []LineStep) LineStep {
+	out := LineStep{FromRender: steps[0].FromRender, ToRender: steps[len(steps)-1].ToRender}
+	for _, st := range steps {
+		for id, m := range st.Maps {
+			if out.Maps == nil {
+				out.Maps = map[string]CharMap{}
+			}
+			if acc, ok := out.Maps[id]; ok {
+				out.Maps[id] = composeCharMap(acc, m)
+			} else {
+				out.Maps[id] = m
+			}
+		}
+	}
+	return out
+}
+
+// composeCharMap is b∘a: a character kept by both maps is kept, at b's position; every other character is
+// inexact (CharMap.Map then places it just after the last kept one, as for a single edit).
+func composeCharMap(a, b CharMap) CharMap {
+	oldToNew := make([]int, a.OldLen)
+	for o := range oldToNew {
+		oldToNew[o] = -1
+		if n1, e1 := a.Map(o); e1 && n1 < b.OldLen {
+			if n2, e2 := b.Map(n1); e2 {
+				oldToNew[o] = n2
+			}
+		}
+	}
+	cm := CharMap{OldLen: a.OldLen, NewLen: b.NewLen}
+	for i := 0; i < len(oldToNew); {
+		if oldToNew[i] < 0 {
+			i++
+			continue
+		}
+		st, n := i, oldToNew[i]
+		for i < len(oldToNew) && oldToNew[i] == n+(i-st) {
+			i++
+		}
+		cm.Keep = append(cm.Keep, [3]int{st, n, i - st})
+	}
+	return cm
 }

@@ -49,7 +49,6 @@ func newE2E(t *testing.T, src string) *e2eWorld {
 	svc := app.NewService(memrepo.New())
 	svc.WithBlobStore(blob.NewMem())
 	eng := engine.New(memstore.New().(store.HistoryAware))
-	svc.WithAnnotationEngine(eng) // as cmd/troubacore wires it: a save re-places the chart's marks (F3)
 	admin, err := svc.Register("e2eowner", "E2E", "password123", "")
 	if err != nil {
 		t.Fatal(err)
@@ -511,8 +510,9 @@ func TestE2E_UploadedPDFUntouched(t *testing.T) {
 	}
 }
 
-// F3 end to end: an icon nobody touches while its chart is saved 40 times (more than the line-id history
-// keeps) is re-placed at every save, so a final edit before its word still moves it onto that word, linked.
+// F3 end to end, LAZILY (T195 re-review): an icon nobody touches while its chart is saved 40 times (more
+// than the 32 history steps kept as recorded) is never written by a save; a GET part way through compacts
+// the history to what the links need; a final edit before its word still moves it onto that word, linked.
 func TestE2E_UntouchedMarkSurvivesManySaves(t *testing.T) {
 	src := "# A Long Test Chart\n\n## Verse\nthe kettle hums a quiet tune\nbeneath a paper moon\n\n## Notes\nnote 0\n"
 	w := newE2E(t, src)
@@ -523,6 +523,12 @@ func TestE2E_UntouchedMarkSurvivesManySaves(t *testing.T) {
 	w.create(domain.Object{UUID: "ic", Page: a.Page, Points: icon, Text: "star"}, "icon")
 	for i := 1; i <= 40; i++ {
 		w.save(strings.Replace(w.src, fmt.Sprintf("note %d\n", i-1), fmt.Sprintf("note %d\n", i), 1))
+		if i == 36 {
+			w.served() // a reader: the serve compacts the line-id history (one step per referenced render)
+			if r, err := w.svc.ChartRenderForFile(w.file); err != nil || len(r.Lines.History) > 33 {
+				t.Fatalf("after a serve the history holds %d steps (err %v), want ≤ 33", len(r.Lines.History), err)
+			}
+		}
 	}
 	w.save(strings.Replace(w.src, "beneath a paper moon", "beneath a big paper moon", 1))
 	b := e2eRun(t, w.src, "beneath a big paper moon", 1)
@@ -564,4 +570,29 @@ func TestE2E_LostMarkMovedFromARestyleEchoRelinks(t *testing.T) {
 	if _, got := w.served(); state(got["le"]) != "linked" {
 		t.Errorf("a lost mark moved from its restyle echo is %s, want linked", state(got["le"]))
 	}
+}
+
+// N1 (T195 re-review): a PEER holds the served object from before a chart save (render R1). Someone saves
+// (R2), moving the mark's line down three lines; nothing tells the peer. The peer drags the mark 0.05 to the
+// right on the page it sees. P27: the server keeps the stored link and shifts its offset by the drag, so the
+// next serve shows the mark on its line, 0.05 further right — not snapped back to its R1 position. This was
+// red under f2cceb40's eager rebase at save (the stored box was on R2, the drag on R1).
+func TestE2E_StalePeerDragLandsRelativeToItsLine(t *testing.T) {
+	w := newE2E(t, e2eChart)
+	a := e2eRun(t, w.src, "we sail at dawn", 1)
+	h := a.Y1 - a.Y0
+	box := []domain.Point{{X: a.X0, Y: a.Y0 - 0.3*h}, {X: a.X0 + 0.1, Y: a.Y1 + 0.3*h}}
+	w.create(domain.Object{UUID: "pm", Page: a.Page, Points: box}, "rect")
+	peerRaw, _ := w.served() // the peer's view, on R1
+	peerObj := peerRaw["pm"]
+	w.save(strings.Replace(w.src, "## Verse\n", "## Verse\nDm\nsome new words up here\nand another line\n", 1))
+	b := e2eRun(t, w.src, "we sail at dawn", 1)
+	peerObj["points"] = ptsJSON(shift(box, 0.05, 0))
+	w.mut("move", "pm", peerObj)
+	_, got := w.served()
+	g := got["pm"]
+	if st := state(g); st != "linked" {
+		t.Errorf("a stale-peer drag on the link's own render is a known shift: state %s, want linked", st)
+	}
+	eqPts(t, "stale-peer drag lands relative to its line", g.Points, shift(box, 0.05, b.Y0-a.Y0), 1e-6)
 }

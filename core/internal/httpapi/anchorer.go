@@ -104,7 +104,36 @@ func (c *chartAnchorer) ServeSnapshot(songID string, snap domain.Snapshot) (out 
 			out = snap
 		}
 	}()
-	return projectSnapshot(snap, func(fileID string) *chartpdf.ChartRender { return chartRenderOf(c.svc, fileID) })
+	out = projectSnapshot(snap, func(fileID string) *chartpdf.ChartRender { return chartRenderOf(c.svc, fileID) })
+	compactHistories(c.svc, snap)
+	return out
+}
+
+// compactHistories tells each generated chart of a snapshot which renders its marks' links reference, so
+// its line-id history keeps exactly the steps those links need (app.Service.CompactChartLines, T195). The
+// snapshot holds every mark of the song, tombstoned ones too (a restore may bring one back). Cheap when
+// there is nothing to fold: a read, no write.
+func compactHistories(svc *app.Service, snap domain.Snapshot) {
+	fileByLayer := make(map[string]string, len(snap.Layers))
+	for _, l := range snap.Layers {
+		fileByLayer[l.ID] = l.FileID
+	}
+	keep := map[string]map[string]bool{}
+	for _, o := range snap.Objects {
+		fid := fileByLayer[o.LayerID]
+		if fid == "" {
+			continue
+		}
+		if keep[fid] == nil {
+			keep[fid] = map[string]bool{}
+		}
+		if o.Link != nil && o.Link.Render != "" {
+			keep[fid][o.Link.Render] = true
+		}
+	}
+	for fid, k := range keep {
+		_ = svc.CompactChartLines(fid, k) // an uploaded file has no ids: ErrNotFound, ignored
+	}
 }
 
 // projectSnapshot projects every linked mark of a snapshot onto the current render of its layer's chart
