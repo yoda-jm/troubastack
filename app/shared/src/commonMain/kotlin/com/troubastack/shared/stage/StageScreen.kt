@@ -760,16 +760,22 @@ private fun Performing(
                     label = "page-turn",
                 ) { cur ->
                     val placeholder = colorMode.pagePlaceholder()
+                    // A85 — in note mode ONE handler owns the touch over the whole spread (per page-turn content, so
+                    // an outgoing spread's pages never receive the incoming one's strokes) and routes each point to
+                    // the page under it; ⟨D2⟩ its two-up seam divider is drawn in the note-bar's chrome colour.
+                    val noteSpread = remember { NoteSpread() }
+                    val noteEditing = notePad?.noteMode == true
+                    val seamColour = stageChrome(colorMode).onSurfaceVariant.copy(alpha = 0.6f)
                     if (twoUp) {
                         // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
-                        Row(Modifier.fillMaxSize()) {
+                        Row(Modifier.fillMaxSize().then(if (noteEditing) Modifier.noteSpreadInput(noteSpread, seamColour) else Modifier)) {
                             spreadPages(cur, songStarts, state.pageCount).forEach { idx ->
-                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.weight(1f).fillMaxHeight(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad)
+                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.weight(1f).fillMaxHeight(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad, noteSpread = noteSpread)
                             }
                         }
                     } else {
                         state.pages.getOrNull(cur)?.let { p ->
-                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad)
+                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize().then(if (noteEditing) Modifier.noteSpreadInput(noteSpread, null) else Modifier), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad, noteSpread = noteSpread)
                         }
                     }
                 }
@@ -1935,6 +1941,7 @@ private fun PageView(
     onJumpTap: (StagePage, Int, Int) -> Boolean = { _, _, _ -> false },
     onToggleChrome: () -> Unit = {},
     notePad: NotePad? = null, // A70 §3.5: the rehearsal-note layer (null ⇒ notes off; scroll never passes one)
+    noteSpread: NoteSpread? = null, // A85: the note-mode surface that owns touch across the spread
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
         PlaceholderCard(modifier, colorMode)
@@ -2011,7 +2018,7 @@ private fun PageView(
                     // A70 §3.5 — the rehearsal note sits ABOVE every baked overlay (#11). Editable only while
                     // this song's page is in note mode; otherwise it draws the stored note when it is visible.
                     notePad?.let { np ->
-                        val editable = np.noteMode
+                        val editable = np.noteMode && noteSpread != null
                         if (editable || np.shownFor(page)) {
                             val nd = com.troubastack.shared.stage.notes.NoteGeometry.noteSize(bitmaps.raster.width, bitmaps.raster.height)
                             NoteLayer(
@@ -2022,7 +2029,7 @@ private fun PageView(
                                 imageMod = imageMod, fillWidth = fitMode == FitMode.FIT_WIDTH,
                                 noteRevision = np.noteRevision, meta = np.meta(page), noteWallNow = np.now,
                                 onIndexChanged = np.onIndexChanged, onBumpRevision = np.onBumpRevision,
-                                onNoteCommitted = np.onNoteCommitted,
+                                onNoteCommitted = np.onNoteCommitted, spread = noteSpread,
                             )
                         }
                     }

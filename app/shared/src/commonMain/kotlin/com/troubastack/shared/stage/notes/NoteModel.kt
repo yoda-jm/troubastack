@@ -101,20 +101,24 @@ object NoteGeometry {
         tapX: Float, tapY: Float, boxW: Int, boxH: Int, noteW: Int, noteH: Int,
         fillWidth: Boolean, scrollOffsetY: Int = 0,
     ): Offset? {
+        val r = paperRect(boxW, boxH, noteW, noteH, fillWidth, scrollOffsetY) ?: return null
+        if (!r.contains(tapX, tapY)) return null
+        return paperToNote(tapX, tapY, r, noteW, noteH)
+    }
+
+    /**
+     * A85 — where the page's PAPER is, in the page composable's own box (px): the one rectangle every touch
+     * question is answered against (touchToNote, the stroke splitter, the wet preview). FIT_PAGE: the raster
+     * scaled to the larger letterbox that still fits, then centred (like tapToPagePermille). FIT_WIDTH: the
+     * box width, the content height, shifted up by [scrollOffsetY]. Null for a degenerate box or note.
+     */
+    fun paperRect(boxW: Int, boxH: Int, noteW: Int, noteH: Int, fillWidth: Boolean, scrollOffsetY: Int = 0): PaperRect? {
         if (boxW <= 0 || boxH <= 0 || noteW <= 0 || noteH <= 0) return null
         if (fillWidth) {
-            // The raster fills the box width; full content height = boxW * noteH/noteW. The visible window is
-            // [scrollOffsetY, scrollOffsetY+boxH]. Both axes scale by noteW/boxW (x directly; y because the
-            // content is rendered at box width). null only if the touch is off the box horizontally.
-            if (tapX < 0f || tapX > boxW) return null
-            val s = noteW.toDouble() / boxW
-            val nx = tapX * s
-            val ny = (tapY + scrollOffsetY) * s
-            if (ny < 0.0 || ny > noteH) return null
-            return Offset(nx.toFloat(), ny.toFloat())
+            // The raster fills the box width; full content height = boxW * noteH/noteW, scrolled by scrollOffsetY.
+            val h = boxW.toDouble() * noteH / noteW
+            return PaperRect(0f, (-scrollOffsetY).toFloat(), boxW.toFloat(), (h - scrollOffsetY).toFloat())
         }
-        // FIT_PAGE: the raster is scaled to the LARGER letterbox that still fits, then centred (like
-        // tapToPagePermille). A touch in a bar maps to null.
         val aspect = noteW.toDouble() / noteH
         val boxAspect = boxW.toDouble() / boxH
         val rw: Double; val rh: Double; val ox: Double; val oy: Double
@@ -124,10 +128,15 @@ object NoteGeometry {
             rh = boxH.toDouble(); rw = boxH * aspect; oy = 0.0; ox = (boxW - rw) / 2.0
         }
         if (rw <= 0.0 || rh <= 0.0) return null
-        val u = (tapX - ox) / rw
-        val v = (tapY - oy) / rh
-        if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) return null
-        return Offset((u * noteW).toFloat(), (v * noteH).toFloat())
+        return PaperRect(ox.toFloat(), oy.toFloat(), (ox + rw).toFloat(), (oy + rh).toFloat())
+    }
+
+    /** A85 — a point on the paper [r] (same space) → note-bitmap px. Linear and CLAMPED to the note, so a split
+     *  stroke's interpolated edge point always lands on the note's edge, never a rounding hair outside it. */
+    fun paperToNote(x: Float, y: Float, r: PaperRect, noteW: Int, noteH: Int): Offset {
+        val u = ((x - r.left) / (r.right - r.left)).coerceIn(0f, 1f)
+        val v = ((y - r.top) / (r.bottom - r.top)).coerceIn(0f, 1f)
+        return Offset(u * noteW, v * noteH)
     }
 }
 

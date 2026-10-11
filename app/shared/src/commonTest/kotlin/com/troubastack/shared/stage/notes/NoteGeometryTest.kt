@@ -88,4 +88,20 @@ class NoteGeometryTest {
         assertEquals(4, NoteTools.COLOURS.size)
         assertEquals("~notes", NoteTools.RESERVED_LAYER_ID)
     }
+
+    @Test
+    fun paperRect_is_the_drawable_area_touchToNote_answers_against() {
+        // A85: one geometry. FIT_PAGE height-bound (960×1200 box, 1600×2263 note → bars left/right).
+        val r = NoteGeometry.paperRect(960, 1200, 1600, 2263, fillWidth = false)!!
+        assertEquals(0f, r.top); assertEquals(1200f, r.bottom)
+        val w = 1200f * 1600f / 2263f
+        assertEquals((960f - w) / 2f, r.left, 0.01f); assertEquals((960f + w) / 2f, r.right, 0.01f)
+        // On the paper's edges touchToNote is the note's edges; a hair outside is null; paperToNote clamps it.
+        assertEquals(1600f, NoteGeometry.touchToNote(r.right, 600f, 960, 1200, 1600, 2263, false)!!.x, 0.05f)
+        assertEquals(0f, NoteGeometry.touchToNote(r.left, 600f, 960, 1200, 1600, 2263, false)!!.x, 0.05f)
+        assertEquals(null, NoteGeometry.touchToNote(r.right + 0.5f, 600f, 960, 1200, 1600, 2263, false))
+        assertEquals(1600f, NoteGeometry.paperToNote(r.right + 0.5f, 600f, r, 1600, 2263).x)
+        // FIT_WIDTH: the box width, the content height, shifted by the scroll.
+        assertEquals(PaperRect(0f, -100f, 800f, 1031.5f), NoteGeometry.paperRect(800, 600, 1600, 2263, fillWidth = true, scrollOffsetY = 100))
+    }
 }

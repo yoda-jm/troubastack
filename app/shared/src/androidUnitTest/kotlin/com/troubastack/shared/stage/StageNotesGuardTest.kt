@@ -122,17 +122,21 @@ class StageNotesGuardTest {
     }
 
     /**
-     * The drawing handler must restart on a note revision. `display` is remember(key, noteRevision): after "Clear
-     * page" bumps the revision it is a NEW state, and a pointerInput keyed without noteRevision keeps writing the
-     * old one — the stroke is saved (neutral is read through rememberUpdatedState) but never drawn, until reopen.
+     * The per-page drawing handler must be renewed on a note revision. `display` is remember(key, noteRevision):
+     * after "Clear page" bumps the revision it is a NEW state, and a handler that outlives it keeps writing the old
+     * one — the stroke is saved (neutral is read through rememberUpdatedState) but never drawn, until reopen.
      * Measured on the tablet: 999 opaque px in the saved PNG, 0 on screen. A pure test can't see a stale closure;
-     * this guards the key.
+     * this guards the key. Since A85 the per-page handler is the NoteSink (the spread's pointerInput only routes
+     * points and captures no page state), so the sink's remember is what must carry noteRevision.
      */
     @Test
     fun noteDrawingHandler_restartsOnANoteRevision() {
         val src = stageFile("NotePad.kt").lineSequence().joinToString("\n") { it.substringBefore("//") }
-        val call = Regex("""pointerInput\(([^)]*)\)""").findAll(src).map { it.groupValues[1] }.toList()
-        assertTrue(call.isNotEmpty(), "found no pointerInput( in NotePad.kt — the guard lost its subject")
-        assertTrue(call.all { "noteRevision" in it }, "NotePad's drawing pointerInput must be keyed on noteRevision; keys were: $call")
+        val sinks = Regex("""remember\(([^)]*)\)\s*\{\s*NoteSink\(""").findAll(src).map { it.groupValues[1] }.toList()
+        assertTrue(sinks.isNotEmpty(), "found no remembered NoteSink( in NotePad.kt — the guard lost its subject")
+        assertTrue(sinks.all { "noteRevision" in it }, "NoteLayer's sink must be remembered on noteRevision; keys were: $sinks")
+        // The spread's handler is keyed on the spread alone — it must not capture per-page state to need more.
+        val calls = Regex("""pointerInput\(([^)]*)\)""").findAll(src).map { it.groupValues[1].trim() }.toList()
+        assertEquals(listOf("spread"), calls, "NotePad's only pointerInput is the spread's router")
     }
 }

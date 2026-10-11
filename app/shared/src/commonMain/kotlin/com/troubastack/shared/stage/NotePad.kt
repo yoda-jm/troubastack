@@ -10,7 +10,9 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
@@ -27,6 +30,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -36,13 +40,19 @@ import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import com.troubastack.shared.stage.notes.NoteEntry
 import com.troubastack.shared.stage.notes.NoteGeometry
 import com.troubastack.shared.stage.notes.NoteKey
 import com.troubastack.shared.stage.notes.NoteTool
 import com.troubastack.shared.stage.notes.NoteTools
+import com.troubastack.shared.stage.notes.PaperRect
+import com.troubastack.shared.stage.notes.SplitEvent
+import com.troubastack.shared.stage.notes.StrokeSplitter
 import com.troubastack.shared.stage.notes.RehearsalNotes
-import com.troubastack.shared.stage.notes.StrokePoint
 import com.troubastack.shared.stage.notes.StrokeReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -98,6 +108,107 @@ val NoOpRehearsalNotes: RehearsalNotes = object : RehearsalNotes {
 }
 
 /**
+ * A85 — ONE gesture owner over everything visible in note mode: the two-up spread, or the single page. Each
+ * editable [NoteLayer] registers a [NoteSink] (its paper + what to do with a stroke); [noteSpreadInput] reads the
+ * pointer over the whole surface and routes each point to the page under it through [StrokeSplitter], so one pen
+ * movement across the middle becomes one stroke per page instead of losing everything past the first page's edge
+ * (the per-page pointerInput kept the pointer for the whole gesture, and the neighbour never saw it).
+ */
+class NoteSpread {
+    internal var coords: LayoutCoordinates? = null
+    internal val sinks = mutableStateListOf<NoteSink>()
+    // Bumped when the surface or a page moves, so the seam divider (read in the draw phase) redraws.
+    internal var layoutTick by mutableStateOf(0)
+
+    /** Each attached page's paper in the SURFACE's space, with the offset from the surface to that page's box. */
+    internal fun papers(): List<Triple<NoteSink, PaperRect, Offset>> {
+        val sc = coords?.takeIf { it.isAttached } ?: return emptyList()
+        return sinks.mapNotNull { sink ->
+            val c = sink.coords?.takeIf { it.isAttached } ?: return@mapNotNull null
+            val local = sink.paper(c.size) ?: return@mapNotNull null
+            val off = sc.localPositionOf(c, Offset.Zero)
+            Triple(sink, PaperRect(local.left + off.x, local.top + off.y, local.right + off.x, local.bottom + off.y), off)
+        }
+    }
+}
+
+/** A85 — one editable page as the spread sees it. Points arrive in the page box's own space, on its paper. */
+internal class NoteSink {
+    var coords: LayoutCoordinates? = null
+    var paper: (IntSize) -> PaperRect? = { null }
+    var begin: (Offset) -> Unit = {}
+    var point: (Offset) -> Unit = {}
+    var end: () -> Unit = {}
+}
+
+/**
+ * A85 — the note-mode input over [spread]'s surface: A71's reader (no slop, touchdown first, the first pointer
+ * owns the gesture, a dot is a dot) feeding the splitter, whose per-page events go to that page's sink. With
+ * [divider] set (two-up), ⟨D2⟩ draws the seam between the two pages: chrome, dashed, never ink, never baked —
+ * it exists only while this modifier does, i.e. in note mode.
+ */
+fun Modifier.noteSpreadInput(spread: NoteSpread, divider: Color?): Modifier = this
+    .onGloballyPositioned { spread.coords = it; spread.layoutTick++ }
+    .pointerInput(spread) {
+        awaitEachGesture {
+            val reader = StrokeReader()
+            var splitter: StrokeSplitter? = null
+            var targets: List<Triple<NoteSink, PaperRect, Offset>> = emptyList()
+            fun dispatch(events: List<SplitEvent>) {
+                for (e in events) {
+                    val (sink, _, off) = targets.getOrNull(e.page) ?: continue
+                    when (e) {
+                        is SplitEvent.Begin -> sink.begin(Offset(e.point.x - off.x, e.point.y - off.y))
+                        is SplitEvent.Point -> sink.point(Offset(e.point.x - off.x, e.point.y - off.y))
+                        is SplitEvent.End -> sink.end()
+                    }
+                }
+            }
+            val first = awaitFirstDown(requireUnconsumed = false)
+            reader.down(first.id.value, first.position.x, first.position.y)?.let { p ->
+                targets = spread.papers() // fixed for the gesture: nothing re-lays out under a stroke
+                splitter = StrokeSplitter(targets.map { it.second }).also { dispatch(it.down(p)) }
+            }
+            first.consume() // A71 D4: consume what we read
+            while (reader.drawing) {
+                val event = awaitPointerEvent()
+                for (c in event.changes) {
+                    when {
+                        c.changedToDown() -> { reader.down(c.id.value, c.position.x, c.position.y); c.consume() } // a second pointer: ignored (D3)
+                        c.changedToUp() -> { if (reader.up(c.id.value) != null) splitter?.let { dispatch(it.up()) }; c.consume() }
+                        c.pressed && c.positionChanged() -> {
+                            // The pointer's HISTORICAL samples (between frames) first, oldest→newest, then the
+                            // latest — a fast flick is traced densely, and the wet preview and the commit read the
+                            // same points.
+                            for (h in c.historical) reader.move(c.id.value, h.position.x, h.position.y)?.let { p -> splitter?.let { dispatch(it.move(p)) } }
+                            reader.move(c.id.value, c.position.x, c.position.y)?.let { p -> splitter?.let { dispatch(it.move(p)) } }
+                            c.consume()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    .then(
+        if (divider == null) Modifier
+        else Modifier.drawWithContent {
+            drawContent()
+            spread.layoutTick // read in the draw phase: a moved page redraws the seam
+            val ps = spread.papers().map { it.second }.sortedBy { it.left }
+            if (ps.size == 2) {
+                val x = (ps[0].right + ps[1].left) / 2f
+                val top = minOf(ps[0].top, ps[1].top).coerceAtLeast(0f)
+                val bottom = maxOf(ps[0].bottom, ps[1].bottom).coerceAtMost(size.height)
+                val dash = 10.dp.toPx()
+                drawLine(
+                    divider, Offset(x, top), Offset(x, bottom), strokeWidth = 2.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash * 0.6f)),
+                )
+            }
+        },
+    )
+
+/**
  * §3.5 — the note layer over one page, ABOVE every baked overlay (#11). Displays the stored note
  * (scheme-transformed) always; when [editable] (the current page in note mode) it also captures pencil /
  * eraser input into an in-memory NEUTRAL bitmap, commits each stroke at pen-up, and persists it (a private
@@ -123,6 +234,7 @@ fun NoteLayer(
     onIndexChanged: (List<NoteEntry>) -> Unit,
     onBumpRevision: () -> Unit,
     onNoteCommitted: (NoteEntry) -> Unit = {}, // A77 — fired after each pen-up save so the host can auto-send.
+    spread: NoteSpread? = null, // A85 — the note-mode surface that routes touch to this page (required to edit)
 ) {
     val key = NoteKey(page.songId, page.rasterHash)
     // The NEUTRAL working bitmap for this page (the stored colours). Loaded once per (page, revision); a
@@ -206,81 +318,73 @@ fun NoteLayer(
     // committed ink. The eraser has no wet preview (it applies to the bitmap on every move — §3.6).
     var wet by remember(key) { mutableStateOf<List<Offset>>(emptyList()) }
     val drawColour = Color(transformOverlayPixel(penColour.toInt(), scheme)) // Color(Int) reads 0xAARRGGBB
+    val latestTool = rememberUpdatedState(tool)
+    val latestPenWidth = rememberUpdatedState(penWidth)
+    val latestPenColour = rememberUpdatedState(penColour)
+    val latestScheme = rememberUpdatedState(scheme)
+    val latestFillWidth = rememberUpdatedState(fillWidth)
+    // A85 — this page's share of a gesture the spread owns: a SEGMENT starts when the pen goes down on (or
+    // enters) this page and ends when it lifts (or leaves at the edge). Remembered on noteRevision too: `display`
+    // and `eraseTick` are remember(key, noteRevision), so after a revision bump ("Clear page") the sink must be a
+    // new object writing the NEW states — an old one saved the stroke but never drew it (measured on VLL's tablet).
+    val latestPersist = rememberUpdatedState({ persist() })
+    val sink = remember(key, noteRevision) { NoteSink() }
+    if (spread != null) DisposableEffect(spread, sink) { spread.sinks += sink; onDispose { spread.sinks -= sink } }
+    remember(sink) {
+        val seg = ArrayList<Offset>()
+        fun noteSize() = latestNeutral.value?.let { IntSize(it.width, it.height) } ?: noteDim
+        fun paperOf(box: IntSize) = noteSize().let { NoteGeometry.paperRect(box.width, box.height, it.width, it.height, latestFillWidth.value) }
+        // Every point the splitter sends is on this page's paper (edge points included), so the map is total.
+        fun toNote(n: ImageBitmap): List<Offset> {
+            val box = sink.coords?.size ?: return emptyList()
+            val r = paperOf(box) ?: return emptyList()
+            return seg.map { NoteGeometry.paperToNote(it.x, it.y, r, n.width, n.height) }
+        }
+        fun onPoint() {
+            if (latestTool.value == NoteTool.ERASER) {
+                val n = latestNeutral.value
+                if (n != null) {
+                    val ew = NoteTools.eraserWidth(latestPenWidth.value).toFloat() * n.width / NoteTools.NOTE_W
+                    // A76 (Fable) — clear along the SAME smoothed path the pencil draws, not straight chords. Clearing
+                    // is idempotent, so sweeping the whole segment each move keeps the erase immediate (§3.6).
+                    // Clears the working bitmap AND the note-space display copy, then bumps eraseTick.
+                    val notePts = toNote(n)
+                    if (notePts.isNotEmpty()) {
+                        eraseSmoothPath(n, notePts, ew); display?.let { eraseSmoothPath(it, notePts, ew) }
+                        eraseTick++
+                    }
+                }
+            }
+            // Both tools grow the wet list — the pencil's coloured preview and the eraser's grey trail (⟨D5⟩ R2).
+            wet = seg.toList()
+        }
+        sink.paper = { box -> paperOf(box) }
+        sink.begin = { p -> seg.clear(); seg += p; onPoint() }
+        sink.point = { p -> seg += p; onPoint() }
+        sink.end = {
+            val n = latestNeutral.value
+            if (n != null && seg.isNotEmpty()) {
+                if (latestTool.value == NoteTool.PENCIL) {
+                    // Commit the whole segment — its first point included — into the NEUTRAL bitmap, note space.
+                    val pts = toNote(n)
+                    if (pts.isNotEmpty()) {
+                        strokeInto(n, pts, latestPenColour.value, latestPenWidth.value.toFloat() * n.width / NoteTools.NOTE_W)
+                        display = transformOverlayBitmap(n, latestScheme.value)
+                    }
+                }
+                latestPersist.value() // pencil committed OR eraser applied live → save either way (one commit per page segment)
+            }
+            seg.clear()
+            wet = emptyList()
+        }
+        Unit
+    }
     Canvas(
         imageMod.then(
-            // A71 §3/§4 — read the finger DIRECTLY: no slop, the touchdown is the first point. Note mode owns
-            // the touch (§2: chrome tap, turn-swipe, fit-width scroll and jump taps are all off in note mode),
-            // so there is nothing to disambiguate and no reason for the scroll-oriented detectors that discard
-            // the first ~1.5 mm and report a stab at finger-up. One StrokeReader, both tools, first pointer wins.
-            // Keyed on noteRevision too: `display`/`eraseTick` are remember(key, noteRevision), so a revision bump
-            // ("Clear page") makes NEW state objects. A handler not restarted by it kept writing the OLD `display`:
-            // the stroke reached disk (neutral goes through rememberUpdatedState) but never the screen, until a
-            // reopen redrew from disk — "it says there are some but I cannot see them" (measured on VLL's tablet).
-            Modifier.pointerInput(key, noteRevision, tool, penWidth, penColour) {
-                val reader = StrokeReader()
-                // Eraser: clear the CONNECTED segment between consecutive samples (round cap), not a lone dab
-                // per sample — a fast finger's samples are far apart, so point-dabs leave gaps and a stroke
-                // dragged across parallel lines only clears where it happened to sample (VLL). The touchdown
-                // is a single dab. Pencil: grow the wet preview from the reader's own point list.
-                fun onPoint(x: Float, y: Float) {
-                    if (tool == NoteTool.ERASER) {
-                        val n = latestNeutral.value ?: return
-                        val ew = NoteTools.eraserWidth(penWidth).toFloat() * n.width / NoteTools.NOTE_W
-                        // A76 (Fable) — clear along the SAME smoothed path the pencil draws, not straight chords:
-                        // a fast stroke's curve bulges off its chord, so a straight-chord eraser missed it and
-                        // reopened "it does not erase all my path" (A70 ⟨D5⟩). Clearing is idempotent, so sweeping
-                        // the whole smoothed path each move keeps the erase immediate (§3.6) and always cancels the
-                        // pencil. Clears the working bitmap AND the note-space display copy, then bumps eraseTick.
-                        val notePts = reader.current.mapNotNull {
-                            NoteGeometry.touchToNote(it.x, it.y, size.width, size.height, n.width, n.height, fillWidth)
-                        }
-                        if (notePts.isNotEmpty()) {
-                            eraseSmoothPath(n, notePts, ew); display?.let { eraseSmoothPath(it, notePts, ew) }
-                            eraseTick++
-                        }
-                    }
-                    // Both tools grow the wet list — the pencil's coloured preview and the eraser's grey shadow
-                    // trail (⟨D5⟩ R2) both draw from it, and both are cleared at pen-up.
-                    wet = reader.current.map { Offset(it.x, it.y) }
-                }
-                fun onCommit(points: List<StrokePoint>) {
-                    val n = latestNeutral.value
-                    if (n != null) {
-                        if (tool == NoteTool.PENCIL) {
-                            // Commit the whole stroke — touchdown included — into the NEUTRAL bitmap, note space.
-                            val pts = points.mapNotNull { NoteGeometry.touchToNote(it.x, it.y, size.width, size.height, n.width, n.height, fillWidth) }
-                            if (pts.isNotEmpty()) {
-                                strokeInto(n, pts, penColour, penWidth.toFloat() * n.width / NoteTools.NOTE_W)
-                                display = transformOverlayBitmap(n, scheme)
-                            }
-                        }
-                        persist() // pencil committed OR eraser dabs applied live → save either way
-                    }
-                    wet = emptyList()
-                }
-                awaitEachGesture {
-                    val first = awaitFirstDown(requireUnconsumed = false)
-                    reader.down(first.id.value, first.position.x, first.position.y)?.let { onPoint(it.x, it.y) }
-                    first.consume() // D4: consume what we read
-                    while (reader.drawing) {
-                        val event = awaitPointerEvent()
-                        for (c in event.changes) {
-                            when {
-                                c.changedToDown() -> { reader.down(c.id.value, c.position.x, c.position.y)?.let { onPoint(it.x, it.y) }; c.consume() }
-                                c.changedToUp() -> { reader.up(c.id.value)?.let { onCommit(it) }; c.consume() }
-                                c.pressed && c.positionChanged() -> {
-                                    // Feed the pointer's HISTORICAL positions (the samples between frames) before
-                                    // the latest, so a fast flick is traced densely instead of as one long chord —
-                                    // otherwise the commit, reading the same points, runs slightly past the frame-
-                                    // limited wet preview. Chronological: historical is oldest→newest, then current.
-                                    for (h in c.historical) reader.move(c.id.value, h.position.x, h.position.y)?.let { onPoint(it.x, it.y) }
-                                    reader.move(c.id.value, c.position.x, c.position.y)?.let { onPoint(it.x, it.y) }
-                                    c.consume()
-                                }
-                            }
-                        }
-                    }
-                }
+            Modifier.onGloballyPositioned { c ->
+                val moved = sink.coords?.let { it.size != c.size } ?: true
+                sink.coords = c
+                if (moved) spread?.let { it.layoutTick++ }
             },
         ),
     ) {
