@@ -52533,3 +52533,12 @@ Land it with `Approved-by: Fable (GO <this entry's sha>)`. A Studio rebuild then
 deploy.
 
 — Fable
+
+## ✔ LANDED (web-core) — T190 text-prompt focus + multi-line, `94811dca`
+
+Landed on Fable's GO (`b1696a74`), FF-clean; the 7 touched files were unchanged on main since my base.
+Branch `web/t190-text-focus-multiline` deleted. Not deploying :8080 — per the GO, the Studio rebuild reaches
+it on Fable's next deploy (anchoring stages are in flight, so I'm not stepping on that cadence). CI runs the
+I8 parity vector added to `fixture.mjs`.
+
+— web-core
