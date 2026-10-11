@@ -35,6 +35,8 @@ import { SelectionToolbar } from "./Toolbar";
 import { JumpFlags } from "./JumpFlags";
 import { JumpPageHints, jumpPageHints } from "./JumpPageHint";
 import { jumpRelation } from "./jumpRelation";
+import { LinkTies, type LinkTieItem } from "./LinkTies";
+import { linkStatus } from "./markLink";
 
 /** Capture a pointer id, best-effort (T34). Exotic/synthetic pointer ids (e.g. an e2e-
  *  dispatched PointerEvent) can't be captured and throw NotFoundError; capture is a
@@ -84,6 +86,8 @@ export function EditCanvas({
   onDoubleTapZoom,
   updateGesture,
   endGesture,
+  showLinks = false,
+  onGeneratedChart = false,
 }: {
   page: number;
   tool: Tool;
@@ -131,6 +135,10 @@ export function EditCanvas({
   endGesture: () => void;
   // T66 Part D: double-tap / double-click in Move mode → zoom to the point (Fit-width ↔ 2×).
   onDoubleTapZoom?: (clientX: number, clientY: number) => void;
+  /** T196: draw the link (dot + thin line) of EVERY linked mark on the page, not only the selected one. */
+  showLinks?: boolean;
+  /** T196: the file is a generated chart — the only kind whose marks have links. */
+  onGeneratedChart?: boolean;
 }) {
   const { prompt } = useDialogs(); // T91 — in-app text prompt, not a blockable native browser prompt
   // ---- Multi-touch navigation (T27 stage 4) ------------------------------
@@ -1010,6 +1018,30 @@ export function EditCanvas({
           onGo={onGoToMark}
           measure={pageBoxPx ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth } : undefined}
         />
+        {(() => {
+          // T196: the link of the ONE selected mark, or of every mark on the page with "Show links" on — a
+          // dot on the linked text and a thin line to the mark's box. Linked and Check marks have one (the
+          // server serves link.at for both); Lost, Fixed and uploaded-file marks have none. The box follows a
+          // live move or resize, so the line stretches with the drag; the dot stays on the text.
+          if (!onGeneratedChart) return null;
+          const cands = showLinks ? pageObjects : selectedUuids.length === 1 ? selectedOnPage : [];
+          if (cands.length === 0) return null;
+          const g = gestureRef.current;
+          const rm = pageBoxPx ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth } : undefined;
+          const items: LinkTieItem[] = [];
+          for (const o of cands) {
+            const st = linkStatus(o, true);
+            if (!st?.at || st.at.page !== page || (st.state !== "linked" && st.state !== "check")) continue;
+            let cur = o;
+            if (g && (g.mode === "move" || g.mode === "resize") && g.obj.uuid === o.uuid) cur = g.preview;
+            else if (g && g.mode === "multi-move") {
+              const it = g.items.find((x) => x.obj.uuid === o.uuid);
+              if (it) cur = it.preview;
+            }
+            items.push({ uuid: o.uuid, state: st.state, at: st.at, box: objectBBox(cur, rm) });
+          }
+          return <LinkTies items={items} pageBoxPx={pageBoxPx} />;
+        })()}
         {(() => {
           // P206 (VLL): "if one is selected the other is not selected, but we see the link." Selecting a
           // jump's end selects THAT end only; this dashed segment to its partner is what shows the pair —

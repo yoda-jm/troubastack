@@ -331,6 +331,27 @@ export type AnnotationObject = {
   // jumps to). Absent on an ordinary icon / any other type. A jump is a pair of placed
   // icons that look the same; this is the only thing that makes one the source.
   jumpTo?: string;
+  // T195/T196: on a generated chart, the SERVER's link of this mark to one chart line. Studio reads only
+  // `state`, and the serve-time `at` / `text` (where the linked text is on the current render, what the
+  // line says) to draw the link. The other members ride along untouched, and the server ignores whatever
+  // link a client sends back (P26). Absent on an uploaded file and on a mark placed before linking existed.
+  link?: AnnotationLink;
+};
+
+/** T196: the served link (the subset Studio reads; the rest of the server's MarkLink passes through). */
+export type AnnotationLink = {
+  state: "linked" | "check" | "lost" | "fixed";
+  line?: string;
+  at?: { page: number; x: number; y: number; h: number };
+  text?: string;
+  [k: string]: unknown;
+};
+
+/** T196: the pre-bake list — the songs and generated files whose marks are Check or Lost. */
+export type LinkCheck = {
+  songs: { songId: string; title: string; files: { fileId: string; filename: string; check: number; lost: number }[] }[];
+  check: number;
+  lost: number;
 };
 
 export type AnnotationDoc = {
@@ -975,6 +996,10 @@ export const api = {
       "GET",
       `/api/bands/${bandId}/setlists/${setlistId}/bakes/${bakeId}/progress`,
     ).catch(() => null),
+  // T196: before a bake, the setlist's Check / Lost marks per song and file (it informs; it never blocks
+  // the bake). Any failure resolves to null — the dialog then simply shows no list.
+  linkCheck: (bandId: string, setlistId: string): Promise<LinkCheck | null> =>
+    request<LinkCheck>("GET", `/api/bands/${bandId}/setlists/${setlistId}/link-check`).catch(() => null),
   listConcerts: (bandId: string) =>
     request<{ concerts: Concert[] }>("GET", `/api/bands/${bandId}/concerts`).then(
       (r) => r.concerts,

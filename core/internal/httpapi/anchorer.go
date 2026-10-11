@@ -115,6 +115,28 @@ func (c *chartAnchorer) ServeSnapshot(songID string, snap domain.Snapshot) (out 
 	return out
 }
 
+// ServeEcho adds the serve-time link view (T196: link.at, link.text) to a mark on the realtime echo, so a
+// move updates Studio's dot live. Only the view is taken from the serve projection: the echo's geometry and
+// state are what was stored (T195: the echo needs no projection). Unchanged on an uploaded file, a chart
+// with no current render, or any failure.
+func (c *chartAnchorer) ServeEcho(songID string, o domain.Object) (out domain.Object) {
+	out = o
+	defer func() {
+		if recover() != nil {
+			out = o
+			out.View = nil
+		}
+	}()
+	out.View = nil
+	if o.Link == nil {
+		return out
+	}
+	if r := c.renderFor(songID, o.LayerID); r != nil {
+		out.View = chartpdf.ServeMark(o, *r).View
+	}
+	return out
+}
+
 // compactHistories tells each generated chart of a snapshot which renders its marks' links reference, so
 // its line-id history keeps exactly the steps those links need (app.Service.CompactChartLines, T195). The
 // snapshot holds every mark of the song, tombstoned ones too (a restore may bring one back). Cheap when
@@ -169,7 +191,9 @@ func projectSnapshot(snap domain.Snapshot, renderOf func(fileID string) *chartpd
 		if r == nil {
 			continue
 		}
-		objs[i] = chartpdf.ProjectMark(o, *r)
+		// T196: ServeMark is ProjectMark plus the serve-time link view (link.at / link.text), from the same
+		// projection pass.
+		objs[i] = chartpdf.ServeMark(o, *r)
 		// T195 review F1: EVERY mark served against a current render is served as being on it — an
 		// unlinked, fixed, lost or old-style mark too, whose stored coordinates are exactly what is drawn
 		// on that render. Studio echoes this hash back on a move, and the server reads it as "the render the

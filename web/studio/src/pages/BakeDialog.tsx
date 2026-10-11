@@ -6,7 +6,7 @@
  * confirm the choice rides to the baker as `layerDefaults` (name → default-on).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, api, type BakeProgress } from "../api";
+import { ApiError, api, type BakeProgress, type LinkCheck } from "../api";
 import { newUuid } from "../editor";
 import { AudienceTag, audienceForZone } from "../components/AudienceTag";
 
@@ -43,6 +43,18 @@ export function BakeDialog({
   const [bakeId, setBakeId] = useState<string | null>(null);
   const [progress, setProgress] = useState<BakeProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // T196: the pre-bake list — songs and files whose marks are Check or Lost. It INFORMS: nothing about it
+  // gates the Bake button. null while loading or when the server could not answer (then: no list).
+  const [linkCheck, setLinkCheck] = useState<LinkCheck | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void api.linkCheck(bandId, setlistId).then((lc) => {
+      if (!cancelled) setLinkCheck(lc);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [bandId, setlistId]);
 
   // Collect the distinct layers (by name) across the setlist's songs, then seed the
   // checkboxes: mandatory → always on; others → the remembered choice, else on.
@@ -214,6 +226,36 @@ export function BakeDialog({
               ))}
             </ul>
           </>
+        )}
+        {linkCheck && linkCheck.songs.length > 0 && (
+          <div className="bake-link-check" data-testid="bake-link-check" role="note">
+            <p className="bake-link-check-head">
+              <strong>Marks to check before you bake.</strong> The text under them changed (Check) or their
+              line was deleted (Lost), and the tablet cannot show that. They bake where they are; open each
+              song to check them.
+            </p>
+            <ul className="list bake-link-check-list">
+              {linkCheck.songs.flatMap((s) =>
+                s.files.map((f) => (
+                  <li
+                    key={`${s.songId}:${f.fileId}`}
+                    className="bake-link-check-row"
+                    data-testid="bake-link-check-row"
+                    data-song={s.songId}
+                    data-file={f.fileId}
+                  >
+                    <span className="bake-link-check-name">
+                      {s.title}
+                      <span className="muted"> · {f.filename}</span>
+                    </span>
+                    <span className="bake-link-check-counts" data-testid="bake-link-check-counts">
+                      {[f.check > 0 ? `${f.check} Check` : "", f.lost > 0 ? `${f.lost} Lost` : ""].filter(Boolean).join(" · ")}
+                    </span>
+                  </li>
+                )),
+              )}
+            </ul>
+          </div>
         )}
         {busy && (
           <p className="muted bake-dialog-progress" data-testid="bake-progress" role="status" aria-live="polite">

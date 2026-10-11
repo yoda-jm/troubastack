@@ -16,6 +16,8 @@ var objectNotInTheDTO = map[string]string{
 	"Deleted": "the GET returns live objects; a tombstone is not rendered",
 	"OwnerID": "object ownership follows the LAYER in this API",
 	"Scope":   "layer-level (largely subsumed by layer role_tag, see domain.Scope)",
+	// T196: GET writes it as link.at / link.text; an import never reads it (TestT196_DTOWritesTheViewAndNeverReadsIt).
+	"View": "serve-time only: server-to-client (link.at/link.text), never read from a client",
 }
 
 func TestAnnotationsDTO_CarriesEveryObjectField(t *testing.T) {

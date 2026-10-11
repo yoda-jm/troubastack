@@ -4,7 +4,7 @@
  * layer/editing state + optimistic mutation handlers, and the JSX. Behavior +
  * data-testids unchanged.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   api,
@@ -53,6 +53,18 @@ import { MyCuesEditor } from "./MyCuesEditor";
 import { LayersPanel, AnnotationList, DeleteLayerDialog } from "./SidePanels";
 import { isEditableLayer } from "./helpers";
 import { LANDMARK_GLYPH_IDS } from "@troubastack/ink";
+import {
+  attentionLabel,
+  attentionOrder,
+  linkDetails,
+  linkStatus,
+  nextAttention,
+  readShowLinks,
+  safeLocalStorage,
+  stateWord,
+  writeShowLinks,
+} from "./markLink";
+import { objectBBox } from "../../editor";
 import { useSongSync, defaultVisibility } from "./useSongSync";
 import { usePdfDocument, ZOOM_PERCENTS } from "./usePdfDocument";
 import { usePanelDismiss } from "./usePanelDismiss";
@@ -273,6 +285,15 @@ export function Viewer({
   const [focusedLayerId, setFocusedLayerId] = useState<string | null>(null);
   // The current selection (single click or rubber-band marquee). Empty = none.
   const [selectedUuids, setSelectedUuids] = useState<string[]>([]);
+  // T196 ⟨D1⟩: "Show links" — draw every mark's link on the page, not only the selected one's. Off by
+  // default, remembered per browser; broken storage reads as off.
+  const [showLinks, setShowLinks] = useState<boolean>(() => readShowLinks(safeLocalStorage()));
+  const toggleShowLinks = useCallback(() => {
+    setShowLinks((v) => {
+      writeShowLinks(safeLocalStorage(), !v);
+      return !v;
+    });
+  }, []);
   const [status, setStatus] = useState<"loading" | "no-file" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   // The on-demand right drawer (T27 stage 3): `sidebarOpen` gates it; `drawerTab`
@@ -1043,6 +1064,23 @@ export function Viewer({
     },
     [doc.objects, scrollPageIntoView],
   );
+  // T196: the counter's "scroll to it" — the MARK centred, not just its page (a long page would leave it
+  // off screen). Falls back to the page when the page is not laid out yet.
+  const scrollMarkIntoView = useCallback(
+    (uuid: string) => {
+      const obj = doc.objects.find((o) => o.uuid === uuid);
+      const scroll = scrollRef.current;
+      const el = scroll?.querySelectorAll<HTMLElement>(".pdf-page")?.[obj?.page ?? 0];
+      if (!obj || !scroll || !el) {
+        if (obj) scrollPageIntoView(obj.page);
+        return;
+      }
+      const b = objectBBox(obj);
+      const yMid = el.offsetTop + ((b.minY + b.maxY) / 2) * el.clientHeight;
+      scroll.scrollTo({ top: Math.max(0, yMid - scroll.clientHeight / 2), behavior: "smooth" });
+    },
+    [doc.objects, scrollPageIntoView],
+  );
 
   // T185 ⟨D3⟩ — "Go to" a rehearsal note. A resolved note (fileId set) goes to ITS file and page: if that is
   // a different file, we switch to it and DEFER the scroll, because the new file's pages mount a frame later
@@ -1275,6 +1313,23 @@ export function Viewer({
     () => (selectedUuids.length === 1 ? doc.objects.find((o) => o.uuid === selectedUuids[0]) ?? null : null),
     [selectedUuids, doc.objects],
   );
+  // T196: the link state of the open file's marks. Only a generated chart has links; on an uploaded file
+  // there is no indicator, no counter and no details line.
+  const onGeneratedChart = selectedFile?.generated === true;
+  const selectedLink = selectedObject ? linkStatus(selectedObject, onGeneratedChart) : null;
+  // ⟨D2⟩ the per-file counter: the Check + Lost marks of this file, in reading order (what a click cycles).
+  const attention = useMemo(
+    () => attentionOrder(objectsForFile.filter((o) => visible[o.layerId] !== false), onGeneratedChart, (o) => objectBBox(o)),
+    [objectsForFile, visible, onGeneratedChart],
+  );
+  const goToNextAttention = useCallback(() => {
+    const next = nextAttention(attention, selectedUuids.length === 1 ? selectedUuids[0] : null);
+    if (!next) return;
+    if (tool !== "select") setTool("select");
+    selectOnly([next.uuid]);
+    scrollMarkIntoView(next.uuid);
+  }, [attention, selectedUuids, tool, selectOnly, scrollMarkIntoView]);
+
   // Is the (single) selection editable RIGHT NOW (on the active editable layer)?
   // Drives whether the style controls are live. An object on a locked layer OR
   // on a non-active editable layer is inspect-only → controls disabled.
@@ -1559,6 +1614,25 @@ export function Viewer({
             <span className="pill-label">Edit chart</span>
           </Link>
         )}
+        {/* T196 ⟨D1⟩ — draw every mark's link on this chart (a dot on its text, a thin line to the mark).
+            Generated charts only: an uploaded file has no links. Off by default, remembered per browser. */}
+        {onGeneratedChart && (
+          <button
+            type="button"
+            className={`pill-btn${showLinks ? " active" : ""}`}
+            data-testid="show-links"
+            aria-pressed={showLinks}
+            onClick={toggleShowLinks}
+            title="Show what each mark is linked to"
+          >
+            <svg className="pill-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <circle cx="3.5" cy="11.5" r="2" fill="currentColor" />
+              <path d="M5.2 10.2L12 4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeDasharray="1.6 1.6" strokeLinecap="round" />
+              <rect x="10.5" y="1.8" width="4" height="4" rx="0.8" fill="none" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+            <span className="pill-label">Show links</span>
+          </button>
+        )}
 
         {/* T94 §3.1 — ONE pill opens/closes the file rail; Layers ↔ Annotations switch on the tab row inside
             it (that row is unavoidable once the rail is open, so a second top-bar pill was redundant).
@@ -1617,6 +1691,24 @@ export function Viewer({
       {ctxShown && (
         <div className="ctx-bar" data-testid="ctx-bar">
           <EditorToolbar part="style" {...toolbarProps} />
+        </div>
+      )}
+      {/* T196 — the selected mark's link, in words: its state and what it means (VLL's product words). Its
+          own slim pill under the style row, so the style row's height guard (T33) is untouched. */}
+      {selectedLink && (
+        <div
+          className={`link-details link-details-${selectedLink.state}`}
+          data-testid="link-details"
+          data-state={selectedLink.state}
+          data-legacy={selectedLink.legacy ? "true" : undefined}
+          role="status"
+        >
+          <span className={`link-state-word link-state-${selectedLink.state}`} data-testid="link-state">
+            {stateWord(selectedLink.state)}
+          </span>
+          <span className="link-details-text" data-testid="link-details-text">
+            {linkDetails(selectedLink)}
+          </span>
         </div>
       )}
 
@@ -1743,6 +1835,8 @@ export function Viewer({
                   updateGesture={updateGesture}
                   endGesture={endGesture}
                   onDoubleTapZoom={onDoubleTapZoom}
+                  showLinks={showLinks}
+                  onGeneratedChart={onGeneratedChart}
                 />
               </div>
             ))}
@@ -1916,28 +2010,44 @@ export function Viewer({
                   ? "IMG"
                   : "—";
             return (
-              <button
-                key={f.id}
-                type="button"
-                className={`part file-tab${active ? " active" : ""}${mine ? " mine" : ""}`}
-                data-testid="file-tab"
-                data-mine={mine ? "true" : undefined}
-                role="tab"
-                aria-selected={active}
-                disabled={!viewable}
-                title={viewable ? (mine ? `${f.filename} — in my stage selection` : f.filename) : `${f.filename} (not viewable)`}
-                onClick={() => viewable && setSelectedFileId(f.id)}
-              >
-                <span className={`pill file-tab-badge badge-${badge.toLowerCase()}`}>{badge}</span>
-                <span className="file-tab-name">{f.filename}</span>
-                {/* T138 (VLL): mark MINE — never dim the others (they open fine; dimming would falsely say
-                    "unavailable"). An unset member sees exactly one marked: the default the stage takes. */}
-                {mine && (
-                  <span className="file-tab-mine" data-testid="file-tab-mine" aria-label="In my stage selection" title="In my stage selection">
-                    ●
-                  </span>
+              <Fragment key={f.id}>
+                <button
+                  type="button"
+                  className={`part file-tab${active ? " active" : ""}${mine ? " mine" : ""}`}
+                  data-testid="file-tab"
+                  data-mine={mine ? "true" : undefined}
+                  role="tab"
+                  aria-selected={active}
+                  disabled={!viewable}
+                  title={viewable ? (mine ? `${f.filename} — in my stage selection` : f.filename) : `${f.filename} (not viewable)`}
+                  onClick={() => viewable && setSelectedFileId(f.id)}
+                >
+                  <span className={`pill file-tab-badge badge-${badge.toLowerCase()}`}>{badge}</span>
+                  <span className="file-tab-name">{f.filename}</span>
+                  {/* T138 (VLL): mark MINE — never dim the others (they open fine; dimming would falsely say
+                      "unavailable"). An unset member sees exactly one marked: the default the stage takes. */}
+                  {mine && (
+                    <span className="file-tab-mine" data-testid="file-tab-mine" aria-label="In my stage selection" title="In my stage selection">
+                      ●
+                    </span>
+                  )}
+                </button>
+                {/* T196 ⟨D2⟩ — the open chart's marks that need a look (Check + Lost), by its name. A click
+                    selects the next one and scrolls to it; again moves on, wrapping. Absent when there is
+                    none, and on an uploaded file. */}
+                {active && onGeneratedChart && attention.length > 0 && (
+                  <button
+                    type="button"
+                    className="part link-attention"
+                    data-testid="link-attention"
+                    data-count={attention.length}
+                    onClick={goToNextAttention}
+                    title="Marks to check on this chart: their text changed, or their line was deleted. Click to go to the next one."
+                  >
+                    {attentionLabel(attention.length)}
+                  </button>
                 )}
-              </button>
+              </Fragment>
             );
           })}
           <button

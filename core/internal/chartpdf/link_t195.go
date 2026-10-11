@@ -455,6 +455,7 @@ func charEndAt(v visLine, x float64) int {
 type projection struct {
 	obj    domain.Object
 	rebase *domain.MarkLink
+	all    []visLine // r's visual lines, when the projection computed them (ServeMark reuses them)
 }
 
 // ProjectMark moves a LINKED mark onto r, the chart's current render (P8–P20, P22): the one rigid transform
@@ -624,7 +625,7 @@ func project(o domain.Object, r ChartRender) projection {
 	} else {
 		rb.Wrap = base.wrap
 	}
-	return projection{obj: out, rebase: rb}
+	return projection{obj: out, rebase: rb, all: all}
 }
 
 func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }

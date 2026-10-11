@@ -137,6 +137,12 @@ func (c *conn) handleMutation(in mutationJSON) {
 		hook(c.songID)
 	}
 
+	// T196: the echo carries the mark's serve-time link view (where its linked text is now), so every
+	// client's dot follows the move without a reload. A copy: the accepted mutation is HEAD's.
+	if c.hub.anchorer != nil && accepted.Object != nil && !accepted.Object.Deleted && accepted.Object.Link != nil {
+		o := c.hub.anchorer.ServeEcho(c.songID, accepted.Object.Clone())
+		accepted.Object = &o
+	}
 	frame, marshalErr := json.Marshal(echoMsg{Type: "echo", Mutation: mutationToJSON(accepted)})
 	if marshalErr != nil {
 		return

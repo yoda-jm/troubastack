@@ -390,6 +390,58 @@ func (l *MarkLink) Clone() *MarkLink {
 	return &cp
 }
 
+// LinkView is what the server tells Studio about a linked mark's line ON THE CURRENT RENDER, so Studio can
+// draw the link (T196, anchoring stage 3: a dot on the linked text and a thin line to the mark). It is
+// SERVE-TIME ONLY: computed in the serve projection (chartpdf.ServeMark) and on the realtime echo, never
+// stored, never exported, never read from a client. On domain.Object it carries `json:"-"`, so the store
+// (which JSON-encodes Objects) and the v1 manifest cannot persist it; on the wires it rides inside
+// WireLink.
+type LinkView struct {
+	At   LinkAt
+	Text string
+}
+
+// LinkAt is the linked character's top-left on the current render, in [0,1] page coordinates, plus the
+// linked visual line's height (so the client can centre a dot on the line without a manifest).
+type LinkAt struct {
+	Page int     `json:"page"`
+	X    float64 `json:"x"`
+	Y    float64 `json:"y"`
+	H    float64 `json:"h"`
+}
+
+// WireLink is a served mark's `link` on the REST and realtime wires: the stored MarkLink, flattened, plus
+// the serve-time view (T196) as `link.at` and `link.text`. The two serve-time fields are omitempty — absent
+// on a lost or fixed mark, on a mark whose chart has no current render, and in everything a client sends
+// (the server never reads them back: Stored drops them).
+type WireLink struct {
+	MarkLink
+	At   *LinkAt `json:"at,omitempty"`
+	Text string  `json:"text,omitempty"`
+}
+
+// WireLinkOf is o's link as served: nil when o has no stage-2 link.
+func WireLinkOf(o Object) *WireLink {
+	if o.Link == nil {
+		return nil
+	}
+	w := &WireLink{MarkLink: *o.Link.Clone()}
+	if v := o.View; v != nil {
+		at := v.At
+		w.At, w.Text = &at, v.Text
+	}
+	return w
+}
+
+// Stored is the link a wire object carries, without the serve-time view (a client's at/text are never
+// read). nil-safe.
+func (w *WireLink) Stored() *MarkLink {
+	if w == nil {
+		return nil
+	}
+	return w.MarkLink.Clone()
+}
+
 // Object is an annotation identified by a client-generated UUID (I2). Applying the
 // same UUID twice is idempotent (no-op or in-place replace, never a duplicate).
 type Object struct {
@@ -430,6 +482,9 @@ type Object struct {
 	// point; the destination is its own placed object, so nothing here can drift. Use
 	// IsJumpSource() to test it. A deleted destination makes the source read as broken.
 	JumpTo string
+	// View (T196) is the SERVE-TIME view of Link on the current render (where the linked text is, and what
+	// it says). Never stored (`json:"-"`: the store JSON-encodes Objects), never read from a client.
+	View *LinkView `json:"-"`
 }
 
 // IsJumpSource reports whether this object is a P206 jump mark's SOURCE — an icon that
@@ -447,6 +502,10 @@ func (o Object) Clone() Object {
 		cp.Anchor = o.Anchor.Clone()
 	}
 	cp.Link = o.Link.Clone()
+	if o.View != nil {
+		v := *o.View
+		cp.View = &v
+	}
 	cp.Style = o.Style.Clone() // Style carries pointers too (Fill/Stroke, and T177's Ends)
 	return cp
 }

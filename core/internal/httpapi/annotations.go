@@ -34,6 +34,8 @@ func (a *AnnotationsAPI) Mount(mux *http.ServeMux, authed func(authedHandler) ht
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/annotations", authed(a.getAnnotations))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/annotations/import", authed(a.importAnnotations))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/live-setlists", authed(a.liveSetlists))
+	// T196: the pre-bake list of Check / Lost marks (linkcheck_t196.go). Informs, never blocks.
+	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}/link-check", authed(a.linkCheck))
 }
 
 // ---- wire types (the EXACT contract the frontend + seeder speak) ----
@@ -96,7 +98,7 @@ type objectJSON struct {
 	PointsRenderHash string      `json:"pointsRenderHash,omitempty"`
 	// T195: the stage-2 link to a chart line and its state (linked | check | lost | fixed). One shape on
 	// every wire (domain.MarkLink carries its tags). omitempty — an unlinked mark carries none.
-	Link *domain.MarkLink `json:"link,omitempty"`
+	Link *domain.WireLink `json:"link,omitempty"` // T196: the stored link + the serve-time at/text
 	// JumpTo (P206): on a jump-source icon, the destination icon's uuid. omitempty — an
 	// ordinary icon / any other type carries none.
 	JumpTo string `json:"jumpTo,omitempty"`
@@ -394,7 +396,7 @@ func objectToJSON(o domain.Object) objectJSON {
 		},
 		Anchor:           anchorToJSON(o.Anchor),
 		PointsRenderHash: o.PointsRenderHash,
-		Link:             o.Link.Clone(),
+		Link:             domain.WireLinkOf(o), // T196: plus the serve-time at/text
 		JumpTo:           o.JumpTo,
 	}
 }
@@ -468,7 +470,7 @@ func objectFromJSON(j objectJSON) domain.Object {
 		},
 		Anchor:           anchorFromJSON(j.Anchor),
 		PointsRenderHash: j.PointsRenderHash,
-		Link:             j.Link.Clone(),
+		Link:             j.Link.Stored(), // T196: a client's at/text are never read
 		JumpTo:           j.JumpTo,
 	}
 }

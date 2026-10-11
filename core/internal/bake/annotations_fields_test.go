@@ -32,6 +32,7 @@ var objectNotBaked = map[string]string{
 	"Scope":            "layer-level, same as OwnerID",
 	"Anchor":           "the old-style (T145) link: never interpreted since T195, the mark bakes at its stored Points",
 	"PointsRenderHash": "it says whether Points needed projecting, which has already happened (T195 ProjectMarks)",
+	"View":             "T196: Studio chrome (the link dot), serve-time only; nothing about links reaches a bake (P34)",
 	"Link":             "consumed BEFORE this point: the T195 projection rewrites Points; and its state (check / lost) must never reach a bake (P34)",
 }
 

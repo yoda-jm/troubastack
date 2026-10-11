@@ -1282,6 +1282,49 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   cursor: pointer;
   border: 0; font-family: inherit;
 }
+/* T196 — a mark's LINK, drawn: a dot on the linked text and a thin dotted line to the mark's box. Studio
+   chrome only (DOM in the aria-hidden selection overlay — never in the annotation canvas, so never baked).
+   The Studio accent at reduced opacity, over a paper-white halo: the chart page is white paper in BOTH
+   themes, and the halo keeps the pink dot and line legible where they cross the chart's blue chords and
+   black lyrics. The halo is not themed on purpose — it is drawn on the page, not on the app's ground. */
+.link-ties { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.link-ties { --link-ink: var(--accent); --link-halo: rgba(255, 255, 255, .9); }
+.link-ties .link-line-halo { stroke: var(--link-halo); stroke-width: 3.5; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: .8; }
+.link-ties .link-line { stroke: var(--link-ink); stroke-width: 1.4; stroke-dasharray: 1.5 3; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: .8; }
+.link-ties .link-dot { fill: var(--link-ink); fill-opacity: .8; stroke: var(--link-halo); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+/* Check: the same tie, the dot hollow — the mark still follows its line, but asks to be looked at. */
+.link-ties .link-check .link-dot { fill: var(--link-halo); fill-opacity: 1; stroke: var(--link-ink); stroke-width: 1.8; }
+/* The selected mark's link state in words: a slim pill under the style row. */
+.link-details {
+  position: absolute; z-index: 7;
+  top: calc(var(--chrome-h, 3.5rem) + 3.55rem); left: 50%; transform: translateX(-50%);
+  max-width: calc(100% - 1.75rem);
+  display: flex; align-items: baseline; gap: .45rem;
+  padding: .22rem .7rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+  font-size: .78rem; color: var(--fg);
+  pointer-events: none;
+}
+.link-details-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.link-state-word {
+  flex: 0 0 auto; font-weight: 700; font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
+  padding: .05rem .45rem; border-radius: 999px; background: var(--chip-bg); color: var(--chip-fg);
+}
+.link-state-linked { background: var(--brand-tint); color: var(--brand-ink); }
+.link-state-check { background: var(--warn-bg); color: var(--warn-fg); }
+.link-state-lost { background: var(--error-bg); color: var(--error-fg); }
+@media (max-width: 600px) {
+  .link-details { left: 0; right: 0; transform: none; max-width: none; border-radius: 0; border-left: none; border-right: none; }
+  .link-details-text { white-space: normal; }
+}
+/* ⟨D2⟩ the per-file counter, by the open file's name: quiet, amber like the other "look at this" chips. */
+.bottombar-pill .part.link-attention {
+  background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-border);
+  font-family: var(--font-body);
+}
+.bottombar-pill .part.link-attention:hover { border-color: var(--warn-fg); }
 .jump-segment { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .jump-segment line { stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; opacity: .85; }
 /* P206: the arrowhead names the DIRECTION (source → destination). Solid, so it reads as a head rather
@@ -1997,6 +2040,17 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .bake-dialog-row label { display: flex; align-items: center; gap: .5rem; font-weight: 600; min-width: 0; }
 .bake-dialog-row label input { flex: 0 0 auto; }
 .bake-dialog-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* T196 — the pre-bake list of Check / Lost marks: informative, amber, never a blocker. */
+.bake-link-check {
+  border: 1px solid var(--warn-border); background: var(--warn-bg); color: var(--warn-fg);
+  border-radius: var(--r-sm); padding: .55rem .7rem; font-size: .85rem;
+  display: flex; flex-direction: column; gap: .35rem;
+}
+.bake-link-check-head { margin: 0; }
+.bake-link-check-list { gap: .15rem; margin: 0; }
+.bake-link-check-row { display: flex; justify-content: space-between; gap: .6rem; padding: .15rem 0; }
+.bake-link-check-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--fg); }
+.bake-link-check-counts { flex: 0 0 auto; font-weight: 700; }
 .bake-dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .3rem; }
 
 /* OPS02: topbar "Get the app" affordance — a chip (next to the version chip) that

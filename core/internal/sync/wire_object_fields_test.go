@@ -27,6 +27,10 @@ var objectNotOnTheWire = map[string]string{
 	// Ownership and scope are properties of the LAYER on this wire; the hub stamps the author itself.
 	"OwnerID": "the hub stamps the authoritative author; object ownership follows the layer",
 	"Scope":   "layer-level on this wire (largely subsumed by layer role_tag, see domain.Scope)",
+	// T196: written OUT as link.at / link.text on the snapshot and the echo, never read back IN: the view is
+	// the server's serve-time answer, and a client cannot tell it where its linked text is
+	// (TestT196_WireWritesTheViewAndNeverReadsIt asserts both directions).
+	"View": "serve-time only: server-to-client (link.at/link.text), never read from a client",
 }
 
 func TestSyncWire_CarriesEveryObjectField(t *testing.T) {

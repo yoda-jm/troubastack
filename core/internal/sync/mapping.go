@@ -160,7 +160,7 @@ func objectToJSON(o domain.Object) objectJSON {
 		},
 		Anchor:           anchorToJSON(o.Anchor),
 		PointsRenderHash: o.PointsRenderHash,
-		Link:             o.Link.Clone(),
+		Link:             domain.WireLinkOf(o), // T196: plus the serve-time at/text
 		JumpTo:           o.JumpTo,
 	}
 }
@@ -234,7 +234,7 @@ func objectFromJSON(j objectJSON) domain.Object {
 		},
 		Anchor:           anchorFromJSON(j.Anchor),
 		PointsRenderHash: j.PointsRenderHash,
-		Link:             j.Link.Clone(),
+		Link:             j.Link.Stored(), // T196: a client's at/text are never read
 		JumpTo:           j.JumpTo,
 	}
 }

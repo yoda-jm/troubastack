@@ -42,6 +42,7 @@ func (s *stubAnchorer) RebaseMark(_ string, edited, _ domain.Object) domain.Obje
 	return edited
 }
 func (s *stubAnchorer) ServeSnapshot(_ string, snap domain.Snapshot) domain.Snapshot { return snap }
+func (s *stubAnchorer) ServeEcho(_ string, o domain.Object) domain.Object            { return o }
 
 // TestCreateRoutesThroughAnchorer proves the T145 create-time anchoring hook: a create mutation is handed
 // to the registered ChartAnchorer BEFORE Apply, and the anchor it stamps rides along into the applied
@@ -63,7 +64,7 @@ func TestCreateRoutesThroughAnchorer(t *testing.T) {
 	c.handleMutation(mutationJSON{
 		Kind: "create",
 		Object: &objectJSON{UUID: "o1", LayerID: "l1", Type: "freehand",
-			Link: &domain.MarkLink{State: domain.LinkLinked, Line: "forged"}, PointsRenderHash: "forged-render"},
+			Link: &domain.WireLink{MarkLink: domain.MarkLink{State: domain.LinkLinked, Line: "forged"}}, PointsRenderHash: "forged-render"},
 	})
 
 	if !anc.called {
@@ -102,7 +103,7 @@ func TestNilAnchorerLeavesCreateUnanchored(t *testing.T) {
 	c.handleMutation(mutationJSON{
 		Kind: "create",
 		Object: &objectJSON{UUID: "o1", LayerID: "l1", Type: "freehand",
-			Link: &domain.MarkLink{State: domain.LinkLinked, Line: "forged"}},
+			Link: &domain.WireLink{MarkLink: domain.MarkLink{State: domain.LinkLinked, Line: "forged"}}},
 	})
 
 	if eng.got.Object == nil {

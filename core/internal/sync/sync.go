@@ -65,6 +65,9 @@ type ChartAnchorer interface {
 	// ServeSnapshot projects every linked mark of a snapshot onto its chart's current render, exactly as
 	// the REST read does, for the join snapshot (P33).
 	ServeSnapshot(songID string, snap domain.Snapshot) domain.Snapshot
+	// ServeEcho returns o (as stored by an accepted mutation) with its serve-time link view set (T196:
+	// link.at / link.text on the echo, so Studio's dot follows a move live). It changes nothing else.
+	ServeEcho(songID string, o domain.Object) domain.Object
 }
 
 // Hub fans realtime annotation traffic across clients and drives ONE apply engine

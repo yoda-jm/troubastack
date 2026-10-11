@@ -48,6 +48,10 @@ func (a chartTestAnchorer) ServeSnapshot(_ string, snap domain.Snapshot) domain.
 	snap.Objects = chartpdf.ProjectMarks(snap.Objects, a.r)
 	return snap
 }
+func (a chartTestAnchorer) ServeEcho(_ string, o domain.Object) domain.Object {
+	o.View = chartpdf.ServeMark(o, a.r).View
+	return o
+}
 
 type syncWorld struct {
 	r      chartpdf.ChartRender
@@ -126,7 +130,7 @@ func (w *syncWorld) run(t *testing.T, kind string, obj objectJSON, anchorer Char
 var knownRedSync = map[string][2]string{}
 
 func TestAnchorMatrixSync(t *testing.T) {
-	forged := &domain.MarkLink{State: domain.LinkLinked, Line: "client-line", Render: "render-now", LH: 1}
+	forged := &domain.WireLink{MarkLink: domain.MarkLink{State: domain.LinkLinked, Line: "client-line", Render: "render-now", LH: 1}}
 	cells := []struct {
 		name  string
 		props string
@@ -142,7 +146,7 @@ func TestAnchorMatrixSync(t *testing.T) {
 		}},
 		// P23: the realistic case, the client echoing back the link it was served. Still wrong to keep.
 		{"move/old_link_not_kept", "P23", func(t *testing.T, w *syncWorld) {
-			got := w.run(t, "move", objectJSON{Points: toPts(w.box("the third line of words", 0)), Link: w.stored.Link.Clone(),
+			got := w.run(t, "move", objectJSON{Points: toPts(w.box("the third line of words", 0)), Link: domain.WireLinkOf(w.stored),
 				PointsRenderHash: "render-now"}, chartTestAnchorer{w.r}).Object
 			if got.Link != nil && got.Link.Line == w.stored.Link.Line {
 				t.Errorf("a move kept the pre-move link (the measured bug: the mark jumps back at the next edit)")
@@ -169,7 +173,7 @@ func TestAnchorMatrixSync(t *testing.T) {
 			a := w.lines["the second line of words"]
 			pts := w.box("the first line of words", 0)
 			pts[1].Y = a.Y1 + 0.2*(a.Y1-a.Y0)
-			got := w.run(t, "resize", objectJSON{Points: toPts(pts), Link: w.stored.Link.Clone(), PointsRenderHash: "render-now"},
+			got := w.run(t, "resize", objectJSON{Points: toPts(pts), Link: domain.WireLinkOf(w.stored), PointsRenderHash: "render-now"},
 				chartTestAnchorer{w.r}).Object
 			if got.Link == nil || got.Link.Line != w.ids["the first line of words"] {
 				t.Fatalf("a resize stored link %+v, want the first (top) line", got.Link)
@@ -202,7 +206,7 @@ func TestAnchorMatrixSync(t *testing.T) {
 			keptLink(t, w, got)
 		}},
 		{"setStyle/echoed_link_kept", "P25", func(t *testing.T, w *syncWorld) {
-			got := w.run(t, "setStyle", objectJSON{Points: toPts(w.box("the first line of words", 0)), Link: w.stored.Link.Clone()},
+			got := w.run(t, "setStyle", objectJSON{Points: toPts(w.box("the first line of words", 0)), Link: domain.WireLinkOf(w.stored)},
 				chartTestAnchorer{w.r}).Object
 			keptLink(t, w, got)
 		}},

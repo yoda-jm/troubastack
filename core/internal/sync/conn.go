@@ -117,7 +117,7 @@ type objectJSON struct {
 	// T195: the stage-2 link and its state (linked | check | lost | fixed). The same shape on every wire
 	// (domain.MarkLink carries its tags); omitempty — an unlinked mark carries none. The server ignores a
 	// client-sent one (P26); it rides in so an echo and a snapshot show the state.
-	Link *domain.MarkLink `json:"link,omitempty"`
+	Link *domain.WireLink `json:"link,omitempty"` // T196: the stored link + the serve-time at/text
 	// P206: on a jump-source icon, the destination icon's uuid (omitempty for every other object).
 	JumpTo string `json:"jumpTo,omitempty"`
 }

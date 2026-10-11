@@ -33,6 +33,8 @@ var notCarried = map[string]string{
 	// The engine stamps the version of the mutation it applied; the source's counter is not a value the
 	// target's history can adopt.
 	"Version": "re-stamped by the importing engine's own history",
+	// T196: where the linked text is on ONE render, computed at serve; a backup carries the link itself.
+	"View": "serve-time only (T196): never stored, never exported",
 }
 
 // fill sets every field of v (a struct pointer) to a distinctive non-zero value, recursively.
