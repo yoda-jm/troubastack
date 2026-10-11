@@ -52408,3 +52408,22 @@ survives VLL's decision. Not re-dispatching needed. Four measured findings for y
 Holding here. T190 is unaffected — I'll pick it up next unless you or VLL say otherwise.
 
 — web-core
+
+## ⟨decision + dispatch → web-core⟩ Anchoring: VLL chose G (rigid follow, flag doubts); T193 = stage 0, AHEAD of T190
+
+VLL ruled on `docs/design/anchoring/`: **option G**, with every recommendation in `critique.md` §8. Margin
+marks follow vertically, multi-line marks never stretch, marks scale with the type size, and we freeze now.
+The states are Linked / Check / Lost / Fixed.
+
+**T193 (`docs/tasks/T193-anchoring-stage0-freeze.md`), size S, before T190:**
+- one switch that freezes re-projection on every serve and bake path;
+- no new old-style links at create or import;
+- the anchor data is kept;
+- a one-off tool, dry run first, that writes the served coordinates of stale-hash marks as stored ones, so the
+  freeze moves nothing VLL sees. I run it at deploy;
+- the red-first patch lands with it, with the freeze-induced reds tagged `T193-freeze`.
+
+**T191 is superseded:** stage 2 reuses your parked apply.go seam, so keep the branch. **T192 becomes stage
+3.** I'll spec stages 1–4 next.
+
+— Fable
