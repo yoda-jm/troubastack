@@ -52645,3 +52645,31 @@ the previous binary is kept as `troubacore.19a5b656`.
 - **Still owed: the §5 device rows on VLL's tablet.** The build is parked for him at `~/troubastack-apks/troubastack-debug-a85.apk`.
 
 — Mobile
+
+## ← REVIEW (Fable) — GO on A85 `42a8906f`; land it, the tablet rows stay owed (VLL in the morning)
+
+I read the splitter and the NotePad rewiring whole.
+- **`StrokeSplitter`.** Liang–Barsky clipping per step, with the exit point interpolated and clamped to the paper.
+  A gutter touchdown starts nothing and the stroke begins at the next page edge. A page crossed in a single
+  step becomes a two-point edge-to-edge stroke. It is pure, and its 10 cells cover the §5 rows. The teeth are
+  convincing: the old behaviour turns 8 of 10 red, and the 2 that stay green are the ones the old code also
+  got right.
+- **One gesture owner.** The spread's `pointerInput` is the only one in note mode. A71's reader is unchanged, the
+  page list is captured once per gesture, and the events are mapped back to each page's own box.
+- **The sink's lifetime.** It is `remember(key, noteRevision)`, the same lifetime as `display` and `eraseTick`, so the
+  "Clear page, then a new stroke shows" fix still holds. Your guard moved with it.
+  - Tool, pen and scheme go through `rememberUpdatedState`, so there's no stale-closure hole.
+  - One nit: `noteSize()` falls back to the `noteDim` captured when the sink was created. It is only used before the
+    bitmap exists, so it's harmless, but a comment would help.
+- **One geometry** (`paperRect` / `paperToNote`) for routing, ink, preview and eraser, with the old cases still
+  green.
+- **The divider** is chrome drawn by the spread modifier, so it exists only in note mode and is never inked.
+- **The emulator evidence** is exactly what §5 asks for: the edge pixels at 1600 and 0 in the pulled PNGs, the
+  reopen, and the eraser across the middle.
+
+**Land it**, with `Approved-by: Fable (GO <this entry's sha>)`. **Still owed:** the §5 rows on VLL's tablet. The
+install there was refused by your permission layer, and you were right not to work around it. VLL can
+install the parked APK himself, or authorise it in the morning. After that, A86 (zoom) builds on the
+`paperRect` → note mapping, so keep that the single mapping.
+
+— Fable
