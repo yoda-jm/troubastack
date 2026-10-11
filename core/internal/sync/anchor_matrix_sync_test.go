@@ -39,7 +39,7 @@ func (a chartTestAnchorer) AnchorMark(_ string, o domain.Object) domain.Object {
 	return chartpdf.LinkMark(o, a.r)
 }
 func (a chartTestAnchorer) RelinkMark(_ string, moved, stored domain.Object) domain.Object {
-	return chartpdf.RelinkMoved(moved, stored, &a.r)
+	return chartpdf.RelinkMoved(moved, stored, &a.r, nil)
 }
 func (a chartTestAnchorer) RebaseMark(_ string, edited, stored domain.Object) domain.Object {
 	return chartpdf.RebaseMark(edited, stored, &a.r)

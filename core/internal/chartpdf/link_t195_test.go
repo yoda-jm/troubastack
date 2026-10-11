@@ -408,7 +408,7 @@ func TestLink_LostMarkMovedRelinks(t *testing.T) {
 	if moved.PointsRenderHash == w.hash {
 		t.Fatal("fixture: the served lost mark already claims the current render; the cell would prove nothing")
 	}
-	re := RelinkMoved(moved, o, ptrChart(w.chart()))
+	re := RelinkMoved(moved, o, ptrChart(w.chart()), nil)
 	if re.Link == nil || re.Link.State != domain.LinkLinked || re.Link.Line != idOf(w, dst) {
 		t.Fatalf("a lost mark moved onto a line has link %+v, want linked to it", re.Link)
 	}

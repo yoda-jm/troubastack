@@ -82,7 +82,13 @@ func (c *chartAnchorer) RelinkMark(songID string, moved, stored domain.Object) (
 	if layer == "" {
 		layer = moved.LayerID
 	}
-	return chartpdf.RelinkMoved(moved, stored, c.renderFor(songID, layer))
+	var seen *chartpdf.ChartRender // the render the client dragged on, if the server still has it (M2)
+	if l, ok := c.eng.Layer(songID, layer); ok && l.FileID != "" {
+		if r, ok := c.svc.ChartRenderAt(l.FileID, moved.PointsRenderHash); ok {
+			seen = &r
+		}
+	}
+	return chartpdf.RelinkMoved(moved, stored, c.renderFor(songID, layer), seen)
 }
 
 // RebaseMark is a setStyle, setText or reorder: chartpdf.RebaseMark (the stored link; the mark does not

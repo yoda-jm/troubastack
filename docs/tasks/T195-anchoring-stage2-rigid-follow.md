@@ -391,6 +391,59 @@ sizes 6, 8, 11, 20 and `fit: page`.
 | `Compact` ignores the keep set | `after 41 saves the untouched icon is check, want linked` (E2E); `after 41 saves: state check, x 0.2081, want linked at 0.2505` (app); `compaction kept 32 steps …` |
 | the cap drops instead of folding (the old behaviour) | `history has 512 steps from "10", want 512 from "0"`; `the save-time cap broke the chain from the oldest render` |
 
+## 13. Final re-review (on `f09e20be`): GO with fixes
+
+N1 and the safety of compact-on-read under concurrency were confirmed.
+
+**H1: a GET's compaction turned post-re-derivation links "check"** on every backfilled or imported chart.
+- **Cause:** `Compact` folded away the step R0→R1, because no link referenced R0, the re-derivation's
+  render. `predatesRederive` then found no step ending at the link's render R1 and fell through to "true".
+- **Fixed twice over:**
+  - `predatesRederive` also answers "after" when a step **starts** at the link's render, unless that step
+    ends at the re-derivation.
+  - `Compact` always keeps `Rederived.Render` as a boundary, and so does `capHistory` (it folds either side
+    of it).
+
+  Either half alone turns the cell green; both are kept.
+- **Test:** `TestHistory_CompactKeepsPostRederiveLinksLinked`. With both halves off (the `f09e20be` code)
+  it reads "a GET's compaction changed a mark's state: linked -> check".
+
+**M1: a read could move a mark.**
+- **Cause:** `composeCharMap` agreed with applying the steps one by one for kept characters, but not for
+  characters that did not survive. A compaction could move an already-"check" mark about 3 characters.
+- **Chosen fix:** the composition reproduces the step-by-step landing. `CharMap` gains an optional `lands`
+  list, `{old offset, new offset}`, set only on composed maps, for each non-surviving character whose
+  step-by-step landing differs from what `keep` alone gives. `composeCharMap` computes every offset through
+  `CharPath{a, b}` and records the exact flag and landing position, so the result is equal by construction.
+- **Bound:** at most one entry per character of the line.
+- **Why not the alternative:** keeping the whole map sequence inside a folded step would grow with every
+  edit of the line.
+- **Tests:**
+  - `TestHistory_ComposeEqualsStepwise` covers 40 seeds (seed 7 at the reviewer's 3000 trials).
+  - `TestHistory_CompactDoesNotMoveMarks`.
+- **Red without `lands`:**
+  - "seed 1: of 23445 offsets, 0 exact-flag and 78 position mismatches … off 8: stepwise 10, composed 8";
+  - "compaction (a read) moved the mark or changed its state: x 0.18784 (check) → 0.15618 (check)".
+
+**M2: a peer viewing a render that is neither the link's nor the current one landed one line off.** Under
+lazy projection this is the common stale peer: the link is on R1, the peer opened the song on R2 and saw
+the projected points, then save 2 made R3 current.
+- **Chosen fix:** an in-memory LRU of the renders `ChartRenderForFile` built, keyed by (file, blob hash).
+  Each entry holds the source, the line ids as they were then, and the manifest; there are 128 entries.
+  `Service.ChartRenderAt` reads it.
+- **On a move:** `RelinkMoved(moved, stored, current, seen)` gets the render the client dragged on (its
+  `pointsRenderHash`), when the server still has it. The stored mark is re-based onto that render: the
+  position the peer saw, with the link re-measured on the same line. The drag is applied to that, and serve
+  then projects from R2 like any link.
+- **When the render is unknown** (evicted, or served by a previous process): the shift is applied to the
+  stored box and the mark is flagged check, as before.
+- **Cost:** no render and no write on any path; the lookup is a map read.
+- **Tests:**
+  - `TestE2E_StalePeerViewNotTheLinksRender`: linked, at the right position.
+  - `TestE2E_StalePeerAcrossTwoSaves`: the view is the link's own render, across two saves.
+- **Red with the lookup off:** "state check, want linked"; "point 0 at (0.08810,0.34163), want
+  (0.08810,0.30343)".
+
 ## 10. Open questions
 
 - **0.6 similarity** (T194) and the P19 "check on any change under the mark" rule should be replayed on

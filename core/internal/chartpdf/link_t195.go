@@ -746,6 +746,12 @@ func predatesRederive(li LineIdentity, linkRender string) bool {
 		if st.ToRender == linkRender {
 			return false
 		}
+		// T195 re-review H1: a compaction may have folded away the step that ENDED at the link's render, so
+		// the link's render can be the start of a (cumulative) step. That step starting at it means the link
+		// came after the re-derivation — unless the step ends at the re-derivation itself.
+		if st.FromRender == linkRender && st.ToRender != li.Rederived.Render {
+			return false
+		}
 		if st.ToRender == li.Rederived.Render || st.FromRender == li.Rederived.Render {
 			return true
 		}
@@ -764,7 +770,15 @@ func predatesRederive(li LineIdentity, linkRender string) bool {
 //     line; if the client's render is not even the link's own, the shift is a guess and the mark is check.
 //
 // The client's own link and anchor are never read (P26).
-func RelinkMoved(moved, stored domain.Object, r *ChartRender) domain.Object {
+//
+// seen is the render the client was looking at (moved.PointsRenderHash), when the server still knows it
+// (nil otherwise). It matters for a client whose view is NEITHER the link's render nor the current one —
+// the common stale peer under lazy projection: the link was made on R1, the peer opened the song on R2 and
+// was served the mark projected onto R2, then a save made R3 current (T195 re-review M2). Its drag is in
+// R2's geometry, so the stored mark is first re-based onto R2 (the position the peer saw, the link
+// re-measured there), and the drag is applied to that; serve then projects it from R2 like any link. When
+// the server no longer has R2, the shift is applied to the stored box and the mark is flagged check.
+func RelinkMoved(moved, stored domain.Object, r, seen *ChartRender) domain.Object {
 	view := moved.PointsRenderHash
 	if r != nil && (view == "" || view == r.Hash) {
 		return LinkMark(moved, *r)
@@ -776,6 +790,13 @@ func RelinkMoved(moved, stored domain.Object, r *ChartRender) domain.Object {
 	// tab, the move never re-linked.
 	if r != nil && view == stored.PointsRenderHash && !projectable(stored, *r) {
 		return LinkMark(moved, *r)
+	}
+	if seen != nil && seen.Hash == view && stored.Link != nil && view != stored.Link.Render {
+		if p := project(stored, *seen); p.rebase != nil {
+			base := p.obj
+			base.Link = p.rebase // measured on the client's render: its own points are on it now
+			stored = base
+		}
 	}
 	out := moved
 	out.Anchor = stored.Anchor.Clone()

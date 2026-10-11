@@ -115,6 +115,11 @@ type CharMap struct {
 	OldLen int      `json:"oldLen"`
 	NewLen int      `json:"newLen"`
 	Keep   [][3]int `json:"keep,omitempty"`
+	// Lands (T195 re-review) is set only on a map COMPOSED from several steps (composeCharMap): for an old
+	// offset whose character did not survive, {old offset, new offset} where the step-by-step mapping lands
+	// it, when that differs from the single-map default below. With it, a composed map gives exactly the
+	// result of applying its steps one by one — so a serve-time compaction (a read) never moves a mark.
+	Lands [][2]int `json:"lands,omitempty"`
 }
 
 // Map returns the new offset of the character at old offset off, and whether that character survived the
@@ -133,6 +138,11 @@ func (m CharMap) Map(off int) (int, bool) {
 		}
 		if o+l <= off {
 			after = n + l
+		}
+	}
+	for _, ld := range m.Lands {
+		if ld[0] == off {
+			return ld[1], false
 		}
 	}
 	return after, false
@@ -472,7 +482,7 @@ func CarryLineIdentity(prev LineIdentity, oldSource, newSource string, newID fun
 			step.Maps[id] = BuildCharMap(oldLines[o], newLines[j])
 		}
 	}
-	next.History = capHistory(append(append([]LineStep(nil), prev.History...), step))
+	next.History = capHistory(append(append([]LineStep(nil), prev.History...), step), rederivedRender(next.Rederived))
 	return next
 }
 
@@ -502,7 +512,7 @@ func (li LineIdentity) WithRerender(fromRender, toRender string) LineIdentity {
 	if fromRender == toRender {
 		return li
 	}
-	li.History = capHistory(append(append([]LineStep(nil), li.History...), LineStep{FromRender: fromRender, ToRender: toRender}))
+	li.History = capHistory(append(append([]LineStep(nil), li.History...), LineStep{FromRender: fromRender, ToRender: toRender}), rederivedRender(li.Rederived))
 	return li
 }
 
@@ -577,7 +587,10 @@ func LocateLine(li LineIdentity, source string, anchors []Anchor, id, fromRender
 }
 
 // capHistory enforces maxLineHistory by folding the oldest steps into one cumulative step (see above).
-func capHistory(h []LineStep) []LineStep {
+//
+// The render a T194 re-derivation was recorded on (rederived) is never folded INTO a run: it stays a step
+// boundary (T195 re-review H1), so predatesRederive can still tell which links came before it.
+func capHistory(h []LineStep, rederived string) []LineStep {
 	if len(h) <= maxLineHistory {
 		return h
 	}
@@ -585,7 +598,19 @@ func capHistory(h []LineStep) []LineStep {
 	if !chained(h[:n]) {
 		return h[n-1:] // a broken chain cannot be composed: those links had no map already
 	}
+	for j := 1; j < n; j++ {
+		if rederived != "" && h[j].FromRender == rederived { // fold either side of the boundary
+			return append([]LineStep{composeSteps(h[:j]), composeSteps(h[j:n])}, h[n:]...)
+		}
+	}
 	return append([]LineStep{composeSteps(h[:n])}, h[n:]...)
+}
+
+func rederivedRender(r *Rederivation) string {
+	if r == nil {
+		return ""
+	}
+	return r.Render
 }
 
 // chained reports whether consecutive steps join (each step starts at the render the previous one ended).
@@ -609,6 +634,14 @@ func (li LineIdentity) Compact(keep map[string]bool) (LineIdentity, bool) {
 		return li, false
 	}
 	old, rest := li.History[:n-recentLineHistory], li.History[n-recentLineHistory:]
+	if li.Rederived != nil && li.Rederived.Render != "" { // H1: the re-derivation stays a boundary
+		k := make(map[string]bool, len(keep)+1)
+		for r := range keep {
+			k[r] = true
+		}
+		k[li.Rederived.Render] = true
+		keep = k
+	}
 	var out, seg []LineStep
 	flush := func() {
 		if len(seg) > 0 {
@@ -655,29 +688,39 @@ func composeSteps(steps []LineStep) LineStep {
 	return out
 }
 
-// composeCharMap is b∘a: a character kept by both maps is kept, at b's position; every other character is
-// inexact (CharMap.Map then places it just after the last kept one, as for a single edit).
+// composeCharMap is b∘a, EXACTLY as applying a then b (CharPath{a, b}.Map) for every offset: the same exact
+// flag and the same landing position (T195 re-review M1). Characters kept by both maps form the Keep runs;
+// a character that did not survive lands wherever the step-by-step mapping puts it, recorded in Lands
+// when that differs from what Keep alone would give.
 func composeCharMap(a, b CharMap) CharMap {
-	oldToNew := make([]int, a.OldLen)
-	for o := range oldToNew {
-		oldToNew[o] = -1
-		if n1, e1 := a.Map(o); e1 && n1 < b.OldLen {
-			if n2, e2 := b.Map(n1); e2 {
-				oldToNew[o] = n2
-			}
-		}
+	type land struct {
+		pos   int
+		exact bool
+	}
+	step := make([]land, a.OldLen)
+	for o := range step {
+		pos, exact := CharPath{a, b}.Map(o)
+		step[o] = land{pos, exact}
 	}
 	cm := CharMap{OldLen: a.OldLen, NewLen: b.NewLen}
-	for i := 0; i < len(oldToNew); {
-		if oldToNew[i] < 0 {
+	for i := 0; i < len(step); {
+		if !step[i].exact {
 			i++
 			continue
 		}
-		st, n := i, oldToNew[i]
-		for i < len(oldToNew) && oldToNew[i] == n+(i-st) {
+		st, n := i, step[i].pos
+		for i < len(step) && step[i].exact && step[i].pos == n+(i-st) {
 			i++
 		}
 		cm.Keep = append(cm.Keep, [3]int{st, n, i - st})
+	}
+	for o, ld := range step {
+		if ld.exact {
+			continue
+		}
+		if def, _ := cm.Map(o); def != ld.pos {
+			cm.Lands = append(cm.Lands, [2]int{o, ld.pos})
+		}
 	}
 	return cm
 }

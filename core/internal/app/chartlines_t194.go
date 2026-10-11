@@ -213,7 +213,66 @@ func (s *Service) ChartRenderForFile(fileID string) (chartpdf.ChartRender, error
 	if !current {
 		return chartpdf.ChartRender{}, ErrRenderDiverged
 	}
-	return chartpdf.ChartRender{Source: src, Lines: li, Anchors: anchors, Hash: f.BlobHash}, nil
+	r := chartpdf.ChartRender{Source: src, Lines: li, Anchors: anchors, Hash: f.BlobHash}
+	recentCharts.put(fileID, r)
+	return r, nil
+}
+
+// ChartRenderAt returns the render blobHash of fileID as the server last served it, when it still has it:
+// the current render, or one of the recent ones kept IN MEMORY (T195 re-review M2). A peer's move is made
+// on the render it was served, which a save may have superseded since; with that render the server can
+// read the drag in the geometry the peer actually saw. ok=false when the render is unknown (evicted, or
+// served by a previous process): the caller then flags the mark check rather than guess. No render, no
+// write: only renders that ChartRenderForFile already built are ever returned.
+func (s *Service) ChartRenderAt(fileID, blobHash string) (chartpdf.ChartRender, bool) {
+	if blobHash == "" {
+		return chartpdf.ChartRender{}, false
+	}
+	return recentCharts.get(fileID, blobHash)
+}
+
+// recentCharts is the in-memory LRU of the renders ChartRenderForFile built, keyed by (file, blob hash):
+// source, line ids as they were then, and manifest. 128 entries, a few tens of KB each.
+var recentCharts = &chartLRU{ll: list.New(), m: map[string]*list.Element{}, max: 128}
+
+type chartLRU struct {
+	sync.Mutex
+	ll  *list.List
+	m   map[string]*list.Element
+	max int
+}
+
+type chartEntry struct {
+	key string
+	r   chartpdf.ChartRender
+}
+
+func (c *chartLRU) put(fileID string, r chartpdf.ChartRender) {
+	key := fileID + "/" + r.Hash
+	c.Lock()
+	defer c.Unlock()
+	if el, ok := c.m[key]; ok {
+		el.Value.(*chartEntry).r = r // the ids may have gained history since; keep the latest
+		c.ll.MoveToFront(el)
+		return
+	}
+	c.m[key] = c.ll.PushFront(&chartEntry{key: key, r: r})
+	for c.ll.Len() > c.max {
+		last := c.ll.Back()
+		c.ll.Remove(last)
+		delete(c.m, last.Value.(*chartEntry).key)
+	}
+}
+
+func (c *chartLRU) get(fileID, hash string) (chartpdf.ChartRender, bool) {
+	c.Lock()
+	defer c.Unlock()
+	el, ok := c.m[fileID+"/"+hash]
+	if !ok {
+		return chartpdf.ChartRender{}, false
+	}
+	c.ll.MoveToFront(el)
+	return el.Value.(*chartEntry).r, true
 }
 
 // renderCache memoises ChartAnchorsIfCurrent by (source, blob): every realtime move and restyle on a chart

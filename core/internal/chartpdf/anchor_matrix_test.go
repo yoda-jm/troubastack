@@ -842,7 +842,7 @@ func runCell(t *testing.T, shape string, ev mxEvent, fix string) {
 			}
 			marks[i].ref = mxIdent{mxV3, 1, false}
 			client.Link = &domain.MarkLink{State: domain.LinkLinked, Line: "forged"} // ignored (P26)
-			objs[i] = RelinkMoved(client, stored, ptrChart(w.chart()))
+			objs[i] = RelinkMoved(client, stored, ptrChart(w.chart()), nil)
 		case "resize":
 			x0, y0, _, _ := boundsOf(client.Points)
 			for j := range client.Points {
@@ -850,7 +850,7 @@ func runCell(t *testing.T, shape string, ev mxEvent, fix string) {
 				p.X, p.Y = x0+(p.X-x0)*1.5, y0+(p.Y-y0)*1.5
 				marks[i].placed[j] = *p
 			}
-			objs[i] = RelinkMoved(client, stored, ptrChart(w.chart()))
+			objs[i] = RelinkMoved(client, stored, ptrChart(w.chart()), nil)
 		case "restyle":
 			client.Style.Color = "#2563eb"
 			objs[i] = RebaseMark(client, stored, ptrChart(w.chart()))

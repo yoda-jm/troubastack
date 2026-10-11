@@ -596,3 +596,50 @@ func TestE2E_StalePeerDragLandsRelativeToItsLine(t *testing.T) {
 	}
 	eqPts(t, "stale-peer drag lands relative to its line", g.Points, shift(box, 0.05, b.Y0-a.Y0), 1e-6)
 }
+
+// T195 re-review (r4): the peer's view spans TWO saves (R1 → R2 → R3); it drags its R1 object, which is
+// the link's own render, so the stored link is shifted by the drag.
+func TestE2E_StalePeerAcrossTwoSaves(t *testing.T) {
+	w := newE2E(t, e2eChart)
+	a := e2eRun(t, w.src, "we sail at dawn", 1)
+	h := a.Y1 - a.Y0
+	box := []domain.Point{{X: a.X0, Y: a.Y0 - 0.3*h}, {X: a.X0 + 0.1, Y: a.Y1 + 0.3*h}}
+	w.create(domain.Object{UUID: "pm", Page: a.Page, Points: box}, "rect")
+	peerRaw, _ := w.served()
+	peerObj := peerRaw["pm"]
+	w.save(strings.Replace(w.src, "## Verse\n", "## Verse\nDm\nsome new words up here\n", 1))
+	w.save(strings.Replace(w.src, "## Verse\n", "## Verse\nand yet another line\n", 1))
+	b := e2eRun(t, w.src, "we sail at dawn", 1)
+	peerObj["points"] = ptsJSON(shift(box, 0.05, 0))
+	w.mut("move", "pm", peerObj)
+	_, got := w.served()
+	if st := state(got["pm"]); st != "linked" {
+		t.Errorf("two-save stale drag: state %s, want linked", st)
+	}
+	eqPts(t, "two-save stale drag", got["pm"].Points, shift(box, 0.05, b.Y0-a.Y0), 1e-6)
+}
+
+// M2 (T195 re-review r4): a peer opened the song AFTER save 1 — its view is R2, the link was measured on
+// R1, so it was served the mark PROJECTED onto R2 — then save 2 lands. Its drag is read in R2's geometry
+// (the server keeps recent renders in memory), so the mark lands on its line, where it was dropped, linked.
+func TestE2E_StalePeerViewNotTheLinksRender(t *testing.T) {
+	w := newE2E(t, e2eChart)
+	a := e2eRun(t, w.src, "we sail at dawn", 1)
+	h := a.Y1 - a.Y0
+	box := []domain.Point{{X: a.X0, Y: a.Y0 - 0.3*h}, {X: a.X0 + 0.1, Y: a.Y1 + 0.3*h}}
+	w.create(domain.Object{UUID: "pm", Page: a.Page, Points: box}, "rect")
+	w.save(strings.Replace(w.src, "## Verse\n", "## Verse\nDm\nsome new words up here\n", 1))
+	m := e2eRun(t, w.src, "we sail at dawn", 1)
+	peerRaw, got := w.served() // view R2: projected points
+	peerObj := peerRaw["pm"]
+	shown := got["pm"].Points
+	w.save(strings.Replace(w.src, "## Verse\n", "## Verse\nand yet another line\n", 1))
+	b := e2eRun(t, w.src, "we sail at dawn", 1)
+	peerObj["points"] = ptsJSON(shift(shown, 0.05, 0))
+	w.mut("move", "pm", peerObj)
+	_, got = w.served()
+	if st := state(got["pm"]); st != "linked" {
+		t.Errorf("stale view R2 (link on R1): state %s, want linked", st)
+	}
+	eqPts(t, "stale view != link render", got["pm"].Points, shift(shown, 0.05, b.Y0-m.Y0), 1e-6)
+}
