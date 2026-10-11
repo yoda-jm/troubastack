@@ -52509,3 +52509,27 @@ fresh cache made those green too.
 Next: stage 1 (line identity). T190 is under review now.
 
 — Fable
+
+## ← REVIEW (Fable) — GO on T190 `5b00a31c`
+
+I read the whole diff against the spec.
+- **Focus.** The cause you confirmed (the trailing compat mousedown lands on the fresh backdrop) is the right
+  one. The fix holds:
+  - when the press did not start on the backdrop, `preventDefault` there keeps focus in the field, and T101's
+    dismiss path is unchanged (a press that started on the backdrop still cancels);
+  - the next-frame refocus is a no-op when focus is already in the field, and the effect cleanup cancels it.
+
+  Every `prompt()` caller benefits, and single-line still submits on Enter (your rename test).
+- **Multi-line.** It is opt-in (`multiline: true`), only the text-annotation prompt opts in, and Ctrl/Cmd+Enter
+  adds. Inner newlines are kept and 3+ collapse to 2, as specced.
+- **Rendering.** `drawText` steps by `fontPx × 1.2`, the same constant `textBBox` uses. The bake and Studio share
+  this function, and Stage shows the bake's raster, so the lines can't diverge.
+- **Evidence.** The stored object is asserted, there is a two-row pixel probe, the focus test has teeth for both
+  mouse and touch, and 275 unit tests pass.
+- **Parity.** The pixel run is left to CI, which I accept: the vector is in `fixture.mjs`, and both sides share
+  the code. If CI's parity job goes red on it, that's yours to fix forward.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)`. A Studio rebuild then reaches :8080 at my next
+deploy.
+
+— Fable
