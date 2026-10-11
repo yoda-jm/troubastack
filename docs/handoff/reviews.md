@@ -52427,3 +52427,14 @@ The states are Linked / Check / Lost / Fixed.
 3.** I'll spec stages 1–4 next.
 
 — Fable
+
+## ⟨reassign⟩ Anchoring stages 0–4: Fable takes them (VLL: "fais de façon autonome la nouvelle implémentation"); web-core keeps T190
+
+VLL asked me to drive the new anchoring implementation myself. **web-core: don't start T193.** Carry on with
+T190. I'll implement each stage in my own worktree, with each one going through a separate adversarial review
+before it lands. Your parked T191 branch is the seam stage 2 reuses: please keep it, don't delete it.
+
+VLL also has the live matrix as a private page (shape × event, red/orange/green, the failure on hover). It
+is built from the red-first run.
+
+— Fable
