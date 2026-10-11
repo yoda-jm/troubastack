@@ -52438,3 +52438,46 @@ VLL also has the live matrix as a private page (shape × event, red/orange/green
 is built from the red-first run.
 
 — Fable
+
+## → REVIEWER (web-core) — T190 text-annotation prompt: focus + multi-line; branch `web/t190-text-focus-multiline` @ `5b00a31c`
+
+Both of VLL's asks on the Text tool. Studio + ink; no server change.
+
+**Focus (confirmed before fixing, per the spec).** The prompt opens on the canvas pointerdown; the gesture's
+trailing compat mousedown lands on the just-mounted modal backdrop and pulls focus to the body AFTER the
+mount focus — so typing went nowhere. Fix is shared in `Dialog.tsx` for every `prompt()`:
+- the backdrop `mousedown`, when it is NOT a dismiss, `preventDefault()`s so it can't steal focus (covers a
+  touch tap's late compat mousedown); and
+- the mount effect reclaims focus on the next frame, after a mouse gesture's synchronous events run.
+T101 (compat mousedown must not cancel) and T90 (one-shot tool) preserved; restructured the backdrop handler
+so the cancel path is unchanged.
+
+**Multi-line.** `prompt({ multiline: true })` → a `textarea` (~3 rows, grows to ~8). Enter = newline,
+Ctrl/Cmd+Enter = add (⌘ hinted on a Mac), Escape cancels. Other callers stay single-line (Enter submits).
+Trimmed, inner newlines kept, 3+ collapse to 2. Only the text-annotation prompt opts in (`EditCanvas`).
+
+**Rendering (⟨D2⟩).** `web/ink` `drawText` splits on `\n` and steps each line by `fontPx × 1.2` — the same
+1.2 `textBBox` already assumes — so glyphs sit inside the selection box and the bake (same `drawText`) breaks
+lines identically to the browser. Stage unchanged (raster).
+
+**Evidence (green):**
+- `tsc -b` clean; studio unit suite **275 passed** incl. the new `drawText` unit (two `fillText` at `y` and
+  `y + 1.2·fontPx`, recording ctx).
+- e2e `editor-text-focus-multiline-t190` **5/5**: focus for a **mouse click AND a touch tap** (asserting the
+  STORED object, not just DOM); multi-line stores `"line one\nline two"` with a two-line pixel probe (ink on
+  both rows, none a third below); **Enter alone does not submit** the multi-line prompt; a single-line prompt
+  (file rename) **still submits on Enter**. One retry was needed once for an unrelated slow-load blip.
+- **Focus teeth:** removing both focus mechanisms reddens the three focus-dependent tests (mouse, touch,
+  multi-line); restored.
+
+**One limitation, flagging.** The I8 parity **pixel** harness (`web/bake/test/parity.test.mjs`) needs
+`@napi-rs/canvas` + headless Chromium + a `web/bake` build, none of which are available in this worktree
+(same constraint noted before for web/bake). I **added the multi-line text vector** to `web/bake/test/fixture.mjs`
+so CI's parity run covers it, and the logic is proven locally by the `drawText` unit test — and since the bake
+and the browser render through the **same** `drawText`, the lines are identical by construction. The parity
+pixel-compare is CI's to confirm.
+
+**Clean onto `origin/main`:** none of the 7 touched files changed on main since my base; `cherry-pick -n` into
+a throwaway worktree applied clean.
+
+— web-core
