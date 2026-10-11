@@ -52598,3 +52598,50 @@ the previous binary is kept as `troubacore.19a5b656`.
 **Next:** stage 3 (states in Studio + the pre-bake list) and stage 4 (VLL's per-mark review).
 
 — Fable
+
+## ⟨submit → Fable⟩ A85 — a note stroke that leaves its page is split at the edge; a seam divider in two-up
+
+**Branch:** `task/a85-note-stroke-across-pages` @ `42a8906f`, one commit on `fa91cfdb` (fast-forwards).
+**Spec:** `docs/tasks/A85-note-stroke-across-pages.md`. **Evidence:** `docs/screenshots/a85-split-across-seam.png`.
+
+**Mechanism (§3, "one owner for the gesture across the spread").**
+- `NoteSpread` + `Modifier.noteSpreadInput` sit on the two-up `Row`, or on the single page. They are the only note-mode `pointerInput`.
+- A71's `StrokeReader` is unchanged: no slop, the touchdown is the first point, the first pointer owns the gesture. It feeds the new pure `notes/StrokeSplitter`.
+- **The splitter** clips every sample-to-sample step against each page's paper rectangle (Liang–Barsky).
+  - Leaving a page commits that page's segment at the interpolated edge point.
+  - Entering a page begins a new segment at its entry point.
+  - Gutter and letterbox points draw nothing.
+  - One step that jumps the gutter, or crosses a whole page, still splits correctly.
+- **Each `NoteLayer` is now a `NoteSink`.** It keeps its own bitmap, wet preview, eraser and per-segment save, so A77 and the ✎ index see one ordinary commit per page.
+- **One geometry:** `touchToNote` is rebuilt on the new `paperRect` + `paperToNote`, which routing, ink and preview all use. The existing `NoteGeometryTest` cases are unchanged and green.
+- **⟨D2⟩ divider:** dashed, 2 dp, `onSurfaceVariant` at 0.6 alpha. It is drawn by the spread modifier, so it exists only in note mode and is never in a bitmap.
+
+**Guard moved, same property.** `noteDrawingHandler_restartsOnANoteRevision` now pins `remember(key, noteRevision) { NoteSink() }`.
+- The per-page handler is the sink. The spread's `pointerInput(spread)` only routes points and captures no page state.
+- The guard also asserts that the spread router is the only `pointerInput` in NotePad.kt.
+
+**Tests.**
+- `StrokeSplitterTest` (10) covers all the §5 rows:
+  - A → gutter → B gives two segments, ending and starting on the edges.
+  - A → bar → A gives two segments with no chord.
+  - A stroke inside a page is unchanged.
+  - A gutter start begins on B's edge.
+  - Plus: interpolation (not a sample snap), a fast flick, touching pages, a page crossed in one step, dot vs gutter tap, and the streaming events.
+- `NoteGeometryTest` gains the shared-rect case.
+- **Teeth:** I swapped in the old behaviour as the first line of `move()`:
+  `if (true) return current?.takeIf { papers[it].contains(b.x, b.y) }?.let { listOf(SplitEvent.Point(it, b)) } ?: emptyList()`
+  Result: 8 of 10 red, including `a_word_across_the_gutter_is_two_strokes…`. The 2 still green (a dot, a stroke inside one page) are behaviours the old code also got right. Restored; a grep for the sabotage line finds 0.
+- **Regression:** `:shared:check :androidApp:test :androidApp:assembleDebug :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64` (the CI set) gives BUILD SUCCESSFUL, 573 unit tests, 0 failures.
+
+**Device — on the 1200×1920 filming emulator, NOT VLL's tablet yet.**
+- VLL authorised his tablet for tonight. The session's permission layer then refused the install and the bundle push to it, so I did not work around that.
+- The tablet was put back to sleep with nothing changed.
+- All rows below ran on the emulator, landscape two-up, demo concert only:
+  1. One injected pen movement across the middle: both halves stay, wet = committed, nothing in the gutter. The left stroke ends at screen x≈904 and the right one starts at ≈1016, the computed paper edges (848 px pages, 56 px bars).
+  2. After force-stop and reopen, both halves are still on screen, and the list reads "notes on 2 pages".
+  3. The pulled note PNGs: the left page's ink bbox is x 1099–**1600** and the right page's is x **0**–538.
+  4. One eraser pass across the middle clears both pages; both notes are deleted (index empty).
+  5. The divider is shown in Normal, Warm, Night and Amber.
+- **Still owed: the §5 device rows on VLL's tablet.** The build is parked for him at `~/troubastack-apks/troubastack-debug-a85.apk`.
+
+— Mobile
