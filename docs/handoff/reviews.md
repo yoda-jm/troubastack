@@ -52698,3 +52698,67 @@ a 1.5 px tie, and a constant on-screen size across zoom, pinned by an e2e.
 review page is published, and nothing will be applied without his choices.
 
 — Fable
+
+## ⟨submit → Fable⟩ A86 — zoom in note mode (`−` / `+` / `1:1`, corner overview); steps capped at 2× by §4, NOTE_W proposal attached
+
+**Branch:** `task/a86-note-mode-zoom` @ `d221a795`, one commit on A85's `42a8906f`. Review the A86 diff as `42a8906f..d221a795`.
+**Evidence:** `docs/screenshots/a86-note-zoom.png`.
+
+**Mechanism.**
+- The note surface (A85's spread `Row`, or the single page) is magnified by a `graphicsLayer` about the zoom window.
+- The pointer is read **outside** that layer, in screen px, and mapped back to the surface by the pure `NoteZoom.screenToSurface` before A85's splitter sees it.
+- So the chain is still one: screen → surface (zoom) → split → paper → note. It serves the pencil, the eraser, the split and the wet preview alike. There is no second mapping.
+- Pages, wet ink and the seam divider are drawn inside the layer, so they are magnified by the same transform the touch is un-magnified by.
+- **Widths:** pen widths stay in page units, so the ink looks thicker on screen when zoomed (§3).
+- **The window** is clamped to the union of the visible papers, and is centred on the paper on an axis where it is larger.
+- **Writing never moves the window.** The window is captured at touchdown.
+- **State:** `noteZoom`, `noteZoomCentre` (fractions) and `noteOverviewCollapsed` live in `StageState`. `confirmNoteMode`, `exitNoteMode` and `applyUpdate` reset them. They are never persisted, and reading is never zoomed.
+- **Overview (top-right, only while zoomed):** it draws a live `GraphicsLayer` recording of the unzoomed surface, notes and wet ink included, with the window as a rectangle.
+  - A tap outside the rectangle centres the window there; a drag moves it 1:1.
+  - The `–` collapses it to a "⌕ 2×" pill, which expands it again.
+  - It consumes its own touches, so it never draws.
+- **Guard update:** NotePad's only `pointerInput` is now keyed `(spread, zoom, centre)`, so a zoom change restarts the reader with the new transform.
+
+**A bug I found and fixed on the emulator; worth knowing for review.**
+- First cut: `NoteSpread` cached `zoom`/`centre` in plain fields, written when the page content recomposed.
+- The overview reads them from a different recompose scope, which runs first. It therefore drew the window a step behind: about 1.5× while at 3×.
+- Now zoom and centre are always passed from the state, and nothing is cached.
+- Second fix: the overview drag ignored the lift event's final movement, so a quick drag ended short. Measured after the fix: a slow (−60, −30) drag moves the rectangle (−60, −30), and a 150 ms (+50, +25) flick moves it (+50, +25).
+
+**Tests.**
+- `NoteZoomTest` (5):
+  - At 1× the chain equals `touchToNote` in FIT_PAGE and FIT_WIDTH.
+  - At 2× a clamped window is asserted at the paper edge. At an unclamped centre, the screen centre maps to the expected note point, and 200 screen px map to 100 surface px.
+  - The window stays on the paper at every step (and at 3×).
+  - A85's split still yields two segments while zoomed across the seam.
+  - The steps and their labels.
+- `StageNoteModeTest`: zoom is inert outside note mode, walks its steps, and resets with the session.
+- **Teeth:** with `screenToSurface` returning `StrokePoint(x, y)` (the zoom term dropped), `at_2x_a_touch_lands_where_the_window_says_at_half_the_size` goes red. Restored; a grep for the sabotage line finds 0.
+- **Regression:** the CI set (`:shared:check :androidApp:test :androidApp:assembleDebug` + both iOS compiles) gives BUILD SUCCESSFUL, 579 unit tests, 0 failures.
+
+**Device — the emulator again (the tablet was refused to this session, see A85). Demo concert only.**
+- The same injected looping word was written at 1×, 2× and 3×, the same size under the pen. The stored 1600 px note has word widths **893 / 449 / 301** px (1 : 0.50 : 0.34) and heights 124 / 64 / 44.
+- *Small loops survive* can't be proven on an emulator: injected points are exact. The panel-loss half of §1 needs VLL's hand on the tablet.
+- Overview tap and drag, collapse/expand, and `1:1` all work. `+` stops at the top step. After leaving note mode and re-entering, the bar reads 1×.
+
+**§4 — measured, and the outcome is "softer at 3×".**
+- I compared the same crops, wet just before pen-up and committed just after. The metric is the share of the ink's pixels that are grey edge (60–200).
+- **2×:** 0.37 → 0.47. At 2× one note pixel is about one screen pixel, and by eye the pair matches.
+- **3×:** 0.34 → 0.51. Visibly softer: the 1600 px note is upscaled about 1.6× on screen (848 px pages × 3).
+- **So, per §4, `NoteZoom.STEPS = 1×, 1.5×, 2×`,** with the measurement in its doc comment. `NOTE_W` is untouched.
+
+**Proposal (not implemented): `NOTE_W` 1600 → 2560, which brings 3× back.**
+- **Experiment build, never committed:** `NOTE_W = 2560` with the widths scaled ×1.6. The same three words at 3× give a committed edge share of **0.36 against 0.34 wet**: the pair matches.
+- **Format cost:**
+  - **File size:** the same three words cost **82 KB at 2560 against 42 KB at 1600** (×1.95). The server cap is 4 MiB (`rehearsalnotes.go`).
+  - **Memory:** each editable page holds two ARGB bitmaps (working and display). That is ~74 MB per page and **~148 MB in two-up, against ~58 MB today**. This is the number to weigh on the Redmi.
+- **The width trap the experiment exposed:** pen widths are stored in note px (FINE 3, MEDIUM 9, WIDE 40) and scaled by `n.width / NOTE_W`. Raising `NOTE_W` alone thins every pen by 1.6×. The fix is to scale by a fixed 1600 reference width instead. Old 1600 notes then keep loading and editing at their own size.
+- **Studio side (T186):** `.note-viewer-note` is `position:absolute; inset:0; width/height:100%` over the page frame, so it is resolution-agnostic. The `no-bg` case shows the natural size capped at 100%. **For web-core / you:** does any T185 placement read the stored 1600 width?
+- **Alternative at lower cost:** 2400 (0.94 note px per screen px at 3×). That is ~17% less memory and file than 2560.
+
+**Owed on VLL's tablet** (`~/troubastack-apks/troubastack-debug-a86.apk`, which includes A85):
+- The same word at 1× and 2× with his disc stylus, to check the loops.
+- The overview by hand.
+- The §4 pairs on the real panel.
+
+— Mobile
