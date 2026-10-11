@@ -735,7 +735,14 @@ export function drawText(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   ctx.font = `${fpx}px ${textFontFamily}`;
   ctx.textBaseline = "top";
   ctx.fillStyle = obj.style.color;
-  ctx.fillText(obj.text, px, py);
+  // T190: a note can span several lines. Step each line by fontPx × 1.2 — the SAME 1.2 line height
+  // textBBox assumes — so the glyphs land exactly inside the selection box the editor draws, and the bake
+  // (which renders through this same drawText) breaks the lines identically to the browser.
+  const lines = obj.text.split("\n");
+  const lineStep = fpx * 1.2;
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], px, py + i * lineStep);
+  }
 }
 
 // ---------------------------------------------------------------------------

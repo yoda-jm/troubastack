@@ -2088,6 +2088,9 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .modal-backdrop .modal { max-width: 30rem; width: 100%; display: flex; flex-direction: column; gap: .7rem; }
 .modal-backdrop .modal h3 { margin: 0; }
 .delete-layer-input { font-family: var(--font-mono); letter-spacing: .08em; }
+/* T190: the multi-line text-annotation prompt — starts ~3 rows, grows to ~8, user-resizable. */
+.dialog-textarea { display: block; width: 100%; box-sizing: border-box; min-height: 4.2rem; max-height: 11rem; resize: vertical; line-height: 1.3; letter-spacing: normal; }
+.dialog-hint { font-size: .75rem; margin: .3rem 0 0; }
 
 /* T112: the lazy-route loading fallback + failed-chunk error screen (RouteBoundary). */
 .route-fallback, .route-error { display: flex; flex-direction: column; align-items: center; justify-content: center;

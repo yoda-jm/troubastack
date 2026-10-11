@@ -18,6 +18,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -36,6 +37,10 @@ export interface PromptOptions {
   initial?: string;
   placeholder?: string;
   confirmLabel?: string;
+  /** T190: render a multi-line textarea instead of a single-line input. Enter inserts a newline;
+   *  Ctrl/Cmd+Enter confirms (like the button); Escape cancels. The text is trimmed but inner newlines are
+   *  kept (runs of 3+ collapse to 2). Default false — a tag name or song title stays single-line. */
+  multiline?: boolean;
 }
 
 interface DialogAPI {
@@ -101,7 +106,7 @@ function DialogView({
   // before this backdrop existed). Gates the mousedown-dismiss below.
   const pressStartedOnBackdrop = useRef(false);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const [typed, setTyped] = useState("");
   const [value, setValue] = useState(request.kind === "prompt" ? (request.opts.initial ?? "") : "");
 
@@ -112,8 +117,20 @@ function DialogView({
       if (e.key === "Escape") cancel();
     };
     document.addEventListener("keydown", onKey);
-    (inputRef.current ?? cancelBtnRef.current)?.focus();
-    return () => document.removeEventListener("keydown", onKey);
+    const focusField = () => (inputRef.current ?? cancelBtnRef.current)?.focus();
+    focusField();
+    // T190: a mouse click that opens the text prompt dispatches mousedown→mouseup→click on one gesture; a
+    // trailing event can pull focus off the field after this mount focus. Reclaim it on the next frame, once
+    // the gesture's synchronous events have run, so typing goes straight in without a second click. (A touch
+    // tap's compat mousedown fires later than a frame — that one is kept in the field by the backdrop
+    // mousedown preventDefault below.) Re-focusing an already-focused field is a no-op, so this is safe for
+    // every prompt() caller.
+    let raf = 0;
+    if (inputRef.current) raf = requestAnimationFrame(focusField);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [cancel]);
 
   const confirmDisabled =
@@ -123,12 +140,18 @@ function DialogView({
 
   const onConfirm = () => {
     if (request.kind === "prompt") {
-      const v = value.trim();
+      // T190: a multi-line note keeps its inner newlines (trim only the ends); a slip on Enter that makes 3+
+      // blank lines collapses to one. A single-line prompt (tag name, song title) trims as before.
+      const v = request.opts.multiline ? value.replace(/\n{3,}/g, "\n\n").trim() : value.trim();
       onSettle(v === "" ? null : v);
     } else {
       onSettle(true);
     }
   };
+
+  // T190: the add shortcut label, ⌘ on a Mac and Ctrl elsewhere (shown under the multi-line field).
+  const cmdOrCtrl =
+    typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘" : "Ctrl";
 
   return createPortal(
     <div
@@ -157,7 +180,16 @@ function DialogView({
         // off-centre. That compat mousedown has no preceding pointerdown on the backdrop, so it would
         // cancel the prompt with the very tap that opened it — the popup only flashed. Requiring a
         // real press-start on the backdrop ignores it while still honouring genuine mouse/touch dismissals.
-        if (pressStartedOnBackdrop.current && e.target === backdropRef.current) cancel();
+        if (e.target !== backdropRef.current) return; // a press inside the card focuses it normally
+        if (pressStartedOnBackdrop.current) {
+          cancel();
+        } else {
+          // T190: the text prompt opens on the canvas's pointerdown; the gesture's trailing compatibility
+          // mousedown lands on this just-mounted backdrop (now on top) and its default would pull focus off
+          // the field to the body. preventDefault keeps focus in the field, so typing goes straight in — for
+          // both a mouse click and a touch tap. This is NOT a dismiss (the press did not start here, T101).
+          e.preventDefault();
+        }
       }}
     >
       <div className="modal card">
@@ -184,18 +216,43 @@ function DialogView({
         ) : (
           <>
             {request.opts.label != null && <label htmlFor="app-dialog-input">{request.opts.label}</label>}
-            <input
-              id="app-dialog-input"
-              data-testid="app-dialog-input"
-              ref={inputRef}
-              className="delete-layer-input"
-              value={value}
-              placeholder={request.opts.placeholder}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onConfirm();
-              }}
-            />
+            {request.opts.multiline ? (
+              <>
+                <textarea
+                  id="app-dialog-input"
+                  data-testid="app-dialog-input"
+                  ref={inputRef as RefObject<HTMLTextAreaElement>}
+                  className="delete-layer-input dialog-textarea"
+                  rows={3}
+                  value={value}
+                  placeholder={request.opts.placeholder}
+                  onChange={(e) => setValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Enter inserts a newline (the textarea default). Ctrl/Cmd+Enter adds, like the button.
+                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                      e.preventDefault();
+                      onConfirm();
+                    }
+                  }}
+                />
+                <p className="muted dialog-hint" data-testid="app-dialog-hint">
+                  {cmdOrCtrl}+Enter to add
+                </p>
+              </>
+            ) : (
+              <input
+                id="app-dialog-input"
+                data-testid="app-dialog-input"
+                ref={inputRef as RefObject<HTMLInputElement>}
+                className="delete-layer-input"
+                value={value}
+                placeholder={request.opts.placeholder}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onConfirm();
+                }}
+              />
+            )}
           </>
         )}
         <div className="inline-form">

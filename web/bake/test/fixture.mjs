@@ -167,6 +167,16 @@ export const fixture = {
         text: "TroubaStack",
         style: { color: "#202124", opacity: 1, width: 0, fontSize: 0.045 },
       },
+      // T190 — a MULTI-LINE text in the clear top-left: both renderers must break on "\n" and step each
+      // line by fontPx × 1.2 identically, or the bake and the browser disagree on where line two lands.
+      {
+        type: "text",
+        layerId: "L1",
+        page: 0,
+        points: [{ x: 0.08, y: 0.02 }],
+        text: "line one\nline two",
+        style: { color: "#d93025", opacity: 1, width: 0, fontSize: 0.028 },
+      },
     ],
   },
 };

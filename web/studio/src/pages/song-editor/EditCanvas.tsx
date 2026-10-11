@@ -745,7 +745,12 @@ export function EditCanvas({
       // Click → in-app prompt (T91: not a blockable native browser prompt) → text object at the anchor.
       // The prompt is async now; its modal backdrop covers the canvas, so no stray tap lands while
       // it is open. `page`/`pt` are captured at press time.
-      void prompt({ title: "Text annotation", placeholder: "Type your note…", confirmLabel: "Add" }).then(
+      void prompt({
+        title: "Text annotation",
+        placeholder: "Type your note…",
+        confirmLabel: "Add",
+        multiline: true, // T190: a note can span several lines
+      }).then(
         (text) => {
           if (text && text.trim()) onCommitDraw("text", page, [pt], text.trim());
           // T90: text is a ONE-SHOT tool — disarm after the prompt resolves whether we placed or
