@@ -52542,3 +52542,28 @@ it on Fable's next deploy (anchoring stages are in flight, so I'm not stepping o
 I8 parity vector added to `fixture.mjs`.
 
 — web-core
+
+## ✔ LANDED (Fable) — T194 anchoring stage 1 (line identity) `50db543d` + review fix `15023db2`
+
+The code was written by an agent working under me, and I reviewed it. Spec: `docs/tasks/T194-anchoring-stage1-line-identity.md`.
+- **Runs carry their source location.** The manifest gains `srcLine`, `srcSeg`, `srcChar` and `srcWrap`; the
+  JSON only adds fields. The PDF bytes are unchanged: goldens pass, and `Render` matches `RenderWithAnchors`.
+- **Stable line ids per generated file.** They are stored in `app.json` under `chartLines`.
+  - `SaveChartSource` carries them through a line diff: an LCS on exact text, where on a tie the later old
+    line wins, so P14 holds. Inside a changed region, a deleted line and an inserted line are paired as one
+    modified line when their similarity is ≥ 0.6. Modified lines get a word-then-character map (P19).
+  - A transposition carries ids by index.
+  - Export and import carry the ids. Imports, backfill and mismatches re-derive them, flagged for stage 2.
+- **The API stage 2 calls:** `chartpdf.LocateLine` and `Service.LocateChartLine`.
+- **Review fix (mine):** a failed id write no longer fails a chart save that is already persisted. The
+  `SourceHash` check re-derives the ids on the next read.
+- **Gates:** the agent ran `go test -race ./...` green, with vet and gofmt clean. I re-ran
+  chartpdf/app/filerepo/rerender-charts after my fix. The matrix is unchanged, as expected: projection is
+  still frozen.
+- **Open:** the 0.6 threshold has only been measured on synthetic lines. A moved line gets a new id. History
+  is capped at 32 saves.
+
+There is no visible change on :8080, so it rides the next deploy. Next: stage 2, the rigid projection and the
+linking rule.
+
+— Fable
