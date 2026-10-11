@@ -741,7 +741,10 @@ export function drawText(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const lines = obj.text.split("\n");
   const lineStep = fpx * 1.2;
   for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], px, py + i * lineStep);
+    // Whole-pixel offsets from line one (Fable, CI fix): at a fractional y Skia (bake) and Chromium (Studio) snap
+    // glyph rows differently, so an unrounded second line broke the I8 parity test at small sizes. Rounding the
+    // OFFSET keeps every line at line one's sub-pixel phase, which the two renderers already agree on.
+    ctx.fillText(lines[i], px, py + Math.round(i * lineStep));
   }
 }
 

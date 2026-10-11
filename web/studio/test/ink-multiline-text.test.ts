@@ -30,7 +30,7 @@ const textObj = (text: string): InkObject =>
   }) as InkObject;
 
 describe("drawText multi-line (T190 ⟨D2⟩)", () => {
-  it("draws one fillText per line, same x, stepping by fontPx × 1.2", () => {
+  it("draws one fillText per line, same x, stepping by fontPx × 1.2 rounded to whole pixels", () => {
     const { ctx, calls } = recordingCtx();
     drawText(ctx, textObj("a\nb"), page);
 
@@ -40,7 +40,9 @@ describe("drawText multi-line (T190 ⟨D2⟩)", () => {
     expect(fpx).toBeGreaterThan(0);
     expect(calls[0].x).toBeCloseTo(calls[1].x, 6); // same left edge
     expect(calls[0].y).toBeCloseTo(anchorY, 6); // first line at the anchor
-    expect(calls[1].y - calls[0].y).toBeCloseTo(fpx * 1.2, 6); // the 1.2 line step
+    // the 1.2 line step, rounded to a whole pixel so line N keeps line one's sub-pixel phase: Skia (the bake)
+    // and Chromium (Studio) snap glyphs differently at a fractional y, which broke I8 parity at small sizes.
+    expect(calls[1].y - calls[0].y).toBe(Math.round(fpx * 1.2));
   });
 
   it("a single-line note is one fillText (unchanged)", () => {
@@ -54,8 +56,9 @@ describe("drawText multi-line (T190 ⟨D2⟩)", () => {
     const { ctx, calls } = recordingCtx();
     drawText(ctx, textObj("x\ny\nz"), page);
     expect(calls.map((c) => c.text)).toEqual(["x", "y", "z"]);
-    const step1 = calls[1].y - calls[0].y;
-    const step2 = calls[2].y - calls[1].y;
-    expect(step2).toBeCloseTo(step1, 6);
+    const fpx = parseFloat(calls[0].font);
+    // each line sits a whole-pixel offset from the first: round(i × 1.2 × fontPx), so drift never accumulates
+    expect(calls[1].y - calls[0].y).toBe(Math.round(1 * 1.2 * fpx));
+    expect(calls[2].y - calls[0].y).toBe(Math.round(2 * 1.2 * fpx));
   });
 });
