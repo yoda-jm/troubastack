@@ -22,6 +22,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
@@ -49,8 +53,10 @@ import com.troubastack.shared.stage.notes.NoteGeometry
 import com.troubastack.shared.stage.notes.NoteKey
 import com.troubastack.shared.stage.notes.NoteTool
 import com.troubastack.shared.stage.notes.NoteTools
+import com.troubastack.shared.stage.notes.NoteZoom
 import com.troubastack.shared.stage.notes.PaperRect
 import com.troubastack.shared.stage.notes.SplitEvent
+import com.troubastack.shared.stage.notes.StrokePoint
 import com.troubastack.shared.stage.notes.StrokeSplitter
 import com.troubastack.shared.stage.notes.RehearsalNotes
 import com.troubastack.shared.stage.notes.StrokeReader
@@ -119,6 +125,19 @@ class NoteSpread {
     internal val sinks = mutableStateListOf<NoteSink>()
     // Bumped when the surface or a page moves, so the seam divider (read in the draw phase) redraws.
     internal var layoutTick by mutableStateOf(0)
+    // A86 — the surface's size: the overview's aspect, and the frame the zoom window is computed in.
+    var surfaceSize by mutableStateOf(IntSize.Zero)
+        internal set
+
+    /** A86 — the zoom window over the surface (surface px) at [zoom] about [centre] (fractions; null = the middle),
+     *  clamped to the visible pages' paper. Zoom and centre are always PASSED from the state, never cached here:
+     *  a cached copy written by one recompose scope and read by another drew the overview a step behind. */
+    fun window(zoom: Float, centre: Pair<Float, Float>?): PaperRect {
+        val w = surfaceSize.width.toFloat()
+        val h = surfaceSize.height.toFloat()
+        val (fx, fy) = centre ?: (0.5f to 0.5f)
+        return NoteZoom.window(zoom.coerceAtLeast(1f), fx * w, fy * h, w, h, NoteZoom.paperUnion(papers().map { it.second }))
+    }
 
     /** Each attached page's paper in the SURFACE's space, with the offset from the surface to that page's box. */
     internal fun papers(): List<Triple<NoteSink, PaperRect, Offset>> {
@@ -146,10 +165,24 @@ internal class NoteSink {
  * owns the gesture, a dot is a dot) feeding the splitter, whose per-page events go to that page's sink. With
  * [divider] set (two-up), ⟨D2⟩ draws the seam between the two pages: chrome, dashed, never ink, never baked —
  * it exists only while this modifier does, i.e. in note mode.
+ *
+ * A86 — the surface is shown at [zoom] about its window ([centre], fractions; null = the middle). The pointer is
+ * read OUTSIDE the zoom layer, in screen px, and taken back to the surface by NoteZoom.screenToSurface before
+ * the splitter sees it; the pages (and their wet ink, and the seam) are laid out and drawn INSIDE the layer, so
+ * everything on screen is magnified by the same transform the touch is un-magnified by. [thumb], when given,
+ * records the unzoomed surface for the corner overview.
  */
-fun Modifier.noteSpreadInput(spread: NoteSpread, divider: Color?): Modifier = this
-    .onGloballyPositioned { spread.coords = it; spread.layoutTick++ }
-    .pointerInput(spread) {
+fun Modifier.noteSpreadInput(
+    spread: NoteSpread,
+    divider: Color?,
+    zoom: Float = 1f,
+    centre: Pair<Float, Float>? = null,
+    thumb: GraphicsLayer? = null,
+): Modifier = this
+    .onGloballyPositioned { if (spread.surfaceSize != it.size) spread.surfaceSize = it.size }
+    // Keyed on the zoom and the window too: a zoom change (a bar tap — never mid-stroke) restarts the reader with
+    // the new transform, so the gesture never reads a stale one.
+    .pointerInput(spread, zoom, centre) {
         awaitEachGesture {
             val reader = StrokeReader()
             var splitter: StrokeSplitter? = null
@@ -165,9 +198,13 @@ fun Modifier.noteSpreadInput(spread: NoteSpread, divider: Color?): Modifier = th
                 }
             }
             val first = awaitFirstDown(requireUnconsumed = false)
+            // Fixed for the gesture: nothing re-lays out, and writing never moves the window (A86 §2).
+            val z = zoom.coerceAtLeast(1f)
+            val win = spread.window(zoom, centre)
+            fun surface(p: StrokePoint) = NoteZoom.screenToSurface(p.x, p.y, win, z)
             reader.down(first.id.value, first.position.x, first.position.y)?.let { p ->
-                targets = spread.papers() // fixed for the gesture: nothing re-lays out under a stroke
-                splitter = StrokeSplitter(targets.map { it.second }).also { dispatch(it.down(p)) }
+                targets = spread.papers()
+                splitter = StrokeSplitter(targets.map { it.second }).also { dispatch(it.down(surface(p))) }
             }
             first.consume() // A71 D4: consume what we read
             while (reader.drawing) {
@@ -180,8 +217,8 @@ fun Modifier.noteSpreadInput(spread: NoteSpread, divider: Color?): Modifier = th
                             // The pointer's HISTORICAL samples (between frames) first, oldest→newest, then the
                             // latest — a fast flick is traced densely, and the wet preview and the commit read the
                             // same points.
-                            for (h in c.historical) reader.move(c.id.value, h.position.x, h.position.y)?.let { p -> splitter?.let { dispatch(it.move(p)) } }
-                            reader.move(c.id.value, c.position.x, c.position.y)?.let { p -> splitter?.let { dispatch(it.move(p)) } }
+                            for (h in c.historical) reader.move(c.id.value, h.position.x, h.position.y)?.let { p -> splitter?.let { dispatch(it.move(surface(p))) } }
+                            reader.move(c.id.value, c.position.x, c.position.y)?.let { p -> splitter?.let { dispatch(it.move(surface(p))) } }
                             c.consume()
                         }
                     }
@@ -189,6 +226,25 @@ fun Modifier.noteSpreadInput(spread: NoteSpread, divider: Color?): Modifier = th
             }
         }
     }
+    .graphicsLayer {
+        val z = zoom.coerceAtLeast(1f)
+        if (z > 1f) {
+            val win = spread.window(zoom, centre)
+            transformOrigin = TransformOrigin(0f, 0f)
+            scaleX = z; scaleY = z
+            translationX = -win.left * z; translationY = -win.top * z
+            clip = true
+        }
+    }
+    // Inside the layer: the surface's own (unzoomed) layout space, which the pages' paper rects are measured in.
+    .onGloballyPositioned { spread.coords = it; spread.layoutTick++ }
+    .then(
+        if (thumb == null) Modifier
+        else Modifier.drawWithContent {
+            thumb.record { this@drawWithContent.drawContent() }
+            drawLayer(thumb)
+        },
+    )
     .then(
         if (divider == null) Modifier
         else Modifier.drawWithContent {

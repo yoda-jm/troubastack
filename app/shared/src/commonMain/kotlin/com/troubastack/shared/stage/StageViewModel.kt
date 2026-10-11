@@ -8,6 +8,7 @@ import com.troubastack.shared.stage.notes.NoteEntry
 import com.troubastack.shared.stage.notes.NoteIndex
 import com.troubastack.shared.stage.notes.NoteTool
 import com.troubastack.shared.stage.notes.NoteTools
+import com.troubastack.shared.stage.notes.NoteZoom
 import com.troubastack.shared.stage.notes.NotesWarning
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -255,6 +256,7 @@ class StageViewModel(
         val songId = s.currentPage?.songId
         s.copy(
             noteMode = true, noteModePending = false,
+            noteZoom = 1f, noteZoomCentre = null, noteOverviewCollapsed = false, // A86: a fresh session starts at 1×
             notesOffBySong = if (songId == null) s.notesOffBySong else s.notesOffBySong - songId,
         )
     }
@@ -263,7 +265,23 @@ class StageViewModel(
     fun cancelNoteMode() = _state.update { s -> if (!s.noteModePending) s else s.copy(noteModePending = false) }
 
     /** §3.7 — leave note mode (Exit button / leaving Stage / applyUpdate). Never moves the page. */
-    fun exitNoteMode() = _state.update { s -> if (!s.noteMode && !s.noteModePending) s else s.copy(noteMode = false, noteModePending = false) }
+    fun exitNoteMode() = _state.update { s ->
+        if (!s.noteMode && !s.noteModePending) s
+        else s.copy(noteMode = false, noteModePending = false, noteZoom = 1f, noteZoomCentre = null, noteOverviewCollapsed = false) // A86: back to 1×
+    }
+
+    /** A86 ⟨D1⟩ — the note bar's `+` / `−` / `1:1`: walk NoteZoom.STEPS. Note mode only; the window keeps its centre. */
+    fun noteZoomIn() = _state.update { s -> if (!s.noteMode) s else s.copy(noteZoom = NoteZoom.zoomIn(s.noteZoom)) }
+    fun noteZoomOut() = _state.update { s -> if (!s.noteMode) s else s.copy(noteZoom = NoteZoom.zoomOut(s.noteZoom)) }
+    fun noteZoomReset() = _state.update { s -> if (!s.noteMode || s.noteZoom == 1f) s else s.copy(noteZoom = 1f) }
+
+    /** A86 ⟨D2⟩ — the overview moved the window: its (already clamped) centre, as fractions of the note surface. */
+    fun setNoteZoomCentre(fx: Float, fy: Float) = _state.update { s ->
+        if (!s.noteMode) s else s.copy(noteZoomCentre = fx.coerceIn(0f, 1f) to fy.coerceIn(0f, 1f))
+    }
+
+    /** A86 ⟨D2⟩ — collapse the overview to its pill (and back), for this note-mode session only. */
+    fun setNoteOverviewCollapsed(collapsed: Boolean) = _state.update { s -> if (!s.noteMode) s else s.copy(noteOverviewCollapsed = collapsed) }
 
     /** The view calls this after showing the scroll-mode refusal, so it self-dismisses (like updateNotice). */
     fun clearNoteModeRefusal() = _state.update { s -> if (s.noteModeRefusal == null) s else s.copy(noteModeRefusal = null) }

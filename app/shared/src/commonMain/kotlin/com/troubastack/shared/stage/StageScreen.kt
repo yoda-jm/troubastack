@@ -4,6 +4,14 @@
 // a Result and is treated as "maybe a placeholder", so a bad image never crashes the performance.
 package com.troubastack.shared.stage
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.graphics.layer.drawLayer
+import com.troubastack.shared.stage.notes.NoteZoom
 import com.troubastack.shared.bundle.LayerImage
 import com.troubastack.shared.bundle.PageJump
 import com.troubastack.shared.bundle.SongCue
@@ -645,6 +653,10 @@ private fun Performing(
             onBumpRevision = { vm.bumpNoteRevision() },
             onNoteCommitted = onNoteCommitted, // A77 — host auto-sends/mirrors while armed
         )
+        // A86 — the spread now on screen (set by the page-turn content showing state.current) and a recording of its
+        // UNZOOMED surface, which the corner overview draws small.
+        var activeNoteSpread by remember { mutableStateOf<NoteSpread?>(null) }
+        val noteThumb = androidx.compose.ui.graphics.rememberGraphicsLayer()
 
         Box(
             Modifier
@@ -766,16 +778,22 @@ private fun Performing(
                     val noteSpread = remember { NoteSpread() }
                     val noteEditing = notePad?.noteMode == true
                     val seamColour = stageChrome(colorMode).onSurfaceVariant.copy(alpha = 0.6f)
+                    // A86 — the zoom applies to the spread on screen; only it records the overview's thumbnail.
+                    val onScreen = cur == state.current
+                    if (onScreen) SideEffect { activeNoteSpread = noteSpread }
+                    fun noteMod(divider: Color?) =
+                        if (!noteEditing) Modifier
+                        else Modifier.noteSpreadInput(noteSpread, divider, state.noteZoom, state.noteZoomCentre, if (onScreen) noteThumb else null)
                     if (twoUp) {
                         // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
-                        Row(Modifier.fillMaxSize().then(if (noteEditing) Modifier.noteSpreadInput(noteSpread, seamColour) else Modifier)) {
+                        Row(Modifier.fillMaxSize().then(noteMod(seamColour))) {
                             spreadPages(cur, songStarts, state.pageCount).forEach { idx ->
                                 PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.weight(1f).fillMaxHeight(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad, noteSpread = noteSpread)
                             }
                         }
                     } else {
                         state.pages.getOrNull(cur)?.let { p ->
-                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize().then(if (noteEditing) Modifier.noteSpreadInput(noteSpread, null) else Modifier), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad, noteSpread = noteSpread)
+                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize().then(noteMod(null)), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad, noteSpread = noteSpread)
                         }
                     }
                 }
@@ -963,6 +981,18 @@ private fun Performing(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                 )
             }
+        }
+
+        // A86 ⟨D2⟩ — while zoomed in note mode, the overview in the top-right corner moves the window.
+        val overviewSpread = activeNoteSpread
+        if (state.noteMode && state.noteZoom > 1f && overviewSpread != null) {
+            NoteOverview(
+                spread = overviewSpread, thumb = noteThumb, zoom = state.noteZoom, centre = state.noteZoomCentre, collapsed = state.noteOverviewCollapsed,
+                colorMode = colorMode,
+                onCentre = { fx, fy -> vm.setNoteZoomCentre(fx, fy) },
+                onCollapse = { vm.setNoteOverviewCollapsed(it) },
+                modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 12.dp, end = 12.dp),
+            )
         }
 
         // A2: BOTTOM chrome — ‹ previous · ⚙ settings · next › (big round FABs).
@@ -2088,6 +2118,12 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
                     contentAlignment = Alignment.Center,
                 ) { Box(Modifier.size(22.dp).clip(CircleShape).background(Color(c))) }
             }
+            Spacer(Modifier.width(8.dp))
+            // A86 ⟨D1⟩ — zoom: − · the factor · + · 1:1. The factor reads as the bar's own text, not a button.
+            ZoomButton("−", enabled = NoteZoom.canZoomOut(state.noteZoom), label = "Zoom out") { vm.noteZoomOut() }
+            Text(NoteZoom.label(state.noteZoom), Modifier.widthIn(min = 40.dp), style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
+            ZoomButton("+", enabled = NoteZoom.canZoomIn(state.noteZoom), label = "Zoom in") { vm.noteZoomIn() }
+            ZoomButton("1:1", enabled = state.noteZoom > 1f, label = "Zoom to actual size") { vm.noteZoomReset() }
             Spacer(Modifier.weight(1f))
             // A73 ⟨D5⟩ — VLL's word, restored: "Clear page". ⟨D6⟩ disabled when no visible page has a note.
             TextButton(onClick = { confirmClear = true }, enabled = clearPlan != ClearPlan.Disabled) { Text("Clear page") }
@@ -2126,6 +2162,97 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
         )
         ClearPlan.Disabled -> {}
+    }
+}
+
+@Composable
+private fun ZoomButton(text: String, enabled: Boolean, label: String, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick, enabled = enabled,
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+        modifier = Modifier.widthIn(min = 44.dp).semantics { contentDescription = label },
+    ) { Text(text, style = MaterialTheme.typography.titleMedium) }
+}
+
+/**
+ * A86 ⟨D2⟩ — the zoom overview: the whole note surface small (the live recording of the unzoomed spread, notes
+ * and wet ink included) with the zoom window as a rectangle. A touch OUTSIDE the rectangle centres the window
+ * there; dragging moves it. Chrome: it consumes its own touches, so nothing under it is ever drawn on. The `–`
+ * collapses it to a pill showing the factor, which expands it again.
+ */
+@Composable
+private fun NoteOverview(
+    spread: NoteSpread, thumb: androidx.compose.ui.graphics.layer.GraphicsLayer, zoom: Float, centre: Pair<Float, Float>?, collapsed: Boolean,
+    colorMode: StageColorMode, onCentre: (Float, Float) -> Unit, onCollapse: (Boolean) -> Unit, modifier: Modifier = Modifier,
+) {
+    val chrome = stageChrome(colorMode)
+    if (collapsed) {
+        Surface(
+            onClick = { onCollapse(false) }, modifier = modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                .semantics { contentDescription = "Show zoom overview" },
+            color = chrome.surface, contentColor = chrome.onSurface, shape = MaterialTheme.shapes.medium, tonalElevation = 6.dp,
+        ) { Box(contentAlignment = Alignment.Center) { Text("⌕ " + NoteZoom.label(zoom), Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.titleSmall) } }
+        return
+    }
+    val surface = spread.surfaceSize
+    if (surface.width <= 0 || surface.height <= 0) return
+    val thumbW = 260.dp
+    val thumbH = thumbW * (surface.height.toFloat() / surface.width)
+    Surface(modifier, color = chrome.surface, contentColor = chrome.onSurface, shape = MaterialTheme.shapes.medium, tonalElevation = 6.dp) {
+        Column(Modifier.padding(6.dp)) {
+            Row(Modifier.width(thumbW), verticalAlignment = Alignment.CenterVertically) {
+                Text(NoteZoom.label(zoom), Modifier.padding(start = 6.dp).weight(1f), style = MaterialTheme.typography.labelLarge)
+                TextButton(onClick = { onCollapse(true) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(40.dp).semantics { contentDescription = "Hide zoom overview" }) {
+                    Text("–", style = MaterialTheme.typography.titleLarge)
+                }
+            }
+            val latestZoom by rememberUpdatedState(zoom)
+            val latestCentre by rememberUpdatedState(centre)
+            Canvas(
+                Modifier.size(thumbW, thumbH).clip(MaterialTheme.shapes.small).background(colorMode.schemePaper())
+                    .pointerInput(spread) {
+                        // thumb px → surface fractions. Each move writes the CLAMPED window's centre, so a drag
+                        // pushed past the paper's edge stays responsive the moment it comes back.
+                        fun write(fx: Float, fy: Float) {
+                            val w = spread.surfaceSize.width.toFloat(); val h = spread.surfaceSize.height.toFloat()
+                            val win = NoteZoom.window(latestZoom, fx * w, fy * h, w, h, NoteZoom.paperUnion(spread.papers().map { it.second }))
+                            onCentre(((win.left + win.right) / 2f) / w, ((win.top + win.bottom) / 2f) / h)
+                        }
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
+                            val w = spread.surfaceSize.width.toFloat(); val h = spread.surfaceSize.height.toFloat()
+                            val k = w / size.width // surface px per thumb px
+                            val win = spread.window(latestZoom, latestCentre)
+                            val onRect = down.position.x * k in win.left..win.right && down.position.y * k in win.top..win.bottom
+                            var cx = if (onRect) (win.left + win.right) / 2f else down.position.x * k
+                            var cy = if (onRect) (win.top + win.bottom) / 2f else down.position.y * k
+                            if (!onRect) write(cx / w, cy / h) // a tap centres the window there
+                            while (true) {
+                                val e = awaitPointerEvent()
+                                val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                                // The lift carries the finger's last movement too: apply it before stopping, or a
+                                // quick drag ends short of where the finger let go.
+                                val d = c.position - c.previousPosition
+                                if (d != Offset.Zero) {
+                                    cx = (cx + d.x * k).coerceIn(0f, w); cy = (cy + d.y * k).coerceIn(0f, h)
+                                    write(cx / w, cy / h)
+                                }
+                                c.consume()
+                                if (!c.pressed) break
+                            }
+                        }
+                    },
+            ) {
+                val k = size.width / surface.width
+                withTransform({ scale(k, k, pivot = Offset.Zero) }) { drawLayer(thumb) }
+                val win = spread.window(zoom, centre)
+                val tl = Offset(win.left * k, win.top * k)
+                val sz = androidx.compose.ui.geometry.Size((win.right - win.left) * k, (win.bottom - win.top) * k)
+                drawRect(chrome.onSurface.copy(alpha = 0.12f), tl, sz)
+                drawRect(chrome.onSurface, tl, sz, style = Stroke(width = 2.dp.toPx()))
+            }
+        }
     }
 }
 

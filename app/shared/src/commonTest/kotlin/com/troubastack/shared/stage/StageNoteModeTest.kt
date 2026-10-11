@@ -208,4 +208,27 @@ class StageNoteModeTest {
         val page2 = vm.state.value.pages.first { it.songId == "song-2" }
         assertNull(vm.state.value.noteForPage(page2))
     }
+
+    /** A86 ⟨D1⟩/⟨D2⟩ — the zoom walks its steps in note mode only, and a note-mode session always starts and
+     *  ends at 1× with the overview expanded and the window centred (never persisted; reading never zooms). */
+    @Test
+    fun noteZoom_walksItsSteps_inNoteModeOnly_andResetsWithTheSession() {
+        val vm = StageViewModel(loaded())
+        vm.noteZoomIn(); vm.setNoteZoomCentre(0.2f, 0.3f); vm.setNoteOverviewCollapsed(true)
+        vm.state.value.let { assertEquals(1f, it.noteZoom); assertNull(it.noteZoomCentre); assertFalse(it.noteOverviewCollapsed) } // reading: inert
+        vm.requestNoteMode(); vm.confirmNoteMode()
+        vm.noteZoomIn(); assertEquals(1.5f, vm.state.value.noteZoom)
+        vm.noteZoomIn(); vm.noteZoomIn(); assertEquals(2f, vm.state.value.noteZoom) // stops at the top step (§4 cap)
+        vm.noteZoomOut(); assertEquals(1.5f, vm.state.value.noteZoom)
+        vm.noteZoomIn()
+        vm.setNoteZoomCentre(0.2f, 1.7f); vm.setNoteOverviewCollapsed(true)
+        vm.state.value.let { assertEquals(0.2f to 1f, it.noteZoomCentre); assertTrue(it.noteOverviewCollapsed) }
+        vm.noteZoomReset(); assertEquals(1f, vm.state.value.noteZoom)
+        assertEquals(0.2f to 1f, vm.state.value.noteZoomCentre, "1:1 keeps the window where the overview put it")
+        vm.noteZoomIn()
+        vm.exitNoteMode()
+        vm.state.value.let { assertEquals(1f, it.noteZoom); assertNull(it.noteZoomCentre); assertFalse(it.noteOverviewCollapsed) }
+        vm.requestNoteMode(); vm.confirmNoteMode()
+        assertEquals(1f, vm.state.value.noteZoom, "a new note-mode session starts at 1×")
+    }
 }

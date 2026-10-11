@@ -377,6 +377,12 @@ data class StageState(
     val noteWidth: Int = NoteTools.FINE,
     val noteColour: Long = NoteTools.BLACK,
     val noteRevision: Int = 0,
+    // A86 — note-mode zoom: the factor (one of NoteZoom.STEPS), the window centre as fractions of the note
+    // surface (null = the view's centre), and whether the corner overview is collapsed. All three belong to ONE
+    // note-mode session: entering or leaving note mode resets them (⟨D1⟩ never persisted; reading is never zoomed).
+    val noteZoom: Float = 1f,
+    val noteZoomCentre: Pair<Float, Float>? = null,
+    val noteOverviewCollapsed: Boolean = false,
     // §3.8 — the note layer is DEFAULT ON for a song that has a live note; this is the opt-OUT set of songs
     // the performer toggled it off for this session (an opt-in map couldn't express "on by default"). The
     // reserved `~notes` id is used only for the bake-layer guard (§4.6), not for storing this choice.
