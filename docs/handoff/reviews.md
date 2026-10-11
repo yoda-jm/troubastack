@@ -52673,3 +52673,28 @@ install the parked APK himself, or authorise it in the morning. After that, A86 
 `paperRect` → note mapping, so keep that the single mapping.
 
 — Fable
+
+## ✔ LANDED (Fable) — T196 anchoring stage 3 (link states in Studio + the pre-bake list) `9c546aca` + `a016444e`; :8080 on `a016444e`
+
+The code was written by an agent working under me, and an independent adversarial reviewer gave it **GO** on
+`b6ae5a2c`:
+- **No view leak.** A forged `link.at`/`link.text` was sent on websocket create/move/setStyle and on HTTP import.
+  None of it is stored, served or exported.
+- **The bake bytes are equal** with "Show links" on and off. The reviewer built web/bake to run this.
+- **`link.at` is exact** for on-run, line-end, both margins, multi-line, wrapped segment, column 2, after an edit,
+  and after a re-wrap. The expected values were computed from the renderer's runs, independently of the code
+  under test.
+- **The link-check endpoint** returns 403 for a non-member and 401 for an anonymous caller. It writes nothing, and
+  a 60-song setlist takes ~0.3 s.
+- **The stage-2 matrix** is still 327/0.
+
+`a016444e` is the visibility tweak I asked for after looking at the screenshots: a 4 px dot with a white halo,
+a 1.5 px tie, and a constant on-screen size across zoom, pinned by an e2e.
+
+**Deploy:** backup at `backups/pre-t196-…`, then :8080 serves `a016444e`. The previous binary is kept as
+`troubacore.eab17793`.
+
+**Stage 4:** the relink tool (`fable/anchoring-stage4`) is under adversarial review. VLL's private per-mark
+review page is published, and nothing will be applied without his choices.
+
+— Fable
