@@ -201,11 +201,34 @@ type Anchor struct {
 	// do, leaves every Seq at 0; sourceOrder's sort is stable, so such a manifest keeps slice order and
 	// behaves exactly as before.
 	Seq int `json:"-"`
+
+	// T194 (anchoring stage 1): where the run comes from in the chart SOURCE, so a mark can follow its line
+	// by identity (LineIdentity) rather than by text + occurrence.
+	//   - SrcLine: the 0-based index of the source line the run draws (chartLines(source)[SrcLine]). A
+	//     chord+lyric pair is TWO source lines, so its chord row and its lyric carry different SrcLines.
+	//   - SrcSeg: the run's ordinal among the runs drawn for that source line, in draw order, from 0. One
+	//     source line is several runs when it wraps (T168), when it has **bold** splits, or when a chord row
+	//     carries its "(x2)" note.
+	//   - SrcChar: the rune offset, within that source line, of the run's FIRST character (a continuation
+	//     of a wrapped line starts mid-line; a section label starts after its "## ").
+	//   - SrcWrap: which visual line of its source line the run is on (0 unless the line wrapped; a wrapped
+	//     line can continue in the next column or page).
+	// Additive and backward-compatible: a reader of the mkcharts shape ignores them. A hand-built manifest
+	// (tests) leaves them at 0; the server only ever reads them from a fresh RenderWithAnchors.
+	SrcLine int `json:"srcLine"`
+	SrcSeg  int `json:"srcSeg"`
+	SrcChar int `json:"srcChar"`
+	SrcWrap int `json:"srcWrap"`
 }
 
-// recFn records one drawn text run: (x,y) its top-left in mm, (w,h) its size in mm. nil in the
-// measure/contentHeight passes (no drawing, so no anchors) and in a plain Render (no manifest asked).
-type recFn func(text string, x, y, w, h float64)
+// srcLoc is where a run starts in the source: its line, the rune offset of its first character in that
+// line, and its visual line (wrap) index within the source line. The segment ordinal is counted by the
+// recorder, not by the primitives.
+type srcLoc struct{ line, char, wrap int }
+
+// recFn records one drawn text run: (x,y) its top-left in mm, (w,h) its size in mm, and its source
+// location. nil in the measure/contentHeight passes (no drawing, so no anchors) and in a plain Render.
+type recFn func(text string, x, y, w, h float64, loc srcLoc)
 
 // RenderWithAnchors renders the chart to a deterministic A4 PDF AND returns the anchor manifest for
 // every text run it drew, in mkcharts' shape and order (page, then top-to-bottom, then left-to-right).
@@ -257,7 +280,7 @@ func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, er
 	if err := validateTabWidth(lines); err != nil { // T135: refuse a tab that can't fit even at the floor
 		return nil, nil, 0, err
 	}
-	subtitle, _, bodyPt, sizeSet, autoFit, cols, skip := parseHeader(lines)
+	subtitle, subIdx, bodyPt, sizeSet, autoFit, cols, skip := parseHeader(lines)
 	// T146 stage 2: a tab block spans the full width (a stave never narrows — T135), so a tab chart stays
 	// one column regardless of the directive.
 	if cols > 1 && hasTabBlock(lines) {
@@ -278,15 +301,20 @@ func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, er
 	if collect {
 		// The anchor box is in [0,1]² of the A4 page; the run's page is fpdf's current page (0-idx),
 		// so a run recorded straight after its Cell/CellFormat lands on the page it drew onto.
-		rec = func(text string, x, y, w, h float64) {
+		segs := map[int]int{} // runs recorded so far per source line → the next run's SrcSeg
+		rec = func(text string, x, y, w, h float64, loc srcLoc) {
 			anchors = append(anchors, Anchor{
 				Page: pdf.PageNo() - 1, Text: text,
 				X0: x / pageW, Y0: y / pageH, X1: (x + w) / pageW, Y1: (y + h) / pageH,
-				Seq: len(anchors), // draw order = source order; see Anchor.Seq
+				Seq:     len(anchors), // draw order = source order; see Anchor.Seq
+				SrcLine: loc.line, SrcSeg: segs[loc.line], SrcChar: loc.char, SrcWrap: loc.wrap,
 			})
+			segs[loc.line]++
 		}
 	}
-	y := header(pdf, tr, firstTitle(lines), subtitle, scale, rec)
+	tLoc := titleLoc(lines)
+	sLoc := srcLoc{line: subIdx, char: leadingRunes(lineAt(lines, subIdx))}
+	y := header(pdf, tr, firstTitle(lines), subtitle, scale, rec, tLoc, sLoc)
 	y = layout(lines, scale, skip, y, layoutOpts{pdf: pdf, tr: tr, paginate: true, rec: rec, cols: cols})
 	return pdf, anchors, y, nil
 }
@@ -507,6 +535,7 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			// {footnote}/{fn}: the following non-blank lines up to a blank / #/## / another marker / EOF
 			// are ONE paragraph (a blank line ends it), rendered as wrapped muted-italic prose IN PLACE.
 			var para []string
+			var words []wordAt // T194: every word of the paragraph with its source line + offset
 			j := i + 1
 			for ; j < len(lines); j++ {
 				t := strings.TrimSpace(lines[j])
@@ -514,6 +543,7 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 					break
 				}
 				para = append(para, t)
+				words = append(words, wordsAt(lines[j], j)...)
 			}
 			i = j - 1 // consume the paragraph (the loop's i++ steps past the last gathered line)
 			if len(para) == 0 {
@@ -527,10 +557,20 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			// **bold** is LITERAL inside a footnote (documented): the asterisks render as text, so a
 			// wrapped attribution can't accidentally trip Part 1's per-bold-word anchoring.
 			mpdf, mtr := getMeasurer()
+			// footnoteLines re-joins the paragraph's words with single spaces, so a wrapped line's first word
+			// is found by counting words, and its source location is that word's (T194).
+			wi, wraps := 0, map[int]int{}
 			for _, wl := range footnoteLines(mpdf, mtr, strings.Join(para, " "), scale, colW) {
 				page(leadFootnote * scale)
 				note("footnote")
-				y = drawFootnoteLine(o.pdf, o.tr, curLeft(), y, wl, scale, o.rec)
+				var loc srcLoc
+				if wi < len(words) {
+					w := words[wi]
+					loc = srcLoc{line: w.line, char: w.off, wrap: wraps[w.line]}
+					wraps[w.line]++
+				}
+				wi += len(strings.Fields(wl))
+				y = drawFootnoteLine(o.pdf, o.tr, curLeft(), y, wl, scale, o.rec, loc)
 			}
 			drew = true
 		case isTabStart(trimmed):
@@ -538,7 +578,7 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			// page, like a chord+lyric pair). Inside the block nothing but the closer is a marker; the
 			// lines are drawn verbatim in Courier by drawTabLine. One size governs every block.
 			originalKey := tabOpenerOriginalKey(trimmed) // "" unless baked transposed / author-written
-			staves, end := gatherStaves(lines, i)
+			staves, staveIdx, end := gatherStaveLines(lines, i)
 			i = end // resume at the closer (or EOF); the loop's i++ steps past it
 			if len(staves) == 0 {
 				break // an empty block: consumed, draws nothing (like a bodyless {footnote})
@@ -560,15 +600,15 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 				if h := staveHeight(len(stave), tabPt); h <= pageBottom-topMargin {
 					page(h) // the stave is one unit — never split a bar across a page
 					note("tab")
-					for _, sl := range stave {
-						y = drawTabLine(o.pdf, o.tr, y, sl, tabPt, o.rec)
+					for li, sl := range stave {
+						y = drawTabLine(o.pdf, o.tr, y, sl, tabPt, o.rec, srcLoc{line: staveIdx[si][li]})
 					}
 				} else {
 					// A single stave taller than a page: split by line as a last resort, never clip.
-					for _, sl := range stave {
+					for li, sl := range stave {
 						page(leadTab * (tabPt / tabBasePt))
 						note("tab")
-						y = drawTabLine(o.pdf, o.tr, y, sl, tabPt, o.rec)
+						y = drawTabLine(o.pdf, o.tr, y, sl, tabPt, o.rec, srcLoc{line: staveIdx[si][li]})
 					}
 				}
 				if !markerDrawn {
@@ -588,12 +628,16 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			// orphan control: keep the header with its first content line on one page.
 			page(leadSection*scale + firstUnitLead(lines, i, skip)*scale)
 			note("section")
-			y = sectionLabel(o.pdf, o.tr, curLeft(), y, strings.TrimSpace(trimmed[3:]), scale, o.rec)
+			label := strings.TrimSpace(trimmed[3:])
+			// T194: the label starts after the line's indent, the "## ", and any blanks before the words.
+			labelAt := leadingRunes(line) + 3 + leadingRunes(trimmed[3:])
+			y = sectionLabel(o.pdf, o.tr, curLeft(), y, label, scale, o.rec, srcLoc{line: i, char: labelAt})
 			drew = true
 		case isChordRow(trimmed) && i+1 < len(lines) && isLyric(lines[i+1]):
 			applyBreak()
 			gap()
 			ch, an, _ := chordRowParts(line)
+			anAt := annotAt(line)
 			// T168: wrap to the column. Both rows are Courier at one size, so wrapPair splits them at the
 			// SAME character index and every chord stays over its word. Each continuation is itself a pair,
 			// so page() per segment keeps the pair rule (a chord is never split from its lyric).
@@ -605,7 +649,13 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 				if si > 0 {
 					a = "" // the performance note belongs to the first line of the pair, not to every continuation
 				}
-				y = chordLine(o.pdf, o.tr, curLeft(), y, seg.ch, a, seg.ly, scale, o.rec)
+				// T194: the chord row is source line i, its lyric is line i+1 — two lines, one visual pair.
+				locs := pairLocs{
+					ch: srcLoc{line: i, char: seg.chOff, wrap: si},
+					an: srcLoc{line: i, char: anAt},
+					ly: srcLoc{line: i + 1, char: seg.lyOff, wrap: si},
+				}
+				y = chordLine(o.pdf, o.tr, curLeft(), y, seg.ch, a, seg.ly, scale, o.rec, locs)
 			}
 			drew = true
 			i++ // consumed the lyric line
@@ -613,6 +663,7 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			applyBreak()
 			gap()
 			ch, an, _ := chordRowParts(line)
+			anAt := annotAt(line)
 			mp, _ := wrapMeasurer() // T168: a chord row alone wraps on the same grid
 			for si, seg := range wrapPair(ch, "", monoColChars(mp, scale, colW)) {
 				page(leadChord * scale)
@@ -621,7 +672,8 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 				if si > 0 {
 					a = ""
 				}
-				y = chordLine(o.pdf, o.tr, curLeft(), y, seg.ch, a, "", scale, o.rec)
+				locs := pairLocs{ch: srcLoc{line: i, char: seg.chOff, wrap: si}, an: srcLoc{line: i, char: anAt}}
+				y = chordLine(o.pdf, o.tr, curLeft(), y, seg.ch, a, "", scale, o.rec, locs)
 			}
 			drew = true
 		default:
@@ -629,10 +681,10 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			gap()
 			// T168: a normal body line wraps to the column too, bold runs reconstructed per line.
 			mp, mt := wrapMeasurer()
-			for _, wl := range wrapProse(mp, mt, line, scale, colW) {
+			for wi, wl := range wrapProseLoc(mp, mt, line, scale, colW) {
 				page(leadLyric * scale)
 				note("text")
-				y = textLine(o.pdf, o.tr, curLeft(), y, wl, scale, o.rec)
+				y = textLine(o.pdf, o.tr, curLeft(), y, wl.text, scale, o.rec, i, wi, wl.segOffs)
 			}
 			drew = true
 		}
@@ -658,7 +710,7 @@ func firstUnitLead(lines []string, headerIdx int, skip map[int]bool) float64 {
 		case isTabStart(t):
 			// T135: the section's first unit is the block's first stave — keep it with the header.
 			// Base leads (caller scales); a width-shrunk tab only over-reserves, which is safe.
-			staves, _ := gatherStaves(lines, j)
+			staves, _, _ := gatherStaveLines(lines, j)
 			if len(staves) == 0 {
 				return 0
 			}
@@ -839,13 +891,13 @@ func headerBodyStart(subtitle string, scale float64) float64 {
 	return ruleY + 3*scale
 }
 
-func header(pdf *fpdf.Fpdf, tr func(string) string, title, subtitle string, scale float64, rec recFn) float64 {
+func header(pdf *fpdf.Fpdf, tr func(string) string, title, subtitle string, scale float64, rec recFn, tLoc, sLoc srcLoc) float64 {
 	pdf.AddPage()
 	pdf.SetFont("Helvetica", "B", 16*scale)
 	pdf.SetXY(leftMargin, topMargin)
 	pdf.Cell(0, 8*scale, tr(title))
 	if rec != nil {
-		rec(title, leftMargin, topMargin, pdf.GetStringWidth(tr(title)), 8*scale)
+		rec(title, leftMargin, topMargin, pdf.GetStringWidth(tr(title)), 8*scale, tLoc)
 	}
 	ruleY := topMargin + 9*scale
 	if subtitle != "" {
@@ -854,7 +906,7 @@ func header(pdf *fpdf.Fpdf, tr func(string) string, title, subtitle string, scal
 		pdf.SetXY(leftMargin, topMargin+8*scale)
 		pdf.Cell(0, 5*scale, tr(subtitle))
 		if rec != nil {
-			rec(subtitle, leftMargin, topMargin+8*scale, pdf.GetStringWidth(tr(subtitle)), 5*scale)
+			rec(subtitle, leftMargin, topMargin+8*scale, pdf.GetStringWidth(tr(subtitle)), 5*scale, sLoc)
 		}
 		pdf.SetTextColor(0, 0, 0)
 		ruleY = topMargin + 14*scale
@@ -990,22 +1042,26 @@ func subtitleOf(lines []string) (string, int) {
 }
 
 // sectionLabel prints a section header (e.g. "Verse 1") and returns the next y.
-func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, label string, scale float64, rec recFn) float64 {
+func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, label string, scale float64, rec recFn, loc srcLoc) float64 {
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
 		pdf.SetFont("Helvetica", "B", 11*scale)
 		pdf.SetTextColor(150, 90, 30)
 		pdf.SetXY(left, y)
 		pdf.Cell(0, 6*scale, tr(label)) // T73: through tr() like every other string — an accented section name must not mojibake
 		if rec != nil {
-			rec(label, left, y, pdf.GetStringWidth(tr(label)), 6*scale)
+			rec(label, left, y, pdf.GetStringWidth(tr(label)), 6*scale, loc)
 		}
 		pdf.SetTextColor(0, 0, 0)
 	}
 	return y + leadSection*scale
 }
 
+// pairLocs is where each run of a chord line starts in the source: the chord row, its performance note,
+// and the lyric beneath (which is the NEXT source line).
+type pairLocs struct{ ch, an, ly srcLoc }
+
 // chordLine prints a monospaced blue chord row and the lyric beneath it.
-func chordLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, chords, annot, lyric string, scale float64, rec recFn) float64 {
+func chordLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, chords, annot, lyric string, scale float64, rec recFn, locs pairLocs) float64 {
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
 		pdf.SetFont("Courier", "B", 11*scale)
 		pdf.SetTextColor(20, 60, 150)
@@ -1013,7 +1069,7 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, chords, 
 		chW := pdf.GetStringWidth(tr(chords))
 		pdf.CellFormat(chW, 5*scale, tr(chords), "", 0, "L", false, 0, "")
 		if rec != nil {
-			rec(chords, left, y, chW, 5*scale)
+			rec(chords, left, y, chW, 5*scale, locs.ch)
 		}
 		if annot != "" {
 			// a performance note ("(x2)", "(2x, 1x Arpèges)") — an instruction, not something to
@@ -1023,7 +1079,7 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, chords, 
 			pdf.CellFormat(0, 5*scale, "  "+tr(annot), "", 0, "L", false, 0, "")
 			if rec != nil {
 				// box the annot glyphs (after the two-space lead-in), at the cursor left by the chords.
-				rec(annot, left+chW+pdf.GetStringWidth("  "), y, pdf.GetStringWidth(tr(annot)), 5*scale)
+				rec(annot, left+chW+pdf.GetStringWidth("  "), y, pdf.GetStringWidth(tr(annot)), 5*scale, locs.an)
 			}
 		}
 		pdf.SetTextColor(0, 0, 0)
@@ -1032,7 +1088,7 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, chords, 
 			pdf.SetXY(left, y+pairLyricDy*scale)
 			pdf.Cell(0, 5*scale, tr(lyric))
 			if rec != nil {
-				rec(lyric, left, y+pairLyricDy*scale, pdf.GetStringWidth(tr(lyric)), 5*scale)
+				rec(lyric, left, y+pairLyricDy*scale, pdf.GetStringWidth(tr(lyric)), 5*scale, locs.ly)
 			}
 		}
 	}
@@ -1042,12 +1098,14 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, chords, 
 	return y + leadChord*scale
 }
 
-// textLine renders a normal paragraph line in Helvetica, honoring inline **bold**.
-func textLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, line string, scale float64, rec recFn) float64 {
+// textLine renders a normal paragraph line in Helvetica, honoring inline **bold**. srcLine/wrap/segOffs
+// (T194) say where it comes from: segOffs[k] is the source rune offset of the k-th NON-EMPTY segment.
+func textLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, line string, scale float64, rec recFn, srcLine, wrap int, segOffs []int) float64 {
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
 		pdf.SetXY(left, y)
 		bold := false
 		x := left // track the cursor so each **bold** segment gets its own box at the right x
+		k := 0    // index of the non-empty segment, into segOffs
 		for _, seg := range strings.Split(line, "**") {
 			if seg != "" {
 				if bold {
@@ -1058,8 +1116,13 @@ func textLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, line stri
 				w := pdf.GetStringWidth(tr(seg))
 				pdf.CellFormat(w, 6*scale, tr(seg), "", 0, "L", false, 0, "")
 				if rec != nil {
-					rec(seg, x, y, w, 6*scale)
+					off := 0
+					if k < len(segOffs) {
+						off = segOffs[k]
+					}
+					rec(seg, x, y, w, 6*scale, srcLoc{line: srcLine, char: off, wrap: wrap})
 				}
+				k++
 				x += w
 			}
 			bold = !bold
@@ -1109,14 +1172,14 @@ func footnoteLines(m *fpdf.Fpdf, tr func(string) string, text string, scale floa
 // nil pdf = advance only (measure mode). Every wrapped line advances by leadFootnote in BOTH modes, so
 // measure() and the renderer agree on the block's height (the T77 drift guard). **bold** is not parsed
 // here — inside a footnote the asterisks are literal (documented in the dialect header).
-func drawFootnoteLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, line string, scale float64, rec recFn) float64 {
+func drawFootnoteLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, line string, scale float64, rec recFn, loc srcLoc) float64 {
 	if pdf != nil {
 		pdf.SetFont("Helvetica", "I", footnotePt*scale)
 		pdf.SetTextColor(100, 100, 100)
 		pdf.SetXY(left, y)
 		pdf.Cell(0, leadFootnote*scale, tr(line))
 		if rec != nil {
-			rec(line, left, y, pdf.GetStringWidth(tr(line)), leadFootnote*scale)
+			rec(line, left, y, pdf.GetStringWidth(tr(line)), leadFootnote*scale, loc)
 		}
 		pdf.SetTextColor(0, 0, 0)
 	}

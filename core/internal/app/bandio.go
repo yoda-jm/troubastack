@@ -116,6 +116,9 @@ type manifestFile struct {
 	Generated    bool   `json:"generated,omitempty"`
 	Revision     int    `json:"revision,omitempty"`
 	ChartSource  string `json:"chartSource,omitempty"`
+	// LineIdentity (T194): the chart's line ids, so a mark linked to a line survives a band round trip.
+	// Optional: a manifest without it (pre-T194, hand-written) gets ids re-derived on import.
+	LineIdentity *ChartLineIdentity `json:"lineIdentity,omitempty"`
 }
 
 type manifestSetlist struct {
@@ -294,6 +297,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 			if f.Generated {
 				if src, serr := s.repo.GetChartSource(f.ID); serr == nil {
 					mf.ChartSource = src
+					mf.LineIdentity = s.exportLineIdentity(f.ID, src)
 				}
 			}
 			ms.Files = append(ms.Files, mf)
@@ -821,6 +825,13 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 				Size: size, BlobHash: hash, DisplayOrder: f.DisplayOrder, UploadedBy: caller.ID, CreatedAt: now,
 				Generated: f.Generated, Revision: f.Revision,
 			}
+			// T194: what this file id held before the import (a re-import over a stable id), so its line ids
+			// can be carried rather than re-minted.
+			var prevLines *ChartLineIdentity
+			prevSource, perr := s.repo.GetChartSource(nf.ID)
+			if li, lerr := s.repo.GetChartLineIdentity(nf.ID); perr == nil && lerr == nil {
+				prevLines = &li
+			}
 			if err := s.repo.CreateSongFile(nf); err != nil {
 				return ImportReport{}, err
 			}
@@ -828,6 +839,12 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 			report.Files++
 			if f.Generated && f.ChartSource != "" {
 				if err := s.repo.SetChartSource(nf.ID, f.ChartSource); err != nil {
+					return ImportReport{}, err
+				}
+				lineIDMu.Lock()
+				err := s.repo.SetChartLineIdentity(nf.ID, importLineIdentity(f.LineIdentity, f.ChartSource, nf.BlobHash, prevLines, prevSource))
+				lineIDMu.Unlock()
+				if err != nil {
 					return ImportReport{}, err
 				}
 			}

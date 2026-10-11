@@ -182,7 +182,15 @@ func tabPtFor(m *fpdf.Fpdf, tr func(string) string, lines []string, scale float6
 // non-blank lines; a blank line separates staves and consecutive blanks collapse. Returns the staves
 // and the index of the closer (or len(lines) for an unclosed block, so the caller resumes past EOF).
 func gatherStaves(lines []string, openerIdx int) (staves [][]string, endIdx int) {
+	staves, _, endIdx = gatherStaveLines(lines, openerIdx)
+	return staves, endIdx
+}
+
+// gatherStaveLines is gatherStaves plus, parallel to each stave, the SOURCE line index of each of its
+// lines (T194: a tab run carries the line it draws).
+func gatherStaveLines(lines []string, openerIdx int) (staves [][]string, idx [][]int, endIdx int) {
 	var cur []string
+	var curIdx []int
 	i := openerIdx + 1
 	for ; i < len(lines); i++ {
 		t := strings.TrimSpace(lines[i])
@@ -191,17 +199,18 @@ func gatherStaves(lines []string, openerIdx int) (staves [][]string, endIdx int)
 		}
 		if t == "" {
 			if len(cur) > 0 {
-				staves = append(staves, cur)
-				cur = nil
+				staves, idx = append(staves, cur), append(idx, curIdx)
+				cur, curIdx = nil, nil
 			}
 			continue
 		}
 		cur = append(cur, strings.TrimRight(lines[i], " \t"))
+		curIdx = append(curIdx, i)
 	}
 	if len(cur) > 0 {
-		staves = append(staves, cur)
+		staves, idx = append(staves, cur), append(idx, curIdx)
 	}
-	return staves, i // i is the closer index, or len(lines) if unclosed
+	return staves, idx, i // i is the closer index, or len(lines) if unclosed
 }
 
 // staveHeight is a stave's drawn height at tabPt: one leadTab advance (scaled to the tab size) per
@@ -213,7 +222,7 @@ func staveHeight(nLines int, tabPt float64) float64 {
 // drawTabLine draws (or, with a nil pdf, just advances past) one stave line in Courier at tabPt: a
 // chord row over the strings is bold in the chord colour, a string line is plain black — both at the
 // same monospace size so the columns line up. Records the run's anchor like every other primitive.
-func drawTabLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, text string, tabPt float64, rec recFn) float64 {
+func drawTabLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, text string, tabPt float64, rec recFn, loc srcLoc) float64 {
 	lead := leadTab * (tabPt / tabBasePt)
 	if pdf != nil {
 		if isChordRow(text) {
@@ -226,7 +235,7 @@ func drawTabLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, text string,
 		pdf.SetXY(leftMargin, y)
 		pdf.Cell(0, lead, tr(text))
 		if rec != nil {
-			rec(text, leftMargin, y, pdf.GetStringWidth(tr(text)), lead)
+			rec(text, leftMargin, y, pdf.GetStringWidth(tr(text)), lead, loc)
 		}
 		pdf.SetTextColor(0, 0, 0)
 	}

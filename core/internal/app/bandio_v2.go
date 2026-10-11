@@ -116,6 +116,11 @@ type v2File struct {
 	Revision     int    `json:"revision,omitempty"`
 	// ⟨F1⟩: no chartSource field — for a generated chart the bytes under <slug>/<filename> ARE the
 	// source (rendered on import), so a second copy would drift silently past the blobHash check.
+
+	// LineIdentity (T194): a generated chart's line ids. It carries the sourceHash of the text it numbers,
+	// so a hand-edited source cannot silently inherit the wrong ids: on a mismatch the import re-derives
+	// them (and flags the file) instead. Absent for an uploaded file and in a pre-T194 folder.
+	LineIdentity *ChartLineIdentity `json:"lineIdentity,omitempty"`
 }
 
 type v2SetlistsFile struct {
@@ -321,6 +326,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 			vs.Files = append(vs.Files, v2File{
 				Filename: name, ContentType: mf.ContentType, Size: mf.Size, BlobHash: hash,
 				DisplayOrder: mf.DisplayOrder, Generated: mf.Generated, Revision: mf.Revision,
+				LineIdentity: mf.LineIdentity,
 			})
 			if data != nil {
 				files[slug+"/"+name] = data
@@ -546,7 +552,8 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 			ms.Files = append(ms.Files, manifestFile{
 				ID: fid, Filename: vf.Filename, ContentType: vf.ContentType, Size: vf.Size,
 				BlobHash: vf.BlobHash, DisplayOrder: vf.DisplayOrder, Generated: vf.Generated,
-				Revision: vf.Revision, // ⟨F1⟩: ChartSource is filled from the file bytes in the read loop below.
+				Revision:     vf.Revision, // ⟨F1⟩: ChartSource is filled from the file bytes in the read loop below.
+				LineIdentity: vf.LineIdentity,
 			})
 		}
 		man.Songs = append(man.Songs, ms)

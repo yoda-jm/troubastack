@@ -27,17 +27,20 @@ type dataset struct {
 	Sessions       map[string]app.Session       `json:"sessions"`
 	PasswordResets map[string]app.PasswordReset `json:"passwordResets"`
 	ChartSources   map[string]string            `json:"chartSources"`
-	Bands          map[string]app.Band          `json:"bands"`
-	Members        map[string]app.Membership    `json:"members"`
-	Invites        map[string]app.Invite        `json:"invites"`
-	InviteLinks    map[string]app.InviteLink    `json:"inviteLinks"`
-	Songs          map[string]app.Song          `json:"songs"`
-	Files          map[string]app.SongFile      `json:"files"`
-	Selections     map[string]app.FileSelection `json:"selections"`
-	SongCues       map[string]app.SongCues      `json:"songCues"`
-	Setlists       map[string]app.Setlist       `json:"setlists"`
-	SetlistItems   map[string]app.SetlistItem   `json:"setlistItems"`
-	RehearsalNotes map[string]app.RehearsalNote `json:"rehearsalNotes"`
+	// ChartLines (T194): each generated chart's line ids, beside its source. Absent in an older app.json
+	// (emptyDataset seeds it); a chart without an entry is backfilled by Service on first use.
+	ChartLines     map[string]app.ChartLineIdentity `json:"chartLines"`
+	Bands          map[string]app.Band              `json:"bands"`
+	Members        map[string]app.Membership        `json:"members"`
+	Invites        map[string]app.Invite            `json:"invites"`
+	InviteLinks    map[string]app.InviteLink        `json:"inviteLinks"`
+	Songs          map[string]app.Song              `json:"songs"`
+	Files          map[string]app.SongFile          `json:"files"`
+	Selections     map[string]app.FileSelection     `json:"selections"`
+	SongCues       map[string]app.SongCues          `json:"songCues"`
+	Setlists       map[string]app.Setlist           `json:"setlists"`
+	SetlistItems   map[string]app.SetlistItem       `json:"setlistItems"`
+	RehearsalNotes map[string]app.RehearsalNote     `json:"rehearsalNotes"`
 }
 
 // storedUser is the on-disk user record: app.User's API-visible fields PLUS the
@@ -154,6 +157,7 @@ func emptyDataset() dataset {
 		Sessions:       map[string]app.Session{},
 		PasswordResets: map[string]app.PasswordReset{},
 		ChartSources:   map[string]string{},
+		ChartLines:     map[string]app.ChartLineIdentity{},
 		Bands:          map[string]app.Band{},
 		Members:        map[string]app.Membership{},
 		Invites:        map[string]app.Invite{},
@@ -397,6 +401,35 @@ func (r *Repo) DeleteChartSource(fileID string) error {
 		return nil // idempotent
 	}
 	delete(r.d.ChartSources, fileID)
+	return r.flush()
+}
+
+// ---- chart line identity (T194) ----
+
+func (r *Repo) SetChartLineIdentity(fileID string, li app.ChartLineIdentity) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.d.ChartLines[fileID] = li
+	return r.flush()
+}
+
+func (r *Repo) GetChartLineIdentity(fileID string) (app.ChartLineIdentity, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	li, ok := r.d.ChartLines[fileID]
+	if !ok {
+		return app.ChartLineIdentity{}, app.ErrNotFound
+	}
+	return li, nil
+}
+
+func (r *Repo) DeleteChartLineIdentity(fileID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.d.ChartLines[fileID]; !ok {
+		return nil // idempotent
+	}
+	delete(r.d.ChartLines, fileID)
 	return r.flush()
 }
 

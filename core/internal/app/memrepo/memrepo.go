@@ -19,21 +19,22 @@ import (
 type Repo struct {
 	mu sync.RWMutex
 
-	users          map[string]app.User          // id -> user
-	sessions       map[string]app.Session       // token hash -> session (T160)
-	passwordResets map[string]app.PasswordReset // token hash -> reset grant
-	chartSources   map[string]string            // file id -> chart source text
-	bands          map[string]app.Band          // id -> band
-	members        map[string]app.Membership    // bandID|userID -> membership
-	invites        map[string]app.Invite        // id -> invite
-	inviteLinks    map[string]app.InviteLink    // id -> invite link
-	songs          map[string]app.Song          // id -> song
-	files          map[string]app.SongFile      // id -> song file
-	selections     map[string]app.FileSelection // userID|songID -> personal selection
-	songCues       map[string]app.SongCues      // userID|songID -> personal cues (T50)
-	setlists       map[string]app.Setlist       // id -> setlist
-	setlistItems   map[string]app.SetlistItem   // id -> setlist item
-	rehearsalNotes map[string]app.RehearsalNote // ownerID|songID|page -> note (T170)
+	users          map[string]app.User              // id -> user
+	sessions       map[string]app.Session           // token hash -> session (T160)
+	passwordResets map[string]app.PasswordReset     // token hash -> reset grant
+	chartSources   map[string]string                // file id -> chart source text
+	chartLines     map[string]app.ChartLineIdentity // file id -> its source's line ids (T194)
+	bands          map[string]app.Band              // id -> band
+	members        map[string]app.Membership        // bandID|userID -> membership
+	invites        map[string]app.Invite            // id -> invite
+	inviteLinks    map[string]app.InviteLink        // id -> invite link
+	songs          map[string]app.Song              // id -> song
+	files          map[string]app.SongFile          // id -> song file
+	selections     map[string]app.FileSelection     // userID|songID -> personal selection
+	songCues       map[string]app.SongCues          // userID|songID -> personal cues (T50)
+	setlists       map[string]app.Setlist           // id -> setlist
+	setlistItems   map[string]app.SetlistItem       // id -> setlist item
+	rehearsalNotes map[string]app.RehearsalNote     // ownerID|songID|page -> note (T170)
 }
 
 // New returns an empty in-memory Repo.
@@ -43,6 +44,7 @@ func New() *Repo {
 		sessions:       map[string]app.Session{},
 		passwordResets: map[string]app.PasswordReset{},
 		chartSources:   map[string]string{},
+		chartLines:     map[string]app.ChartLineIdentity{},
 		bands:          map[string]app.Band{},
 		members:        map[string]app.Membership{},
 		invites:        map[string]app.Invite{},
@@ -229,6 +231,32 @@ func (r *Repo) DeleteChartSource(fileID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.chartSources, fileID) // idempotent — not-found is not an error
+	return nil
+}
+
+// ---- chart line identity (T194) ----
+
+func (r *Repo) SetChartLineIdentity(fileID string, li app.ChartLineIdentity) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.chartLines[fileID] = li
+	return nil
+}
+
+func (r *Repo) GetChartLineIdentity(fileID string) (app.ChartLineIdentity, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	li, ok := r.chartLines[fileID]
+	if !ok {
+		return app.ChartLineIdentity{}, app.ErrNotFound
+	}
+	return li, nil
+}
+
+func (r *Repo) DeleteChartLineIdentity(fileID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.chartLines, fileID) // idempotent
 	return nil
 }
 

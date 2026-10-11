@@ -447,6 +447,14 @@ type Repo interface {
 	GetChartSource(fileID string) (string, error)
 	DeleteChartSource(fileID string) error
 
+	// Chart line identity (T194) — the stable line ids of a generated chart's source, keyed by the same
+	// file id, stored beside the source. GetChartLineIdentity returns ErrNotFound when none (a chart that
+	// predates T194: Service backfills it on first use). Only Service writes it, and it keeps the two in
+	// step; a record whose SourceHash does not match the source is re-derived, never trusted.
+	SetChartLineIdentity(fileID string, li ChartLineIdentity) error
+	GetChartLineIdentity(fileID string) (ChartLineIdentity, error)
+	DeleteChartLineIdentity(fileID string) error
+
 	// Bands + memberships.
 	CreateBand(b Band) error
 	GetBand(id string) (Band, error)

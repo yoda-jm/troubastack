@@ -2,6 +2,8 @@ package chartpdf
 
 import (
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/go-pdf/fpdf"
 )
@@ -33,8 +35,12 @@ func monoColChars(m *fpdf.Fpdf, scale, colW float64) int {
 	return n
 }
 
-// pairSeg is one drawn line of a wrapped pair: a chord row and the lyric beneath it.
-type pairSeg struct{ ch, ly string }
+// pairSeg is one drawn line of a wrapped pair: a chord row and the lyric beneath it. chOff/lyOff (T194)
+// are the rune offsets, in the original chord row and lyric, of each segment's first character.
+type pairSeg struct {
+	ch, ly       string
+	chOff, lyOff int
+}
 
 // runeAt reports the rune at i, or 0 past the end — so a short row never blocks a cut point.
 func runeAt(r []rune, i int) rune {
@@ -80,20 +86,23 @@ func leadingBlanks(r []rune) int {
 // monospace grid. An empty lyric (a chord-only row) wraps just as well.
 func wrapPair(chords, lyric string, maxChars int) []pairSeg {
 	cr, lr := []rune(chords), []rune(lyric)
+	cOff, lOff := 0, 0 // runes of each row consumed so far: where the next segment starts (T194)
 	var out []pairSeg
 	for {
 		if len(cr) <= maxChars && len(lr) <= maxChars {
 			// Nothing to wrap: hand back the rows EXACTLY as given. Trimming or normalising here would
 			// change the bytes of every chart that already fitted — and single-column output being
 			// byte-identical is the property T146 stage 2 rests on.
-			return append(out, pairSeg{string(cr), string(lr)})
+			return append(out, pairSeg{ch: string(cr), ly: string(lr), chOff: cOff, lyOff: lOff})
 		}
 		cut := cutPoint(cr, lr, maxChars)
 		head := pairSeg{
-			ch: strings.TrimRight(string(cr[:min(cut, len(cr))]), " "),
-			ly: strings.TrimRight(string(lr[:min(cut, len(lr))]), " "),
+			ch:    strings.TrimRight(string(cr[:min(cut, len(cr))]), " "),
+			ly:    strings.TrimRight(string(lr[:min(cut, len(lr))]), " "),
+			chOff: cOff, lyOff: lOff,
 		}
 		out = append(out, head)
+		cOff, lOff = cOff+min(cut, len(cr)), lOff+min(cut, len(lr))
 		cr, lr = cr[min(cut, len(cr)):], lr[min(cut, len(lr)):]
 		// Drop the same leading run from both rows so the continuation starts at the column edge with its
 		// chords still over its words.
@@ -102,6 +111,7 @@ func wrapPair(chords, lyric string, maxChars int) []pairSeg {
 			drop = leadingBlanks(cr)
 		}
 		if drop > 0 {
+			cOff, lOff = cOff+min(drop, len(cr)), lOff+min(drop, len(lr))
 			cr, lr = cr[min(drop, len(cr)):], lr[min(drop, len(lr)):]
 		}
 		if len(cr) == 0 && len(lr) == 0 {
@@ -121,26 +131,88 @@ func min(a, b int) int {
 type proseToken struct {
 	word string
 	bold bool
+	off  int // T194: rune offset of the word in the source line
+}
+
+// wordAt is one whitespace-separated word with its source line and rune offset in that line.
+type wordAt struct {
+	word      string
+	line, off int
+}
+
+// wordsAt is strings.Fields with positions: the words of s, each with its rune offset in s (T194).
+func wordsAt(s string, line int) []wordAt {
+	var out []wordAt
+	rs := []rune(s)
+	start := -1
+	for i, r := range rs {
+		if unicode.IsSpace(r) {
+			if start >= 0 {
+				out = append(out, wordAt{string(rs[start:i]), line, start})
+				start = -1
+			}
+		} else if start < 0 {
+			start = i
+		}
+	}
+	if start >= 0 {
+		out = append(out, wordAt{string(rs[start:]), line, start})
+	}
+	return out
 }
 
 // wrapProse splits a normal body line (Helvetica, honouring inline **bold**) into lines that each fit colW.
 // Bold runs are reconstructed per output line, so a wrap inside a bold phrase keeps both halves bold.
 func wrapProse(m *fpdf.Fpdf, tr func(string) string, line string, scale, colW float64) []string {
+	pl := wrapProseLoc(m, tr, line, scale, colW)
+	out := make([]string, len(pl))
+	for i, l := range pl {
+		out[i] = l.text
+	}
+	return out
+}
+
+// proseLine is one output line of wrapProseLoc: its text (with `**` re-opened as needed) and, for each
+// NON-EMPTY segment of strings.Split(text, "**") in order, the rune offset in the SOURCE line of that
+// segment's first character (T194). textLine records each segment as a run, so this is each run's SrcChar.
+type proseLine struct {
+	text    string
+	segOffs []int
+}
+
+// verbatimSegOffs is segOffs for a line drawn as written: each non-empty `**` segment starts where it
+// starts in the source, `**` markers counted.
+func verbatimSegOffs(line string) []int {
+	var offs []int
+	pos := 0
+	for _, seg := range strings.Split(line, "**") {
+		if seg != "" {
+			offs = append(offs, pos)
+		}
+		pos += utf8.RuneCountInString(seg) + 2
+	}
+	return offs
+}
+
+// wrapProseLoc is wrapProse with source offsets (see proseLine).
+func wrapProseLoc(m *fpdf.Fpdf, tr func(string) string, line string, scale, colW float64) []proseLine {
 	var toks []proseToken
 	bold := false
+	pos := 0 // rune offset of the current `**` segment in the source line
 	for _, seg := range strings.Split(line, "**") {
-		for _, w := range strings.Fields(seg) {
-			toks = append(toks, proseToken{w, bold})
+		for _, w := range wordsAt(seg, 0) {
+			toks = append(toks, proseToken{w.word, bold, pos + w.off})
 		}
+		pos += utf8.RuneCountInString(seg) + 2
 		bold = !bold
 	}
 	if len(toks) == 0 {
-		return []string{line}
+		return []proseLine{{line, verbatimSegOffs(line)}}
 	}
 	// If the line already fits, return it VERBATIM. Re-joining tokens would collapse the author's own
 	// spacing (two spaces, an indent) and change the bytes of charts that never needed wrapping.
 	if proseWidth(m, tr, line, scale) <= colW {
-		return []string{line}
+		return []proseLine{{line, verbatimSegOffs(line)}}
 	}
 	width := func(s string, b bool) float64 {
 		if b {
@@ -151,12 +223,20 @@ func wrapProse(m *fpdf.Fpdf, tr func(string) string, line string, scale, colW fl
 		return m.GetStringWidth(tr(s))
 	}
 	space := width(" ", false)
-	var out []string
+	var out []proseLine
 	var cur []proseToken
 	var w float64
 	flush := func() {
 		if len(cur) > 0 {
-			out = append(out, renderProse(cur))
+			// renderProse starts a new `**` segment at the first token and at every bold toggle, and puts
+			// the separating blank at the END of the previous segment — so each segment starts at a token.
+			var offs []int
+			for i, t := range cur {
+				if i == 0 || t.bold != cur[i-1].bold {
+					offs = append(offs, t.off)
+				}
+			}
+			out = append(out, proseLine{renderProse(cur), offs})
 			cur, w = nil, 0
 		}
 	}

@@ -1210,7 +1210,8 @@ func (s *Service) DeleteSongFile(caller User, bandID, songID, fileID string) err
 	}
 	s.derefBlob(f.BlobHash)
 	if f.Generated {
-		_ = s.repo.DeleteChartSource(fileID) // drop the editable source too
+		_ = s.repo.DeleteChartSource(fileID)       // drop the editable source too
+		_ = s.repo.DeleteChartLineIdentity(fileID) // and its line ids (T194)
 	}
 	return nil
 }
@@ -1258,6 +1259,9 @@ func (s *Service) CreateTextChart(caller User, bandID, songID, source string) (S
 		return SongFile{}, err
 	}
 	if err := s.repo.SetChartSource(f.ID, source); err != nil {
+		return SongFile{}, err
+	}
+	if err := s.setFreshLineIdentity(f.ID, source); err != nil { // T194: a new chart's lines get fresh ids
 		return SongFile{}, err
 	}
 	return f, nil
@@ -1338,6 +1342,12 @@ func ChartAnchorsIfCurrent(source, blobHash string) ([]chartpdf.Anchor, bool) {
 // a mismatch means someone else saved first → ErrConflict ("reload"). Any member
 // may edit (like annotations). ErrInvalidInput for unrenderable source.
 func (s *Service) SaveChartSource(caller User, bandID, songID, fileID string, baseRevision int, source string) (SongFile, error) {
+	return s.saveChartSource(caller, bandID, songID, fileID, baseRevision, source, false)
+}
+
+// saveChartSource is SaveChartSource; linesByIndex (T194) carries the line ids index-for-index instead of by
+// diff — only for an edit known to keep every line in place (a transposition).
+func (s *Service) saveChartSource(caller User, bandID, songID, fileID string, baseRevision int, source string, linesByIndex bool) (SongFile, error) {
 	if _, _, err := s.GetBand(caller, bandID); err != nil {
 		return SongFile{}, err
 	}
@@ -1357,6 +1367,7 @@ func (s *Service) SaveChartSource(caller User, bandID, songID, fileID string, ba
 		return SongFile{}, err
 	}
 	old := f.BlobHash
+	oldSource, _ := s.repo.GetChartSource(fileID) // T194: the ids are carried FROM this source
 	f.BlobHash = hash
 	f.Size = int64(len(pdf))
 	// T72: do NOT re-derive Filename here — the name belongs to the user from create-time; a
@@ -1366,6 +1377,12 @@ func (s *Service) SaveChartSource(caller User, bandID, songID, fileID string, ba
 		return SongFile{}, err
 	}
 	if err := s.repo.SetChartSource(fileID, source); err != nil {
+		return SongFile{}, err
+	}
+	// T194: carry the line ids across the edit (line diff; see chartpdf/lineid_t194.go). Written after the
+	// source: if this write fails the stored ids describe the OLD source, which the next read detects
+	// (SourceHash) and re-derives as RederiveMismatch — never trusted against the wrong text.
+	if err := s.carryLineIdentity(fileID, oldSource, source, old, hash, linesByIndex); err != nil {
 		return SongFile{}, err
 	}
 	if old != hash {
@@ -1552,7 +1569,9 @@ func (s *Service) TransposeChartSource(caller User, bandID, songID, fileID, targ
 		return f, transposed, nil // preview only — nothing persisted
 	}
 
-	saved, err := s.SaveChartSource(caller, bandID, songID, fileID, baseRevision, transposed)
+	// T194: a transposition keeps every line where it was and rewrites the chord rows past recognition by
+	// a text diff, so its line ids are carried index-for-index.
+	saved, err := s.saveChartSource(caller, bandID, songID, fileID, baseRevision, transposed, true)
 	if err != nil {
 		return SongFile{}, "", err // includes 409 on stale baseRevision, invalid render
 	}

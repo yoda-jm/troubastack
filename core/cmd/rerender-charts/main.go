@@ -116,6 +116,11 @@ func main() {
 			f.Size = int64(len(pdf))
 			f.Revision++ // the ?rev= URL is what stops a browser serving the old PDF
 			must(repo.UpdateSongFile(f))
+			// T194: the source (and so every line id) is unchanged, but the render is new — record the
+			// render change so stage 2 can still chain a mark's character map from the old render.
+			if li, lerr := repo.GetChartLineIdentity(f.ID); lerr == nil {
+				must(repo.SetChartLineIdentity(f.ID, li.WithRerender(r.oldHash, newHash)))
+			}
 		}
 	}
 
