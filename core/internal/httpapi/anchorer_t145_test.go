@@ -18,6 +18,9 @@ import (
 // mark, and stamps the source anchor + the current render hash. It is fully deterministic — it renders the
 // chart itself, picks a REAL run, and centres the mark on it, so it never guesses coordinates.
 func TestChartAnchorer_AnchorsMarkOnGeneratedChart(t *testing.T) {
+	if chartpdf.AnchoringFrozen() {
+		t.Skip("T193: pins the pre-freeze T145 mechanism, switched off while chartpdf.anchoringFrozen; stage 2 rewrites it (TestAnchorFreeze* pins the frozen behaviour)")
+	}
 	svc := app.NewService(memrepo.New())
 	svc.WithBlobStore(blob.NewMem())
 	eng := engine.New(memstore.New().(store.HistoryAware))

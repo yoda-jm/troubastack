@@ -155,7 +155,13 @@ func (a *AnnotationsAPI) getAnnotations(w http.ResponseWriter, r *http.Request, 
 // Per generated file referenced by a layer: render the source for the anchor manifest and re-project that
 // file's marks against the file's BlobHash. Best-effort + read-only: a file with no source (an uploaded
 // PDF) or a render error leaves its marks on their stored coordinates.
+//
+// T193 (anchoring stage 0): while chartpdf.AnchoringFrozen(), the snapshot is served exactly as stored (no
+// render, no projection); chartpdf.ServedObjects is the single seam that also enforces it.
 func (a *AnnotationsAPI) reprojectSnapshot(u app.User, bandID, songID string, snap domain.Snapshot) domain.Snapshot {
+	if chartpdf.AnchoringFrozen() {
+		return snap
+	}
 	fileByLayer := make(map[string]string, len(snap.Layers))
 	for _, l := range snap.Layers {
 		fileByLayer[l.ID] = l.FileID
@@ -168,7 +174,7 @@ func (a *AnnotationsAPI) reprojectSnapshot(u app.User, bandID, songID string, sn
 			continue
 		}
 		if anchors, hash, ok := manifest(fileByLayer[o.LayerID]); ok {
-			rp, _ := chartpdf.Reproject([]domain.Object{o}, anchors, hash)
+			rp, _ := chartpdf.ServedObjects([]domain.Object{o}, anchors, hash)
 			objs[i] = rp[0]
 		}
 	}
@@ -294,9 +300,11 @@ func (a *AnnotationsAPI) importAnnotations(w http.ResponseWriter, r *http.Reques
 			writeErr(w, app.ErrInvalidInput)
 			return
 		}
-		if o.Anchor == nil {
+		// T193: frozen, an imported mark is stored as it arrives (its own Anchor, if the folder had one,
+		// is kept; none is added), and no chart is rendered for it.
+		if o.Anchor == nil && !chartpdf.AnchoringFrozen() {
 			if anchors, hash, ok := manifest(fileByLayer[o.LayerID]); ok {
-				o = chartpdf.AnchorObject(o, anchors, hash)
+				o = chartpdf.AnchorNewMark(o, anchors, hash)
 			}
 		}
 		// Version 1 makes a re-imported object an idempotent same-version no-op

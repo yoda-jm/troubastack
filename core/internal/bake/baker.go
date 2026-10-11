@@ -764,8 +764,10 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 	// preserves line positions, so its manifest is still valid); a divergent render is withheld so a stale
 	// mark is left to the reflow-orphan guard rather than re-projected onto a geometry the blob lacks. See
 	// app.ChartAnchorsIfCurrent. Uploaded files have no source → no anchors.
+	// T193 (anchoring stage 0): frozen, marks bake at their STORED coordinates, so the render that only
+	// served the projection is skipped (the reflow-orphan guard in assembleSong still applies).
 	var anchors []chartpdf.Anchor
-	if file.Generated {
+	if file.Generated && !chartpdf.AnchoringFrozen() {
 		if _, src, cerr := b.svc.ChartSource(actor, bandID, item.SongID, file.ID); cerr == nil {
 			if a, ok := app.ChartAnchorsIfCurrent(src, file.BlobHash); ok {
 				anchors = a

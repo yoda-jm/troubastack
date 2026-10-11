@@ -48,7 +48,9 @@ func (c *chartAnchorer) AnchorMark(songID string, o domain.Object) (out domain.O
 			out = o // best-effort: a bug degrades to no-anchor, never a crashed apply
 		}
 	}()
-	if o.Anchor != nil || o.LayerID == "" {
+	// T193 (anchoring stage 0): frozen, a new mark is stored exactly as drawn — no Anchor, no
+	// PointsRenderHash — and no chart is rendered per stroke. chartpdf.AnchorNewMark enforces it too.
+	if chartpdf.AnchoringFrozen() || o.Anchor != nil || o.LayerID == "" {
 		return o
 	}
 	layer, ok := c.eng.Layer(songID, o.LayerID)
@@ -59,7 +61,7 @@ func (c *chartAnchorer) AnchorMark(songID string, o domain.Object) (out domain.O
 	if !ok {
 		return o
 	}
-	return chartpdf.AnchorObject(o, anchors, hash)
+	return chartpdf.AnchorNewMark(o, anchors, hash)
 }
 
 // anchorsFor resolves the current (anchor manifest, render hash) for a generated file, rendering once per

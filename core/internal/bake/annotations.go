@@ -139,7 +139,7 @@ func snapshotToDoc(snap domain.Snapshot, fileID string, anchors []chartpdf.Ancho
 	}
 	live := snap.LiveObjects()
 	if renderHash != "" && anchors != nil {
-		live, _ = chartpdf.Reproject(live, anchors, renderHash) // T145: marks follow their words after a reflow
+		live, _ = chartpdf.ServedObjects(live, anchors, renderHash) // T145 re-projection; T193: a no-op while frozen
 	}
 	for _, o := range live {
 		if !keep[o.LayerID] {

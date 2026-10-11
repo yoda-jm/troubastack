@@ -12,6 +12,9 @@ import (
 // bakes the mark on its line, not orphaned. A mark already current, or on an uploaded file (no anchors),
 // is left as-is.
 func TestSnapshotToDoc_ReprojectsStaleMark(t *testing.T) {
+	if chartpdf.AnchoringFrozen() {
+		t.Skip("T193: pins the pre-freeze T145 mechanism, switched off while chartpdf.anchoringFrozen; stage 2 rewrites it (TestAnchorFreeze* pins the frozen behaviour)")
+	}
 	src := "# Song\n\n## Verse\nC       G\nthe one true lyric line\n\n## Chorus\nF       C\nanother sung line here\n"
 	_, anchors, err := chartpdf.RenderWithAnchors(src)
 	if err != nil {
