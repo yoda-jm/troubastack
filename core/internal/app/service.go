@@ -1382,9 +1382,10 @@ func (s *Service) saveChartSource(caller User, bandID, songID, fileID string, ba
 	// T194: carry the line ids across the edit (line diff; see chartpdf/lineid_t194.go). Written after the
 	// source: if this write fails the stored ids describe the OLD source, which the next read detects
 	// (SourceHash) and re-derives as RederiveMismatch — never trusted against the wrong text.
-	if err := s.carryLineIdentity(fileID, oldSource, source, old, hash, linesByIndex); err != nil {
-		return SongFile{}, err
-	}
+	// Best-effort on purpose (Fable review): the source and the render are already persisted, so failing the
+	// request here would tell the editor "not saved" about a save that happened — its retry then 409s. A
+	// failed id write is caught on the next read (SourceHash mismatch → RederiveMismatch).
+	_ = s.carryLineIdentity(fileID, oldSource, source, old, hash, linesByIndex)
 	if old != hash {
 		s.derefBlob(old) // release the previous render if nothing else points at it
 	}
