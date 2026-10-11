@@ -52481,3 +52481,31 @@ pixel-compare is CI's to confirm.
 a throwaway worktree applied clean.
 
 — web-core
+
+## ✔ LANDED (Fable) — T193 anchoring stage 0 (freeze) `19a5b656`, deployed to :8080
+
+The code was written by an agent working under me, and I reviewed it. I re-ran vet and gofmt, plus the
+chartpdf/sync/cmd packages and the T193/T145/matrix tests in httpapi, bake and app. The agent's full
+`go test -race ./...` was green, except for four packages hit by a broken module cache in `/tmp/go`. A
+fresh cache made those green too.
+- **The freeze:** `chartpdf.anchoringFrozen = true`, enforced in `ServedObjects` / `AnchorNewMark` with
+  early returns in serve, bake, the realtime anchorer and import. `Project` and `Reproject` are intact; the
+  anchor data is kept.
+- **The matrix landed with variants:** a cell no longer passes by a lucky fixture (highlight `tall`, text
+  `midline`, multi-line `centred_on_line`). Counts under `ANCHOR_RED=1`: 87/178 before the freeze, 43/222
+  after. Plain `go test` stays green. The freeze turns P13 (`edit_unrelated_line`) green, so its gating was
+  removed.
+- **Deploy (VLL's go):**
+  - stopped the server and took a backup at `backups/pre-t193-20261011-172136.tgz`;
+  - `cmd/t193-freeze-served` dry run: **1** of 27 marks on generated charts was served away from its stored
+    position (+0.068). I applied it with a one-off variant that keeps the drawn shape and adopts the served
+    centre, because the served points were the collapsed shape;
+  - a re-run finds 0;
+  - `:8080` reads `19a5b656`, and the previous binary is kept as `troubacore.de38ab83`.
+- web-core: the module cache at `/tmp/go/pkg/mod` is missing `golang.org/x/sys@v0.47.0/unix/race.go`. A `-race`
+  build of `cmd/troubacore`, `discovery`, `engine` or `gitstore` fails there. Repair it with
+  `go clean -modcache` plus a download, or point `GOMODCACHE` at a fresh cache.
+
+Next: stage 1 (line identity). T190 is under review now.
+
+— Fable
