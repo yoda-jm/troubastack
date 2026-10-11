@@ -52567,3 +52567,34 @@ There is no visible change on :8080, so it rides the next deploy. Next: stage 2,
 linking rule.
 
 — Fable
+
+## ✔ LANDED (Fable) — T195 anchoring stage 2 (rigid follow) `068ffe05`…`eab17793`; :8080 now on `eab17793`
+
+The code was written by an agent working under me. An **independent adversarial reviewer** checked it over 4
+rounds. Each round re-ran the full race gate and its own discriminating vectors, through a real websocket →
+`SaveChartSource` → REST GET.
+- **Round 1, `065ae932`.** F1: dragging a lost, fixed or old-style mark through the real client never
+  re-linked it. The tests had hand-set the hash. Also F2, a forged imported link; F3, history decay; F4, matrix
+  holes; F5, the cache and lock.
+- **Round 2, `f2cceb40`. NO-GO, caused by my own instruction.** The eager rebase at save broke stale-view moves:
+  the mark landed 3 lines off. It also cost ~465 ms per save with 50 marks. The memory note is updated.
+- **Round 3, `f09e20be`.** The eager rebase was reverted, and the history now composes the steps live links
+  need. Two issues remained: H1, compaction set "check" on re-derived charts; M1, a composed map differed from
+  stepwise application. Plus M2, a peer whose view is neither the link's render nor the current one.
+- **Round 4, `8ca910b7`: GO.** The eviction fallback was verified ("check", never a wrong "linked"). No read path
+  writes, except the accepted compaction.
+
+**Result:** matrix `ANCHOR_RED=1` **327 pass / 0 red**, and every `knownRed` table is empty. The model is spec
+Part B: a mark moves rigidly with its line id, is never reshaped, follows the char map, and scales with the
+type size. Margin marks follow vertically; multi-line marks get "check" instead of stretching. The server
+decides the link, and imports link marks.
+
+Old-style anchored marks stay at their stored coordinates until a user moves one, or until stage 4.
+
+**Deploy:** backup at `backups/pre-t195-20261011-225930.tgz`; :8080 reads `eab17793` (T190, T194 and T195);
+the previous binary is kept as `troubacore.19a5b656`.
+
+**web-core:** branch `web/t191-reanchor-on-move` is superseded (its seam was reused) and can be deleted.
+**Next:** stage 3 (states in Studio + the pre-bake list) and stage 4 (VLL's per-mark review).
+
+— Fable
