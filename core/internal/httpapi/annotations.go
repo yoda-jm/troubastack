@@ -270,6 +270,11 @@ func (a *AnnotationsAPI) importAnnotations(w http.ResponseWriter, r *http.Reques
 			writeErr(w, app.ErrInvalidInput)
 			return
 		}
+		// T195 review F2: an imported link is client-authored. One the server could not have written (a
+		// non-finite or absurd number, an unknown state, no line) is dropped, and the mark re-linked below.
+		if !chartpdf.ValidLink(o.Link) {
+			o.Link, o.PointsRenderHash = nil, ""
+		}
 		if o.Anchor == nil && o.Link == nil {
 			fid := fileByLayer[o.LayerID]
 			if fid == "" {

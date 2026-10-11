@@ -842,9 +842,9 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 				if err := s.repo.SetChartSource(nf.ID, f.ChartSource); err != nil {
 					return ImportReport{}, err
 				}
-				lineIDMu.Lock()
+				unlock := lockLines(nf.ID)
 				err := s.repo.SetChartLineIdentity(nf.ID, importLineIdentity(f.LineIdentity, f.ChartSource, nf.BlobHash, prevLines, prevSource))
-				lineIDMu.Unlock()
+				unlock()
 				if err != nil {
 					return ImportReport{}, err
 				}
@@ -912,6 +912,11 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 			no.OwnerID = remapOwner(o.OwnerID)
 			if no.Version == 0 {
 				no.Version = 1
+			}
+			// T195 review F2: a folder's link is client-authored; one the server could not have written
+			// (non-finite or absurd numbers, an unknown state, no line) is dropped and re-linked here.
+			if !chartpdf.ValidLink(no.Link) {
+				no.Link, no.PointsRenderHash = nil, ""
 			}
 			if no.Link == nil && no.Anchor == nil {
 				if r := renderOf(fileOfLayer[no.LayerID]); r != nil {

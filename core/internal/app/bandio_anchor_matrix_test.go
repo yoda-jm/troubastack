@@ -176,3 +176,59 @@ func runBandioCell(t *testing.T, shape string, typ domain.ObjectType, mode strin
 		}
 	}
 }
+
+// F2 (T195 review), the band-folder path: a folder whose mark carries a link the server could not have
+// written (here a line-height of 5e-324: an infinite scale) is not trusted on import — the link is dropped
+// and the mark re-linked by the rule (P31), so it can never break a serve or a bake.
+func TestBandImport_ForgedLinkIsRelinked(t *testing.T) {
+	src := newStack()
+	admin, err := src.svc.Register("owner", "Owner", "password123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	band, _ := src.svc.CreateBand(admin, "Demo Band")
+	song, _ := src.svc.CreateSong(admin, band.ID, "A Test Song", "Demo")
+	f, err := src.svc.CreateTextChart(admin, band.ID, song.ID, matrixChart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := src.eng.Apply(song.ID, domain.Mutation{Kind: domain.KindLayerCreate, AuthorID: admin.ID, Layer: &domain.Layer{
+		ID: "L1", FileID: f.ID, Name: "Marks", OwnerID: domain.SharedOwner, Zone: domain.ZoneShared, Access: domain.AccessRW,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	chart, err := src.svc.ChartRenderForFile(f.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var line chartpdf.Anchor
+	for _, a := range chart.Anchors {
+		if a.Text == "Leave the porch light on when the sun goes down" {
+			line = a
+		}
+	}
+	id := chart.Lines.IDs[line.SrcLine]
+	o := domain.Object{UUID: "m1", LayerID: "L1", Type: domain.TypeRect, Page: line.Page, Version: 1, OwnerID: admin.ID,
+		Points: []domain.Point{{X: line.X0, Y: line.Y0}, {X: line.X0 + 0.1, Y: line.Y1}},
+		Link:   &domain.MarkLink{State: domain.LinkLinked, Line: id, XRef: "start", LH: 5e-324, Render: "elsewhere"}, PointsRenderHash: "elsewhere"}
+	if _, err := src.eng.Apply(song.ID, domain.Mutation{Kind: domain.KindCreate, UUID: o.UUID, AuthorID: admin.ID, Object: &o}); err != nil {
+		t.Fatal(err)
+	}
+	zipBytes, _, err := src.svc.ExportBand(admin, src.eng, band.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tgt := newStack()
+	importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
+	rep, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	songs, _ := tgt.repo.SongsOfBand(rep.Band.ID)
+	snap, _ := tgt.eng.Head(songs[0].ID)
+	for _, g := range snap.LiveObjects() {
+		if g.Link == nil || !chartpdf.ValidLink(g.Link) || g.Link.Line != id || g.Link.State != domain.LinkLinked {
+			t.Errorf("%s: imported with link %+v, want the forged one dropped and a valid link to its line", g.UUID, g.Link)
+		}
+	}
+}

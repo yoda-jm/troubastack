@@ -110,8 +110,9 @@ func (c *chartAnchorer) ServeSnapshot(songID string, snap domain.Snapshot) (out 
 // projectSnapshot projects every linked mark of a snapshot onto the current render of its layer's chart
 // (chartpdf.ProjectMarks, T195) — the ONE serve-side projection, used by the REST read and the realtime join
 // snapshot; the bake calls the same chartpdf function (P33). Each chart is resolved once. Marks with no
-// stage-2 link (an uploaded file, an old-style anchor, never linked) and marks on a chart with no current
-// render (P32) are served exactly as stored. Read-only.
+// stage-2 link (an old-style anchor, never linked, fixed) and lost marks keep their stored coordinates but
+// are stamped with the current render hash (F1, below). Marks on an uploaded file or on a chart with no
+// current render (P32) are served exactly as stored. Read-only.
 func projectSnapshot(snap domain.Snapshot, renderOf func(fileID string) *chartpdf.ChartRender) domain.Snapshot {
 	fileByLayer := make(map[string]string, len(snap.Layers))
 	for _, l := range snap.Layers {
@@ -121,18 +122,24 @@ func projectSnapshot(snap domain.Snapshot, renderOf func(fileID string) *chartpd
 	objs := make([]domain.Object, len(snap.Objects))
 	for i, o := range snap.Objects {
 		objs[i] = o
-		if o.Link == nil {
+		fid := fileByLayer[o.LayerID]
+		if fid == "" {
 			continue
 		}
-		fid := fileByLayer[o.LayerID]
 		r, seen := renders[fid]
 		if !seen {
 			r = renderOf(fid)
 			renders[fid] = r
 		}
-		if r != nil {
-			objs[i] = chartpdf.ProjectMark(o, *r)
+		if r == nil {
+			continue
 		}
+		objs[i] = chartpdf.ProjectMark(o, *r)
+		// T195 review F1: EVERY mark served against a current render is served as being on it — an
+		// unlinked, fixed, lost or old-style mark too, whose stored coordinates are exactly what is drawn
+		// on that render. Studio echoes this hash back on a move, and the server reads it as "the render the
+		// user dragged on"; an old hash there made every such move look like a stale tab, never re-linked.
+		objs[i].PointsRenderHash = r.Hash
 	}
 	snap.Objects = objs
 	return snap

@@ -399,9 +399,15 @@ func TestLink_LostMarkMovedRelinks(t *testing.T) {
 		t.Fatalf("fixture: state %s, want lost", lost.Link.State)
 	}
 	dst := lineRun(t, w, "and morning finds the room")
+	// What the real client sends (T195 review F1): the SERVED object with new points and nothing else
+	// changed — its pointsRenderHash is whatever it was served with. ProjectMark leaves a lost mark's old
+	// hash (the REST layer re-stamps it; RelinkMoved must re-link either way, since a lost mark does not
+	// move between renders).
 	moved := lost.Clone()
 	moved.Points = rectAround(dst, -0.3, 1.3, 0, 8)
-	moved.PointsRenderHash = w.hash
+	if moved.PointsRenderHash == w.hash {
+		t.Fatal("fixture: the served lost mark already claims the current render; the cell would prove nothing")
+	}
 	re := RelinkMoved(moved, o, ptrChart(w.chart()))
 	if re.Link == nil || re.Link.State != domain.LinkLinked || re.Link.Line != idOf(w, dst) {
 		t.Fatalf("a lost mark moved onto a line has link %+v, want linked to it", re.Link)
@@ -516,4 +522,52 @@ func waypointBelow(anchors []Anchor, page int, x0, y0 float64) string {
 		}
 	}
 	return best
+}
+
+// F3 (T195 review), the pure half: the reviewer's vector — a mark whose chart is saved 40 times, more than
+// maxLineHistory, then edited before its word. Projected LAZILY from its first render, its character map
+// is gone (check, 4 characters off). Re-based at every save (RebaseOnRender, what SaveChartSource now
+// does), it lands on its word, linked. Both halves are asserted, so the test also shows why eager exists.
+func TestRebaseOnRender_OutlivesTheBoundedHistory(t *testing.T) {
+	src := "# T\n\n## Verse\nthe kettle hums a quiet tune\nbeneath a paper moon\n\n## Notes\nnote 0\n"
+	w := lw(t, src)
+	line := lineRun(t, w, "beneath a paper moon")
+	lazy := LinkMark(domain.Object{UUID: "m", Type: domain.TypeIcon, Page: line.Page, Points: rectAround(line, 0, 1, 16, 18)}, w.chart())
+	eager := lazy
+	for i := 1; i <= 40; i++ {
+		w.setSrc(strings.Replace(w.src, fmt.Sprintf("note %d\n", i-1), fmt.Sprintf("note %d\n", i), 1))
+		eager, _ = RebaseOnRender(eager, w.chart())
+	}
+	w.setSrc(strings.Replace(w.src, "beneath a paper moon", "beneath a big paper moon", 1))
+	nl := lineRun(t, w, "beneath a big paper moon")
+	want := nl.X0 + 20*cw(nl)
+	if got := ProjectMark(eager, w.chart()); got.Link.State != domain.LinkLinked || !near(got.Points[0].X, want, cw(nl)/4) {
+		t.Errorf("re-based at every save: state %s, x %.4f, want linked at %.4f", got.Link.State, got.Points[0].X, want)
+	}
+	if got := ProjectMark(lazy, w.chart()); got.Link.State != domain.LinkCheck {
+		t.Errorf("projected lazily past the history: state %s — the bound no longer bites, re-check why eager exists", got.Link.State)
+	}
+}
+
+// Decision 4 follow-up (T195 review): a margin stamp near the paper's right edge, scaled up by a larger
+// type size, stays on the page — same scaled size, slid inward — instead of being cut off.
+func TestLink_ScaledMarginStampStaysOnThePage(t *testing.T) {
+	w := lw(t, "# T\nsize: 9\n\n## Verse\nbeneath a paper moon\n")
+	line := lineRun(t, w, "beneath a paper moon")
+	o := LinkMark(domain.Object{UUID: "s", Type: domain.TypeIcon, Page: line.Page,
+		Points: []domain.Point{{X: 0.95, Y: line.Y0}, {X: 0.995, Y: line.Y1}}}, w.chart())
+	if o.Link.XRef != xrefMargin {
+		t.Fatalf("fixture: %+v is not a margin link", o.Link)
+	}
+	w.setSrc("# T\nsize: 18\n\n## Verse\nbeneath a paper moon\n")
+	got := ProjectMark(o, w.chart())
+	x0, _, x1, _ := boundsOf(got.Points)
+	nl := lineRun(t, w, "beneath a paper moon")
+	scale := (nl.Y1 - nl.Y0) / (line.Y1 - line.Y0)
+	if x1 > 1+1e-12 || x0 < 0 {
+		t.Errorf("the scaled stamp spans x [%.4f, %.4f]: off the page", x0, x1)
+	}
+	if !near(x1-x0, 0.045*scale, 1e-9) {
+		t.Errorf("the stamp is %.4f wide, want %.4f (scaled by k, never squeezed to fit)", x1-x0, 0.045*scale)
+	}
 }

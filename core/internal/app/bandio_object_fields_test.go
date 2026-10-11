@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"troubastack/core/internal/app"
+	"troubastack/core/internal/chartpdf"
 	"troubastack/core/internal/domain"
 	"troubastack/core/internal/testutil"
 )
@@ -90,6 +91,14 @@ func TestBandFolder_RoundTripsEveryObjectField(t *testing.T) {
 	want.Deleted = false
 	want.Version = 1
 	want.OwnerID = admin.ID
+	// T195 review F2: an imported stage-2 link is VALIDATED (chartpdf.ValidLink) and an invalid one is
+	// dropped, so the filled link must be a believable one: a real state and reference kind, a line
+	// height and offsets inside the sane bands. Every member stays filled and distinctive.
+	want.Link.State, want.Link.XRef = domain.LinkCheck, "char"
+	want.Link.LH, want.Link.DX, want.Link.DY = 0.0213, 1.25, -0.5
+	if !chartpdf.ValidLink(want.Link) {
+		t.Fatalf("fixture: the filled link is not valid: %+v", want.Link)
+	}
 	if _, err := src.eng.Apply(songID, domain.Mutation{Kind: domain.KindCreate, UUID: want.UUID, AuthorID: admin.ID, Object: &want}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}

@@ -35,6 +35,9 @@ type Service struct {
 	// bakes is the narrow read-only seam into the bake package used to label a rehearsal
 	// note "page changed" (T170 §3.4). Nil is legitimate — see WithBakeLookup.
 	bakes BakeLookup
+	// marks is the annotation engine (T195 review F3): a chart save re-places the marks linked to that chart
+	// eagerly, through it. nil (tests, offline tools) leaves the projection lazy at serve and bake.
+	marks MarkStore
 }
 
 // NewService wires a Service over a Repo with production defaults. The blob store
@@ -1358,7 +1361,7 @@ func (s *Service) saveChartSource(caller User, bandID, songID, fileID string, ba
 	if baseRevision != f.Revision {
 		return SongFile{}, fmt.Errorf("%w: chart was changed by someone else — reload", ErrConflict)
 	}
-	pdf, err := chartpdf.Render(source)
+	pdf, saveAnchors, err := chartpdf.RenderWithAnchors(source) // the same bytes as Render, plus the manifest
 	if err != nil {
 		return SongFile{}, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
@@ -1371,8 +1374,7 @@ func (s *Service) saveChartSource(caller User, bandID, songID, fileID string, ba
 	// all three on every serve (ChartRenderForFile, under the same lock); a reader between the source write
 	// and the id carry would otherwise find ids that do not describe the source, re-derive and STORE fresh
 	// ones, and the carry below would then start from those — every link on the chart would read lost.
-	lineIDMu.Lock()
-	defer lineIDMu.Unlock()
+	unlock := lockLines(fileID)
 	oldSource, _ := s.repo.GetChartSource(fileID) // T194: the ids are carried FROM this source
 	f.BlobHash = hash
 	f.Size = int64(len(pdf))
@@ -1380,9 +1382,11 @@ func (s *Service) saveChartSource(caller User, bandID, songID, fileID string, ba
 	// source edit updates the blob/size/revision only, so a rename (e.g. "Guitar/Bass") sticks.
 	f.Revision++
 	if err := s.repo.UpdateSongFile(f); err != nil {
+		unlock()
 		return SongFile{}, err
 	}
 	if err := s.repo.SetChartSource(fileID, source); err != nil {
+		unlock()
 		return SongFile{}, err
 	}
 	// T194: carry the line ids across the edit (line diff; see chartpdf/lineid_t194.go). Written after the
@@ -1391,9 +1395,16 @@ func (s *Service) saveChartSource(caller User, bandID, songID, fileID string, ba
 	// Best-effort on purpose (Fable review): the source and the render are already persisted, so failing the
 	// request here would tell the editor "not saved" about a save that happened — its retry then 409s. A
 	// failed id write is caught on the next read (SourceHash mismatch → RederiveMismatch).
-	_ = s.carryLineIdentityLocked(fileID, oldSource, source, old, hash, linesByIndex)
+	if err := s.carryLineIdentityLocked(fileID, oldSource, source, old, hash, linesByIndex); err == nil {
+		// T195 review F3: re-place every linked mark of this chart on the new render NOW, under the same
+		// lock, so a live link's history is only ever one step deep (a lazily projected mark that sat out
+		// more than maxLineHistory saves lost its character map). Best-effort, like the id carry: the save
+		// has happened; a mark that could not be re-placed is still projected lazily at serve and bake.
+		s.rebaseChartMarks(caller, f, source, hash, saveAnchors)
+	}
+	unlock()
 	if old != hash {
-		s.derefBlob(old) // release the previous render if nothing else points at it
+		s.derefBlob(old) // release the previous render if nothing else points at it (outside the line lock)
 	}
 	return f, nil
 }

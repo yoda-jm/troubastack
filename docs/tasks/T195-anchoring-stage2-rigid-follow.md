@@ -150,15 +150,17 @@ Stage 4 re-links the rest with VLL's approval.
   landing between `SetChartSource` and the id carry would see ids that do not describe the source. It would
   re-derive and **store** fresh ones, and the carry would start from those, so every link on the chart would
   read lost. Now:
-  - `saveChartSource` holds `lineIDMu` across the file, source and id writes;
+  - `saveChartSource` holds the file's line lock across the file, source and id writes (and, since the
+    review, the eager re-placing of §11 F3);
   - `ChartLines`, and the new `ChartRenderForFile`, read the source under the same lock;
   - `LocateChartLine` goes through `ChartRenderForFile`.
-- **Render cache.** `ChartRenderForFile` memoises `ChartAnchorsIfCurrent` by (source hash, blob hash),
-  bounded at 64 entries. Every realtime move and restyle needs the manifest. Both keys are content hashes,
-  so an entry is never stale.
-- **T194's `Rederived` flag is consulted per mark and never cleared** (`predatesRederive`). T194 said
-  "stage 2 clears it". But the state is computed per mark at serve time, and clearing the flag would erase
-  the answer for marks not yet served.
+- **Render cache.** `ChartRenderForFile` memoises `ChartAnchorsIfCurrent` by (source hash, blob hash), as
+  an LRU of 256 entries (review F5). Every realtime move and restyle needs the manifest. Measured on a
+  100-line chart: about 10 ms uncached, about 80 µs cached. Both keys are content hashes, so an entry is
+  never stale.
+- **T194's `Rederived` flag** is consulted per mark (`predatesRederive`). It is **cleared after a save
+  re-places every linked mark of the file** (review F3): each link is then measured on a render after the
+  re-derivation, so the flag has nothing left to say. If any mark could not be re-placed, the flag is kept.
 
 ## 8. Decisions on spec points that were wrong or ambiguous (flag at the gate)
 
@@ -180,8 +182,12 @@ Stage 4 re-links the rest with VLL's approval.
 7. **A move whose `pointsRenderHash` is empty is treated as current.** Studio always sends back the hash it
    was served.
 8. **The stroke width is not scaled by k.** It is a pen property, not geometry. B3 does not say.
-9. **Projection is lazy** (serve, bake, WS snapshot), as T145's was, rather than eager at save. The state is
-   persisted whenever the mark is written: create, move, resize and restyle each store it.
+9. **Projection is eager at save, and lazy everywhere else** (reversed by the review, F3). The first version
+   was lazy only, and it decayed: a mark untouched while its chart was saved more than `maxLineHistory` (32)
+   times lost its character map. It landed 4 characters off, and "check". `SaveChartSource` now re-places
+   every linked mark of the chart on the new render (§11). Serve, bake and the WS snapshot still project
+   whatever a save did not re-place. The state is persisted at every write: create, move, resize, restyle,
+   and each save.
 
 ## 9. Tests
 
@@ -190,8 +196,8 @@ AnchorMatrix`):
 
 | package | main `91427500` (T193 freeze, T194) | this branch |
 |---|---|---|
-| chartpdf `TestAnchorMatrix` | 34 pass / 208 red | **242 pass / 0 red** |
-| sync `TestAnchorMatrixSync` | 1 / 6 | **14 / 0** (7 cells rewritten, 7 added) |
+| chartpdf `TestAnchorMatrix` | 34 pass / 208 red | **288 pass / 0 red** (242 + 46 review F4 cells) |
+| sync `TestAnchorMatrixSync` | 1 / 6 | **15 / 0** (7 cells rewritten, 8 added) |
 | app `TestAnchorMatrixBandio` | 8 / 8 | **24 / 0** (8 `old_style_anchor_round_trip` added) |
 
 Every `knownRed` table is empty, the two DECISION families included:
@@ -259,6 +265,84 @@ stale-tab move keeps the line and lands where it was dropped; the same move from
 
 **Gates:** `go vet ./...` and `gofmt -l .` are clean, and `go test -race -count=1 -timeout 45m ./...` is
 green (21 packages ok, exit 0).
+
+## 11. Review fixes (GO with fixes, on `065ae932`)
+
+**F1 (blocking): a lost, fixed or old-style mark moved through the real client never re-linked.**
+- **Cause.** Studio echoes the served object (`translateObject` spreads `{...obj}`), so it sends back the
+  `pointsRenderHash` it was served. Serve stamped the current hash only on projected marks. For every other
+  mark, `RelinkMoved` read the move as a stale tab (P27).
+- **Fix 1.** `projectSnapshot` stamps the current render's hash on **every** object served against a
+  current render. Their stored coordinates are exactly what is drawn on that render.
+- **Fix 2.** `RelinkMoved` treats a move as current when the client's hash equals the stored one and the
+  stored mark is not projectable (no link, fixed, or lost). This covers the realtime echo of a restyle,
+  which carries the stored hash.
+- **Tests.** The bent tests now send what the real client sends:
+  - `TestLink_LostMarkMovedRelinks` sends the served hash;
+  - sync `oldstyle/move_relinks` uses an old stored hash;
+  - new sync cell: `fixed/move_with_echoed_hash_relinks`.
+
+  The reviewer's websocket → hub → real anchorer → REST vectors are now permanent, in
+  `httpapi/anchor_e2e_ws_t195_test.go`. They cover rigid follow, move re-links, lost/fixed/old-style moved
+  → linked, no flip, typo, duplicate, margin, and uploaded PDF. Two cells are added: a move from a restyle
+  echo, and the 40-save vector.
+
+**F2: a forged imported link broke GET for the whole song.** A line-height of 5e-324 made k infinite, and
+the JSON encode failed.
+- `chartpdf.ValidLink` requires:
+  - a known state and `xRef`;
+  - a line unless fixed;
+  - finite numbers, with `lh` in [0.002, 0.2] and `|dx|, |dy|` ≤ 50;
+  - sane character offsets and peers.
+- Both import paths (HTTP and band folder) drop an invalid link and re-link the mark (P31).
+- `project()` returns the stored mark as **lost** if any result is non-finite.
+
+**F3: lazy projection decayed after 32 saves. Now eager rebase** (`app/chartmarks_t195.go`).
+- **The rebase.** `SaveChartSource`, under the file's line lock and after the id carry, re-places every
+  live linked mark on that chart's layers (`chartpdf.RebaseOnRender`). Each changed mark is written as a
+  normal `move` mutation, attributed to the saver, with `BaseVersion = the version read` and `Version + 1`.
+- **Concurrency.** A concurrent edit wins the engine's LWW check. The rebase then re-reads that mark and
+  re-bases the edit, up to 2 retries, so the edit is never overwritten.
+- **Lost marks.** A lost mark's state is persisted, at its stored coordinates.
+- **The flag.** The `Rederived` flag is cleared when every mark was re-placed (§7).
+- **Wiring.** `Service.WithAnnotationEngine(eng)`, set in `cmd/troubacore`. Tools that never call it
+  (`mkbaked`, tests) stay lazy.
+- **Known gap.** These writes do not go through the realtime hub, so a peer with the song open gets no
+  echo. Its next GET or reconnect shows the re-placed marks. Meanwhile, a move from that stale view is P27's
+  stale-view case: the link is kept, the offset is shifted, and the state is check.
+- **The save** now renders once with `RenderWithAnchors` (the same bytes), reusing the manifest for the
+  rebase.
+
+**F4: two sabotages passed every matrix cell.** 46 new cells:
+- `typo_lengthens_before` (`Leave the` → `Leave all the`, +4 characters before most marks);
+- `typo_shortens_before` (`porch lihgt` → `lihgt`, −6);
+- `typo_after` (`goes down` → `goes downtown`);
+- for margin marks, `margin_line_lengthened` and `margin_line_shortened` (the margin mark's own line).
+
+The harness computes the expected shift and the expected "check" from the stage-1 character map. "Check"
+now also covers text inserted inside a mark's extent.
+
+**F5.**
+- The render cache is an LRU (above).
+- `lineIDMu` is now **one lock per file** (`lockLines`).
+- `derefBlob` runs after the line lock is released.
+
+**Decision 4 follow-up.** A scaled margin stamp that would cross the paper's edge keeps its scaled size and
+slides inward (`TestLink_ScaledMarginStampStaysOnThePage`).
+
+**Kept:** decision 5 (a typo under the mark → check) and decision 8 (the stroke width is not scaled).
+
+**Red → green.** Each fix was sabotaged in place and its tests went red, then the code was restored:
+
+| fix | sabotage | red line |
+|---|---|---|
+| F1 | serve keeps the old hash, no `RelinkMoved` fallback | `P21: a lost mark moved onto a line (through the real client echo) is lost, want linked`; `P23: a fixed mark … is fixed`; `§6: an old-style mark … has link <nil>` |
+| F2 | imports trust every link, no finite guard | `a forged imported link broke GET /annotations: 200, 0 bytes` |
+| F3 | the save does not re-place | `after 41 saves the untouched icon is check, want linked`; `save 1: the mark was not re-placed on the new render` |
+| F3 | a rebase that loses the LWW race gives up | `the re-placing gave up after losing the race` |
+| F4 | ignore the character map | `freehand-on: point 0 at (0.3722,0.1793), want (0.4246,0.1793)` (13 cells) |
+| F4 | right margin referenced to the line's end | `icon-margin: box x[0.9629,0.9868] …, want x[0.8581,0.8819]` (16 cells) |
+| decision 4 | no clamp | `the scaled stamp spans x [0.9500, 1.0150]: off the page` |
 
 ## 10. Open questions
 

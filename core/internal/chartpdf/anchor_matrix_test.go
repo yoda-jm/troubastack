@@ -551,29 +551,57 @@ func status(o domain.Object, _ *mxWorld) string {
 	return string(o.Link.State)
 }
 
-// typoUnder reports whether a mark covers (horizontally, on its line) a character the typo fix CHANGED:
-// P19 then wants it "check", while it keeps following. The changed characters come from the stage-1
-// character map of the line, so the expectation is the spec's, not the implementation's.
-func typoUnder(m mxMark, old *mxWorld) bool {
-	if m.ref.text != mxT {
+// typoUnder reports whether a mark covers (horizontally, on its line) a character the edit of its line
+// CHANGED, or a place where text was inserted inside it: P19 then wants it "check", while it keeps
+// following. The changes come from the stage-1 character map of the line, so the expectation is the
+// spec's, not the implementation's. A margin mark covers no character.
+func typoUnder(m mxMark, old *mxWorld, fix [2]string) bool {
+	if m.ref.text != mxT || m.keepX {
 		return false
 	}
 	f := old.must(m.ref)
-	cm := BuildCharMap(mxT, strings.Replace(mxT, "lihgt", "light", 1))
+	n := len([]rune(mxT))
+	cm := BuildCharMap(mxT, strings.Replace(mxT, fix[0], fix[1], 1))
 	x0, _, x1, _ := boundsOf(m.placed)
+	c0 := int(math.Floor((x0-f.x0)/f.cw + 1e-9))
+	c1 := int(math.Ceil((x1-f.x0)/f.cw - 1e-9))
 	if len(m.placed) == 1 { // a text label: its first character only
-		x1 = x0
+		c1 = c0 + 1
 	}
-	for c := 0; c < len([]rune(mxT)); c++ {
-		if _, exact := cm.Map(c); exact {
-			continue
-		}
-		cx0, cx1 := f.x0+float64(c)*f.cw, f.x0+float64(c+1)*f.cw
-		if x1 >= cx0 && x0 < cx1 {
+	c0, c1 = clampInt(c0, 0, n), clampInt(c1, 0, n)
+	if c1 <= c0 {
+		return false
+	}
+	m0, _ := cm.Map(c0)
+	for c := c0; c < c1; c++ {
+		if mc, exact := cm.Map(c); !exact || mc-m0 != c-c0 {
 			return true
 		}
 	}
 	return false
+}
+
+// charShift is how far an edit of the mark's OWN line moves the character under its left edge, in the
+// new frame's character widths (P19): the mark follows that character. 0 for a margin mark (its x is
+// fixed, P4) and for a mark that starts left of the text (it follows the line's start).
+func charShift(m mxMark, old *mxWorld, fix [2]string, g mxFrame) float64 {
+	if m.ref.text != mxT || m.keepX {
+		return 0
+	}
+	f := old.must(m.ref)
+	x0, _, _, _ := boundsOf(m.placed)
+	c := int(math.Floor((x0-f.x0)/f.cw + 1e-9))
+	if c < 0 || c >= len([]rune(mxT)) {
+		return 0
+	}
+	nc, _ := BuildCharMap(mxT, strings.Replace(mxT, fix[0], fix[1], 1)).Map(c)
+	return float64(nc-c) * g.cw
+}
+
+// fixT is an event editing the target line T itself: old → new, once; the followed line is renamed.
+func fixT(old, new string) (func(t *testing.T, s string) string, func(id mxIdent) mxIdent) {
+	return func(t *testing.T, s string) string { return mxReplace(t, s, mxT, strings.Replace(mxT, old, new, 1)) },
+		func(id mxIdent) mxIdent { id.text = strings.Replace(id.text, old, new, 1); return id }
 }
 
 // ---- events ----
@@ -592,6 +620,7 @@ type mxEvent struct {
 	state  string                              // the state a "follow" cell wants; "" = linked
 	rewrap bool                                // the edit re-wraps lines: expect char-following (P15)
 	typo   bool                                // P19: "check" when the mark covers a changed character
+	tFix   [2]string                           // the edit of T itself (old, new), for typo and char shift
 }
 
 var tID = mxIdent{mxT, 1, false}
@@ -603,6 +632,24 @@ func insertAbove(t *testing.T, s string) string {
 func mxHeader(h string) func(t *testing.T, s string) string {
 	return func(t *testing.T, s string) string {
 		return mxReplace(t, s, "# The Open Road\n", "# The Open Road\n"+h+"\n")
+	}
+}
+
+// T195 review F4: edits of a mark's OWN line that change its length — the typo cells above keep it, so a
+// projection that ignored the character map passed them all. Before the mark's character (it must move by
+// the inserted / deleted characters), after it (it must not move), and under a margin mark (its x must
+// not follow the line's end, lengthened or shortened).
+func init() {
+	for _, c := range []struct{ name, vari, old, new string }{
+		{"typo_lengthens_before", "on", "Leave the", "Leave all the"},
+		{"typo_shortens_before", "on", "porch lihgt", "lihgt"},
+		{"typo_after", "on", "goes down", "goes downtown"},
+		{"margin_line_lengthened", "margin", "goes down", "goes down tonight"},
+		{"margin_line_shortened", "margin", " when the sun goes down", ""},
+	} {
+		edit, after := fixT(c.old, c.new)
+		mxEvents = append(mxEvents, mxEvent{name: c.name, props: "P19 P4", vari: c.vari, expect: "follow",
+			typo: true, tFix: [2]string{c.old, c.new}, edit: edit, after: after})
 	}
 }
 
@@ -627,10 +674,10 @@ var mxEvents = []mxEvent{
 		edit: func(t *testing.T, s string) string {
 			return mxReplace(t, s, "## Verse 1\n", "## Intro\nG  D  G  D\n\n## Verse 1\n")
 		}},
-	{name: "typo_linked_line", props: "P19", vari: "on", expect: "follow", typo: true,
+	{name: "typo_linked_line", props: "P19", vari: "on", expect: "follow", typo: true, tFix: [2]string{"lihgt", "light"},
 		edit:  func(t *testing.T, s string) string { return mxReplace(t, s, "lihgt", "light") },
 		after: func(id mxIdent) mxIdent { id.text = strings.Replace(id.text, "lihgt", "light", 1); return id }},
-	{name: "typo_then_edit", props: "P19 P8", vari: "on", expect: "follow", typo: true,
+	{name: "typo_then_edit", props: "P19 P8", vari: "on", expect: "follow", typo: true, tFix: [2]string{"lihgt", "light"},
 		edit: func(t *testing.T, s string) string {
 			return insertAbove(t, mxReplace(t, s, "lihgt", "light"))
 		},
@@ -881,12 +928,18 @@ func runCell(t *testing.T, shape string, ev mxEvent, fix string) {
 					t.Fatalf("fixture: followed line %q #%d missing after the edit", newRef.text, newRef.occ)
 				}
 				want, g = expected(m, old, w, m.ref, newRef)
+				if ev.tFix[0] != "" {
+					d := charShift(m, old, ev.tFix, g)
+					for i := range want {
+						want[i].X += d
+					}
+				}
 			}
 			wantSt := "linked"
 			if ev.state != "" {
 				wantSt = ev.state
 			}
-			if ev.typo && typoUnder(m, old) {
+			if ev.typo && typoUnder(m, old, ev.tFix) {
 				wantSt = "check"
 			}
 			if st := status(o, w); st != wantSt {

@@ -98,6 +98,7 @@ func main() {
 		log.Fatalf("troubacore: open app repo: %v", err)
 	}
 	svc := app.NewService(appRepo)
+	svc.WithAnnotationEngine(eng) // T195: a chart save re-places the marks linked to that chart
 	// OPS07: operator commands (reset-password) reach THIS live service over a local unix socket, so
 	// they never write behind its back. Only the lock holder serves it; best-effort, never fatal.
 	if cfg.Storage.AppStore == "file" {

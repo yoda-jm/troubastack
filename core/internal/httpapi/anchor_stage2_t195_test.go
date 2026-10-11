@@ -186,9 +186,11 @@ func TestAnchorStage2Serve(t *testing.T) {
 				t.Run(uuid, func(t *testing.T) {
 					g := got[uuid]
 					if strings.HasPrefix(uuid, "oldstyle-") {
+						// Its coordinates and anchor exactly as stored; its hash is the CURRENT render's (F1: the
+						// stored coordinates are what is drawn on it, and a move echoes this hash back).
 						if g.Page != st.Page || !reflect.DeepEqual(g.Points, st.Points) || !reflect.DeepEqual(g.Anchor, st.Anchor) ||
-							g.Link != nil || g.PointsRenderHash != st.PointsRenderHash {
-							t.Errorf("an old-style mark was not served exactly as stored: %+v, stored %+v", g, st)
+							g.Link != nil || g.PointsRenderHash != saved.BlobHash {
+							t.Errorf("an old-style mark was not served as stored on the current render: %+v, stored %+v", g, st)
 						}
 						return
 					}
@@ -276,7 +278,7 @@ func TestAnchorStage2CreateAndImport(t *testing.T) {
 		oldAnchor := &domain.SourceAnchor{RunText: testutil.FreezeTarget, Occurrence: 1, CharStart: 0, CharEnd: 5}
 		preOld := domain.Object{UUID: "pre-old", LayerID: "L1", Type: domain.TypeRect, Page: tg.Page, Version: 1,
 			OwnerID: f.admin.ID, Points: box, Anchor: oldAnchor, PointsRenderHash: "old-render"}
-		newLink := &domain.MarkLink{State: domain.LinkCheck, Line: "a-line-from-the-folder", LH: 0.02, Render: "old-render"}
+		newLink := &domain.MarkLink{State: domain.LinkCheck, Line: "a-line-from-the-folder", XRef: "start", LH: 0.02, Render: "old-render"}
 		preNew := domain.Object{UUID: "pre-new", LayerID: "L1", Type: domain.TypeRect, Page: tg.Page, Version: 1,
 			OwnerID: f.admin.ID, Points: box, Link: newLink, PointsRenderHash: "old-render"}
 		in.Objects = append(in.Objects, objectToJSON(preOld), objectToJSON(preNew))
@@ -375,5 +377,68 @@ func TestRelinkMark_StaleRenderKeepsTheLink(t *testing.T) {
 	out2 := anc.RelinkMark(f.song, fresh, mark)
 	if out2.Link == nil || out2.Link.Line != cur.Lines.IDs[other.SrcLine] || out2.Link.Render != saved.BlobHash {
 		t.Errorf("a current-view move stored link %+v; want a new link to the line it was dropped on", out2.Link)
+	}
+}
+
+// F2 (T195 review): an imported stage-2 link is client-authored. A forged one — a real line id but a
+// line-height of 5e-324, so the scale k is +Inf — used to put Inf on the wire: JSON encoding failed and
+// GET /annotations returned an empty body for the WHOLE song. Now the import drops every link the server
+// could not have written and re-links the mark by the rule (P31); other forgeries are covered too.
+func TestAnchorStage2_ForgedImportedLinkIsRelinked(t *testing.T) {
+	f := newStage2Fixture(t)
+	tg := f.target
+	r := f.render(t)
+	line := r.Lines.IDs[tg.SrcLine]
+	layer, _ := f.eng.Layer(f.song, "L1")
+	box := []domain.Point{{X: tg.X0, Y: tg.Y0}, {X: tg.X1, Y: tg.Y1}}
+	forged := map[string]*domain.MarkLink{
+		"tiny-lh":     {State: domain.LinkLinked, Line: line, XRef: "start", LH: 5e-324, Render: "some-other-render"},
+		"huge-dy":     {State: domain.LinkLinked, Line: line, XRef: "start", LH: 0.02, DY: 1e300, Render: "some-other-render"},
+		"bad-state":   {State: "pinned", Line: line, XRef: "start", LH: 0.02, Render: "some-other-render"},
+		"no-line":     {State: domain.LinkLinked, XRef: "start", LH: 0.02, Render: "some-other-render"},
+		"char-no-ptr": {State: domain.LinkLinked, Line: line, XRef: "char", LH: 0.02, Render: "some-other-render"},
+	}
+	in := annotationsJSON{Layers: []layerJSON{layerToJSON(layer)}}
+	for id, l := range forged {
+		in.Objects = append(in.Objects, objectToJSON(domain.Object{UUID: id, LayerID: "L1", Type: domain.TypeRect, Page: tg.Page,
+			Version: 1, OwnerID: f.admin.ID, Points: box, Link: l, PointsRenderHash: "some-other-render"}))
+	}
+	in.Objects = append(in.Objects, objectToJSON(domain.Object{UUID: "good", LayerID: "L1", Type: domain.TypeRect, Page: tg.Page,
+		Version: 1, OwnerID: f.admin.ID, Points: box}))
+	body, _ := json.Marshal(in)
+	rec := httptest.NewRecorder()
+	f.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, f.path("/import"), bytes.NewReader(body)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("import: %d %s", rec.Code, rec.Body)
+	}
+	f.save(t, testutil.FreezeEdits["insert_line_above"]) // stale every link, so serve projects
+	rec = httptest.NewRecorder()
+	f.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, f.path(""), nil))
+	var doc annotationsJSON
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &doc) != nil || len(doc.Objects) != len(forged)+1 {
+		t.Fatalf("a forged imported link broke GET /annotations: %d, %d bytes", rec.Code, rec.Body.Len())
+	}
+	for _, oj := range doc.Objects {
+		o := objectFromJSON(oj)
+		if o.Link == nil || o.Link.State != domain.LinkLinked || o.Link.Line != line || !chartpdf.ValidLink(o.Link) {
+			t.Errorf("%s: served link %+v, want a valid server-made link to the target line", o.UUID, o.Link)
+		}
+	}
+}
+
+// F2's backstop: even a link that reaches projection without passing the import (a store written by an
+// older build) cannot put a non-finite number on the wire — the mark is served where it is, as lost.
+func TestProjectSnapshot_NonFiniteLinkIsServedLost(t *testing.T) {
+	f := newStage2Fixture(t)
+	tg := f.target
+	r := f.render(t)
+	o := domain.Object{UUID: "x", LayerID: "L1", Type: domain.TypeRect, Page: tg.Page, Version: 1, OwnerID: f.admin.ID,
+		Points:           []domain.Point{{X: tg.X0, Y: tg.Y0}, {X: tg.X1, Y: tg.Y1}},
+		Link:             &domain.MarkLink{State: domain.LinkLinked, Line: r.Lines.IDs[tg.SrcLine], XRef: "start", LH: 5e-324, Render: "older"},
+		PointsRenderHash: "older"}
+	f.create(t, o)
+	got, body := f.served(t)
+	if len(body) == 0 || got["x"].Link == nil || got["x"].Link.State != domain.LinkLost || !reflect.DeepEqual(got["x"].Points, o.Points) {
+		t.Fatalf("a non-finite projection was served as %+v (body %d bytes); want lost, at its stored points", got["x"], len(body))
 	}
 }

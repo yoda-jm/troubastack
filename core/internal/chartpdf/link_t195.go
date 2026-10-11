@@ -566,10 +566,33 @@ func project(o domain.Object, r ChartRender) projection {
 	for i, p := range o.Points {
 		out.Points[i] = domain.Point{X: nx0 + (p.X-ox0)*k, Y: ny0 + (p.Y-oy0)*k, Pressure: p.Pressure}
 	}
+	if l.XRef == xrefMargin {
+		// Decision 4 (T195 review): a margin stamp scaled up by a larger type size stays on the page — it
+		// keeps its size and slides inward rather than being cut off at the paper's edge.
+		bx0, _, bx1, _ := boundsOf(out.Points)
+		dx := 0.0
+		if bx1 > 1 {
+			dx = 1 - bx1
+		}
+		if bx0+dx < 0 {
+			dx = -bx0
+		}
+		for i := range out.Points {
+			out.Points[i].X += dx
+		}
+	}
 	if o.Type == domain.TypeText {
 		out.Style.FontSize = o.Style.FontSize * k
 	}
 	out.Page = vl.page
+	if !finiteMark(out) {
+		// A link that cannot be followed sanely (a forged or corrupt one: lh near zero, offsets huge)
+		// must never put NaN or Inf on the wire — one such mark would break the whole song's payload.
+		out.Points = append([]domain.Point(nil), o.Points...)
+		out.Style.FontSize = o.Style.FontSize
+		out.Page = o.Page
+		return lost()
+	}
 
 	// P12 / P22: the watched peers must keep their place relative to the reference line.
 	var peers []domain.LinkPeer
@@ -602,6 +625,95 @@ func project(o domain.Object, r ChartRender) projection {
 		rb.Wrap = base.wrap
 	}
 	return projection{obj: out, rebase: rb}
+}
+
+func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
+
+// finiteMark reports whether every coordinate of o (and its font size) is a finite number.
+func finiteMark(o domain.Object) bool {
+	if !finite(o.Style.FontSize) {
+		return false
+	}
+	for _, p := range o.Points {
+		if !finite(p.X) || !finite(p.Y) {
+			return false
+		}
+	}
+	return true
+}
+
+// The bounds a believable link stays within (ValidLink). A line-height is a fraction of the page height:
+// the renderer's smallest type is far above 0.002 and its largest title far below 0.2. An offset of 50
+// line-heights is past any linking reach (3 lh) plus any mark's own size.
+const (
+	linkMinLH     = 0.002
+	linkMaxLH     = 0.2
+	linkMaxOffset = 50.0
+)
+
+// ValidLink reports whether a link that came from OUTSIDE the server (an import, a band folder) is one
+// the server could have written: a known state, a line id unless fixed, finite numbers within sane bands,
+// sane character offsets. Both import paths drop an invalid link and re-link the mark by the rule (P31)
+// instead of keeping it (T195 review F2: a forged lh of 5e-324 made k infinite and broke GET for the song).
+func ValidLink(l *domain.MarkLink) bool {
+	if l == nil {
+		return true
+	}
+	switch l.State {
+	case domain.LinkLinked, domain.LinkCheck, domain.LinkLost:
+		if l.Line == "" {
+			return false
+		}
+	case domain.LinkFixed:
+		return true
+	default:
+		return false
+	}
+	switch l.XRef {
+	case xrefChar, xrefStart, xrefEnd, xrefMargin:
+	default:
+		return false
+	}
+	for _, v := range []float64{l.DX, l.DY, l.LH} {
+		if !finite(v) {
+			return false
+		}
+	}
+	if l.LH < linkMinLH || l.LH > linkMaxLH || math.Abs(l.DX) > linkMaxOffset || math.Abs(l.DY) > linkMaxOffset {
+		return false
+	}
+	if l.Wrap < 0 || l.Cols < 0 || (l.Char != nil && *l.Char < 0) || (l.XRef == xrefChar && l.Char == nil) {
+		return false
+	}
+	if sp := l.Span; sp != nil && (sp.From < 0 || sp.To < sp.From) {
+		return false
+	}
+	for _, p := range l.Peers {
+		if p.Line == "" || p.Wrap < 0 || !finite(p.Rel) || math.Abs(p.Rel) > linkMaxOffset {
+			return false
+		}
+	}
+	return true
+}
+
+// RebaseOnRender is the EAGER half of the projection (T195 review F3): what a chart save stores for one
+// mark. It returns the mark moved onto r with its link re-measured there (Render = r.Hash, the character
+// offsets mapped, the state persisted), and whether that differs from o. A lost mark keeps its stored
+// coordinates and link, with its state set to lost. Re-basing on every save keeps a live link's history
+// one step deep, so it never outlives the bounded LineIdentity history.
+func RebaseOnRender(o domain.Object, r ChartRender) (domain.Object, bool) {
+	p := project(o, r)
+	if p.rebase == nil {
+		if p.obj.Link != nil && o.Link != nil && p.obj.Link.State == domain.LinkLost && o.Link.State != domain.LinkLost {
+			out := o.Clone()
+			out.Link.State = domain.LinkLost
+			return out, true
+		}
+		return o, false
+	}
+	out := p.obj
+	out.Link = p.rebase
+	return out, true
 }
 
 // runForChar finds the run of a line (any visual line) that draws rune offset c; c past the end of the
@@ -675,6 +787,14 @@ func RelinkMoved(moved, stored domain.Object, r *ChartRender) domain.Object {
 	if r != nil && (view == "" || view == r.Hash) {
 		return LinkMark(moved, *r)
 	}
+	// T195 review F1: a mark that does NOT move between renders (no stage-2 link, fixed, or lost) is
+	// served at its stored coordinates, so whatever render the client says it saw, the points it sends are
+	// the page coordinates the user dragged to: re-link them as current. Studio echoes the served object's
+	// pointsRenderHash on a move, which for such a mark used to be its stored (old) one — read as a stale
+	// tab, the move never re-linked.
+	if r != nil && view == stored.PointsRenderHash && !projectable(stored, *r) {
+		return LinkMark(moved, *r)
+	}
 	out := moved
 	out.Anchor = stored.Anchor.Clone()
 	out.Link = stored.Link.Clone()
@@ -689,6 +809,16 @@ func RelinkMoved(moved, stored domain.Object, r *ChartRender) domain.Object {
 		}
 	}
 	return out
+}
+
+// projectable reports whether serve moves stored onto r: it has a live stage-2 link whose line still draws.
+func projectable(stored domain.Object, r ChartRender) bool {
+	l := stored.Link
+	if l == nil || l.State == domain.LinkFixed || l.State == domain.LinkLost {
+		return false
+	}
+	p := project(stored, r)
+	return p.obj.Link == nil || p.obj.Link.State != domain.LinkLost
 }
 
 // RebaseMark is what a SETSTYLE, SETTEXT or REORDER stores (P25, P26): edited is the client's object, of

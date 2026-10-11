@@ -227,6 +227,17 @@ func TestAnchorMatrixSync(t *testing.T) {
 				t.Errorf("with no anchorer a move stored link %+v; it must store none", got.Link)
 			}
 		}},
+		// F1: the same for a FIXED mark echoed with its stored hash, after the chart moved on.
+		{"fixed/move_with_echoed_hash_relinks", "P23", func(t *testing.T, w *syncWorld) {
+			w.stored = chartpdf.LinkMark(domain.Object{UUID: "o1", LayerID: "l1", Type: domain.TypeRect, Version: 3, OwnerID: "u",
+				Points: []domain.Point{{X: 0.3, Y: 0.8}, {X: 0.4, Y: 0.85}}}, w.r)
+			w.stored.PointsRenderHash, w.stored.Link.Render = "an-older-render", "an-older-render"
+			got := w.run(t, "move", objectJSON{Points: toPts(w.box("the third line of words", 0)), PointsRenderHash: "an-older-render"},
+				chartTestAnchorer{w.r}).Object
+			if got.Link == nil || got.Link.State != domain.LinkLinked || got.Link.Line != w.ids["the third line of words"] {
+				t.Errorf("a fixed mark moved onto a line with its echoed hash stored link %+v; want linked to it", got.Link)
+			}
+		}},
 		// Old-style anchors (T145) are kept by a restyle, and superseded by the server's decision on a move.
 		{"oldstyle/setStyle_keeps_old_anchor", "P25", func(t *testing.T, w *syncWorld) {
 			w.stored.Link = nil
@@ -236,10 +247,14 @@ func TestAnchorMatrixSync(t *testing.T) {
 				t.Errorf("a restyle of an old-style mark stored anchor %+v link %+v; want the old anchor untouched", got.Anchor, got.Link)
 			}
 		}},
+		// F1 (T195 review): what the real client sends back is the object it holds, with the hash it holds —
+		// here the old-style mark's own, older render hash (a restyle echo carries the stored one). An
+		// old-style mark does not move between renders, so the move is re-linked anyway.
 		{"oldstyle/move_relinks", "P23", func(t *testing.T, w *syncWorld) {
 			w.stored.Link = nil
 			w.stored.Anchor = &domain.SourceAnchor{RunText: "the first line of words", Occurrence: 1, CharEnd: 5}
-			got := w.run(t, "move", objectJSON{Points: toPts(w.box("the third line of words", 0)), PointsRenderHash: "render-now"},
+			w.stored.PointsRenderHash = "an-older-render"
+			got := w.run(t, "move", objectJSON{Points: toPts(w.box("the third line of words", 0)), PointsRenderHash: "an-older-render"},
 				chartTestAnchorer{w.r}).Object
 			if got.Link == nil || got.Link.Line != w.ids["the third line of words"] || got.Anchor != nil {
 				t.Errorf("a move of an old-style mark stored link %+v anchor %+v; want a new link, no old anchor", got.Link, got.Anchor)
