@@ -30,8 +30,9 @@ var objectNotBaked = map[string]string{
 	"Deleted":          "tombstones are filtered before the doc is built — a deleted mark is not drawn",
 	"OwnerID":          "ownership follows the LAYER; the renderer draws what the layer scoping let through",
 	"Scope":            "layer-level, same as OwnerID",
-	"Anchor":           "consumed BEFORE this point: T145 reprojection rewrites Points, so the doc carries the resolved coordinates and the anchor has done its work",
-	"PointsRenderHash": "same — it says whether Points needed reprojecting, which has already happened",
+	"Anchor":           "the old-style (T145) link: never interpreted since T195, the mark bakes at its stored Points",
+	"PointsRenderHash": "it says whether Points needed projecting, which has already happened (T195 ProjectMarks)",
+	"Link":             "consumed BEFORE this point: the T195 projection rewrites Points; and its state (check / lost) must never reach a bake (P34)",
 }
 
 // Point fields that do not reach the doc. Empty since T178 — a point member the renderer understands and
@@ -63,7 +64,7 @@ func bakedObject(t *testing.T, obj domain.Object) map[string]any {
 		Layers:  []domain.Layer{{ID: "L1"}},
 		Objects: []domain.Object{obj},
 	}
-	doc := snapshotToDoc(snap, "", nil, "")
+	doc := snapshotToDoc(snap, "", nil)
 	if len(doc.Objects) != 1 {
 		t.Fatalf("expected the filled object to be baked, got %d objects", len(doc.Objects))
 	}

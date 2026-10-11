@@ -55,7 +55,7 @@ func TestBakeDoc_StackingSurvivesToTheRenderer_T178(t *testing.T) {
 		},
 	}
 
-	doc := snapshotToDoc(snap, "", nil, "")
+	doc := snapshotToDoc(snap, "", nil)
 	got := replayObjectZ(doc.Objects)
 	want := []string{"zzz-drawn-first", "aaa-drawn-second"}
 	for i := range want {
@@ -88,7 +88,7 @@ func TestBakeDoc_ExplicitOrderStillOutranksDrawingTime_T178(t *testing.T) {
 				Points: []domain.Point{{X: 0.3, Y: 0.3}, {X: 0.7, Y: 0.7}}},
 		},
 	}
-	got := replayObjectZ(snapshotToDoc(snap, "", nil, "").Objects)
+	got := replayObjectZ(snapshotToDoc(snap, "", nil).Objects)
 	if got[len(got)-1] != "b-older-but-brought-front" {
 		t.Fatalf("drew %v; an explicit Order must outrank CreatedAt — otherwise bring-to-front is lost", got)
 	}
@@ -105,7 +105,7 @@ func TestBakeDoc_PressureReachesTheStroke_T178(t *testing.T) {
 			Points: []domain.Point{{X: 0.1, Y: 0.1, Pressure: 0.25}, {X: 0.4, Y: 0.4, Pressure: 0.9}},
 		}},
 	}
-	doc := snapshotToDoc(snap, "", nil, "")
+	doc := snapshotToDoc(snap, "", nil)
 	b, err := json.Marshal(doc.Objects[0])
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +128,7 @@ func TestBakeDoc_PressureReachesTheStroke_T178(t *testing.T) {
 		Layers:  []domain.Layer{{ID: "L1"}},
 		Objects: []domain.Object{{UUID: "o2", LayerID: "L1", Type: domain.TypeFreehand, Points: []domain.Point{{X: 0.1, Y: 0.1}}}},
 	}
-	pb, _ := json.Marshal(snapshotToDoc(plain, "", nil, "").Objects[0])
+	pb, _ := json.Marshal(snapshotToDoc(plain, "", nil).Objects[0])
 	var raw map[string]any
 	_ = json.Unmarshal(pb, &raw)
 	pts := raw["points"].([]any)

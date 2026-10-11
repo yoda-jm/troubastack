@@ -1367,6 +1367,12 @@ func (s *Service) saveChartSource(caller User, bandID, songID, fileID string, ba
 		return SongFile{}, err
 	}
 	old := f.BlobHash
+	// T195: the file record, the source and the line ids change under ONE hold of lineIDMu. Stage 2 reads
+	// all three on every serve (ChartRenderForFile, under the same lock); a reader between the source write
+	// and the id carry would otherwise find ids that do not describe the source, re-derive and STORE fresh
+	// ones, and the carry below would then start from those — every link on the chart would read lost.
+	lineIDMu.Lock()
+	defer lineIDMu.Unlock()
 	oldSource, _ := s.repo.GetChartSource(fileID) // T194: the ids are carried FROM this source
 	f.BlobHash = hash
 	f.Size = int64(len(pdf))
@@ -1385,7 +1391,7 @@ func (s *Service) saveChartSource(caller User, bandID, songID, fileID string, ba
 	// Best-effort on purpose (Fable review): the source and the render are already persisted, so failing the
 	// request here would tell the editor "not saved" about a save that happened — its retry then 409s. A
 	// failed id write is caught on the next read (SourceHash mismatch → RederiveMismatch).
-	_ = s.carryLineIdentity(fileID, oldSource, source, old, hash, linesByIndex)
+	_ = s.carryLineIdentityLocked(fileID, oldSource, source, old, hash, linesByIndex)
 	if old != hash {
 		s.derefBlob(old) // release the previous render if nothing else points at it
 	}

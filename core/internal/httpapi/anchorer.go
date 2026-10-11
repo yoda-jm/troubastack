@@ -1,90 +1,139 @@
 package httpapi
 
 import (
-	"sync"
-
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/chartpdf"
 	"troubastack/core/internal/domain"
 	"troubastack/core/internal/engine"
 )
 
-// chartAnchorer implements sync.ChartAnchorer: at realtime create time it anchors a mark to the words it
-// lands on (T145 forward fix), so a later chart size/render change re-projects the mark onto its line
-// instead of orphaning it. It is the ONE place the sync hub reaches back into the service + renderer,
+// chartAnchorer implements sync.ChartAnchorer: anchoring stage 2 (T195) on the realtime path. The SERVER
+// decides every mark's link to its chart line — at create (AnchorMark), at move/resize/restore
+// (RelinkMark), and it keeps the stored link on a restyle (RebaseMark) — and it serves the join snapshot
+// projected (ServeSnapshot). It is the ONE place the sync hub reaches back into the service + renderer,
 // kept behind sync's narrow ChartAnchorer seam so the hub itself stays free of those dependencies.
 //
-// It is best-effort and panic-safe: any failure (an uploaded/sourceless file, a render error, an unknown
-// layer) leaves the mark exactly as drawn — no anchor — which is the pre-T145 behavior. It must NEVER
-// crash the apply goroutine, so a recover() backstops the whole call.
+// It is best-effort and panic-safe: any failure (an uploaded/sourceless file, a render that does not
+// reproduce the stored PDF, an unknown layer) falls back to the conservative answer for that call — no
+// link at create, the stored link elsewhere. It must NEVER crash the apply goroutine, so a recover()
+// backstops every call.
 type chartAnchorer struct {
 	svc *app.Service
 	eng *engine.Engine
-
-	mu    sync.Mutex
-	cache map[string]anchorEntry // fileID -> last render, re-rendered when the file's BlobHash changes
-}
-
-// anchorEntry caches one generated file's anchoring outcome, tagged with the BlobHash it came from so a
-// source edit (new BlobHash) invalidates it. ok records a resolved-but-divergent render (a fresh render
-// that does not reproduce the stored blob) so those are not re-rendered on every stroke either.
-type anchorEntry struct {
-	hash    string
-	anchors []chartpdf.Anchor
-	ok      bool
 }
 
 func newChartAnchorer(svc *app.Service, eng *engine.Engine) *chartAnchorer {
-	return &chartAnchorer{svc: svc, eng: eng, cache: map[string]anchorEntry{}}
+	return &chartAnchorer{svc: svc, eng: eng}
 }
 
-// AnchorMark attaches a source anchor to a freshly-created mark on a generated chart, returning the object
-// unchanged on any failure. It only anchors marks that don't already carry an anchor, and only on
-// generated (source-backed) files.
+// renderFor resolves the current render of the generated chart a layer annotates. nil for a layer on an
+// uploaded file, an unknown layer, or a chart whose render diverged from its stored PDF (P32).
+func (c *chartAnchorer) renderFor(songID, layerID string) *chartpdf.ChartRender {
+	if layerID == "" {
+		return nil
+	}
+	layer, ok := c.eng.Layer(songID, layerID)
+	if !ok || layer.FileID == "" {
+		return nil
+	}
+	return chartRenderOf(c.svc, layer.FileID)
+}
+
+// chartRenderOf is the shared lookup (realtime and REST): the file's current render, or nil.
+func chartRenderOf(svc *app.Service, fileID string) *chartpdf.ChartRender {
+	if fileID == "" {
+		return nil
+	}
+	r, err := svc.ChartRenderForFile(fileID)
+	if err != nil {
+		return nil
+	}
+	return &r
+}
+
+// AnchorMark links a freshly created mark on a generated chart (P2–P5). Unchanged (unlinked) on an uploaded
+// file or on any failure.
 func (c *chartAnchorer) AnchorMark(songID string, o domain.Object) (out domain.Object) {
 	out = o
 	defer func() {
 		if recover() != nil {
-			out = o // best-effort: a bug degrades to no-anchor, never a crashed apply
+			out = o
 		}
 	}()
-	// T193 (anchoring stage 0): frozen, a new mark is stored exactly as drawn — no Anchor, no
-	// PointsRenderHash — and no chart is rendered per stroke. chartpdf.AnchorNewMark enforces it too.
-	if chartpdf.AnchoringFrozen() || o.Anchor != nil || o.LayerID == "" {
-		return o
+	if r := c.renderFor(songID, o.LayerID); r != nil {
+		return chartpdf.LinkMark(o, *r)
 	}
-	layer, ok := c.eng.Layer(songID, o.LayerID)
-	if !ok || layer.FileID == "" {
-		return o
-	}
-	anchors, hash, ok := c.anchorsFor(layer.FileID)
-	if !ok {
-		return o
-	}
-	return chartpdf.AnchorNewMark(o, anchors, hash)
+	return o
 }
 
-// anchorsFor resolves the current (anchor manifest, render hash) for a generated file, rendering once per
-// (fileID, BlobHash) and caching the outcome across creates. ok=false for an uploaded/unknown/unrenderable
-// file (no source to anchor against) OR a fresh render that does not reproduce the stored blob byte-for-
-// byte (app.ChartAnchorsIfCurrent) — in that case the mark, drawn on the STORED blob's pixels, must not be
-// anchored against a divergent geometry. Safe for concurrent creates on different songs (the cache is
-// mutex-guarded); the render runs outside the lock so a slow render never serializes other files.
-func (c *chartAnchorer) anchorsFor(fileID string) ([]chartpdf.Anchor, string, bool) {
-	sf, src, err := c.svc.ChartSourceForFile(fileID)
-	if err != nil {
-		return nil, "", false
+// RelinkMark is a move, resize or restore: chartpdf.RelinkMoved against the chart of the STORED object's
+// layer (a move need not carry a trustworthy layerId). Any failure stores the client's geometry with the
+// stored link, never the client's.
+func (c *chartAnchorer) RelinkMark(songID string, moved, stored domain.Object) (out domain.Object) {
+	fallback := moved
+	fallback.Link, fallback.Anchor, fallback.PointsRenderHash = stored.Link.Clone(), stored.Anchor.Clone(), stored.PointsRenderHash
+	out = fallback
+	defer func() {
+		if recover() != nil {
+			out = fallback
+		}
+	}()
+	layer := stored.LayerID
+	if layer == "" {
+		layer = moved.LayerID
 	}
-	c.mu.Lock()
-	if e, seen := c.cache[fileID]; seen && e.hash == sf.BlobHash {
-		c.mu.Unlock()
-		return e.anchors, e.hash, e.ok
-	}
-	c.mu.Unlock()
+	return chartpdf.RelinkMoved(moved, stored, c.renderFor(songID, layer))
+}
 
-	anchors, ok := app.ChartAnchorsIfCurrent(src, sf.BlobHash)
-	c.mu.Lock()
-	c.cache[fileID] = anchorEntry{hash: sf.BlobHash, anchors: anchors, ok: ok}
-	c.mu.Unlock()
-	return anchors, sf.BlobHash, ok
+// RebaseMark is a setStyle, setText or reorder: chartpdf.RebaseMark (the stored link; the mark does not
+// move). Any failure keeps the stored link and geometry.
+func (c *chartAnchorer) RebaseMark(songID string, edited, stored domain.Object) (out domain.Object) {
+	defer func() {
+		if recover() != nil {
+			out = chartpdf.RebaseMark(edited, stored, nil)
+		}
+	}()
+	return chartpdf.RebaseMark(edited, stored, c.renderFor(songID, stored.LayerID))
+}
+
+// ServeSnapshot is the join snapshot, served like GET /annotations (projectSnapshot).
+func (c *chartAnchorer) ServeSnapshot(songID string, snap domain.Snapshot) (out domain.Snapshot) {
+	out = snap
+	defer func() {
+		if recover() != nil {
+			out = snap
+		}
+	}()
+	return projectSnapshot(snap, func(fileID string) *chartpdf.ChartRender { return chartRenderOf(c.svc, fileID) })
+}
+
+// projectSnapshot projects every linked mark of a snapshot onto the current render of its layer's chart
+// (chartpdf.ProjectMarks, T195) — the ONE serve-side projection, used by the REST read and the realtime join
+// snapshot; the bake calls the same chartpdf function (P33). Each chart is resolved once. Marks with no
+// stage-2 link (an uploaded file, an old-style anchor, never linked) and marks on a chart with no current
+// render (P32) are served exactly as stored. Read-only.
+func projectSnapshot(snap domain.Snapshot, renderOf func(fileID string) *chartpdf.ChartRender) domain.Snapshot {
+	fileByLayer := make(map[string]string, len(snap.Layers))
+	for _, l := range snap.Layers {
+		fileByLayer[l.ID] = l.FileID
+	}
+	renders := map[string]*chartpdf.ChartRender{}
+	objs := make([]domain.Object, len(snap.Objects))
+	for i, o := range snap.Objects {
+		objs[i] = o
+		if o.Link == nil {
+			continue
+		}
+		fid := fileByLayer[o.LayerID]
+		r, seen := renders[fid]
+		if !seen {
+			r = renderOf(fid)
+			renders[fid] = r
+		}
+		if r != nil {
+			objs[i] = chartpdf.ProjectMark(o, *r)
+		}
+	}
+	snap.Objects = objs
+	return snap
 }

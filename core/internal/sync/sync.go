@@ -45,13 +45,26 @@ type Engine interface {
 	ObjectLayer(songID, uuid string) (layer domain.Layer, layerFound, objExists bool)
 }
 
-// ChartAnchorer attaches a T145 source anchor to a mark at create time. The hub calls it just before
-// applying a create so a mark drawn now records WHAT WORDS it is on, and survives a later size/render
-// change. It is a NARROW seam: the hub deliberately holds no app.Service or chartpdf dependency, so the
-// implementation (an adapter in httpapi over the service + renderer) resolves the layer's chart source and
-// does the anchoring. It must be best-effort — return the object unchanged on any failure, never panic.
+// ChartAnchorer is the hub's seam to anchoring stage 2 (T195): the SERVER decides every mark's link to its
+// chart line, and the hub never trusts a client-sent one (P26). It is a NARROW seam: the hub deliberately
+// holds no app.Service or chartpdf dependency, so the implementation (an adapter in httpapi over the
+// service + renderer) resolves the layer's chart and does the work. Every method must be best-effort —
+// return a sensible object on any failure, never panic.
 type ChartAnchorer interface {
+	// AnchorMark links a mark being CREATED from where it is drawn (P2–P5). The hub has already dropped
+	// any link, anchor and render hash the client sent.
 	AnchorMark(songID string, o domain.Object) domain.Object
+	// RelinkMark is a MOVE, RESIZE or RESTORE (P23, P24, P27): moved is the client's object (its new
+	// points; its PointsRenderHash is the render the client was looking at), stored is HEAD's copy. It
+	// returns what to store: re-linked from the new position, or, against a stale view, the stored link
+	// shifted by the move.
+	RelinkMark(songID string, moved, stored domain.Object) domain.Object
+	// RebaseMark is a SETSTYLE, SETTEXT or REORDER (P25, P26): only the client's non-geometric fields are
+	// taken; the stored link is kept and the mark does not move.
+	RebaseMark(songID string, edited, stored domain.Object) domain.Object
+	// ServeSnapshot projects every linked mark of a snapshot onto its chart's current render, exactly as
+	// the REST read does, for the join snapshot (P33).
+	ServeSnapshot(songID string, snap domain.Snapshot) domain.Snapshot
 }
 
 // Hub fans realtime annotation traffic across clients and drives ONE apply engine
@@ -77,8 +90,8 @@ type Hub struct {
 	// nil in tests/deployments without an autobaker. Must be cheap + non-blocking.
 	onCommit func(songID string)
 
-	// anchorer, if set, attaches a T145 source anchor to a mark at create time (via SetAnchorer, at wiring
-	// time). nil in tests / deployments without it → creates apply exactly as before.
+	// anchorer, if set, decides marks' chart links (T195; via SetAnchorer, at wiring time). nil in tests /
+	// deployments without it: a create or move stores no link, and a restyle keeps the stored one.
 	anchorer ChartAnchorer
 
 	mu         sync.Mutex

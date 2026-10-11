@@ -11,15 +11,13 @@ package chartpdf
 //	ANCHOR_RED=1 go test ./internal/chartpdf/ -run AnchorMatrix -v     (the full picture)
 //	go test ./internal/chartpdf/                                        (CI: known-red cells skip)
 //
-// The harness drives the PRODUCTION functions at three seams, each named SEAM below:
-//   - create  → AnchorNewMark (what sync/apply.go KindCreate, via httpapi.chartAnchorer, and the import
-//     path call; T193: a no-op while chartpdf.anchoringFrozen);
-//   - move / resize / restyle → mirrors sync/apply.go's default branch TODAY: the client's points are
-//     taken, the client's anchor and render hash ride along unchanged (no re-anchor). When T191 lands, this
-//     seam must call the new re-anchor function; the sync-level cells (anchor_matrix_sync_test.go) observe
-//     the real apply path;
-//   - a source edit or re-layout → a fresh RenderWithAnchors + ServedObjects (what serve and bake call;
-//     T193: stored coordinates, unprojected, while frozen).
+// The harness drives the PRODUCTION functions at three seams, each named SEAM below (T195, stage 2):
+//   - create  → LinkMark (what sync/apply.go KindCreate, via httpapi.chartAnchorer, and both import paths
+//     call);
+//   - move / resize → RelinkMoved, restyle → RebaseMark (what the hub's chartAnchorer calls for those
+//     kinds); the sync-level cells (anchor_matrix_sync_test.go) observe the real apply path;
+//   - a source edit or re-layout → the stage-1 line-id carry (CarryLineIdentity, what SaveChartSource
+//     does), a fresh RenderWithAnchors, then ProjectMarks (what serve and bake call).
 //
 // Fixture text is synthetic (no real song). The target line deliberately carries a typo ("lihgt") so the
 // typo cells can fix it.
@@ -28,6 +26,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"testing"
 
@@ -97,9 +96,14 @@ type mxIdent struct {
 }
 
 func (w *mxWorld) frame(id mxIdent) (mxFrame, bool) {
+	a, ok := w.run(id)
+	return mxFrameOf(a), ok
+}
+
+// run is the manifest run a fixture identity names (its first visual segment for a prefix identity).
+func (w *mxWorld) run(id mxIdent) (Anchor, bool) {
 	if !id.prefix {
-		a, ok := runAt(w.anchors, id.text, id.occ)
-		return mxFrameOf(a), ok
+		return runAt(w.anchors, id.text, id.occ)
 	}
 	seen := 0
 	for _, i := range sourceOrder(w.anchors) {
@@ -107,11 +111,48 @@ func (w *mxWorld) frame(id mxIdent) (mxFrame, bool) {
 		if strings.HasPrefix(id.text, a.Text) && strings.HasPrefix(a.Text, "Leave the porch") {
 			seen++
 			if seen == id.occ {
-				return mxFrameOf(a), true
+				return a, true
 			}
 		}
 	}
-	return mxFrame{}, false
+	return Anchor{}, false
+}
+
+// lineID is the stable id of the source line a fixture identity names.
+func (w *mxWorld) lineID(id mxIdent) string {
+	w.t.Helper()
+	a, ok := w.run(id)
+	if !ok || a.SrcLine < 0 || a.SrcLine >= len(w.li.IDs) {
+		w.t.Fatalf("fixture: line %q #%d has no id", id.text, id.occ)
+	}
+	return w.li.IDs[a.SrcLine]
+}
+
+// sourceOrder returns the anchors' indices in SOURCE (draw) order; the manifest itself is sorted for
+// presentation, which interleaves two columns. A TEST helper since T195: the fixture still names lines by
+// text + occurrence, the production link no longer does.
+func sourceOrder(anchors []Anchor) []int {
+	idx := make([]int, len(anchors))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.SliceStable(idx, func(i, j int) bool { return anchors[idx[i]].Seq < anchors[idx[j]].Seq })
+	return idx
+}
+
+// runAt is the occurrence-th run (1-based, source order) whose text is exactly text.
+func runAt(anchors []Anchor, text string, occurrence int) (Anchor, bool) {
+	seen := 0
+	for _, i := range sourceOrder(anchors) {
+		if anchors[i].Text != text {
+			continue
+		}
+		seen++
+		if seen == occurrence {
+			return anchors[i], true
+		}
+	}
+	return Anchor{}, false
 }
 
 // ---- the world: one chart's current source + render ----
@@ -121,15 +162,20 @@ type mxWorld struct {
 	src     string
 	anchors []Anchor
 	hash    string
+	li      LineIdentity // the chart's stable line ids (stage 1), carried across every edit
+	nextID  int
 }
 
 func newMxWorld(t *testing.T, src string) *mxWorld {
 	w := &mxWorld{t: t}
-	w.setSrc(src)
+	w.render(src)
+	w.li = NewLineIdentity(src, w.newID)
 	return w
 }
 
-func (w *mxWorld) setSrc(src string) {
+func (w *mxWorld) newID() string { w.nextID++; return fmt.Sprintf("id%03d", w.nextID) }
+
+func (w *mxWorld) render(src string) {
 	w.t.Helper()
 	_, a, err := RenderWithAnchors(src)
 	if err != nil {
@@ -137,6 +183,20 @@ func (w *mxWorld) setSrc(src string) {
 	}
 	w.src, w.anchors = src, a
 	w.hash = fmt.Sprintf("%x", sha256.Sum256([]byte(src)))
+}
+
+// setSrc is a chart SAVE: the line ids are carried by the line diff (what SaveChartSource does), and the
+// chart is re-rendered.
+func (w *mxWorld) setSrc(src string) {
+	w.t.Helper()
+	oldSrc, oldHash := w.src, w.hash
+	w.render(src)
+	w.li = CarryLineIdentity(w.li, oldSrc, src, w.newID, CarryOptions{FromRender: oldHash, ToRender: w.hash})
+}
+
+// chart is the world's current ChartRender (what app.Service.ChartRenderForFile returns).
+func (w *mxWorld) chart() ChartRender {
+	return ChartRender{Source: w.src, Lines: w.li, Anchors: w.anchors, Hash: w.hash}
 }
 
 func (w *mxWorld) must(id mxIdent) mxFrame {
@@ -381,6 +441,55 @@ func expected(m mxMark, old, cur *mxWorld, oldRef, newRef mxIdent) ([]domain.Poi
 	return out, g
 }
 
+// expectedByChar is expected for an edit that RE-WRAPS lines (P15): the mark keeps its offset from the
+// character under its left edge (clamped to the line), and that character is wherever the new render draws
+// it — found through the runs' source location (SrcLine/SrcChar, stage 1), never through the link. The
+// returned frame is that run's, re-based so that its x0 is the line's virtual start.
+func expectedByChar(t *testing.T, m mxMark, old, cur *mxWorld) ([]domain.Point, mxFrame) {
+	t.Helper()
+	fa, ok := old.run(m.ref)
+	if !ok {
+		t.Fatalf("fixture: line %q not in the old render", m.ref.text)
+	}
+	f := mxFrameOf(fa)
+	text := chartLines(old.src)[fa.SrcLine]
+	newLine := -1
+	for i, l := range chartLines(cur.src) {
+		if l == text {
+			newLine = i
+		}
+	}
+	if newLine < 0 {
+		t.Fatalf("fixture: line %q not in the new source", text)
+	}
+	x0, _, _, _ := boundsOf(m.placed)
+	c := int(math.Floor((x0-fa.X0)/f.cw + 1e-9))
+	n := len([]rune(text))
+	if c < 0 {
+		c = 0
+	}
+	if c >= n {
+		c = n - 1
+	}
+	var hit Anchor
+	found := false
+	for _, a := range cur.anchors {
+		if a.SrcLine == newLine && c >= a.SrcChar && c < a.SrcChar+len([]rune(a.Text)) {
+			hit, found = a, true
+		}
+	}
+	if !found {
+		t.Fatalf("fixture: character %d of %q not drawn in the new render", c, text)
+	}
+	g := mxFrameOf(hit)
+	g.x0 -= float64(hit.SrcChar) * g.cw
+	out := make([]domain.Point, len(m.placed))
+	for i, p := range m.placed {
+		out[i] = mapPt(p, f, g, m.keepX)
+	}
+	return out, g
+}
+
 type mxTol struct{ x, y float64 }
 
 func lineTol(g mxFrame) mxTol { return mxTol{x: g.cw, y: 0.25 * g.h} }
@@ -433,16 +542,38 @@ func checkGeom(t *testing.T, shape string, got domain.Object, want []domain.Poin
 	}
 }
 
-// status is what T192 would show, computed from today's data: fixed (no link), linked (a link resolved on
-// the current render), lost (a link whose text is gone: its cache stays stale).
-func status(o domain.Object, w *mxWorld) string {
-	switch {
-	case o.Anchor == nil:
+// status is the mark's stage-2 state as served (T195): linked / check / lost, or fixed for a mark with no
+// link at all.
+func status(o domain.Object, _ *mxWorld) string {
+	if o.Link == nil {
 		return "fixed"
-	case o.PointsRenderHash == w.hash:
-		return "linked"
 	}
-	return "lost"
+	return string(o.Link.State)
+}
+
+// typoUnder reports whether a mark covers (horizontally, on its line) a character the typo fix CHANGED:
+// P19 then wants it "check", while it keeps following. The changed characters come from the stage-1
+// character map of the line, so the expectation is the spec's, not the implementation's.
+func typoUnder(m mxMark, old *mxWorld) bool {
+	if m.ref.text != mxT {
+		return false
+	}
+	f := old.must(m.ref)
+	cm := BuildCharMap(mxT, strings.Replace(mxT, "lihgt", "light", 1))
+	x0, _, x1, _ := boundsOf(m.placed)
+	if len(m.placed) == 1 { // a text label: its first character only
+		x1 = x0
+	}
+	for c := 0; c < len([]rune(mxT)); c++ {
+		if _, exact := cm.Map(c); exact {
+			continue
+		}
+		cx0, cx1 := f.x0+float64(c)*f.cw, f.x0+float64(c+1)*f.cw
+		if x1 >= cx0 && x0 < cx1 {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- events ----
@@ -458,6 +589,9 @@ type mxEvent struct {
 	after  func(id mxIdent) mxIdent            // how the followed line is named afterwards
 	expect string                              // linked | fixed | follow | exact | lost | transpose
 	multi  bool                                // only for shapes with a multi-line form
+	state  string                              // the state a "follow" cell wants; "" = linked
+	rewrap bool                                // the edit re-wraps lines: expect char-following (P15)
+	typo   bool                                // P19: "check" when the mark covers a changed character
 }
 
 var tID = mxIdent{mxT, 1, false}
@@ -493,10 +627,10 @@ var mxEvents = []mxEvent{
 		edit: func(t *testing.T, s string) string {
 			return mxReplace(t, s, "## Verse 1\n", "## Intro\nG  D  G  D\n\n## Verse 1\n")
 		}},
-	{name: "typo_linked_line", props: "P19", vari: "on", expect: "follow",
+	{name: "typo_linked_line", props: "P19", vari: "on", expect: "follow", typo: true,
 		edit:  func(t *testing.T, s string) string { return mxReplace(t, s, "lihgt", "light") },
 		after: func(id mxIdent) mxIdent { id.text = strings.Replace(id.text, "lihgt", "light", 1); return id }},
-	{name: "typo_then_edit", props: "P19 P8", vari: "on", expect: "follow",
+	{name: "typo_then_edit", props: "P19 P8", vari: "on", expect: "follow", typo: true,
 		edit: func(t *testing.T, s string) string {
 			return insertAbove(t, mxReplace(t, s, "lihgt", "light"))
 		},
@@ -509,16 +643,18 @@ var mxEvents = []mxEvent{
 		},
 		after: func(id mxIdent) mxIdent { id.occ++; return id }},
 	{name: "multiline_reflow", props: "P6 P7 P8", vari: "multi", edit: insertAbove, expect: "follow", multi: true},
-	{name: "multiline_insert_inside", props: "P12", vari: "multi", expect: "follow", multi: true,
+	// P12 (DECISION): the lines inside a multi-line mark move apart, so it follows its top line, never
+	// stretches, and is flagged "check".
+	{name: "multiline_insert_inside", props: "P12", vari: "multi", expect: "follow", multi: true, state: "check",
 		edit: func(t *testing.T, s string) string {
 			return mxReplace(t, s, mxT+"\n", mxT+"\nAnd the dog asleep beside the door\n")
 		}},
 	{name: "size_change", props: "P9", vari: "on", edit: mxHeader("size: 16"), expect: "follow"},
 	{name: "fit_change", props: "P9", vari: "on", edit: mxHeader("fit: page"), expect: "follow"},
-	{name: "columns_change", props: "P16 P15", vari: "on", edit: mxHeader("columns: 2"), expect: "follow",
+	{name: "columns_change", props: "P16 P15", vari: "on", edit: mxHeader("columns: 2"), expect: "follow", rewrap: true,
 		// two columns narrow the measure, so T wraps: follow its first visual segment
 		after: func(id mxIdent) mxIdent { id.prefix = true; return id }},
-	{name: "size_change_wrapped_line", props: "P15", vari: "on", edit: mxHeader("size: 16"), expect: "follow",
+	{name: "size_change_wrapped_line", props: "P15", vari: "on", edit: mxHeader("size: 16"), expect: "follow", rewrap: true,
 		base:   func(t *testing.T) string { return mxSrc("", mxBody(mxTLong)) },
 		target: mxIdent{mxTLong, 1, false},
 		after:  func(id mxIdent) mxIdent { return mxIdent{mxTLong, 1, true} }},
@@ -556,229 +692,15 @@ func mxVariants(shape string, ev mxEvent) []string {
 	return v
 }
 
-// knownRed: the cells that fail on today's code (baseline 2026-10-11, see red-first-baseline.md), keyed
-// shape/event/variant, as {properties, the work expected to fix it}. Delete a line when its fix lands; the cell then runs in CI.
-// Fix labels: T191 (re-link on move/resize), T191-D3 (record the full extent + span), shape-rules (line
-// direction, fixed-size stamps and text), line-identity (follow a source LINE through edits, duplicates
-// and re-wrapping, not a text+occurrence), margin-link (margin marks follow the line they are level with:
-// a DECISION for VLL), T193-freeze (green before the stage-0 freeze, red while it is on).
+// knownRed: the cells known to fail, keyed shape/event/variant, as {properties, the work expected to fix
+// it}; such a cell skips unless ANCHOR_RED=1. Delete a line when its fix lands; the cell then runs in CI.
 //
-// T193 also flipped every edit_unrelated_line cell GREEN (P13: an edit elsewhere must leave the mark
-// exactly where it was; frozen, nothing moves), so their lines were deleted: they run in CI, and stage 2
-// must keep them green.
-var knownRed = map[string][2]string{
-	"freehand/create_margin/base":              {"P4", "margin-link"},
-	"freehand/move_then_edit/base":             {"P23 P8", "T191"},
-	"freehand/resize_then_edit/base":           {"P24 P8", "T191"},
-	"freehand/restyle_then_edit/base":          {"P25 P8", "T191-D3"},
-	"freehand/insert_line_above/base":          {"P8", "T191-D3"},
-	"freehand/delete_line_above/base":          {"P8", "T191-D3"},
-	"freehand/section_added_above/base":        {"P8", "T191-D3"},
-	"freehand/typo_linked_line/base":           {"P19", "line-identity"},
-	"freehand/typo_then_edit/base":             {"P19 P8", "line-identity"},
-	"freehand/duplicate_inserted_before/base":  {"P14", "line-identity"},
-	"freehand/size_change/base":                {"P9", "T191-D3"},
-	"freehand/fit_change/base":                 {"P9", "T191-D3"},
-	"freehand/columns_change/base":             {"P16 P15", "line-identity"},
-	"freehand/size_change_wrapped_line/base":   {"P15", "line-identity"},
-	"freehand/page_count_shrink/base":          {"P17 P29", "T191-D3"},
-	"freehand/margin_then_edit/base":           {"P4 P8", "margin-link"},
-	"line/create_margin/base":                  {"P4 P10", "margin-link"},
-	"line/move_then_edit/base":                 {"P23 P8 P10", "T191"},
-	"line/resize_then_edit/base":               {"P24 P8 P10", "T191"},
-	"line/restyle_then_edit/base":              {"P25 P8 P10", "shape-rules"},
-	"line/insert_line_above/base":              {"P8 P10", "shape-rules"},
-	"line/delete_line_above/base":              {"P8 P10", "shape-rules"},
-	"line/section_added_above/base":            {"P8 P10", "shape-rules"},
-	"line/typo_linked_line/base":               {"P19 P10", "line-identity"},
-	"line/typo_then_edit/base":                 {"P19 P8 P10", "line-identity"},
-	"line/duplicate_inserted_before/base":      {"P14 P10", "line-identity"},
-	"line/multiline_reflow/base":               {"P6 P7 P8 P10", "shape-rules"},
-	"line/multiline_insert_inside/base":        {"P12 P10", "shape-rules"},
-	"line/size_change/base":                    {"P9 P10", "shape-rules"},
-	"line/fit_change/base":                     {"P9 P10", "shape-rules"},
-	"line/columns_change/base":                 {"P16 P15 P10", "line-identity"},
-	"line/size_change_wrapped_line/base":       {"P15 P10", "line-identity"},
-	"line/page_count_shrink/base":              {"P17 P29 P10", "shape-rules"},
-	"line/beside_then_edit/base":               {"P3 P8 P10", "shape-rules"},
-	"line/margin_then_edit/base":               {"P4 P8 P10", "margin-link"},
-	"rect/create_margin/base":                  {"P4", "margin-link"},
-	"rect/move_then_edit/base":                 {"P23 P8", "T191"},
-	"rect/resize_then_edit/base":               {"P24 P8", "T191"},
-	"rect/restyle_then_edit/base":              {"P25 P8", "T191-D3"},
-	"rect/insert_line_above/base":              {"P8", "T191-D3"},
-	"rect/delete_line_above/base":              {"P8", "T191-D3"},
-	"rect/section_added_above/base":            {"P8", "T191-D3"},
-	"rect/typo_linked_line/base":               {"P19", "line-identity"},
-	"rect/typo_then_edit/base":                 {"P19 P8", "line-identity"},
-	"rect/duplicate_inserted_before/base":      {"P14", "line-identity"},
-	"rect/size_change/base":                    {"P9", "T191-D3"},
-	"rect/fit_change/base":                     {"P9", "T191-D3"},
-	"rect/columns_change/base":                 {"P16 P15", "line-identity"},
-	"rect/size_change_wrapped_line/base":       {"P15", "line-identity"},
-	"rect/page_count_shrink/base":              {"P17 P29", "T191-D3"},
-	"rect/margin_then_edit/base":               {"P4 P8", "margin-link"},
-	"ellipse/create_margin/base":               {"P4", "margin-link"},
-	"ellipse/move_then_edit/base":              {"P23 P8", "T191"},
-	"ellipse/resize_then_edit/base":            {"P24 P8", "T191"},
-	"ellipse/restyle_then_edit/base":           {"P25 P8", "T191-D3"},
-	"ellipse/insert_line_above/base":           {"P8", "T191-D3"},
-	"ellipse/delete_line_above/base":           {"P8", "T191-D3"},
-	"ellipse/section_added_above/base":         {"P8", "T191-D3"},
-	"ellipse/typo_linked_line/base":            {"P19", "line-identity"},
-	"ellipse/typo_then_edit/base":              {"P19 P8", "line-identity"},
-	"ellipse/duplicate_inserted_before/base":   {"P14", "line-identity"},
-	"ellipse/size_change/base":                 {"P9", "T191-D3"},
-	"ellipse/fit_change/base":                  {"P9", "T191-D3"},
-	"ellipse/columns_change/base":              {"P16 P15", "line-identity"},
-	"ellipse/size_change_wrapped_line/base":    {"P15", "line-identity"},
-	"ellipse/page_count_shrink/base":           {"P17 P29", "T191-D3"},
-	"ellipse/margin_then_edit/base":            {"P4 P8", "margin-link"},
-	"text/create_margin/base":                  {"P4 P11", "margin-link"},
-	"text/move_then_edit/base":                 {"P23 P8 P11", "T191"},
-	"text/typo_linked_line/base":               {"P19 P11", "line-identity"},
-	"text/typo_then_edit/base":                 {"P19 P8 P11", "line-identity"},
-	"text/duplicate_inserted_before/base":      {"P14 P11", "line-identity"},
-	"text/columns_change/base":                 {"P16 P15 P11", "line-identity"},
-	"text/size_change_wrapped_line/base":       {"P15 P11", "line-identity"},
-	"text/margin_then_edit/base":               {"P4 P8 P11", "margin-link"},
-	"highlight/create_margin/base":             {"P4", "margin-link"},
-	"highlight/move_then_edit/base":            {"P23 P8", "T191"},
-	"highlight/resize_then_edit/base":          {"P24 P8", "T191"},
-	"highlight/typo_linked_line/base":          {"P19", "line-identity"},
-	"highlight/typo_then_edit/base":            {"P19 P8", "line-identity"},
-	"highlight/duplicate_inserted_before/base": {"P14", "line-identity"},
-	"highlight/columns_change/base":            {"P16 P15", "line-identity"},
-	"highlight/size_change_wrapped_line/base":  {"P15", "line-identity"},
-	"highlight/margin_then_edit/base":          {"P4 P8", "margin-link"},
-	"icon/create_margin/base":                  {"P4 P11", "margin-link"},
-	"icon/move_then_edit/base":                 {"P23 P8 P11", "T191"},
-	"icon/resize_then_edit/base":               {"P24 P8 P11", "T191"},
-	"icon/restyle_then_edit/base":              {"P25 P8 P11", "shape-rules"},
-	"icon/insert_line_above/base":              {"P8 P11", "shape-rules"},
-	"icon/delete_line_above/base":              {"P8 P11", "shape-rules"},
-	"icon/section_added_above/base":            {"P8 P11", "shape-rules"},
-	"icon/typo_linked_line/base":               {"P19 P11", "line-identity"},
-	"icon/typo_then_edit/base":                 {"P19 P8 P11", "line-identity"},
-	"icon/duplicate_inserted_before/base":      {"P14 P11", "line-identity"},
-	"icon/size_change/base":                    {"P9 P11", "shape-rules"},
-	"icon/fit_change/base":                     {"P9 P11", "shape-rules"},
-	"icon/columns_change/base":                 {"P16 P15 P11", "line-identity"},
-	"icon/size_change_wrapped_line/base":       {"P15 P11", "line-identity"},
-	"icon/page_count_shrink/base":              {"P17 P29 P11", "shape-rules"},
-	"icon/beside_then_edit/base":               {"P3 P8 P11", "shape-rules"},
-	"icon/margin_then_edit/base":               {"P4 P8 P11", "margin-link"},
-	"jump_pair/create_margin/base":             {"P4 P11 P28", "margin-link"},
-	"jump_pair/move_then_edit/base":            {"P23 P8 P11 P28", "T191"},
-	"jump_pair/resize_then_edit/base":          {"P24 P8 P11 P28", "T191"},
-	"jump_pair/restyle_then_edit/base":         {"P25 P8 P11 P28", "shape-rules"},
-	"jump_pair/insert_line_above/base":         {"P8 P11 P28", "shape-rules"},
-	"jump_pair/delete_line_above/base":         {"P8 P11 P28", "shape-rules"},
-	"jump_pair/section_added_above/base":       {"P8 P11 P28", "shape-rules"},
-	"jump_pair/typo_linked_line/base":          {"P19 P11 P28", "line-identity"},
-	"jump_pair/typo_then_edit/base":            {"P19 P8 P11 P28", "line-identity"},
-	"jump_pair/delete_linked_line/base":        {"P20 P11 P28", "shape-rules"},
-	"jump_pair/duplicate_inserted_before/base": {"P14 P11 P28", "line-identity"},
-	"jump_pair/size_change/base":               {"P9 P11 P28", "shape-rules"},
-	"jump_pair/fit_change/base":                {"P9 P11 P28", "shape-rules"},
-	"jump_pair/columns_change/base":            {"P16 P15 P11 P28", "line-identity"},
-	"jump_pair/size_change_wrapped_line/base":  {"P15 P11 P28", "line-identity"},
-	"jump_pair/page_count_shrink/base":         {"P17 P29 P11 P28", "shape-rules"},
-	"jump_pair/beside_then_edit/base":          {"P3 P8 P11 P28", "shape-rules"},
-	"jump_pair/margin_then_edit/base":          {"P4 P8 P11 P28", "margin-link"},
-	// The variants that break a lucky "base" green (mxVariants), red on today's code:
-	"freehand/multiline_reflow/centred_on_line":         {"P6 P7 P8", "T191-D3"},
-	"freehand/multiline_insert_inside/centred_on_line":  {"P12", "T191-D3"},
-	"rect/multiline_reflow/centred_on_line":             {"P6 P7 P8", "T191-D3"},
-	"rect/multiline_insert_inside/centred_on_line":      {"P12", "T191-D3"},
-	"ellipse/multiline_reflow/centred_on_line":          {"P6 P7 P8", "T191-D3"},
-	"ellipse/multiline_insert_inside/centred_on_line":   {"P12", "T191-D3"},
-	"text/move_then_edit/midline":                       {"P23 P8 P11", "T191"},
-	"text/resize_then_edit/midline":                     {"P24 P8 P11", "shape-rules"},
-	"text/restyle_then_edit/midline":                    {"P25 P8 P11", "shape-rules"},
-	"text/insert_line_above/midline":                    {"P8 P11", "shape-rules"},
-	"text/delete_line_above/midline":                    {"P8 P11", "shape-rules"},
-	"text/section_added_above/midline":                  {"P8 P11", "shape-rules"},
-	"text/typo_linked_line/midline":                     {"P19 P11", "line-identity"},
-	"text/typo_then_edit/midline":                       {"P19 P8 P11", "line-identity"},
-	"text/duplicate_inserted_before/midline":            {"P14 P11", "line-identity"},
-	"text/size_change/midline":                          {"P9 P11", "shape-rules"},
-	"text/fit_change/midline":                           {"P9 P11", "shape-rules"},
-	"text/columns_change/midline":                       {"P16 P15 P11", "line-identity"},
-	"text/size_change_wrapped_line/midline":             {"P15 P11", "line-identity"},
-	"text/page_count_shrink/midline":                    {"P17 P29 P11", "shape-rules"},
-	"highlight/move_then_edit/tall":                     {"P23 P8", "T191"},
-	"highlight/resize_then_edit/tall":                   {"P24 P8", "T191"},
-	"highlight/restyle_then_edit/tall":                  {"P25 P8", "T191-D3"},
-	"highlight/insert_line_above/tall":                  {"P8", "T191-D3"},
-	"highlight/delete_line_above/tall":                  {"P8", "T191-D3"},
-	"highlight/section_added_above/tall":                {"P8", "T191-D3"},
-	"highlight/typo_linked_line/tall":                   {"P19", "line-identity"},
-	"highlight/typo_then_edit/tall":                     {"P19 P8", "line-identity"},
-	"highlight/duplicate_inserted_before/tall":          {"P14", "line-identity"},
-	"highlight/multiline_reflow/centred_on_line":        {"P6 P7 P8", "T191-D3"},
-	"highlight/multiline_insert_inside/centred_on_line": {"P12", "T191-D3"},
-	"highlight/size_change/tall":                        {"P9", "T191-D3"},
-	"highlight/fit_change/tall":                         {"P9", "T191-D3"},
-	"highlight/columns_change/tall":                     {"P16 P15", "line-identity"},
-	"highlight/size_change_wrapped_line/tall":           {"P15", "line-identity"},
-	"highlight/page_count_shrink/tall":                  {"P17 P29", "T191-D3"},
-	// T193-freeze: green before the anchoring freeze, red under it — a new mark is not linked, and a mark
-	// no longer follows its line after an edit, until stage 2 (rigid follow) lands. Delete with stage 2.
-	"freehand/create_on_run/base":            {"P2", "T193-freeze"},
-	"freehand/create_beside_run/base":        {"P3", "T193-freeze"},
-	"freehand/delete_linked_line/base":       {"P20", "T193-freeze"},
-	"freehand/multiline_reflow/base":         {"P6 P7 P8", "T193-freeze"},
-	"freehand/multiline_insert_inside/base":  {"P12", "T193-freeze"},
-	"freehand/beside_then_edit/base":         {"P3 P8", "T193-freeze"},
-	"line/create_on_run/base":                {"P2 P10", "T193-freeze"},
-	"line/create_beside_run/base":            {"P3 P10", "T193-freeze"},
-	"line/delete_linked_line/base":           {"P20 P10", "T193-freeze"},
-	"rect/create_on_run/base":                {"P2", "T193-freeze"},
-	"rect/create_beside_run/base":            {"P3", "T193-freeze"},
-	"rect/delete_linked_line/base":           {"P20", "T193-freeze"},
-	"rect/multiline_reflow/base":             {"P6 P7 P8", "T193-freeze"},
-	"rect/multiline_insert_inside/base":      {"P12", "T193-freeze"},
-	"rect/beside_then_edit/base":             {"P3 P8", "T193-freeze"},
-	"ellipse/create_on_run/base":             {"P2", "T193-freeze"},
-	"ellipse/create_beside_run/base":         {"P3", "T193-freeze"},
-	"ellipse/delete_linked_line/base":        {"P20", "T193-freeze"},
-	"ellipse/multiline_reflow/base":          {"P6 P7 P8", "T193-freeze"},
-	"ellipse/multiline_insert_inside/base":   {"P12", "T193-freeze"},
-	"ellipse/beside_then_edit/base":          {"P3 P8", "T193-freeze"},
-	"text/create_on_run/base":                {"P2 P11", "T193-freeze"},
-	"text/create_beside_run/base":            {"P3 P11", "T193-freeze"},
-	"text/resize_then_edit/base":             {"P24 P8 P11", "T193-freeze"},
-	"text/restyle_then_edit/base":            {"P25 P8 P11", "T193-freeze"},
-	"text/insert_line_above/base":            {"P8 P11", "T193-freeze"},
-	"text/delete_line_above/base":            {"P8 P11", "T193-freeze"},
-	"text/section_added_above/base":          {"P8 P11", "T193-freeze"},
-	"text/delete_linked_line/base":           {"P20 P11", "T193-freeze"},
-	"text/delete_linked_line/midline":        {"P20 P11", "T193-freeze"},
-	"text/size_change/base":                  {"P9 P11", "T193-freeze"},
-	"text/fit_change/base":                   {"P9 P11", "T193-freeze"},
-	"text/page_count_shrink/base":            {"P17 P29 P11", "T193-freeze"},
-	"text/beside_then_edit/base":             {"P3 P8 P11", "T193-freeze"},
-	"highlight/create_on_run/base":           {"P2", "T193-freeze"},
-	"highlight/create_beside_run/base":       {"P3", "T193-freeze"},
-	"highlight/restyle_then_edit/base":       {"P25 P8", "T193-freeze"},
-	"highlight/insert_line_above/base":       {"P8", "T193-freeze"},
-	"highlight/delete_line_above/base":       {"P8", "T193-freeze"},
-	"highlight/section_added_above/base":     {"P8", "T193-freeze"},
-	"highlight/delete_linked_line/base":      {"P20", "T193-freeze"},
-	"highlight/delete_linked_line/tall":      {"P20", "T193-freeze"},
-	"highlight/multiline_reflow/base":        {"P6 P7 P8", "T193-freeze"},
-	"highlight/multiline_insert_inside/base": {"P12", "T193-freeze"},
-	"highlight/size_change/base":             {"P9", "T193-freeze"},
-	"highlight/fit_change/base":              {"P9", "T193-freeze"},
-	"highlight/page_count_shrink/base":       {"P17 P29", "T193-freeze"},
-	"highlight/beside_then_edit/base":        {"P3 P8", "T193-freeze"},
-	"icon/create_on_run/base":                {"P2 P11", "T193-freeze"},
-	"icon/create_beside_run/base":            {"P3 P11", "T193-freeze"},
-	"icon/delete_linked_line/base":           {"P20 P11", "T193-freeze"},
-	"jump_pair/create_on_run/base":           {"P2 P11 P28", "T193-freeze"},
-	"jump_pair/create_beside_run/base":       {"P3 P11 P28", "T193-freeze"},
-}
+// EMPTY since T195 (anchoring stage 2): the rigid projection, the line-id link and the server-side
+// re-link turned every cell green, the two DECISION families included (margin marks follow vertically,
+// P4; a multi-line mark never stretches and is flagged "check", P12 — VLL chose both on 2026-10-11). The
+// table stays so a future known-red cell has a place to go. The 208 lines it held on main are in
+// docs/design/anchoring/red-first-baseline.md and docs/tasks/T195-anchoring-stage2-rigid-follow.md.
+var knownRed = map[string][2]string{}
 
 func TestAnchorMatrix(t *testing.T) {
 	for _, shape := range mxShapes {
@@ -824,38 +746,42 @@ func runCell(t *testing.T, shape string, ev mxEvent, fix string) {
 		t.Skip("N/A")
 	}
 
-	// SEAM create: what sync/apply.go KindCreate (via httpapi.chartAnchorer) and the import path call.
+	// SEAM create: what sync/apply.go KindCreate (via httpapi.chartAnchorer) and both import paths call.
 	objs := make([]domain.Object, len(marks))
 	for i, m := range marks {
-		objs[i] = AnchorNewMark(m.obj, w.anchors, w.hash)
+		objs[i] = LinkMark(m.obj, w.chart())
 	}
 
 	switch ev.expect {
 	case "linked":
 		for i, m := range marks {
-			wantRef := m.ref
-			a := objs[i].Anchor
-			if a == nil {
-				t.Errorf("%s: not linked at creation, want linked to %q", objs[i].UUID, wantRef.text)
+			l := objs[i].Link
+			if l == nil || l.State != domain.LinkLinked {
+				t.Errorf("%s: link %+v at creation, want linked to %q", objs[i].UUID, l, m.ref.text)
 				continue
 			}
-			if a.RunText != wantRef.text || a.Occurrence != wantRef.occ {
-				t.Errorf("%s: linked to %q #%d, want %q #%d", objs[i].UUID, a.RunText, a.Occurrence, wantRef.text, wantRef.occ)
+			if want := w.lineID(m.ref); l.Line != want {
+				t.Errorf("%s: linked to line %s, want %s (%q)", objs[i].UUID, l.Line, want, m.ref.text)
+			}
+			if objs[i].Anchor != nil {
+				t.Errorf("%s: a new mark got an old-style anchor", objs[i].UUID)
 			}
 		}
 		return
 	case "fixed":
 		for _, o := range objs {
-			if o.Anchor != nil {
-				t.Errorf("%s: linked to %q, want fixed (no text within reach)", o.UUID, o.Anchor.RunText)
+			if o.Link == nil || o.Link.State != domain.LinkFixed {
+				t.Errorf("%s: link %+v, want fixed (no text within reach)", o.UUID, o.Link)
 			}
 		}
 		return
 	}
 
-	// SEAM move/resize/restyle: today's sync/apply.go default branch takes the client object as is — the
-	// new points, the OLD anchor, the current render hash. T191 replaces this with a re-anchor.
+	// SEAM move/resize/restyle: what the hub's chartAnchorer stores for those kinds — the client's object
+	// (its new points, seen on the current render) against the STORED one.
 	for i := range marks {
+		stored := objs[i]
+		client := stored.Clone()
 		switch ev.pre {
 		case "move":
 			from, to := w.must(marks[i].ref), w.must(mxIdent{mxV3, 1, false})
@@ -863,26 +789,28 @@ func runCell(t *testing.T, shape string, ev mxEvent, fix string) {
 				continue
 			}
 			dy := to.y0 - from.y0
-			for j := range objs[i].Points {
-				objs[i].Points[j].Y += dy
+			for j := range client.Points {
+				client.Points[j].Y += dy
 				marks[i].placed[j].Y += dy
 			}
 			marks[i].ref = mxIdent{mxV3, 1, false}
-			objs[i].PointsRenderHash = w.hash
+			client.Link = &domain.MarkLink{State: domain.LinkLinked, Line: "forged"} // ignored (P26)
+			objs[i] = RelinkMoved(client, stored, ptrChart(w.chart()))
 		case "resize":
-			x0, y0, _, _ := boundsOf(objs[i].Points)
-			for j := range objs[i].Points {
-				p := &objs[i].Points[j]
+			x0, y0, _, _ := boundsOf(client.Points)
+			for j := range client.Points {
+				p := &client.Points[j]
 				p.X, p.Y = x0+(p.X-x0)*1.5, y0+(p.Y-y0)*1.5
 				marks[i].placed[j] = *p
 			}
-			objs[i].PointsRenderHash = w.hash
+			objs[i] = RelinkMoved(client, stored, ptrChart(w.chart()))
 		case "restyle":
-			objs[i].Style.Color = "#2563eb"
+			client.Style.Color = "#2563eb"
+			objs[i] = RebaseMark(client, stored, ptrChart(w.chart()))
 		}
 	}
 
-	old := &mxWorld{t: t, src: w.src, anchors: w.anchors, hash: w.hash}
+	old := &mxWorld{t: t, src: w.src, anchors: w.anchors, hash: w.hash, li: w.li}
 	if ev.expect == "transpose" {
 		// The bake: marks are projected against the STORED (untransposed) render, then composited on the
 		// transposed raster. P18: every mark sits on the same words of the transposed page.
@@ -892,7 +820,7 @@ func runCell(t *testing.T, shape string, ev mxEvent, fix string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		out, _ := ServedObjects(objs, w.anchors, w.hash) // current hash: a no-op, as in stageFile
+		out := ProjectMarks(objs, w.chart()) // the current render: a no-op, as in stageFile
 		cur := newMxWorld(t, tr)
 		for i, m := range marks {
 			want, g := expected(m, old, cur, m.ref, m.ref)
@@ -901,9 +829,9 @@ func runCell(t *testing.T, shape string, ev mxEvent, fix string) {
 		return
 	}
 
-	// SEAM edit: a source change re-renders the chart; serve and bake call ServedObjects.
+	// SEAM edit: a chart save carries the line ids and re-renders; serve and bake call ProjectMarks.
 	w.setSrc(ev.edit(t, w.src))
-	out, _ := ServedObjects(objs, w.anchors, w.hash)
+	out := ProjectMarks(objs, w.chart())
 
 	for i, m := range marks {
 		o := out[i]
@@ -924,8 +852,8 @@ func runCell(t *testing.T, shape string, ev mxEvent, fix string) {
 			}
 		case "exact":
 			if m.fixed {
-				if o.Anchor != nil {
-					t.Errorf("%s: a far mark is linked to %q", o.UUID, o.Anchor.RunText)
+				if o.Link == nil || o.Link.State != domain.LinkFixed {
+					t.Errorf("%s: a far mark has link %+v, want fixed", o.UUID, o.Link)
 				}
 				for j := range m.placed {
 					if o.Points[j] != m.placed[j] {
@@ -942,13 +870,28 @@ func runCell(t *testing.T, shape string, ev mxEvent, fix string) {
 			if ev.after != nil && m.ref.text != mxC && m.ref.text != mxB {
 				newRef = ev.after(m.ref)
 			}
-			if _, ok := w.frame(newRef); !ok {
-				t.Fatalf("fixture: followed line %q #%d missing after the edit", newRef.text, newRef.occ)
+			var want []domain.Point
+			var g mxFrame
+			if ev.rewrap {
+				// P15: the line re-wrapped, so the mark follows the CHARACTER under its left edge into
+				// whichever visual segment it now sits on.
+				want, g = expectedByChar(t, m, old, w)
+			} else {
+				if _, ok := w.frame(newRef); !ok {
+					t.Fatalf("fixture: followed line %q #%d missing after the edit", newRef.text, newRef.occ)
+				}
+				want, g = expected(m, old, w, m.ref, newRef)
 			}
-			if st := status(o, w); st != "linked" {
-				t.Errorf("%s: status %s after the edit, want linked", o.UUID, st)
+			wantSt := "linked"
+			if ev.state != "" {
+				wantSt = ev.state
 			}
-			want, g := expected(m, old, w, m.ref, newRef)
+			if ev.typo && typoUnder(m, old) {
+				wantSt = "check"
+			}
+			if st := status(o, w); st != wantSt {
+				t.Errorf("%s: status %s after the edit, want %s", o.UUID, st, wantSt)
+			}
 			tol := lineTol(g)
 			if m.exact {
 				tol = mxTol{0.001, 0.001}
@@ -960,3 +903,5 @@ func runCell(t *testing.T, shape string, ev mxEvent, fix string) {
 		t.Errorf("jump pairing lost: source JumpTo=%q", out[0].JumpTo)
 	}
 }
+
+func ptrChart(r ChartRender) *ChartRender { return &r }

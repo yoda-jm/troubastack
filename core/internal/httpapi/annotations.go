@@ -94,6 +94,9 @@ type objectJSON struct {
 	// Points cache was projected from. Both omitempty — an uploaded PDF / legacy mark carries neither.
 	Anchor           *anchorJSON `json:"anchor,omitempty"`
 	PointsRenderHash string      `json:"pointsRenderHash,omitempty"`
+	// T195: the stage-2 link to a chart line and its state (linked | check | lost | fixed). One shape on
+	// every wire (domain.MarkLink carries its tags). omitempty — an unlinked mark carries none.
+	Link *domain.MarkLink `json:"link,omitempty"`
 	// JumpTo (P206): on a jump-source icon, the destination icon's uuid. omitempty — an
 	// ordinary icon / any other type carries none.
 	JumpTo string `json:"jumpTo,omitempty"`
@@ -150,67 +153,33 @@ func (a *AnnotationsAPI) getAnnotations(w http.ResponseWriter, r *http.Request, 
 	writeJSON(w, http.StatusOK, snapshotToJSON(snap))
 }
 
-// reprojectSnapshot re-projects any mark whose cached coordinates predate its chart file's current render
-// (T145 forward fix, serve side), so the editor draws the mark on its words after a size/render change.
-// Per generated file referenced by a layer: render the source for the anchor manifest and re-project that
-// file's marks against the file's BlobHash. Best-effort + read-only: a file with no source (an uploaded
-// PDF) or a render error leaves its marks on their stored coordinates.
-//
-// T193 (anchoring stage 0): while chartpdf.AnchoringFrozen(), the snapshot is served exactly as stored (no
-// render, no projection); chartpdf.ServedObjects is the single seam that also enforces it.
+// reprojectSnapshot serves a song's marks on generated charts where their lines are NOW (T195, anchoring
+// stage 2): every mark with a stage-2 link is moved rigidly with its line onto the chart's current render,
+// and its state (linked / check / lost / fixed) rides in its `link`. Old-style anchors (T145) and unlinked
+// marks are served exactly as stored. Best-effort + read-only; the caller is a member of the song, and the
+// charts are resolved through the layers of this very snapshot.
 func (a *AnnotationsAPI) reprojectSnapshot(u app.User, bandID, songID string, snap domain.Snapshot) domain.Snapshot {
-	if chartpdf.AnchoringFrozen() {
-		return snap
-	}
-	fileByLayer := make(map[string]string, len(snap.Layers))
-	for _, l := range snap.Layers {
-		fileByLayer[l.ID] = l.FileID
-	}
-	manifest := a.chartAnchorsFor(u, bandID, songID)
-	objs := make([]domain.Object, len(snap.Objects))
-	for i, o := range snap.Objects {
-		objs[i] = o
-		if o.Anchor == nil {
-			continue
-		}
-		if anchors, hash, ok := manifest(fileByLayer[o.LayerID]); ok {
-			rp, _ := chartpdf.ServedObjects([]domain.Object{o}, anchors, hash)
-			objs[i] = rp[0]
-		}
-	}
-	snap.Objects = objs
-	return snap
+	return projectSnapshot(snap, a.chartRenderFor(u, bandID, songID))
 }
 
-// chartAnchorsFor returns a per-file resolver of (anchor manifest, current render hash) for a song's
-// GENERATED charts, shared by create-time anchoring (import) and re-projection (serve). Each generated
-// file's source is rendered once and cached; an uploaded / sourceless file resolves to ok=false. Best-
-// effort + read-only (auth via the caller's ChartSource).
-func (a *AnnotationsAPI) chartAnchorsFor(u app.User, bandID, songID string) func(fileID string) ([]chartpdf.Anchor, string, bool) {
-	type entry struct {
-		anchors []chartpdf.Anchor
-		hash    string
-		ok      bool
-	}
-	cache := map[string]entry{}
-	return func(fileID string) ([]chartpdf.Anchor, string, bool) {
+// chartRenderFor returns a resolver of a song's generated charts' current renders (nil for an uploaded or
+// sourceless file, or a render that does not reproduce the stored PDF, P32), shared by serve and import.
+// The member gate is ChartSource's; the render itself is app.Service.ChartRenderForFile.
+func (a *AnnotationsAPI) chartRenderFor(u app.User, bandID, songID string) func(fileID string) *chartpdf.ChartRender {
+	cache := map[string]*chartpdf.ChartRender{}
+	return func(fileID string) *chartpdf.ChartRender {
 		if fileID == "" {
-			return nil, "", false
+			return nil
 		}
-		if e, seen := cache[fileID]; seen {
-			return e.anchors, e.hash, e.ok
+		if r, seen := cache[fileID]; seen {
+			return r
 		}
-		var e entry
-		if sf, src, err := a.svc.ChartSource(u, bandID, songID, fileID); err == nil {
-			// Anchor/re-project ONLY against a render that reproduces the stored blob (byte-equal); a
-			// divergent fresh render (e.g. after a layout change) must not stamp the blob hash onto its own
-			// coordinates. See app.ChartAnchorsIfCurrent.
-			if anchors, ok := app.ChartAnchorsIfCurrent(src, sf.BlobHash); ok {
-				e = entry{anchors: anchors, hash: sf.BlobHash, ok: true}
-			}
+		var r *chartpdf.ChartRender
+		if _, _, err := a.svc.ChartSource(u, bandID, songID, fileID); err == nil {
+			r = chartRenderOf(a.svc, fileID)
 		}
-		cache[fileID] = e
-		return e.anchors, e.hash, e.ok
+		cache[fileID] = r
+		return r
 	}
 }
 
@@ -285,14 +254,15 @@ func (a *AnnotationsAPI) importAnnotations(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	// T145 forward fix (create side): anchor imported marks to their words on a generated chart, so a later
-	// size/render change moves them with the text. Idempotent — a mark that already carries an anchor (a
-	// folder that stored one) is left as-is.
+	// T195 (P31): an imported mark with NO link at all (coordinates only) on a generated chart is linked by
+	// the same rule as a create, so a restored mark follows its line. A mark that arrives with a link — a
+	// stage-2 link or an old-style anchor, as an export carries them — keeps it exactly (P30): the import
+	// restores, it does not re-decide.
 	fileByLayer := map[string]string{}
 	for _, lj := range in.Layers {
 		fileByLayer[lj.ID] = lj.FileID
 	}
-	manifest := a.chartAnchorsFor(u, bandID, songID)
+	renderOf := a.chartRenderFor(u, bandID, songID)
 
 	for _, oj := range in.Objects {
 		o := objectFromJSON(oj)
@@ -300,11 +270,15 @@ func (a *AnnotationsAPI) importAnnotations(w http.ResponseWriter, r *http.Reques
 			writeErr(w, app.ErrInvalidInput)
 			return
 		}
-		// T193: frozen, an imported mark is stored as it arrives (its own Anchor, if the folder had one,
-		// is kept; none is added), and no chart is rendered for it.
-		if o.Anchor == nil && !chartpdf.AnchoringFrozen() {
-			if anchors, hash, ok := manifest(fileByLayer[o.LayerID]); ok {
-				o = chartpdf.AnchorNewMark(o, anchors, hash)
+		if o.Anchor == nil && o.Link == nil {
+			fid := fileByLayer[o.LayerID]
+			if fid == "" {
+				if l, ok := a.eng.Layer(songID, o.LayerID); ok {
+					fid = l.FileID
+				}
+			}
+			if r := renderOf(fid); r != nil {
+				o = chartpdf.LinkMark(o, *r)
 			}
 		}
 		// Version 1 makes a re-imported object an idempotent same-version no-op
@@ -413,6 +387,7 @@ func objectToJSON(o domain.Object) objectJSON {
 		},
 		Anchor:           anchorToJSON(o.Anchor),
 		PointsRenderHash: o.PointsRenderHash,
+		Link:             o.Link.Clone(),
 		JumpTo:           o.JumpTo,
 	}
 }
@@ -486,6 +461,7 @@ func objectFromJSON(j objectJSON) domain.Object {
 		},
 		Anchor:           anchorFromJSON(j.Anchor),
 		PointsRenderHash: j.PointsRenderHash,
+		Link:             j.Link.Clone(),
 		JumpTo:           j.JumpTo,
 	}
 }

@@ -185,6 +185,9 @@ type v2Object struct {
 	// after a reflow — the very orphaning T145 exists to prevent, silently reintroduced by an import.
 	Anchor           *v2Anchor `json:"anchor,omitempty"`
 	PointsRenderHash string    `json:"pointsRenderHash,omitempty"`
+	// T195: the stage-2 link (line id, offsets, the render it was measured on, its state), carried as is
+	// (P30). The folder's lineIdentity (T194) keeps the ids it names meaningful across the round trip.
+	Link *domain.MarkLink `json:"link,omitempty"`
 	// P206: on a jump SOURCE, the destination landmark's uuid — KEPT verbatim, like `uuid` and `layer`,
 	// because the pairing IS a uuid reference and a folder round-trip preserves object ids. Without it a
 	// round-trip silently unpairs every jump in the band (the T86 meter / T152 identity failure again:
@@ -360,7 +363,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 				UUID: o.UUID, Layer: o.LayerID, Type: domain.ObjectTypeToString(o.Type), Page: o.Page,
 				Text: o.Text, Owner: ownerToName(o.OwnerID), Scope: domain.ScopeToString(o.Scope),
 				Version: o.Version, CreatedAt: o.CreatedAt, Order: o.Order, JumpTo: o.JumpTo,
-				PointsRenderHash: o.PointsRenderHash,
+				PointsRenderHash: o.PointsRenderHash, Link: o.Link.Clone(),
 				Style: v2Style{
 					Color: o.Style.Color, Opacity: o.Style.Opacity, Width: o.Style.Width,
 					FontSize: o.Style.FontSize, Fill: o.Style.Fill, Stroke: o.Style.Stroke, Blend: o.Style.Blend,
@@ -614,7 +617,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 				UUID: vo.UUID, Type: domain.ObjectTypeFromString(vo.Type), Page: vo.Page, Text: vo.Text,
 				OwnerID: owner, Scope: domain.ScopeFromString(vo.Scope), LayerID: vo.Layer,
 				Version: vo.Version, CreatedAt: vo.CreatedAt, Order: vo.Order, JumpTo: vo.JumpTo,
-				PointsRenderHash: vo.PointsRenderHash,
+				PointsRenderHash: vo.PointsRenderHash, Link: vo.Link.Clone(),
 				Style: domain.Style{
 					Color: vo.Style.Color, Opacity: vo.Style.Opacity, Width: vo.Style.Width,
 					FontSize: vo.Style.FontSize, Fill: vo.Style.Fill, Stroke: vo.Style.Stroke, Blend: vo.Style.Blend,

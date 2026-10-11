@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"troubastack/core/internal/chartpdf"
 	"troubastack/core/internal/domain"
 	"troubastack/core/internal/engine"
 
@@ -866,8 +867,29 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 	// and content owned by matched/created members land as in T62. Objects in a dropped
 	// layer go with the layer.
 	droppedLayerIDs := map[string]bool{}
+	// T195 (P31): a coordinates-only mark (no stage-2 link, no old-style anchor) on a GENERATED chart is
+	// linked at import by the same rule as a create, against the chart as imported — so a restored mark
+	// follows its line instead of staying fixed for ever. A mark that arrives with a link keeps it (P30).
+	renders := map[string]*chartpdf.ChartRender{}
+	renderOf := func(fileID string) *chartpdf.ChartRender {
+		if fileID == "" {
+			return nil
+		}
+		r, seen := renders[fileID]
+		if !seen {
+			if cr, err := s.ChartRenderForFile(fileID); err == nil {
+				r = &cr
+			}
+			renders[fileID] = r
+		}
+		return r
+	}
 	for songRef, ann := range man.Annotations {
 		newSongID := songMap[songRef]
+		fileOfLayer := map[string]string{}
+		for _, l := range ann.Layers {
+			fileOfLayer[l.ID] = fileMap[l.FileID]
+		}
 		for _, l := range ann.Layers {
 			if l.OwnerID != "" && l.OwnerID != domain.SharedOwner && droppedOrigID[l.OwnerID] {
 				droppedLayerIDs[l.ID] = true
@@ -890,6 +912,11 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 			no.OwnerID = remapOwner(o.OwnerID)
 			if no.Version == 0 {
 				no.Version = 1
+			}
+			if no.Link == nil && no.Anchor == nil {
+				if r := renderOf(fileOfLayer[no.LayerID]); r != nil {
+					no = chartpdf.LinkMark(no, *r)
+				}
 			}
 			if _, err := eng.Apply(newSongID, domain.Mutation{Kind: domain.KindCreate, UUID: no.UUID, Object: &no, AuthorID: caller.ID, Summary: "import object " + no.UUID}); err != nil {
 				return ImportReport{}, fmt.Errorf("import annotations: %v", err)

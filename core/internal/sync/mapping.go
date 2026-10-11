@@ -160,6 +160,7 @@ func objectToJSON(o domain.Object) objectJSON {
 		},
 		Anchor:           anchorToJSON(o.Anchor),
 		PointsRenderHash: o.PointsRenderHash,
+		Link:             o.Link.Clone(),
 		JumpTo:           o.JumpTo,
 	}
 }
@@ -233,6 +234,7 @@ func objectFromJSON(j objectJSON) domain.Object {
 		},
 		Anchor:           anchorFromJSON(j.Anchor),
 		PointsRenderHash: j.PointsRenderHash,
+		Link:             j.Link.Clone(),
 		JumpTo:           j.JumpTo,
 	}
 }

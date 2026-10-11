@@ -118,11 +118,12 @@ type cliBatchRequest struct {
 // file (the default part), so only that file's layers may composite onto it — otherwise
 // another part's ink (drum notes) bleeds onto the baked page. A layer with an empty
 // FileID is song-level (legacy/single-file) and composites onto whatever is baked.
-// snapshotToDoc scopes a snapshot to one pool file's overlay doc. anchors + renderHash drive the T145
-// forward fix: when renderHash is non-empty (a generated chart, with its current render's anchor manifest),
-// any mark whose cached coordinates predate that render is re-projected onto its words BEFORE it is baked —
-// so a reflowed chart no longer bakes an orphaned mark. Pass nil/"" for an uploaded file (no source).
-func snapshotToDoc(snap domain.Snapshot, fileID string, anchors []chartpdf.Anchor, renderHash string) annotationsDoc {
+// snapshotToDoc scopes a snapshot to one pool file's overlay doc. chart is the file's current render (a
+// generated chart whose render reproduces the stored PDF); when it is non-nil, every mark with a
+// stage-2 link (T195) is projected onto it BEFORE it is baked — the same chartpdf.ProjectMarks serve uses
+// (P33) — so a mark follows its line into the bundle. Pass nil for an uploaded file, or a chart whose
+// render diverged (P32): marks then bake at their stored coordinates.
+func snapshotToDoc(snap domain.Snapshot, fileID string, chart *chartpdf.ChartRender) annotationsDoc {
 	doc := annotationsDoc{Layers: []docLayer{}, Objects: []docObject{}}
 	keep := map[string]bool{}
 	for _, l := range snap.Layers {
@@ -138,8 +139,8 @@ func snapshotToDoc(snap domain.Snapshot, fileID string, anchors []chartpdf.Ancho
 		})
 	}
 	live := snap.LiveObjects()
-	if renderHash != "" && anchors != nil {
-		live, _ = chartpdf.ServedObjects(live, anchors, renderHash) // T145 re-projection; T193: a no-op while frozen
+	if chart != nil {
+		live = chartpdf.ProjectMarks(live, *chart) // T195: old-style anchors are left at their stored coordinates
 	}
 	for _, o := range live {
 		if !keep[o.LayerID] {

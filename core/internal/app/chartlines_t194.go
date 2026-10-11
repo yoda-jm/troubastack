@@ -85,6 +85,12 @@ func (s *Service) setFreshLineIdentity(fileID, source string) error {
 func (s *Service) carryLineIdentity(fileID, oldSource, newSource, fromRender, toRender string, byIndex bool) error {
 	lineIDMu.Lock()
 	defer lineIDMu.Unlock()
+	return s.carryLineIdentityLocked(fileID, oldSource, newSource, fromRender, toRender, byIndex)
+}
+
+// carryLineIdentityLocked is carryLineIdentity for a caller that already holds lineIDMu (saveChartSource,
+// which holds it across the source write, T195).
+func (s *Service) carryLineIdentityLocked(fileID, oldSource, newSource, fromRender, toRender string, byIndex bool) error {
 	prev, err := s.lineIdentityLocked(fileID, oldSource, fromRender)
 	if err != nil {
 		return err
@@ -129,12 +135,15 @@ func (s *Service) exportLineIdentity(fileID, source string) *ChartLineIdentity {
 // chart that has none. Auth-free and server-internal, like ChartSourceForFile: stage 2 calls it from the
 // already-authorised mark paths.
 func (s *Service) ChartLines(fileID string) (ChartLineIdentity, error) {
+	// T195: the source is read under the lock too. Read before it, a save landing in between would leave
+	// lineIdentityLocked holding the OLD source against the NEW ids, and it would re-derive and store fresh
+	// ids over the carried ones.
+	lineIDMu.Lock()
+	defer lineIDMu.Unlock()
 	f, src, err := s.ChartSourceForFile(fileID)
 	if err != nil {
 		return ChartLineIdentity{}, err
 	}
-	lineIDMu.Lock()
-	defer lineIDMu.Unlock()
 	return s.lineIdentityLocked(fileID, src, f.BlobHash)
 }
 
@@ -144,21 +153,11 @@ func (s *Service) ChartLines(fileID string) (ChartLineIdentity, error) {
 // exists (deleted: the mark is lost, P20). ErrRenderDiverged when the current render does not reproduce
 // the stored PDF (P32). Thin wrapper over chartpdf.LocateLine.
 func (s *Service) LocateChartLine(fileID, lineID, fromRender string) (chartpdf.LineLocation, bool, error) {
-	f, src, err := s.ChartSourceForFile(fileID)
+	r, err := s.ChartRenderForFile(fileID)
 	if err != nil {
 		return chartpdf.LineLocation{}, false, err
 	}
-	lineIDMu.Lock()
-	li, err := s.lineIdentityLocked(fileID, src, f.BlobHash)
-	lineIDMu.Unlock()
-	if err != nil {
-		return chartpdf.LineLocation{}, false, err
-	}
-	anchors, current := ChartAnchorsIfCurrent(src, f.BlobHash)
-	if !current {
-		return chartpdf.LineLocation{}, false, ErrRenderDiverged
-	}
-	loc, ok := chartpdf.LocateLine(li, src, anchors, lineID, fromRender, f.BlobHash)
+	loc, ok := chartpdf.LocateLine(r.Lines, r.Source, r.Anchors, lineID, fromRender, r.Hash)
 	return loc, ok, nil
 }
 
@@ -175,4 +174,62 @@ func (s *Service) ClearChartLinesRederived(fileID string) error {
 		return err
 	}
 	return s.repo.SetChartLineIdentity(fileID, li.ClearRederived())
+}
+
+// ChartRenderForFile is stage 2's (T195) one read of a generated chart: its source, its line ids
+// (backfilled if it has none) and the anchor manifest of its current render, read together under lineIDMu
+// so the three describe the same save. ErrRenderDiverged when a fresh render does not reproduce the stored
+// PDF (P32: nothing is linked or projected against it); ErrNotFound for an uploaded or unknown file.
+// Auth-free and server-internal, like ChartSourceForFile: its callers are already authorised (the sync
+// write gate, the annotation routes, the bake).
+func (s *Service) ChartRenderForFile(fileID string) (chartpdf.ChartRender, error) {
+	lineIDMu.Lock()
+	f, src, err := s.ChartSourceForFile(fileID)
+	if err != nil {
+		lineIDMu.Unlock()
+		return chartpdf.ChartRender{}, err
+	}
+	li, err := s.lineIdentityLocked(fileID, src, f.BlobHash)
+	lineIDMu.Unlock()
+	if err != nil {
+		return chartpdf.ChartRender{}, err
+	}
+	anchors, current := cachedAnchorsIfCurrent(src, f.BlobHash)
+	if !current {
+		return chartpdf.ChartRender{}, ErrRenderDiverged
+	}
+	return chartpdf.ChartRender{Source: src, Lines: li, Anchors: anchors, Hash: f.BlobHash}, nil
+}
+
+// renderCache memoises ChartAnchorsIfCurrent by (source, blob): every realtime move and restyle on a chart
+// needs its manifest, and a render is the expensive part. Both keys are content hashes, so an entry can
+// never be stale; the cache is only bounded.
+var renderCache = struct {
+	sync.Mutex
+	m map[string]renderEntry
+}{m: map[string]renderEntry{}}
+
+type renderEntry struct {
+	anchors []chartpdf.Anchor
+	ok      bool
+}
+
+const renderCacheMax = 64
+
+func cachedAnchorsIfCurrent(source, blobHash string) ([]chartpdf.Anchor, bool) {
+	key := chartpdf.SourceHash(source) + "/" + blobHash
+	renderCache.Lock()
+	e, hit := renderCache.m[key]
+	renderCache.Unlock()
+	if hit {
+		return e.anchors, e.ok
+	}
+	anchors, ok := ChartAnchorsIfCurrent(source, blobHash)
+	renderCache.Lock()
+	if len(renderCache.m) >= renderCacheMax {
+		renderCache.m = map[string]renderEntry{}
+	}
+	renderCache.m[key] = renderEntry{anchors: anchors, ok: ok}
+	renderCache.Unlock()
+	return anchors, ok
 }

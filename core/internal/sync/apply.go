@@ -77,9 +77,10 @@ func (c *conn) handleMutation(in mutationJSON) {
 			} else {
 				o.Version = 1
 			}
-			// T145 forward fix: anchor the new mark to its words on a generated chart, so a later
-			// size/render change re-projects it onto its line. Best-effort + nil-safe: unset anchorer or a
-			// non-generated/uploaded file leaves the mark on its coordinates, exactly as before.
+			// T195 (anchoring stage 2): the SERVER links the new mark to its chart line (P2–P5); whatever
+			// link, anchor or render hash the client sent is dropped first (P26). Best-effort + nil-safe: an
+			// unset anchorer or an uploaded file leaves the mark on its coordinates, unlinked.
+			o.Link, o.Anchor, o.PointsRenderHash = nil, nil, ""
 			if c.hub.anchorer != nil {
 				o = c.hub.anchorer.AnchorMark(c.songID, o)
 			}
@@ -97,6 +98,8 @@ func (c *conn) handleMutation(in mutationJSON) {
 				o = objectFromJSON(*in.Object)
 				o.UUID = uuid
 				o.Version = curVer + 1
+				// T195: a restore re-links like a move (the client's object is where it was last seen).
+				o = c.relink(o, uuid)
 			}
 			o.Deleted = false
 			m.Object = &o
@@ -109,6 +112,14 @@ func (c *conn) handleMutation(in mutationJSON) {
 			}
 			o.UUID = uuid
 			o.Version = curVer + 1
+			// T195: the server decides the link (P26). A move or resize re-links from where the mark now is
+			// (P23, P24 — reusing T191's seam, re-pointed at the stage-2 link); a restyle, a text change or a
+			// reorder keeps the stored link and does not move the mark (P25).
+			if kind == domain.KindMove || kind == domain.KindResize {
+				o = c.relink(o, uuid)
+			} else {
+				o = c.rebase(o, uuid)
+			}
 			m.Object = &o
 			m.BaseVersion = curVer
 			m.UUID = uuid
@@ -344,6 +355,49 @@ func (c *conn) currentVersion(uuid string) (uint64, bool) {
 		}
 	}
 	return 0, false
+}
+
+// storedObject is HEAD's copy of uuid (live or tombstoned), the server's side of every link decision.
+func (c *conn) storedObject(uuid string) (domain.Object, bool) {
+	snap, err := c.hub.eng.Head(c.songID)
+	if err != nil {
+		return domain.Object{}, false
+	}
+	for _, o := range snap.Objects {
+		if o.UUID == uuid {
+			return o, true
+		}
+	}
+	return domain.Object{}, false
+}
+
+// relink is the move/resize/restore half of T195: with an anchorer, it decides; without one, the mark is
+// stored unlinked (a moved mark cannot keep a link measured somewhere else).
+func (c *conn) relink(o domain.Object, uuid string) domain.Object {
+	stored, _ := c.storedObject(uuid)
+	if c.hub.anchorer == nil {
+		o.Link, o.Anchor, o.PointsRenderHash = nil, nil, ""
+		return o
+	}
+	return c.hub.anchorer.RelinkMark(c.songID, o, stored)
+}
+
+// rebase is the setStyle/setText/reorder half: the stored link, never the client's (P26), and the stored
+// geometry (P25). Without an anchorer the stored fields are copied as they are.
+func (c *conn) rebase(o domain.Object, uuid string) domain.Object {
+	stored, ok := c.storedObject(uuid)
+	if !ok {
+		o.Link, o.Anchor, o.PointsRenderHash = nil, nil, ""
+		return o
+	}
+	if c.hub.anchorer == nil {
+		o.Link, o.Anchor, o.PointsRenderHash = stored.Link.Clone(), stored.Anchor.Clone(), stored.PointsRenderHash
+		if stored.Link != nil {
+			o.Points, o.Page = append([]domain.Point(nil), stored.Points...), stored.Page
+		}
+		return o
+	}
+	return c.hub.anchorer.RebaseMark(c.songID, o, stored)
 }
 
 // targetUUID extracts the object uuid a reject should reference.

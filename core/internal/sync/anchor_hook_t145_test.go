@@ -19,21 +19,29 @@ func (e *recEngine) Apply(_ string, m domain.Mutation) (domain.Mutation, error) 
 }
 
 // stubAnchorer stands in for the httpapi chart adapter: it records that it was called and stamps a known
-// anchor + render hash so the test can prove the create path routed the object through it.
+// stage-2 link + render hash so the test can prove the create path routed the object through it.
 type stubAnchorer struct {
 	called     bool
 	gotSongID  string
 	gotLayerID string
+	gotLink    *domain.MarkLink // the link the object carried when the hub handed it over
 }
 
 func (s *stubAnchorer) AnchorMark(songID string, o domain.Object) domain.Object {
 	s.called = true
 	s.gotSongID = songID
 	s.gotLayerID = o.LayerID
-	o.Anchor = &domain.SourceAnchor{RunText: "chorus line", Occurrence: 0, CharStart: 0, CharEnd: 11}
+	s.gotLink = o.Link
+	o.Link = &domain.MarkLink{State: domain.LinkLinked, Line: "chorus-line-id", Render: "render-hash-xyz"}
 	o.PointsRenderHash = "render-hash-xyz"
 	return o
 }
+
+func (s *stubAnchorer) RelinkMark(_ string, moved, _ domain.Object) domain.Object { return moved }
+func (s *stubAnchorer) RebaseMark(_ string, edited, _ domain.Object) domain.Object {
+	return edited
+}
+func (s *stubAnchorer) ServeSnapshot(_ string, snap domain.Snapshot) domain.Snapshot { return snap }
 
 // TestCreateRoutesThroughAnchorer proves the T145 create-time anchoring hook: a create mutation is handed
 // to the registered ChartAnchorer BEFORE Apply, and the anchor it stamps rides along into the applied
@@ -51,9 +59,11 @@ func TestCreateRoutesThroughAnchorer(t *testing.T) {
 	c := &conn{hub: hub, room: r, songID: "s1", authorID: "u", role: "member", send: make(chan []byte, 4)}
 	r.conns[c] = struct{}{}
 
+	// The client sends a link of its own: the hub must drop it BEFORE the anchorer sees the object (P26).
 	c.handleMutation(mutationJSON{
-		Kind:   "create",
-		Object: &objectJSON{UUID: "o1", LayerID: "l1", Type: "freehand"},
+		Kind: "create",
+		Object: &objectJSON{UUID: "o1", LayerID: "l1", Type: "freehand",
+			Link: &domain.MarkLink{State: domain.LinkLinked, Line: "forged"}, PointsRenderHash: "forged-render"},
 	})
 
 	if !anc.called {
@@ -65,8 +75,11 @@ func TestCreateRoutesThroughAnchorer(t *testing.T) {
 	if eng.got.Object == nil {
 		t.Fatal("engine received no object")
 	}
-	if eng.got.Object.Anchor == nil || eng.got.Object.Anchor.RunText != "chorus line" {
-		t.Fatalf("applied object anchor = %+v, want the stub's RunText 'chorus line'", eng.got.Object.Anchor)
+	if anc.gotLink != nil {
+		t.Fatalf("the anchorer was handed the client's link %+v; the hub must drop it first (P26)", anc.gotLink)
+	}
+	if l := eng.got.Object.Link; l == nil || l.Line != "chorus-line-id" {
+		t.Fatalf("applied object link = %+v, want the stub's line 'chorus-line-id'", l)
 	}
 	if eng.got.Object.PointsRenderHash != "render-hash-xyz" {
 		t.Fatalf("applied object render hash = %q, want render-hash-xyz", eng.got.Object.PointsRenderHash)
@@ -87,14 +100,15 @@ func TestNilAnchorerLeavesCreateUnanchored(t *testing.T) {
 	r.conns[c] = struct{}{}
 
 	c.handleMutation(mutationJSON{
-		Kind:   "create",
-		Object: &objectJSON{UUID: "o1", LayerID: "l1", Type: "freehand"},
+		Kind: "create",
+		Object: &objectJSON{UUID: "o1", LayerID: "l1", Type: "freehand",
+			Link: &domain.MarkLink{State: domain.LinkLinked, Line: "forged"}},
 	})
 
 	if eng.got.Object == nil {
 		t.Fatal("engine received no object")
 	}
-	if eng.got.Object.Anchor != nil {
-		t.Fatalf("nil anchorer must leave Anchor nil, got %+v", eng.got.Object.Anchor)
+	if eng.got.Object.Anchor != nil || eng.got.Object.Link != nil {
+		t.Fatalf("nil anchorer must leave the mark unlinked, got anchor %+v link %+v", eng.got.Object.Anchor, eng.got.Object.Link)
 	}
 }

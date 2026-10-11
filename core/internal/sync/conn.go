@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"troubastack/core/internal/domain"
 )
 
 // ---- wire protocol (JSON text frames) ----
@@ -112,6 +114,10 @@ type objectJSON struct {
 	// T145: source-scoped anchor + the render hash the Points cache was projected from (both omitempty).
 	Anchor           *anchorJSON `json:"anchor,omitempty"`
 	PointsRenderHash string      `json:"pointsRenderHash,omitempty"`
+	// T195: the stage-2 link and its state (linked | check | lost | fixed). The same shape on every wire
+	// (domain.MarkLink carries its tags); omitempty — an unlinked mark carries none. The server ignores a
+	// client-sent one (P26); it rides in so an echo and a snapshot show the state.
+	Link *domain.MarkLink `json:"link,omitempty"`
 	// P206: on a jump-source icon, the destination icon's uuid (omitempty for every other object).
 	JumpTo string `json:"jumpTo,omitempty"`
 }
@@ -256,6 +262,11 @@ func (c *conn) sendSnapshot() error {
 	snap, err := c.hub.eng.Head(c.songID)
 	if err != nil {
 		return err
+	}
+	// T195: the join snapshot is what Studio edits from, so it is SERVED like the REST read: every linked
+	// mark projected onto its chart's current render, with its state.
+	if c.hub.anchorer != nil {
+		snap = c.hub.anchorer.ServeSnapshot(c.songID, snap)
 	}
 	msg := snapshotMsg{Type: "snapshot", Layers: []layerJSON{}, Objects: []objectJSON{}, Seq: snap.Revision}
 	for _, l := range snap.Layers {

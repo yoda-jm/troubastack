@@ -288,6 +288,108 @@ type AnchorSpan struct {
 	Occurrence int // 1-based, document-wide (source order), like SourceAnchor.Occurrence
 }
 
+// LinkState is what Studio shows for a mark on a generated chart (anchoring stage 2, T195; the words are
+// VLL's: Linked / Check / Lost / Fixed). It is a string on every wire and in the store.
+type LinkState string
+
+const (
+	// LinkLinked: the mark follows its line, and nothing about the follow is in doubt.
+	LinkLinked LinkState = "linked"
+	// LinkCheck: the mark still follows its line, but something is uncertain — the characters under it
+	// changed, the lines inside a multi-line mark moved apart, it was nearly level with two lines that then
+	// separated, the column layout changed under a margin mark, or the server could not tell how its line
+	// was edited. It is never moved anywhere else; it asks to be looked at.
+	LinkCheck LinkState = "check"
+	// LinkLost: its line was deleted. The mark stays exactly where it was and is never re-attached to other
+	// text automatically (P20).
+	LinkLost LinkState = "lost"
+	// LinkFixed: the server decided at placement that the mark is not near any line (P5). It never moves.
+	LinkFixed LinkState = "fixed"
+)
+
+// MarkLink is the stage-2 (T195) link of a mark to ONE source line of a generated chart, by the line's
+// stable id (chartpdf.LineIdentity), never by text + occurrence. The SERVER decides it, at create, move,
+// resize and import; a client-sent link is ignored (P26).
+//
+// The mark's own geometry is its Points, AS DRAWN on render Render (a PDF blob hash). The link records
+// where the mark sat relative to its line on that render, so a later render can move the mark rigidly
+// with the line: translated, scaled only by the type-size ratio, never reshaped (anchoring-spec P8–P13).
+//
+// It carries JSON tags because it is the same shape in the store, on the realtime wire, in the REST DTO
+// and in the band folder — one definition, so the four cannot drift (every mirror field-checks it).
+type MarkLink struct {
+	State LinkState `json:"state"`
+	// Line is the reference line's id. Empty only when State is fixed.
+	Line string `json:"line,omitempty"`
+	// Wrap is the visual line (SrcWrap) of the reference line the mark was measured on — 0 unless the line
+	// wraps. A mark with a Char follows its character to whichever visual line it lands on instead (P15).
+	Wrap int `json:"wrap,omitempty"`
+	// Char is the rune offset, within the line's source text, of the character under the mark's LEFT
+	// edge, when the left edge is over the line's text; nil otherwise (P7).
+	Char *int `json:"char,omitempty"`
+	// Span is the run of the line's characters the mark covers horizontally (P19 watches it: an edit
+	// inside it makes the mark "check"); nil when the mark covers none of its line's text.
+	Span *CharSpan `json:"span,omitempty"`
+	// XRef says what the horizontal offset DX is measured from: "char" (the left-edge character), "start"
+	// (the visual line's first character: the mark starts left of the text), "end" (the visual line's end:
+	// the mark starts right of this line's text but inside the column), or "margin" (no horizontal
+	// reference at all: the mark is in a page margin or right of every line, and its x is page-fixed, P4).
+	XRef string `json:"xRef,omitempty"`
+	// DX, DY: the offset of the mark's bounding-box top-left from its reference point (the XRef point
+	// across, the reference visual line's top down), in line-heights of the reference line. DX is 0 and
+	// unused for a margin mark.
+	DX float64 `json:"dx"`
+	DY float64 `json:"dy"`
+	// LH is the reference line's height (page fraction) on Render: the type size the link was measured
+	// at. A later render scales the mark by newLH/LH (P9).
+	LH float64 `json:"lh"`
+	// Render is the PDF blob hash the link and the mark's Points were measured on.
+	Render string `json:"render"`
+	// Cols is the chart's column count on Render: a margin mark whose chart changes column count is
+	// flagged "check" (P16).
+	Cols int `json:"cols,omitempty"`
+	// Peers are the other lines whose position relative to the reference line the follow relies on: the
+	// lines inside a multi-line mark (P12) and a runner-up line the mark was nearly level with (P22). If one
+	// of them moves by more than 0.25 lh relative to the reference, or disappears, the mark becomes check.
+	Peers []LinkPeer `json:"peers,omitempty"`
+}
+
+// CharSpan is a half-open rune range [From, To) of a source line.
+type CharSpan struct {
+	From int `json:"from"`
+	To   int `json:"to"`
+}
+
+// LinkPeer is one line a link watches: its id, its visual line, and the top of that visual line relative
+// to the reference line's top, in reference line-heights, on the link's render.
+type LinkPeer struct {
+	Line string  `json:"line"`
+	Wrap int     `json:"wrap,omitempty"`
+	Rel  float64 `json:"rel"`
+	// Why is "inside" (a line a multi-line mark covers) or "runner-up" (P22).
+	Why string `json:"why"`
+}
+
+// Clone deep-copies a MarkLink, including its pointer and slice members.
+func (l *MarkLink) Clone() *MarkLink {
+	if l == nil {
+		return nil
+	}
+	cp := *l
+	if l.Char != nil {
+		c := *l.Char
+		cp.Char = &c
+	}
+	if l.Span != nil {
+		sp := *l.Span
+		cp.Span = &sp
+	}
+	if l.Peers != nil {
+		cp.Peers = append([]LinkPeer(nil), l.Peers...)
+	}
+	return &cp
+}
+
 // Object is an annotation identified by a client-generated UUID (I2). Applying the
 // same UUID twice is idempotent (no-op or in-place replace, never a duplicate).
 type Object struct {
@@ -312,8 +414,16 @@ type Object struct {
 	// hash) — so a consumer can see the cache is stale after a re-render and re-project from Anchor
 	// instead of reading orphaned coordinates. nil Anchor / empty hash = Points are authoritative (an
 	// uploaded PDF has no source; or a mark that predates T145 / could not be anchored).
+	//
+	// T195 (anchoring stage 2): Anchor is the OLD-STYLE link (text + occurrence). It is kept readable for the
+	// stage-4 migration and is NEVER interpreted for projection again: a mark with an Anchor and no Link
+	// stays at its stored coordinates. Link is the new-style link; when it is set, Points are the mark AS
+	// DRAWN on Link.Render, and serve and bake project them onto the current render (chartpdf.ProjectMark).
+	// PointsRenderHash names the render Points are on (equal to Link.Render for a stored linked mark; the
+	// current render for a served, projected one).
 	Anchor           *SourceAnchor
 	PointsRenderHash string
+	Link             *MarkLink
 	// JumpTo (P206): set only on an OBJECT_TYPE_ICON that is a JUMP SOURCE — the UUID of
 	// the destination icon (the matching glyph) this mark jumps to. Empty = an ordinary
 	// icon. The pair matches by looking the same (same glyph + colour), which is the whole
@@ -336,6 +446,7 @@ func (o Object) Clone() Object {
 	if o.Anchor != nil { // deep-copy so callers cannot mutate stored state through the pointer
 		cp.Anchor = o.Anchor.Clone()
 	}
+	cp.Link = o.Link.Clone()
 	cp.Style = o.Style.Clone() // Style carries pointers too (Fill/Stroke, and T177's Ends)
 	return cp
 }

@@ -18,17 +18,9 @@ import (
 const matrixChart = "# The Open Road\n\n## Verse 1\nG            D\nPack a little light for the road ahead\n" +
 	"Em           C\nLeave the porch light on when the sun goes down\n"
 
-// knownRedBandio: red on today's code (baseline 2026-10-11). Delete a line when its fix lands.
-var knownRedBandio = map[string][2]string{
-	"freehand/import_links_unlinked_mark":  {"P31", "import-link"},
-	"line/import_links_unlinked_mark":      {"P31", "import-link"},
-	"rect/import_links_unlinked_mark":      {"P31", "import-link"},
-	"ellipse/import_links_unlinked_mark":   {"P31", "import-link"},
-	"text/import_links_unlinked_mark":      {"P31", "import-link"},
-	"highlight/import_links_unlinked_mark": {"P31", "import-link"},
-	"icon/import_links_unlinked_mark":      {"P31", "import-link"},
-	"jump_pair/import_links_unlinked_mark": {"P31", "import-link"},
-}
+// knownRedBandio: cells known to fail. Empty since T195: the band-folder import links coordinates-only
+// marks (P31), which turned the 8 import_links_unlinked_mark cells green.
+var knownRedBandio = map[string][2]string{}
 
 func TestAnchorMatrixBandio(t *testing.T) {
 	shapes := map[string]domain.ObjectType{
@@ -38,23 +30,24 @@ func TestAnchorMatrixBandio(t *testing.T) {
 	}
 	order := []string{"freehand", "line", "rect", "ellipse", "text", "highlight", "icon", "jump_pair"}
 	for _, shape := range order {
-		for _, linked := range []bool{true, false} {
-			shape, linked := shape, linked
-			name := shape + "/export_import_round_trip"
-			if !linked {
-				name = shape + "/import_links_unlinked_mark"
-			}
+		for _, mode := range []string{"linked", "unlinked", "oldstyle"} {
+			shape, mode := shape, mode
+			name := map[string]string{
+				"linked":   shape + "/export_import_round_trip",
+				"unlinked": shape + "/import_links_unlinked_mark",
+				"oldstyle": shape + "/old_style_anchor_round_trip",
+			}[mode]
 			t.Run(name, func(t *testing.T) {
 				if r, ok := knownRedBandio[name]; ok {
 					testutil.AnchorKnownRed(t, r[0], r[1])
 				}
-				runBandioCell(t, shape, shapes[shape], linked)
+				runBandioCell(t, shape, shapes[shape], mode)
 			})
 		}
 	}
 }
 
-func runBandioCell(t *testing.T, shape string, typ domain.ObjectType, linked bool) {
+func runBandioCell(t *testing.T, shape string, typ domain.ObjectType, mode string) {
 	src := newStack()
 	admin, err := src.svc.Register("owner", "Owner", "password123", "")
 	if err != nil {
@@ -113,12 +106,21 @@ func runBandioCell(t *testing.T, shape string, typ domain.ObjectType, linked boo
 		objs[0].JumpTo = "m2"
 		objs = append(objs, d)
 	}
+	chart, err := src.svc.ChartRenderForFile(f.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetID := chart.Lines.IDs[line.SrcLine]
 	for i := range objs {
-		if linked {
-			objs[i] = chartpdf.AnchorObject(objs[i], anchors, f.BlobHash)
-			if objs[i].Anchor == nil {
-				t.Fatal("fixture: the mark did not link at creation")
+		switch mode {
+		case "linked": // the stage-2 create path
+			objs[i] = chartpdf.LinkMark(objs[i], chart)
+			if objs[i].Link == nil || objs[i].Link.Line != targetID {
+				t.Fatalf("fixture: the mark did not link at creation: %+v", objs[i].Link)
 			}
+		case "oldstyle": // a T145-era mark: an old-style anchor, which stage 2 never interprets
+			objs[i].Anchor = &domain.SourceAnchor{RunText: line.Text, Occurrence: 1, CharStart: 2, CharEnd: 9}
+			objs[i].PointsRenderHash = "an-older-render"
 		}
 		o := objs[i]
 		apply(domain.Mutation{Kind: domain.KindCreate, UUID: o.UUID, AuthorID: admin.ID, Object: &o})
@@ -151,14 +153,23 @@ func runBandioCell(t *testing.T, shape string, typ domain.ObjectType, linked boo
 		if !ok {
 			t.Fatalf("%s did not survive the round trip", want.UUID)
 		}
-		if linked {
-			// P30: the link and the render it was computed on come back unchanged.
-			if !reflect.DeepEqual(g.Anchor, want.Anchor) || g.PointsRenderHash != want.PointsRenderHash {
-				t.Errorf("%s: link %+v / %q after import, want %+v / %q", want.UUID, g.Anchor, g.PointsRenderHash, want.Anchor, want.PointsRenderHash)
+		switch mode {
+		case "linked", "oldstyle":
+			// P30: the link (either style) and the render it was computed on come back unchanged.
+			if !reflect.DeepEqual(g.Link, want.Link) || !reflect.DeepEqual(g.Anchor, want.Anchor) ||
+				g.PointsRenderHash != want.PointsRenderHash || !reflect.DeepEqual(g.Points, want.Points) {
+				t.Errorf("%s: link %+v anchor %+v / %q after import, want %+v %+v / %q", want.UUID, g.Link, g.Anchor,
+					g.PointsRenderHash, want.Link, want.Anchor, want.PointsRenderHash)
 			}
-		} else if g.Anchor == nil {
-			// P31: a coordinates-only mark on a generated chart, sitting on a line, is linked on import.
-			t.Errorf("%s: imported onto a generated chart with no link, though it sits on a line of text", want.UUID)
+		case "unlinked":
+			// P31: a coordinates-only mark on a generated chart, sitting on a line, is linked on import —
+			// to THAT line (its id travels in the folder's lineIdentity) — and does not move.
+			if g.Link == nil || g.Link.State != domain.LinkLinked || g.Link.Line != targetID {
+				t.Errorf("%s: imported onto a generated chart with link %+v, want linked to the line it sits on", want.UUID, g.Link)
+			}
+			if !reflect.DeepEqual(g.Points, want.Points) {
+				t.Errorf("%s: linking at import moved the mark", want.UUID)
+			}
 		}
 		if want.JumpTo != "" && g.JumpTo != want.JumpTo {
 			t.Errorf("%s: jump pairing lost on import (%q, want %q)", want.UUID, g.JumpTo, want.JumpTo)

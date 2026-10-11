@@ -757,26 +757,20 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 		}
 	}
 	sf := stagedFile{fileID: file.ID, rasters: rasters, nameByLayer: nameByLayer, ownerByLayer: ownerByLayer}
-	// T145 forward fix: for a generated chart, re-project marks whose cached coordinates predate the
-	// current render onto their words before baking, so a reflowed chart bakes the mark ON its line rather
-	// than orphaning it (the reflow-orphan guard in assembleSong is the backstop; this is the fix).
-	// Anchor/re-project ONLY against a render that reproduces file.BlobHash byte-for-byte (a transpose
-	// preserves line positions, so its manifest is still valid); a divergent render is withheld so a stale
-	// mark is left to the reflow-orphan guard rather than re-projected onto a geometry the blob lacks. See
-	// app.ChartAnchorsIfCurrent. Uploaded files have no source → no anchors.
-	// T193 (anchoring stage 0): frozen, marks bake at their STORED coordinates, so the render that only
-	// served the projection is skipped (the reflow-orphan guard in assembleSong still applies).
-	var anchors []chartpdf.Anchor
-	if file.Generated && !chartpdf.AnchoringFrozen() {
-		if _, src, cerr := b.svc.ChartSource(actor, bandID, item.SongID, file.ID); cerr == nil {
-			if a, ok := app.ChartAnchorsIfCurrent(src, file.BlobHash); ok {
-				anchors = a
-			}
+	// T195 (anchoring stage 2): for a generated chart, linked marks are projected onto the chart's current
+	// render before baking, so a mark follows its line (the reflow-orphan guard in assembleSong is the
+	// backstop for fixed and lost marks). Only against a render that reproduces file.BlobHash byte-for-byte
+	// (P32; a transpose keeps every line where it is, so the untransposed manifest is the right one, P18);
+	// a divergent render bakes every mark at its stored coordinates. Uploaded files have no source.
+	var chart *chartpdf.ChartRender
+	if file.Generated {
+		if r, cerr := b.svc.ChartRenderForFile(file.ID); cerr == nil && r.Hash == file.BlobHash {
+			chart = &r
 		}
 	}
 	// T97/T98: a file enters the overlay batch only if it has objects to draw (scoped to THIS file — a
 	// multi-file song carries per-file layers, B11/T40). Zero objects → no spawn contribution.
-	doc := snapshotToDoc(snap, file.ID, anchors, file.BlobHash)
+	doc := snapshotToDoc(snap, file.ID, chart)
 	sf.objects = doc.Objects
 	if len(doc.Objects) == 0 {
 		return sf, nil, nil
