@@ -124,7 +124,8 @@ async function setup(page: Page): Promise<Ctx> {
 
 async function openSong(page: Page, c: Ctx) {
   await page.goto(`/bands/${c.bandId}/songs/${c.songId}?file=${c.fileId}`);
-  await expect(page.getByTestId("pdf-page").first()).toBeVisible();
+  // The first open of a run pays pdf.js's cold load; under a loaded machine that alone exceeded 10 s.
+  await expect(page.getByTestId("pdf-page").first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
 }
@@ -197,6 +198,9 @@ async function shot(page: Page, name: string) {
 }
 
 test.describe("T196 link states", () => {
+  // Each test builds two charts and a probe song before it starts; the first also zooms. 30 s is tight on
+  // a loaded runner.
+  test.describe.configure({ timeout: 90_000 });
   test("a selected linked mark shows a dot on its text and a line to it; deselect removes them", async ({ page }) => {
     const c = await setup(page);
     await openSong(page, c);
@@ -224,6 +228,22 @@ test.describe("T196 link states", () => {
     await expect(page.getByTestId("link-dot")).toHaveCount(0);
     expect(isAccent(await pixelAt(page, dx, dy)), "no accent left after deselect").toBe(false);
     await expect(page.getByTestId("link-details")).toHaveCount(0);
+
+    // The hint is the same size ON SCREEN at every zoom (CSS px, not page units): the dot is 2·4 px
+    // across at fit-width and still after zooming in, while the page itself grew.
+    await selectMark(page, c, "hl");
+    const size = async () => {
+      const b = (await page.getByTestId("link-dot").boundingBox())!;
+      return { w: b.width, h: b.height, pageW: (await page.getByTestId("pdf-page").first().boundingBox())!.width };
+    };
+    const before = await size();
+    expect(Math.abs(before.w - 8)).toBeLessThan(1);
+    await page.getByTestId("zoom-in").click();
+    await page.getByTestId("zoom-in").click();
+    await expect.poll(async () => (await size()).pageW / before.pageW, { timeout: 10_000 }).toBeGreaterThan(1.2);
+    await expect.poll(async () => Math.abs((await size()).w - 8), { timeout: 10_000 }).toBeLessThan(1);
+    const after = await size();
+    expect(Math.abs(after.h - 8)).toBeLessThan(1);
   });
 
   test("Show links draws every link and persists across a reload; it never writes anything", async ({ page }) => {
@@ -239,6 +259,7 @@ test.describe("T196 link states", () => {
     await expect(page.getByTestId("link-tie")).toHaveCount(3);
     await shot(page, "show-links");
     await page.reload();
+    await expect(page.getByTestId("pdf-page").first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("show-links")).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("link-tie")).toHaveCount(3);
     await page.getByTestId("show-links").click();

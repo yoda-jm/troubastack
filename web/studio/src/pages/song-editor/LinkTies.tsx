@@ -20,6 +20,12 @@ export type LinkTieItem = {
   box: { minX: number; minY: number; maxX: number; maxY: number };
 };
 
+/** The dot's radius and its white halo ring, in CSS px (VLL: a visible hint, not a speck). The Check dot is a
+ *  ring of the same outer size: its stroke (RING wide) is centred on r = DOT_R − RING/2. */
+export const DOT_R = 4;
+export const HALO = 1.5;
+export const RING = 1.5;
+
 export function LinkTies({ items, pageBoxPx }: { items: LinkTieItem[]; pageBoxPx: { w: number; h: number } | null }) {
   if (!pageBoxPx || items.length === 0) return null;
   const { w, h } = pageBoxPx;
@@ -41,6 +47,9 @@ export function LinkTies({ items, pageBoxPx }: { items: LinkTieItem[]; pageBoxPx
                 <line className="link-line" data-testid="link-line" x1={dot.x} y1={dot.y} x2={end.x} y2={end.y} />
               </>
             )}
+            {/* The halo ring first, then the dot: sizes are in the overlay's user units, which ARE CSS px
+                (the viewBox is the page box in CSS px), so they stay the same on screen at every zoom. */}
+            <circle className="link-dot-halo" cx={dot.x} cy={dot.y} r={DOT_R + HALO} />
             <circle
               className="link-dot"
               data-testid="link-dot"
@@ -48,7 +57,7 @@ export function LinkTies({ items, pageBoxPx }: { items: LinkTieItem[]; pageBoxPx
               data-y={dot.y.toFixed(1)}
               cx={dot.x}
               cy={dot.y}
-              r={3.5}
+              r={it.state === "check" ? DOT_R - RING / 2 : DOT_R}
             />
           </g>
         );

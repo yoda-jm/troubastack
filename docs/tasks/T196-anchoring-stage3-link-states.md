@@ -68,10 +68,16 @@ inside the served `link`:
   - A mark on its own words shows the dot alone: the line is drawn only when the dot is outside the box by
     3 px or more.
   - The box follows a live drag, so the line stretches with it; the dot stays on the text.
-  - **Colours:** the Studio accent (`var(--accent)`) at 0.8 opacity, over a paper-white halo. The chart page
+  - **Size (review follow-up, VLL asked for a visible hint):** a dot of radius 4 px in the accent at 0.85
+    opacity, on a 1.5 px white halo ring (5.5 px outer radius); a 1.5 px tie, dashed 4 on / 3 off, at 0.85
+    opacity, over a 4 px white halo. These are CSS px: the overlay's viewBox is the page box in CSS px
+    (re-measured on every zoom) and strokes are non-scaling, so the hint is the same size on screen at every
+    zoom (e2e: 8 px across at fit-width and after two zoom-ins, while the page grew). It was radius 3.5 with
+    a 1.5 px centred stroke (about 2.75 px of visible accent), and a 1.4 px tie dashed 1.5 / 3, at 0.8.
+  - **Colours:** the Studio accent (`var(--accent)`), over a paper-white halo. The chart page
     is white paper in both themes, so the halo is deliberately not themed. It keeps the dot and line legible
     over blue chords and black lyrics.
-  - **Check** is the same tie with a **hollow** dot: the mark still follows its line, but asks for a look.
+  - **Check** is the same tie with a **hollow** dot (a 1.5 px accent ring of the same outer size): the mark still follows its line, but asks for a look.
 - **"Show links"** is a pill in the top bar next to "Edit chart", on generated charts only. It draws the tie
   for every Linked or Check mark on the visible layers. It is off by default and remembered per browser
   (`localStorage` `trouba_show_links`, every access in try/catch; broken storage reads as off).
