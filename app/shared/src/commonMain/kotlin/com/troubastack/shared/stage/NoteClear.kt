@@ -7,8 +7,10 @@ sealed interface ClearPlan {
     data object Disabled : ClearPlan
     /** Clear this page (an index into the bundle's pages). */
     data class One(val page: Int) : ClearPlan
-    /** Both pages of the spread carry a note: ask which. One at a time — the action cannot be undone. */
-    data class Choose(val pages: List<Int>) : ClearPlan
+    /** Two-up with a note on at least one page: ALWAYS ask which (VLL, 2026-10-12: "Clear page" in face-to-face was
+     *  ambiguous when it silently picked the page with the note). [pages] is the spread, left to right; only those in
+     *  [clearable] carry a note — the others are shown, disabled. One at a time — the action cannot be undone. */
+    data class Choose(val pages: List<Int>, val clearable: Set<Int>) : ClearPlan
 }
 
 /**
@@ -22,10 +24,6 @@ sealed interface ClearPlan {
  */
 fun clearPlan(visible: List<Int>, twoUp: Boolean, hasNote: (Int) -> Boolean): ClearPlan {
     if (!twoUp || visible.size < 2) return visible.firstOrNull()?.takeIf(hasNote)?.let { ClearPlan.One(it) } ?: ClearPlan.Disabled
-    val withNote = visible.filter(hasNote)
-    return when (withNote.size) {
-        0 -> ClearPlan.Disabled
-        1 -> ClearPlan.One(withNote.single())
-        else -> ClearPlan.Choose(withNote)
-    }
+    val withNote = visible.filter(hasNote).toSet()
+    return if (withNote.isEmpty()) ClearPlan.Disabled else ClearPlan.Choose(visible, withNote)
 }

@@ -2163,15 +2163,18 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
             confirmButton = { TextButton(onClick = { confirmClear = false; onClear(plan.page) }) { Text("Clear") } },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
         )
-        // ⟨D6⟩ — both pages of the spread carry a note: ask which, one per button, numbered as the reader sees
-        // them (the position label's page numbers). No "both": one note at a time for an undoable-never action.
+        // ⟨D6⟩ / VLL 2026-10-12 — two-up ALWAYS asks which page, named by position and number as the reader sees
+        // them; a page without a note is shown but disabled. No "both": one note at a time for an undoable-never action.
         is ClearPlan.Choose -> AlertDialog(
             onDismissRequest = { confirmClear = false },
             title = { Text("Clear which page?") },
-            text = { Text("Deletes the whole note on this page — this can't be undone.") },
+            text = { Text("Deletes the whole note on that page — this can't be undone.") },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    plan.pages.forEach { p -> TextButton(onClick = { confirmClear = false; onClear(p) }) { Text("Page ${p + 1}") } }
+                    plan.pages.forEachIndexed { i, p ->
+                        val side = if (plan.pages.size == 2) (if (i == 0) "Left" else "Right") + " · " else ""
+                        TextButton(onClick = { confirmClear = false; onClear(p) }, enabled = p in plan.clearable) { Text("${side}page ${p + 1}", maxLines = 1, softWrap = false) }
+                    }
                 }
             },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },

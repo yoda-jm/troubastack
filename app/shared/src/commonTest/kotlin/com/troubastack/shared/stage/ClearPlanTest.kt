@@ -3,20 +3,20 @@ package com.troubastack.shared.stage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** A73 ⟨D6⟩ — "Clear page" picks a visible page that carries a note. The first case is the one that failed on
- *  VLL's tablet: the note on the LEFT page while `current` was the RIGHT one. */
+/** A73 ⟨D6⟩ — "Clear page" acts on a visible page that carries a note (the device failure: the note on the LEFT page
+ *  while `current` was the RIGHT one). VLL, 2026-10-12: in two-up it always ASKS which page — never silently picks. */
 class ClearPlanTest {
 
     @Test
-    fun twoUp_noteOnTheNonCurrentPage_isTheOneCleared() {
-        // spread [124, 125]; only 124 (the left page) carries a note — the device failure
-        assertEquals(ClearPlan.One(124), clearPlan(listOf(124, 125), twoUp = true) { it == 124 })
-        assertEquals(ClearPlan.One(125), clearPlan(listOf(124, 125), twoUp = true) { it == 125 })
+    fun twoUp_oneNote_stillAsksWhich_withTheOtherPageDisabled() {
+        // spread [124, 125]; only 124 (the left page) carries a note — offered, never silently chosen
+        assertEquals(ClearPlan.Choose(listOf(124, 125), setOf(124)), clearPlan(listOf(124, 125), twoUp = true) { it == 124 })
+        assertEquals(ClearPlan.Choose(listOf(124, 125), setOf(125)), clearPlan(listOf(124, 125), twoUp = true) { it == 125 })
     }
 
     @Test
     fun twoUp_bothPagesHaveANote_asksWhich() {
-        assertEquals(ClearPlan.Choose(listOf(124, 125)), clearPlan(listOf(124, 125), twoUp = true) { true })
+        assertEquals(ClearPlan.Choose(listOf(124, 125), setOf(124, 125)), clearPlan(listOf(124, 125), twoUp = true) { true })
     }
 
     @Test
