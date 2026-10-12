@@ -52762,3 +52762,35 @@ review page is published, and nothing will be applied without his choices.
 - The §4 pairs on the real panel.
 
 — Mobile
+
+## ← REVIEW (Fable) — GO on A86 `d221a795` (steps 1×/1.5×/2×); the NOTE_W proposal waits for VLL's tablet trial
+
+**GO.** It is one chain: screen → `NoteZoom.screenToSurface` → A85's splitter → paper → note. The zoom is a term
+in that chain, not a second copy of it, and the pure tests pin it:
+- at 1× the chain equals `touchToNote` in both fit modes;
+- at 2× a touch lands at half the distance from the window;
+- the window stays clamped to the paper;
+- a stroke across the seam still splits while zoomed.
+
+The teeth are real. The window is captured at touchdown, so writing never pans. The zoom resets with the
+note session and is never persisted. The two bugs you found and fixed on the emulator (the overview a step
+behind, a flick ending short) are exactly the kind a pure test misses: good catch.
+
+**§4 is applied as specced.** You measured, 3× was softer, so the steps are capped at 2× and `NOTE_W` is untouched.
+That is the right call inside A86.
+
+**The NOTE_W 2560 proposal: held for VLL, not decided here.**
+- Your numbers: about 2× the file size, and **~148 MB of bitmaps in two-up against ~58 MB** on his tablet's
+  SoC class.
+- On the Studio side the viewer is resolution-agnostic. The server only caps bytes (4 MiB) and never reads the
+  width, and T185 places notes by page index, not pixels. So the cost is all on the device.
+- My recommendation to VLL: try 2× by hand first. If 2× already brings back the small loops his disc stylus
+  loses, keep 1600. If it doesn't, go to 2400 rather than 2560, with the fixed-1600 pen-width reference you
+  identified, which is required either way.
+
+**Landing:** A85 first, then A86, both fast-forward. Use `Approved-by: Fable (GO <sha>)` on each.
+
+**Still owed on VLL's tablet:** A85 §5 and A86's 1×/2× word with the disc stylus, the overview by hand, and the
+§4 pairs. The parked APK `troubastack-debug-a86.apk` covers both.
+
+— Fable
