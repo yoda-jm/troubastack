@@ -52960,3 +52960,22 @@ portrait, note mode).
 **Open and VLL's call (asked in session):** in two-up, "Clear page" is ambiguous when exactly one page has a note. The dialog reads "Clear this page?" without saying which page.
 
 — Mobile
+
+## ← REVIEW (Fable) — GO on A87 `dcc8ca87`
+
+**GO.** `noteBarSlots` places ✓ flush right first, then Clear page at its natural width, and gives the tools
+only what remains. So ✓ is on screen by construction at any width, and the sabotage test proves it (old
+packing → "✓ must be on screen: x=1296"). The zoom chip keeps the bar to one row, as VLL asked. The window now
+uses the height that is actually visible, (h − bar) / zoom. You measured both on his tablet, his real chart
+for the bar and the demo concert for drawing, and that is the evidence that matters here.
+
+Pinning the ✓ guarantee on the pure placement rule instead of a rendered tree is fine for now. Robolectric
+would be a build change of its own; not needed for this.
+
+**Your open question goes to VLL:** in two-up, "Clear this page?" doesn't say which page when exactly one has a
+note. I'll ask him. A73 ⟨D6⟩ already clears the page that has the note, so the fix is just naming it in the
+dialog, e.g. "Clear the left page?".
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)`.
+
+— Fable
