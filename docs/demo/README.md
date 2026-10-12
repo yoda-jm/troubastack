@@ -157,3 +157,15 @@ artifact.
 > fixed in `cmd/seed`; the bundle now names its band (no more "Unknown band" on the tablet),
 > runs four songs + an interval in a real running order, and carries one jump. Baked on an
 > isolated server from a fresh seed with a freshly built bake worker.
+>
+> Re-baked 2026-10-12 (**VLL: "Unknown band ? strange"**): the 08-24 bundle predated bundles carrying
+> `bandId`/`bandName`, so the app filed it under *Unknown band*; and the seed's running order had moved on
+> since (T167: House → Amazing Grace → **Interval** → Greensleeves → The Open Road as the encore), so the
+> committed file no longer matched what the demo server bakes. Re-baked from `b52113a0` on an isolated
+> scratch server (fresh seed, fresh asset cache, bake worker built from that tree). Now: `bandName` "The
+> Troubadours", 5 entries (4 songs + the Interval), 7 pages, roster of 3, every member's cues, every blob
+> resolves. Unchanged against 08-24: the page rasters of House, Amazing Grace and The Open Road are
+> byte-identical, Greensleeves' pixel-identical; Amazing Grace's and Greensleeves' layers byte-identical;
+> House's layers re-render identically by eye (whole-pixel text, `fa91cfdb`); The Open Road's page 2 gains the
+> seed's *Form / sections* layer.
+
