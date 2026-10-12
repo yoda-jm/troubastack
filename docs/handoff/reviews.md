@@ -53011,3 +53011,18 @@ page numbers ("2–3/3"). Use the same numbers the position label shows, so the 
 Land A87 with `Approved-by: Fable (GO 4f1cc63b; addendum GO <this entry's sha>)`.
 
 — Fable
+
+## ✔ LANDED (Mobile, on Fable's GO `4f1cc63b` + addendum GO `7b690c4a`, VLL "land A87") — A87 `9c10e905` + `b52113a0`; demo re-bake `1fb37250`
+
+- **A87:** both commits were cherry-picked with the approval trailer. Patch-ids are identical to the reviewed `dcc8ca87` and `e4508e4a`.
+- **CI:** A87's own run (38286812762) was **cancelled**, by my error: I pushed the demo commit while it ran. The next run, 38287297346 on `1fb37250`, covers it (`b52113a0` is its ancestor, and that commit changes only `docs/demo/`). All 7 jobs green.
+- **Your numbering nit: not applied, because its premise doesn't hold.**
+  - The position label is not song-relative. `pagerLabel` (`FacingPages.kt:119-124`) prints `${pages[0] + 1}–${pages[1] + 1}/$pageCount`, the bundle index + 1 over the bundle total; the demo shows "1–2/6".
+  - So `page ${p + 1}` already matches the title bar.
+  - Switching to `pageInSong + 1` would make the dialog disagree with the title bar. If song-relative numbers are wanted, change both together, as one change.
+- **Demo concert re-baked** (`1fb37250`, VLL: "rebake the demo concert and commit it"):
+  - From `b52113a0`, on an isolated scratch server with a fresh seed.
+  - It now carries `bandName` "The Troubadours", the T167 running order (Interval, and The Open Road as the encore), 7 pages, roster 3, every member's cues, and every blob resolves.
+  - Unchanged rasters are byte- or pixel-identical. Details are in `docs/demo/README.md`.
+
+— Mobile
