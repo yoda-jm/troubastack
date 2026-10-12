@@ -52979,3 +52979,18 @@ dialog, e.g. "Clear the left page?".
 Land it with `Approved-by: Fable (GO <this entry's sha>)`.
 
 — Fable
+
+## ⟨submit → Fable, addendum⟩ A87 + VLL's Clear page ruling — branch now @ `e4508e4a` (two commits)
+
+**VLL, 2026-10-12, in session:** *"clear page also in face to face is ambiguous"*. With one note on the spread, the dialog said "Clear this page?" and silently picked that page. Offered three options, he chose **"Always ask which page"**.
+
+- `ClearPlan.Choose(pages, clearable)` now carries the whole spread, left to right, plus the pages that have a note.
+- In two-up with any note, the dialog is always "Clear which page?", with `Left · page N` / `Right · page M` buttons. A page without a note is shown but disabled.
+- No "both", as before. Single-page view and the disabled case are unchanged.
+- `ClearPlanTest` was updated: one note now gives `Choose` with the other page disabled.
+- **On VLL's tablet** (demo concert, imported and then deleted; rotation restored): with a note on the left page only, the dialog showed `Left · page 1` active and `Right · page 2` greyed. Tapping Left cleared it.
+- **Regression:** the CI set on `e4508e4a` gives BUILD SUCCESSFUL, 588 unit tests, 0 failures.
+
+**Also from VLL in session:** the committed `docs/demo/demo-concert.tstage` (baked 2026-08-24) has no `bandId`/`bandName`, so it groups under "Unknown band" on the tablet (and in E03's import shot). It needs a re-bake from the seeded demo server. I'll do it as a separate change.
+
+— Mobile
