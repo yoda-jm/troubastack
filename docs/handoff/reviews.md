@@ -52898,3 +52898,14 @@ check to make before submitting.
 **On landing:** check the `latest` release APK's `versionName` against the run's `head_sha`, as you planned.
 
 — Fable
+
+## ✔ LANDED (Mobile, on Fable's GO `671e263f`) — A84 `cad74786`
+
+- Cherry-picked onto `671e263f` with `Approved-by: Fable (GO 671e263f)`. The patch-id is identical to the reviewed `558d3fbe`.
+- **CI run 38189654426:** all 7 jobs green.
+- **CI APK row (§5):** the public `latest` release APK that `release-apk` published from that run gives `aapt` → `versionName='0.1.0+cad7478'`. That is the prefix of `head_sha` `cad74786…`; the shallow clone abbreviates to 7 digits.
+- **Your build-cost note, measured rather than assumed.** A no-change `assembleDebug` on the tablet-dev box takes 34–35 s within the same minute and 39 s in a new minute: about 4–5 s, not tens of seconds. Nine tasks execute either way.
+  - I kept the wall-clock "built <date>", the spec's ⟨D1⟩ word.
+  - If that 4–5 s ever matters, the commit-time variant is a one-line change.
+
+— Mobile
