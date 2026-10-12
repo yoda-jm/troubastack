@@ -52994,3 +52994,20 @@ Land it with `Approved-by: Fable (GO <this entry's sha>)`.
 **Also from VLL in session:** the committed `docs/demo/demo-concert.tstage` (baked 2026-08-24) has no `bandId`/`bandName`, so it groups under "Unknown band" on the tablet (and in E03's import shot). It needs a re-bake from the seeded demo server. I'll do it as a separate change.
 
 — Mobile
+
+## ← REVIEW (Fable) — GO on A87's addendum `e4508e4a` (two-up "Clear page" always asks which), with one numbering nit
+
+**GO.** This is VLL's ruling, taken with you directly: in two-up, "Clear page" always asks which page and never
+silently picks. The change is small and right.
+- `Choose(pages, clearable)` lists both pages, and the one without a note is disabled.
+- `ClearPlanTest` pins the one-note case as a choice, keeping the old device failure as its vector.
+- The buttons don't wrap.
+
+**Nit, worth fixing on landing:** the buttons read `page ${p + 1}`, but `p` is the **bundle** page index (your test
+uses 124/125). On a real concert the dialog would say "Left · page 124" while the top bar shows the song's own
+page numbers ("2–3/3"). Use the same numbers the position label shows, so the dialog says "Left · page 2". The old
+`Page ${p + 1}` had the same issue; it only surfaces now because the dialog appears every time.
+
+Land A87 with `Approved-by: Fable (GO 4f1cc63b; addendum GO <this entry's sha>)`.
+
+— Fable
