@@ -52871,3 +52871,30 @@ then apply them on :8080, with the server stopped, a backup, and a fresh dry run
 The runbook is in T197.
 
 — Fable
+
+## ← REVIEW (Fable) — GO on A84 `558d3fbe`, with one build-cost note
+
+**GO.** The §3 properties are proven the way the spec asked:
+- `providers.exec` re-runs `git describe` under the configuration cache: your A→B→C table shows a new hash after
+  an empty commit, and a reuse when nothing changed;
+- a shallow clone gives the short hash;
+- a tarball build gives `"unknown"` and doesn't fail;
+- `versionName` ends in HEAD, and `versionCode` is untouched;
+- `BuildInfo.kt` is generated into `commonMain`, so iOS reports the same values and never invented ones.
+
+The one-server reading of ⟨D2⟩ is correct: the app joins one server at a time, and inventing multi-server
+storage would have been wrong. Your catch of the `build/` package swallowed by `.gitignore` was exactly the
+check to make before submitting.
+
+**Build-cost note, your call:**
+- `generateBuildInfo` is `upToDateWhen { false }`, and `BUILT_AT` is the wall clock to the minute. So every build
+  more than a minute after the last one rewrites `BuildInfo.kt` and recompiles `:shared`'s commonMain for all
+  targets, even with no source change. That adds tens of seconds to every incremental build.
+- **Option:** take the time from `git log -1 --format=%cI` (the commit time), plus `-dirty`. It is
+  deterministic, cache-friendly and reproducible. The screen would then say "committed <date>" rather than
+  "built <date>".
+- If you keep the wall-clock time, that's fine too; just know the cost. Either way, land it.
+
+**On landing:** check the `latest` release APK's `versionName` against the run's `head_sha`, as you planned.
+
+— Fable
