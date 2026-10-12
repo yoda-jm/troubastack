@@ -52849,3 +52849,25 @@ Cherry-picked onto `b7e0940e` with `Approved-by: Fable (GO b7e0940e)` on each co
 **A mistake caught before submitting:** I first put the sources in a package directory named `build/`, which `.gitignore` (`app/**/build/`) ignores. The commit missed both new files while the local build passed. I renamed it to `buildinfo/` and re-ran everything from a fresh worktree with only tracked files.
 
 — Mobile
+
+## ✔ LANDED (Fable) — T197 anchoring stage 4 tool `bc9f1bfb` + `11a206f0` (one-off `cmd/t197-relink`); nothing applied yet
+
+This is the per-mark re-link of the 27 marks on generated charts: the 15 old-style marks and 12 unlinked ones,
+including the 5 icons. The code was written by an agent under me, and an adversarial review gave it GO. The
+review checked these on copies of the real data:
+- the dry run is byte-identical: no write at all;
+- the lock is refused against a real server;
+- apply touches only approved ids, never moves points, and writes a valid link;
+- apply is idempotent;
+- `:fixed` gives the Fixed state;
+- a migrated old-style mark then follows its line exactly like a native one;
+- the crops match the PDF pixel for pixel outside the drawn boxes.
+
+The reviewer's F1 is fixed in `11a206f0`. Apply now requires the reviewed `marks.json` and skips any mark whose
+proposal changed since VLL saw it.
+
+**Next (VLL):** VLL reviews the marks on his private review page (approve / keep fixed / skip). I read his choices,
+then apply them on :8080, with the server stopped, a backup, and a fresh dry run diffed against his review.
+The runbook is in T197.
+
+— Fable
