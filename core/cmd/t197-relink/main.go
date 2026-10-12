@@ -8,7 +8,7 @@
 // Two modes:
 //
 //	t197-relink -data <dataDir> -out <reviewDir>              (the default: -dry)
-//	t197-relink -data <dataDir> -apply -approve <idsFile>     (writes)
+//	t197-relink -data <dataDir> -apply -approve <idsFile> -review <reviewDir>/marks.json     (writes)
 //
 // The DRY RUN writes nothing to the data dir. For each candidate it computes what stage 2's linking rule
 // (chartpdf.LinkMark) decides from the mark's CURRENT STORED position on the chart's current render — only
@@ -26,6 +26,14 @@
 // dropped, PointsRenderHash set to the current render. Nothing else is touched: an unapproved candidate is
 // never written, and an approved id that is not a candidate (already linked, deleted, unknown) is listed and
 // skipped.
+//
+// An approval covers the proposal VLL SAW: -review names the marks.json he reviewed, and an approved mark is
+// written only when the recomputed proposal matches its reviewed entry (state, line number and line TEXT —
+// the dry run's ids may be provisional — visual line, x reference, margin). If the chart changed since, the
+// mark is skipped: "proposal changed since review". A :fixed override needs only the mark in the review.
+//
+// Apply stops at the first refusal or write error; marks already written stay written. It is idempotent: a
+// written mark is no longer a candidate, so re-running the same approval list after a fix is safe.
 //
 // SAFETY: both modes refuse while a server holds the data dir (the app.lock writer lock, the same check as
 // t193-freeze-served); file backends only; stdout carries ids and numbers only. Back the data dir up first.
@@ -64,7 +72,7 @@ func main() {
 // errLive is returned when a server holds the data dir.
 var errLive = errors.New("a server holds this data dir (app.lock) — stop it first; this tool never runs behind a live server")
 
-const usage = "usage: t197-relink -data <dataDir> [-dry] -out <reviewDir> | t197-relink -data <dataDir> -apply -approve <idsFile> [-actor id]"
+const usage = "usage: t197-relink -data <dataDir> [-dry] -out <reviewDir> | t197-relink -data <dataDir> -apply -approve <idsFile> -review <reviewDir>/marks.json [-actor id]"
 
 // Old and proposed states, as marks.json and the summary spell them.
 const (
@@ -82,17 +90,22 @@ func run(args []string, out io.Writer) error {
 	outDir := fs.String("out", "", "dry run: the directory to write marks.json and the crops into")
 	apply := fs.Bool("apply", false, "write the links of the approved marks")
 	approve := fs.String("approve", "", "apply: the file listing approved object ids, one per line (id or id:fixed)")
+	reviewFile := fs.String("review", "", "apply: the marks.json of the dry run VLL reviewed; a mark whose proposal changed since is skipped")
 	actor := fs.String("actor", "t197-relink", "author id stamped on the writes")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *dir == "" || fs.NArg() != 0 || (*apply && *approve == "") || (!*apply && *outDir == "") {
+	if *dir == "" || fs.NArg() != 0 || (*apply && (*approve == "" || *reviewFile == "")) || (!*apply && *outDir == "") {
 		return errors.New(usage)
 	}
 	var approvals map[string]bool
+	var reviewed map[string]entry
 	if *apply {
 		var err error
 		if approvals, err = readApprovals(*approve); err != nil {
+			return err
+		}
+		if reviewed, err = readReview(*reviewFile); err != nil {
 			return err
 		}
 	}
@@ -113,7 +126,7 @@ func run(args []string, out io.Writer) error {
 		return err
 	}
 	if *apply {
-		_, err = w.apply(approvals, *actor, out)
+		_, err = w.apply(approvals, reviewed, *actor, out)
 		return err
 	}
 	_, err = w.dryRun(*outDir, out)
@@ -138,6 +151,26 @@ func readApprovals(path string) (map[string]bool, error) {
 			return nil, fmt.Errorf("%s:%d: want <objectId> or <objectId>:fixed, got %q", path, i+1, line)
 		}
 		m[id] = has
+	}
+	return m, nil
+}
+
+// readReview loads the dry run's marks.json that VLL reviewed, by object id.
+func readReview(path string) (map[string]entry, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var es []entry
+	if err := json.Unmarshal(b, &es); err != nil {
+		return nil, fmt.Errorf("%s: not a t197-relink marks.json: %w", path, err)
+	}
+	m := map[string]entry{}
+	for _, e := range es {
+		if e.ObjectID == "" {
+			return nil, fmt.Errorf("%s: an entry has no objectId", path)
+		}
+		m[e.ObjectID] = e
 	}
 	return m, nil
 }
@@ -247,6 +280,35 @@ func servedState(next domain.Object, r chartpdf.ChartRender) domain.LinkState {
 		return p.Link.State
 	}
 	return next.Link.State
+}
+
+// proposalKey is what VLL approved when he approved a proposal on its crop: the state, the line by its TEXT
+// (line ids can be provisional in the dry run), the visual line, the horizontal reference and the margin
+// flag. Apply writes only when the recomputed proposal has the same key as the reviewed entry.
+type proposalKey struct {
+	State, LineText, XRef string
+	Line, Wrap            int // Line: the 1-based source line, so a repeated line's other copy is not taken for it
+	Margin                bool
+}
+
+func keyOfEntry(e entry) proposalKey {
+	return proposalKey{State: e.Proposed, LineText: e.LineText, XRef: e.XRef, Line: e.LineNumber, Wrap: e.Wrap, Margin: e.Margin}
+}
+
+// keyOf is the key of a recomputed proposal on r (built exactly as the dry run fills an entry).
+func keyOf(next domain.Object, r chartpdf.ChartRender) proposalKey {
+	k := proposalKey{State: string(servedState(next, r))}
+	l := next.Link
+	if l == nil || l.State == domain.LinkFixed {
+		return k
+	}
+	idx := lineIndex(r.Lines, l.Line)
+	if idx >= 0 {
+		k.LineText = chartpdf.SourceLines(r.Source)[idx]
+	}
+	k.Line = idx + 1
+	k.XRef, k.Wrap, k.Margin = l.XRef, l.Wrap, l.XRef == "margin"
+	return k
 }
 
 // ---- dry run ----
@@ -625,7 +687,10 @@ type applyReport struct {
 	ApprovedIDs int
 }
 
-func (w *world) apply(approvals map[string]bool, actor string, out io.Writer) (applyReport, error) {
+// staleReview is why an approved mark whose proposal moved since the review is not written.
+const staleReview = "proposal changed since review: re-run the dry run and review it again"
+
+func (w *world) apply(approvals map[string]bool, reviewed map[string]entry, actor string, out io.Writer) (applyReport, error) {
 	rep := applyReport{Skipped: map[string]string{}, ByProposed: map[string]int{}, ApprovedIDs: len(approvals)}
 	cands, err := w.candidates()
 	if err != nil {
@@ -652,6 +717,19 @@ func (w *world) apply(approvals map[string]bool, actor string, out io.Writer) (a
 			return rep, fmt.Errorf("file %s: %w", c.file, err)
 		}
 		next := propose(o, r, fixed)
+		// What VLL approved is the proposal on the crop he saw. A :fixed override needs only that he saw the
+		// mark; otherwise the recomputed proposal must be the reviewed one (the chart may have changed since).
+		rev, inReview := reviewed[o.UUID]
+		if !inReview {
+			rep.Skipped[o.UUID] = "not in the reviewed marks.json"
+			fmt.Fprintf(out, "skip  %s: not in the reviewed marks.json\n", o.UUID)
+			continue
+		}
+		if !fixed && keyOf(next, r) != keyOfEntry(rev) {
+			rep.Skipped[o.UUID] = staleReview
+			fmt.Fprintf(out, "skip  %s: %s\n", o.UUID, staleReview)
+			continue
+		}
 		if next.Page != o.Page || !reflect.DeepEqual(next.Points, o.Points) || next.Anchor != nil || next.PointsRenderHash != r.Hash {
 			return rep, fmt.Errorf("%s: the proposal changed the mark's geometry or kept its old anchor (refusing)", o.UUID)
 		}

@@ -298,7 +298,7 @@ func TestRelink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, args := range [][]string{{"-data", f.dir, "-apply", "-approve", approve}, {"-data", f.dir, "-out", review}} {
+	for _, args := range [][]string{{"-data", f.dir, "-apply", "-approve", approve, "-review", filepath.Join(review, "marks.json")}, {"-data", f.dir, "-out", review}} {
 		out.Reset()
 		if err := run(args, &out); !errors.Is(err, errLive) {
 			t.Fatalf("%v with the server's lock held: err = %v, want errLive", args, err)
@@ -311,7 +311,7 @@ func TestRelink(t *testing.T) {
 
 	// 3. Apply: only the approved candidates are written, each in its own revision.
 	out.Reset()
-	if err := run([]string{"-data", f.dir, "-apply", "-approve", approve}, &out); err != nil {
+	if err := run([]string{"-data", f.dir, "-apply", "-approve", approve, "-review", filepath.Join(review, "marks.json")}, &out); err != nil {
 		t.Fatalf("apply: %v\n%s", err, out.String())
 	}
 	t.Logf("apply:\n%s", out.String())
@@ -376,6 +376,10 @@ func TestReadApprovals(t *testing.T) {
 	}
 	if err := run([]string{"-data", t.TempDir(), "-apply"}, &bytes.Buffer{}); err == nil {
 		t.Error("-apply without -approve accepted")
+	}
+	_ = os.WriteFile(p, []byte("a\n"), 0o600)
+	if err := run([]string{"-data", t.TempDir(), "-apply", "-approve", p}, &bytes.Buffer{}); err == nil {
+		t.Error("-apply without -review (the reviewed marks.json) accepted")
 	}
 	if err := run([]string{"-data", t.TempDir()}, &bytes.Buffer{}); err == nil {
 		t.Error("a dry run without -out accepted")

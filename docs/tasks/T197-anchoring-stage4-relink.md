@@ -26,7 +26,8 @@ serve would say so, check.
 
 ```
 t197-relink -data <dataDir> -out <reviewDir>              # the default (-dry): writes nothing to the data dir
-t197-relink -data <dataDir> -apply -approve <idsFile>     # writes the approved marks only
+t197-relink -data <dataDir> -apply -approve <idsFile> -review <reviewDir>/marks.json
+                                                          # writes the approved marks only, as reviewed
 ```
 
 Both modes refuse while a server holds the data dir (`filerepo.LockDir`, the same `app.lock` check as
@@ -77,6 +78,21 @@ An unapproved candidate is never written. An approved id that is not a candidate
 deleted, on an uploaded PDF, unknown) is listed as skipped. A second dry run no longer lists the written
 marks.
 
+**An approval covers only the proposal VLL saw (review F1).** `-review` is required: the `marks.json` of the
+dry run he reviewed. For each approved id, the recomputed proposal is compared with its reviewed entry:
+- state;
+- the line's **text** and **number** (not its id: on real data the dry-run ids are provisional);
+- the visual line (`wrap`), `xRef` and the margin flag.
+
+Any difference means the chart changed after the review. The mark is then skipped and listed as "proposal
+changed since review: re-run the dry run and review it again"; nothing is written for it. A `:fixed`
+override needs only the id to be in the review file. An approved id missing from the review file is
+skipped too.
+
+**Stopping partway.** Apply stops at the first refusal (a proposal that would move a mark, an invalid link)
+or write error. Marks written before it stay written, each in its own revision. Apply is idempotent: a
+written mark is no longer a candidate, so the same approval list can be re-run after the fix.
+
 ## 3. Tests (`cmd/t197-relink/main_test.go`)
 
 A temporary file-backed data dir, synthetic only (`testutil.FreezeChart`):
@@ -98,11 +114,24 @@ A temporary file-backed data dir, synthetic only (`testutil.FreezeChart`):
   are deep-equal to before;
 - a second dry run lists only the unapproved icon.
 
-`TestReadApprovals` covers the file format and the flag errors.
+`TestReadApprovals` covers the file format and the flag errors (`-apply` needs `-approve` and `-review`).
+
+The adversarial review's vectors are permanent, in `review_t197_test.go`:
+- `TestReview7_ApplyEndToEnd`: on a chart with no stored line ids, an applied old-style mark serves linked,
+  then follows an edit exactly like a native link drawn at the same place; `:fixed` stays fixed; a second
+  apply changes nothing.
+- `TestReview7_ApprovalOfAStaleProposal` (F1): the dry run proposes the first lyric, a line is then inserted
+  above it through `SaveChartSource`, and the apply skips the icon with the stale-review message and leaves
+  it deep-equal. `:fixed` still writes with the old review. After a fresh dry run, the same approval writes
+  the newly reviewed line.
 
 **Teeth:** with the approval filter disabled (`if false && !approved`), `TestRelink` goes red:
 `revision 8 -> 12, want exactly 3 new revisions`, `m-icon was not approved as a candidate, yet it changed`,
 `second dry run candidates [], want [m-icon]`.
+
+With the review comparison disabled (`if false && !fixed && keyOf(...) != ...`),
+`TestReview7_ApprovalOfAStaleProposal` goes red: `apply wrote m-icon although its proposal changed since the
+review: link to "A brand new opening line", reviewed "Pack a little light for the road ahead"`.
 
 ## 4. The dry run on a copy of VLL's data (2026-10-12)
 
@@ -126,6 +155,8 @@ was applied. 27 candidates on 13 generated charts:
 
 1. Build the private review page from `marks.json` and the crops (approve / skip per mark, `:fixed` as a
    third choice), and let VLL review.
-2. With his list: stop the server, take a dated backup of `app.json` and `songs/`, dry-run once more, run
-   `-apply -approve`, dry-run again (the approved marks must be gone), and restart.
+2. With his list: stop the server and take a dated backup of `app.json` and `songs/`. Dry-run once more
+   into a NEW `-out` (never over the reviewed `marks.json`), then run
+   `-apply -approve <list> -review <the reviewed marks.json>`. Any mark listed "proposal changed since
+   review" goes back to step 1. Dry-run again (the written marks must be gone), and restart.
 3. Later cleanup (critique §7): stop carrying old-format `Anchor` fields on the wire.
