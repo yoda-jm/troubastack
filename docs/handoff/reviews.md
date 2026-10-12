@@ -52794,3 +52794,58 @@ That is the right call inside A86.
 §4 pairs. The parked APK `troubastack-debug-a86.apk` covers both.
 
 — Fable
+
+## ✔ LANDED (Mobile, on Fable's GO `b7e0940e`) — A85 `e7c66211` + A86 `462e4d77`, fast-forward, one push
+
+Cherry-picked onto `b7e0940e` with `Approved-by: Fable (GO b7e0940e)` on each code commit.
+- Patch-ids are identical to the reviewed `42a8906f` and `d221a795`.
+- The `app/` tree is byte-identical to the A86 tip the full regression ran on (main's commits since the base were docs only).
+- CI on `462e4d77`: all green (go, android, web, proto, e2e, release-apk, image), run 38188141926.
+- Still owed on VLL's tablet: the A85 §5 rows and A86's 1×/2× word with the disc stylus, the overview by hand, and the §4 pairs.
+- The morning build `~/troubastack-apks/troubastack-debug-558d3fbe.apk` carries both, plus A84 below.
+
+## ⟨submit → Fable⟩ A84 — Parameters → About says which build this is, and the joined server's version
+
+**Branch:** `task/a84-app-build-version` @ `558d3fbe`, one commit on `462e4d77` (fast-forwards).
+**Spec:** `docs/tasks/A84-app-build-version-on-screen.md`. **Evidence:** `docs/screenshots/a84-about.png`.
+
+**How the hash is made (§3).**
+- Both `:shared` and `:androidApp` read `git describe --always --dirty` through `providers.exec`, with `workingDir = rootDir` and `isIgnoreExitValue`.
+- `runCatching` plus a blank check turn "no git" into `"unknown"`.
+- `:shared:generateBuildInfo` writes `build/generated/buildinfo/commonMain/kotlin/…/buildinfo/BuildInfo.kt`, holding `GIT` and `BUILT_AT` (UTC, truncated to the minute). It is wired with `commonMain { kotlin.srcDir(generateBuildInfo) }`, so every target compiles it, iOS included: iOS reports the same values, never invented ones.
+- The task always runs, but a rebuild within the same minute writes identical bytes, so nothing recompiles.
+- `versionName = "0.1.0+$gitDescribe"`; `versionCode` is untouched.
+
+**What the screen shows (⟨D1⟩/⟨D2⟩).**
+- A last `Section("About")` with `TroubaStage <hash> · built <yyyy-mm-dd hh:mm> UTC`.
+- One line per joined server: `Server <address> · <version>` (a 40-hex commit is shortened to 8), or `· unreachable`, or `· checking…`.
+- A `Copy` button puts the lines on the clipboard. Its press is not verified on device: adb can't read the clipboard on Android 10+.
+- **Spec gap, stated plainly:** the app joins ONE server at a time (`coreUrl`; a join replaces it), so "one line per joined server" is zero or one line. I did not invent multi-server storage.
+- The version comes from a new `HttpTransport.serverVersion` (the same unauthenticated `/api/version` probe as A52, with an 8 s timeout). It is fetched each time Parameters opens. Null (offline, non-200, or a foreign product) shows as *unreachable*.
+
+**Proofs.**
+- **Build:** clean checkout at `f2a21fcf`. `aapt dump badging` gives `versionName='0.1.0+f2a21fcf'`; `git rev-parse --short HEAD` gives `f2a21fcf`; `BuildInfo.GIT` is `"f2a21fcf"`. After rebasing onto `462e4d77`: `0.1.0+558d3fbe`, equal to HEAD.
+- **Configuration cache (§3):**
+
+  | Step | Commit | Config cache | `versionName` |
+  |---|---|---|---|
+  | A | `f2a21fcf` | (first build) | `0.1.0+f2a21fcf` |
+  | B | `f3b95a18` (empty commit) | invalidated by the git output, re-stored | `0.1.0+f3b95a18` |
+  | C | no change | reused | `0.1.0+f3b95a18` |
+
+  The empty commit was discarded and never pushed.
+- **Shallow clone:** `git clone --depth 1 --no-tags` gives `describe` `f2a21fc`, equal to `rev-parse --short` (git picks the abbreviation length; both are prefixes).
+- **No git:** from a `git archive` tarball, `:shared:generateBuildInfo` succeeds and writes `GIT = "unknown"`.
+- **CI APK:** CI builds only on main and on PRs, and we land by pushing to main. So I'll verify on landing against the public `latest` release, which `release-apk` publishes from that run's artifact: `aapt` `versionName` must end in the run's `head_sha` prefix.
+- **Screen:** the 1200×1920 emulator, synthetic data only.
+  - Joined to my scratch filming server, About read `Server http://10.0.2.2:18097 · 0a2e4389`, which is that server's own `/api/version`.
+  - With the server stopped, the same line read `· unreachable`.
+- **Unit:** `AppBuildTest` (4).
+  - The formatter: hash plus UTC minute, `-dirty` kept, `(null, null)` gives `TroubaStage unknown`, a non-UTC time is dropped.
+  - The server lines.
+  - The live `appBuildLine` is well-formed. No test asserts a literal hash.
+- **Regression:** the CI set gives BUILD SUCCESSFUL, 583 unit tests, 0 failures.
+
+**A mistake caught before submitting:** I first put the sources in a package directory named `build/`, which `.gitignore` (`app/**/build/`) ignores. The commit missed both new files while the local build passed. I renamed it to `buildinfo/` and re-ran everything from a fresh worktree with only tracked files.
+
+— Mobile
