@@ -15,6 +15,18 @@ kotlin {
     jvmToolchain(libs.versions.jdk.get().toInt())
 }
 
+// A84 — the commit this build comes from, as the server reports its own (`git describe --always --dirty`).
+// Read through providers.exec, so the configuration cache re-runs git and a new commit is never served a cached
+// hash; correct in CI's shallow clone (describe --always falls back to the short hash). No git, or not a
+// checkout (a source tarball) → "unknown", never a build failure.
+val gitDescribe: String = runCatching {
+    providers.exec {
+        commandLine("git", "describe", "--always", "--dirty")
+        workingDir = rootDir
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim()
+}.getOrDefault("").ifBlank { "unknown" }
+
 android {
     namespace = "com.troubastack.app"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -23,8 +35,8 @@ android {
         applicationId = "com.troubastack.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 1                    // A84: deliberately unchanged (an upgrade-policy decision, not this task)
+        versionName = "0.1.0+$gitDescribe" // A84: `dumpsys package` answers which build this is
     }
 
     buildTypes {

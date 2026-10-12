@@ -337,6 +337,16 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         var fitSel by remember { mutableStateOf(FitMode.parse(storage.getSecret(FIT_MODE_KEY))) }
         var colorSel by remember { mutableStateOf(StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY))) }
         var pedalSel by remember { mutableStateOf(com.troubastack.shared.stage.parsePedalBindings(storage.getSecret(PEDAL_BINDINGS_KEY))) }
+        // A84 ⟨D2⟩ — the joined server (the app joins one server at a time: coreUrl) and its /api/version, fetched
+        // each time the screen opens; unreachable is a line, not a dialog.
+        val joinedServer = storage.getSecret(HOME_CORE_URL_KEY)?.trim()?.takeIf { it.isNotEmpty() }
+        var joinedVersion by remember { mutableStateOf<com.troubastack.shared.buildinfo.ServerVersion>(com.troubastack.shared.buildinfo.ServerVersion.Checking) }
+        LaunchedEffect(joinedServer) {
+            if (joinedServer != null) {
+                joinedVersion = transport.serverVersion(joinedServer)?.let { com.troubastack.shared.buildinfo.ServerVersion.Known(it) }
+                    ?: com.troubastack.shared.buildinfo.ServerVersion.Unreachable
+            }
+        }
         SettingsScreen(
             themePref = themePref,
             onThemePref = onThemePref,
@@ -355,6 +365,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             midiState = midiState,
             onConnectPedal = connectPedal,
             midiSignal = midiSignal,
+            servers = joinedServer?.let { listOf(it to joinedVersion) } ?: emptyList(),
             onBack = { settings = false },
         )
         BackHandler { settings = false }

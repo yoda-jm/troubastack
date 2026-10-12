@@ -34,7 +34,12 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.troubastack.shared.buildinfo.ServerVersion
+import com.troubastack.shared.buildinfo.appBuildLine
+import com.troubastack.shared.buildinfo.serverVersionLine
 import com.troubastack.shared.stage.FitMode
 import com.troubastack.shared.stage.MidiSignal
 import com.troubastack.shared.stage.PageTurn
@@ -76,6 +81,9 @@ fun SettingsScreen(
     midiState: PedalLinkState = PedalLinkState.NOT_CONNECTED,
     onConnectPedal: () -> Unit = {},
     midiSignal: MidiSignal? = null,
+    // A84 — which build this is, and each joined server with its version (the host probes /api/version on open).
+    appBuild: String = appBuildLine,
+    servers: List<Pair<String, ServerVersion>> = emptyList(),
     onBack: () -> Unit,
 ) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -121,6 +129,25 @@ fun SettingsScreen(
 
             Section("Foot pedal", subtitle = "Turn pages with a Bluetooth pedal — a keyboard/HID pedal, or a BLE-MIDI controller. For a MIDI pedal, Connect first; then Learn a button. The panel shows every press, so an empty panel is the answer, not a failure.") {
                 PedalLearnSection(pedalBindings, onLearnPedal, onForgetPedals, midiState, onConnectPedal, midiSignal)
+            }
+
+            // A84 ⟨D1⟩/⟨D2⟩ — the build on this device, and the joined server's, side by side. Copy puts the lines on the
+            // clipboard for a bug report.
+            Section("About") {
+                val clipboard = LocalClipboardManager.current
+                val lines = listOf(appBuild) + servers.map { (address, v) -> serverVersionLine(address, v) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(appBuild, style = MaterialTheme.typography.bodyLarge)
+                        if (servers.isEmpty()) {
+                            Text("No server joined", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        servers.forEach { (address, v) ->
+                            Text("Server " + serverVersionLine(address, v), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    TextButton(onClick = { clipboard.setText(AnnotatedString(lines.joinToString("\n"))) }) { Text("Copy") }
+                }
             }
         }
     }

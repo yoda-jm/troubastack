@@ -376,7 +376,7 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         }.getOrElse { AcceptOutcome.Failed(0) }
     }
 
-    @Serializable private data class VersionResp(val product: String = "", val apiVersion: Int = 0)
+    @Serializable private data class VersionResp(val product: String = "", val apiVersion: Int = 0, val version: String = "")
 
     /** A52/T123: probe [url]'s `GET /api/version` (UNAUTHENTICATED, so it runs BEFORE any password field)
      *  and classify the host. The ConfirmServer path refuses to show a password unless this is
@@ -391,6 +391,20 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
                 serverIdentity(resp.status.value, body?.product, body?.apiVersion?.takeIf { it > 0 })
             }
         }.getOrElse { ServerIdentity.Unreachable }
+    }
+
+    /** A84 ⟨D2⟩: the `version` a joined server reports on `GET /api/version` (unauthenticated), for the About
+     *  section. Null when it does not answer as a TroubaStack server — offline, unreachable, or foreign — which the
+     *  screen shows as *unreachable*, never as an error. Same short timeout as the identity probe. */
+    suspend fun serverVersion(url: String): String? {
+        val base = url.trim().trimEnd('/')
+        return runCatching {
+            withTimeout(8_000) {
+                val resp = client.get("$base/api/version")
+                if (!resp.status.isSuccess()) return@withTimeout null
+                resp.body<VersionResp>().takeIf { it.product == "troubastack" }?.version?.trim()?.ifEmpty { "unknown" }
+            }
+        }.getOrNull()
     }
 
     /** A52: point the app at [url] for a join that named a different server, dropping any session bound to
