@@ -128,15 +128,27 @@ class NoteSpread {
     // A86 — the surface's size: the overview's aspect, and the frame the zoom window is computed in.
     var surfaceSize by mutableStateOf(IntSize.Zero)
         internal set
+    // A87 — the surface's own (outer, unzoomed) coordinates, to tell how much of it the note bar covers.
+    internal var outerCoords: LayoutCoordinates? = null
 
     /** A86 — the zoom window over the surface (surface px) at [zoom] about [centre] (fractions; null = the middle),
      *  clamped to the visible pages' paper. Zoom and centre are always PASSED from the state, never cached here:
      *  a cached copy written by one recompose scope and read by another drew the overview a step behind. */
-    fun window(zoom: Float, centre: Pair<Float, Float>?): PaperRect {
+    fun window(zoom: Float, centre: Pair<Float, Float>?, barTopInRoot: Float? = null): PaperRect {
         val w = surfaceSize.width.toFloat()
         val h = surfaceSize.height.toFloat()
         val (fx, fy) = centre ?: (0.5f to 0.5f)
-        return NoteZoom.window(zoom.coerceAtLeast(1f), fx * w, fy * h, w, h, NoteZoom.paperUnion(papers().map { it.second }))
+        return NoteZoom.window(zoom.coerceAtLeast(1f), fx * w, fy * h, w, h, NoteZoom.paperUnion(papers().map { it.second }), visibleHeight(barTopInRoot))
+    }
+
+    /** A87 — how much of the surface the writer can see: its height minus the part under the note bar (whose top
+     *  edge, in root px, is [barTopInRoot]; null = no bar measured yet → the whole surface). */
+    private fun visibleHeight(barTopInRoot: Float?): Float {
+        val h = surfaceSize.height.toFloat()
+        val oc = outerCoords?.takeIf { it.isAttached } ?: return h
+        if (barTopInRoot == null) return h
+        val surfaceBottom = oc.localToRoot(Offset(0f, oc.size.height.toFloat())).y
+        return (h - (surfaceBottom - barTopInRoot).coerceIn(0f, h)).coerceAtLeast(1f)
     }
 
     /** Each attached page's paper in the SURFACE's space, with the offset from the surface to that page's box. */
@@ -178,11 +190,12 @@ fun Modifier.noteSpreadInput(
     zoom: Float = 1f,
     centre: Pair<Float, Float>? = null,
     thumb: GraphicsLayer? = null,
+    barTopInRoot: Float? = null, // A87: the note bar's top edge (root px) — the zoom window stops above it
 ): Modifier = this
-    .onGloballyPositioned { if (spread.surfaceSize != it.size) spread.surfaceSize = it.size }
+    .onGloballyPositioned { spread.outerCoords = it; if (spread.surfaceSize != it.size) spread.surfaceSize = it.size }
     // Keyed on the zoom and the window too: a zoom change (a bar tap — never mid-stroke) restarts the reader with
     // the new transform, so the gesture never reads a stale one.
-    .pointerInput(spread, zoom, centre) {
+    .pointerInput(spread, zoom, centre, barTopInRoot) {
         awaitEachGesture {
             val reader = StrokeReader()
             var splitter: StrokeSplitter? = null
@@ -200,7 +213,7 @@ fun Modifier.noteSpreadInput(
             val first = awaitFirstDown(requireUnconsumed = false)
             // Fixed for the gesture: nothing re-lays out, and writing never moves the window (A86 §2).
             val z = zoom.coerceAtLeast(1f)
-            val win = spread.window(zoom, centre)
+            val win = spread.window(zoom, centre, barTopInRoot)
             fun surface(p: StrokePoint) = NoteZoom.screenToSurface(p.x, p.y, win, z)
             reader.down(first.id.value, first.position.x, first.position.y)?.let { p ->
                 targets = spread.papers()
@@ -229,7 +242,7 @@ fun Modifier.noteSpreadInput(
     .graphicsLayer {
         val z = zoom.coerceAtLeast(1f)
         if (z > 1f) {
-            val win = spread.window(zoom, centre)
+            val win = spread.window(zoom, centre, barTopInRoot)
             transformOrigin = TransformOrigin(0f, 0f)
             scaleX = z; scaleY = z
             translationX = -win.left * z; translationY = -win.top * z

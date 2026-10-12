@@ -4,6 +4,9 @@
 // a Result and is treated as "maybe a placeholder", so a bad image never crashes the performance.
 package com.troubastack.shared.stage
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.SideEffect
@@ -656,6 +659,8 @@ private fun Performing(
         // A86 — the spread now on screen (set by the page-turn content showing state.current) and a recording of its
         // UNZOOMED surface, which the corner overview draws small.
         var activeNoteSpread by remember { mutableStateOf<NoteSpread?>(null) }
+        // A87 — the note bar's top edge in root px: the zoom window frames only what shows above it.
+        var noteBarTop by remember { mutableStateOf<Float?>(null) }
         val noteThumb = androidx.compose.ui.graphics.rememberGraphicsLayer()
 
         Box(
@@ -783,7 +788,7 @@ private fun Performing(
                     if (onScreen) SideEffect { activeNoteSpread = noteSpread }
                     fun noteMod(divider: Color?) =
                         if (!noteEditing) Modifier
-                        else Modifier.noteSpreadInput(noteSpread, divider, state.noteZoom, state.noteZoomCentre, if (onScreen) noteThumb else null)
+                        else Modifier.noteSpreadInput(noteSpread, divider, state.noteZoom, state.noteZoomCentre, if (onScreen) noteThumb else null, noteBarTop)
                     if (twoUp) {
                         // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
                         Row(Modifier.fillMaxSize().then(noteMod(seamColour))) {
@@ -987,7 +992,7 @@ private fun Performing(
         val overviewSpread = activeNoteSpread
         if (state.noteMode && state.noteZoom > 1f && overviewSpread != null) {
             NoteOverview(
-                spread = overviewSpread, thumb = noteThumb, zoom = state.noteZoom, centre = state.noteZoomCentre, collapsed = state.noteOverviewCollapsed,
+                spread = overviewSpread, thumb = noteThumb, zoom = state.noteZoom, centre = state.noteZoomCentre, barTop = noteBarTop, collapsed = state.noteOverviewCollapsed,
                 colorMode = colorMode,
                 onCentre = { fx, fy -> vm.setNoteZoomCentre(fx, fy) },
                 onCollapse = { vm.setNoteOverviewCollapsed(it) },
@@ -1025,7 +1030,7 @@ private fun Performing(
                     // carries a note (not blindly state.current, which can be the other page).
                     val visiblePages = if (twoUp) spread else listOf(state.current)
                     val plan = clearPlan(visiblePages, twoUp) { i -> state.pages.getOrNull(i)?.let { state.noteForPage(it) } != null }
-                    NoteBar(state, vm, colorMode, Modifier.fillMaxWidth(), docked = true, clearPlan = plan, onClear = np@{ pageIndex ->
+                    NoteBar(state, vm, colorMode, Modifier.fillMaxWidth().onGloballyPositioned { noteBarTop = it.positionInRoot().y }, docked = true, clearPlan = plan, onClear = np@{ pageIndex ->
                         val np = notePad ?: return@np
                         val pg = state.pages.getOrNull(pageIndex) ?: return@np
                         // A77 — capture the entry BEFORE the delete so the host can mirror the clear to Studio
@@ -2089,51 +2094,61 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
     // the top; the floating variant keeps the fully-rounded pill.
     val shape = if (docked) RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp) else MaterialTheme.shapes.large
     Surface(modifier, color = chrome.surface, contentColor = chrome.onSurface, shape = shape, tonalElevation = 6.dp) {
-        Row(
+        // A87 — three groups placed by noteBarSlots: ✓ flush right and "Clear page" before it, each at its natural
+        // width (never squeezed: in portrait the old single packed row stacked "Clear page" one letter per line and
+        // pushed ✓ — the only exit — off screen); the tools take what is left and scroll sideways if they must.
+        NoteBarLayout(
             Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            NoteChip("✎", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.PENCIL, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.PENCIL) }
-            NoteChip("⌫", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.ERASER, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.ERASER) }
-            Spacer(Modifier.width(8.dp))
-            // three widths: a small, medium, large filled dot
-            listOf(6.dp to com.troubastack.shared.stage.notes.NoteTools.FINE, 11.dp to com.troubastack.shared.stage.notes.NoteTools.MEDIUM, 18.dp to com.troubastack.shared.stage.notes.NoteTools.WIDE).forEach { (dot, w) ->
-                val sel = state.noteWidth == w
-                Box(
-                    Modifier.size(34.dp).clip(CircleShape)
-                        .background(if (sel) chrome.onSurface.copy(alpha = 0.14f) else Color.Transparent)
-                        .clickable { vm.setNoteWidth(w) },
-                    contentAlignment = Alignment.Center,
-                ) { Box(Modifier.size(dot).clip(CircleShape).background(chrome.onSurface)) }
-            }
-            Spacer(Modifier.width(8.dp))
-            // four colours (shown as the NEUTRAL swatch; on dark schemes the ink is remapped when drawn)
-            com.troubastack.shared.stage.notes.NoteTools.COLOURS.forEach { c ->
-                val sel = state.noteColour == c
-                Box(
-                    Modifier.size(34.dp).clip(CircleShape)
-                        .background(if (sel) chrome.onSurface.copy(alpha = 0.18f) else Color.Transparent)
-                        .clickable { vm.setNoteColour(c) },
-                    contentAlignment = Alignment.Center,
-                ) { Box(Modifier.size(22.dp).clip(CircleShape).background(Color(c))) }
-            }
-            Spacer(Modifier.width(8.dp))
-            // A86 ⟨D1⟩ — zoom: − · the factor · + · 1:1. The factor reads as the bar's own text, not a button.
-            ZoomButton("−", enabled = NoteZoom.canZoomOut(state.noteZoom), label = "Zoom out") { vm.noteZoomOut() }
-            Text(NoteZoom.label(state.noteZoom), Modifier.widthIn(min = 40.dp), style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
-            ZoomButton("+", enabled = NoteZoom.canZoomIn(state.noteZoom), label = "Zoom in") { vm.noteZoomIn() }
-            ZoomButton("1:1", enabled = state.noteZoom > 1f, label = "Zoom to actual size") { vm.noteZoomReset() }
-            Spacer(Modifier.weight(1f))
-            // A73 ⟨D5⟩ — VLL's word, restored: "Clear page". ⟨D6⟩ disabled when no visible page has a note.
-            TextButton(onClick = { confirmClear = true }, enabled = clearPlan != ClearPlan.Disabled) { Text("Clear page") }
-            // A73 ⟨D1⟩/⟨D2⟩ — a checkmark, still a FILLED Button (the sole exit must not read as a fourth tool), with
-            // an accessible name since the glyph alone has none. U+2714 HEAVY CHECK MARK: a thin ✓ on a filled
-            // container does not read at arm's length on a dark stage.
-            Button(onClick = { vm.exitNoteMode() }, modifier = Modifier.semantics { contentDescription = "Finish notes" }) {
-                Text("✔", style = MaterialTheme.typography.titleLarge)
-            }
-        }
+            tools = {
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    // A87: 4 dp inside a group (was 6) so the separators below fit a portrait row without scrolling
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    NoteChip("✎", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.PENCIL, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.PENCIL) }
+                    NoteChip("⌫", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.ERASER, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.ERASER) }
+                    NoteBarSeparator(chrome)
+                    // three widths: a small, medium, large filled dot
+                    listOf(6.dp to com.troubastack.shared.stage.notes.NoteTools.FINE, 11.dp to com.troubastack.shared.stage.notes.NoteTools.MEDIUM, 18.dp to com.troubastack.shared.stage.notes.NoteTools.WIDE).forEach { (dot, w) ->
+                        val sel = state.noteWidth == w
+                        Box(
+                            Modifier.size(34.dp).clip(CircleShape)
+                                .background(if (sel) chrome.onSurface.copy(alpha = 0.14f) else Color.Transparent)
+                                .clickable { vm.setNoteWidth(w) },
+                            contentAlignment = Alignment.Center,
+                        ) { Box(Modifier.size(dot).clip(CircleShape).background(chrome.onSurface)) }
+                    }
+                    NoteBarSeparator(chrome)
+                    // four colours (shown as the NEUTRAL swatch; on dark schemes the ink is remapped when drawn)
+                    com.troubastack.shared.stage.notes.NoteTools.COLOURS.forEach { c ->
+                        val sel = state.noteColour == c
+                        Box(
+                            Modifier.size(34.dp).clip(CircleShape)
+                                .background(if (sel) chrome.onSurface.copy(alpha = 0.18f) else Color.Transparent)
+                                .clickable { vm.setNoteColour(c) },
+                            contentAlignment = Alignment.Center,
+                        ) { Box(Modifier.size(22.dp).clip(CircleShape).background(Color(c))) }
+                    }
+                    NoteBarSeparator(chrome)
+                    // A86 ⟨D1⟩ / A87 — zoom as ONE chip showing the factor; − / + / 1:1 open from it (VLL: a thin bar).
+                    ZoomChip(state.noteZoom, onIn = vm::noteZoomIn, onOut = vm::noteZoomOut, onReset = vm::noteZoomReset)
+                    NoteBarSeparator(chrome) // before Clear page / ✓
+                }
+            },
+            clear = {
+                // A73 ⟨D5⟩ — VLL's word, restored: "Clear page". ⟨D6⟩ disabled when no visible page has a note.
+                TextButton(onClick = { confirmClear = true }, enabled = clearPlan != ClearPlan.Disabled) { Text("Clear page", maxLines = 1, softWrap = false) }
+            },
+            done = {
+                // A73 ⟨D1⟩/⟨D2⟩ — a checkmark, still a FILLED Button (the sole exit must not read as a fourth tool), with
+                // an accessible name since the glyph alone has none. U+2714 HEAVY CHECK MARK: a thin ✓ on a filled
+                // container does not read at arm's length on a dark stage.
+                Button(onClick = { vm.exitNoteMode() }, modifier = Modifier.semantics { contentDescription = "Finish notes" }) {
+                    Text("✔", style = MaterialTheme.typography.titleLarge)
+                }
+            },
+        )
     }
     // The plan can turn Disabled while the dialog is open (the note went away); close it from an effect, never by
     // writing state during composition.
@@ -2165,6 +2180,52 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
     }
 }
 
+/** VLL (2026-10-12): a thin vertical rule between the bar's groups — pen/eraser | sizes | colours | zoom | Clear page ✓. */
+@Composable
+private fun NoteBarSeparator(chrome: ChromeColors) {
+    Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(24.dp).background(chrome.outlineVariant))
+}
+
+/** A87 — the note bar's layout: [tools] left, [clear] and [done] right, placed by the pure [noteBarSlots]. */
+@Composable
+private fun NoteBarLayout(modifier: Modifier, tools: @Composable () -> Unit, clear: @Composable () -> Unit, done: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(contents = listOf(tools, clear, done), modifier = modifier) { (t, c, d), constraints ->
+        val gap = 6.dp.roundToPx()
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val dp = d.first().measure(loose)
+        val cp = c.first().measure(loose)
+        val slots = noteBarSlots(constraints.maxWidth, t.first().maxIntrinsicWidth(constraints.maxHeight), cp.width, dp.width, gap)
+        val tp = t.first().measure(loose.copy(maxWidth = slots.toolsMax))
+        val h = maxOf(tp.height, cp.height, dp.height)
+        layout(constraints.maxWidth, h) {
+            tp.place(slots.toolsX, (h - tp.height) / 2)
+            cp.place(slots.clearX, (h - cp.height) / 2)
+            dp.place(slots.doneX, (h - dp.height) / 2)
+        }
+    }
+}
+
+/** A87 — the zoom as one chip with the factor (`1×`); tapping it opens − / + / 1:1, which stay open for repeat taps. */
+@Composable
+private fun ZoomChip(zoom: Float, onIn: () -> Unit, onOut: () -> Unit, onReset: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        TextButton(
+            onClick = { open = true },
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+            modifier = Modifier.widthIn(min = 52.dp).semantics { contentDescription = "Zoom, " + NoteZoom.label(zoom) },
+        ) { Text("⌕ " + NoteZoom.label(zoom), style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false) }
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                ZoomButton("−", enabled = NoteZoom.canZoomOut(zoom), label = "Zoom out", onClick = onOut)
+                Text(NoteZoom.label(zoom), Modifier.widthIn(min = 40.dp), style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
+                ZoomButton("+", enabled = NoteZoom.canZoomIn(zoom), label = "Zoom in", onClick = onIn)
+                ZoomButton("1:1", enabled = zoom > 1f, label = "Zoom to actual size", onClick = onReset)
+            }
+        }
+    }
+}
+
 @Composable
 private fun ZoomButton(text: String, enabled: Boolean, label: String, onClick: () -> Unit) {
     TextButton(
@@ -2182,7 +2243,7 @@ private fun ZoomButton(text: String, enabled: Boolean, label: String, onClick: (
  */
 @Composable
 private fun NoteOverview(
-    spread: NoteSpread, thumb: androidx.compose.ui.graphics.layer.GraphicsLayer, zoom: Float, centre: Pair<Float, Float>?, collapsed: Boolean,
+    spread: NoteSpread, thumb: androidx.compose.ui.graphics.layer.GraphicsLayer, zoom: Float, centre: Pair<Float, Float>?, barTop: Float?, collapsed: Boolean,
     colorMode: StageColorMode, onCentre: (Float, Float) -> Unit, onCollapse: (Boolean) -> Unit, modifier: Modifier = Modifier,
 ) {
     val chrome = stageChrome(colorMode)
@@ -2208,6 +2269,7 @@ private fun NoteOverview(
             }
             val latestZoom by rememberUpdatedState(zoom)
             val latestCentre by rememberUpdatedState(centre)
+            val latestBarTop by rememberUpdatedState(barTop)
             Canvas(
                 Modifier.size(thumbW, thumbH).clip(MaterialTheme.shapes.small).background(colorMode.schemePaper())
                     .pointerInput(spread) {
@@ -2215,7 +2277,8 @@ private fun NoteOverview(
                         // pushed past the paper's edge stays responsive the moment it comes back.
                         fun write(fx: Float, fy: Float) {
                             val w = spread.surfaceSize.width.toFloat(); val h = spread.surfaceSize.height.toFloat()
-                            val win = NoteZoom.window(latestZoom, fx * w, fy * h, w, h, NoteZoom.paperUnion(spread.papers().map { it.second }))
+                            // A87: the same window the layer and the gesture compute (the note-bar inset included)
+                            val win = spread.window(latestZoom, fx to fy, latestBarTop)
                             onCentre(((win.left + win.right) / 2f) / w, ((win.top + win.bottom) / 2f) / h)
                         }
                         awaitEachGesture {
@@ -2223,7 +2286,7 @@ private fun NoteOverview(
                             down.consume()
                             val w = spread.surfaceSize.width.toFloat(); val h = spread.surfaceSize.height.toFloat()
                             val k = w / size.width // surface px per thumb px
-                            val win = spread.window(latestZoom, latestCentre)
+                            val win = spread.window(latestZoom, latestCentre, latestBarTop)
                             val onRect = down.position.x * k in win.left..win.right && down.position.y * k in win.top..win.bottom
                             var cx = if (onRect) (win.left + win.right) / 2f else down.position.x * k
                             var cy = if (onRect) (win.top + win.bottom) / 2f else down.position.y * k
@@ -2246,7 +2309,7 @@ private fun NoteOverview(
             ) {
                 val k = size.width / surface.width
                 withTransform({ scale(k, k, pivot = Offset.Zero) }) { drawLayer(thumb) }
-                val win = spread.window(zoom, centre)
+                val win = spread.window(zoom, centre, barTop)
                 val tl = Offset(win.left * k, win.top * k)
                 val sz = androidx.compose.ui.geometry.Size((win.right - win.left) * k, (win.bottom - win.top) * k)
                 drawRect(chrome.onSurface.copy(alpha = 0.12f), tl, sz)

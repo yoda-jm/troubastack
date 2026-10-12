@@ -135,9 +135,9 @@ class StageNotesGuardTest {
         val sinks = Regex("""remember\(([^)]*)\)\s*\{\s*NoteSink\(""").findAll(src).map { it.groupValues[1] }.toList()
         assertTrue(sinks.isNotEmpty(), "found no remembered NoteSink( in NotePad.kt — the guard lost its subject")
         assertTrue(sinks.all { "noteRevision" in it }, "NoteLayer's sink must be remembered on noteRevision; keys were: $sinks")
-        // The spread's handler is keyed on the spread and its zoom transform (A86) — never on per-page state, which
-        // lives in the sinks.
+        // The spread's handler is keyed on the spread and its zoom transform (A86; A87 adds the note-bar edge the
+        // window stops at) — never on per-page state, which lives in the sinks.
         val calls = Regex("""pointerInput\(([^)]*)\)""").findAll(src).map { it.groupValues[1].trim() }.toList()
-        assertEquals(listOf("spread, zoom, centre"), calls, "NotePad's only pointerInput is the spread's router")
+        assertEquals(listOf("spread, zoom, centre, barTopInRoot"), calls, "NotePad's only pointerInput is the spread's router")
     }
 }

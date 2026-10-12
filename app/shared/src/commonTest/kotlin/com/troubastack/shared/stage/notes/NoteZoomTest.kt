@@ -106,4 +106,25 @@ class NoteZoomTest {
         assertEquals(listOf("1×", "1.5×", "2×"), NoteZoom.STEPS.map(NoteZoom::label))
         assertEquals("3×", NoteZoom.label(3f))
     }
+
+    @Test
+    fun a87_the_window_frames_what_shows_above_the_note_bar() {
+        // Fit-width portrait: one page fills the width, its paper taller than the surface. The note bar covers the
+        // bottom 120 px of a 1131 px surface, so 1011 px show.
+        val w = 1200f; val h = 1131f; val bar = 120f
+        val paper = PaperRect(0f, 0f, w, 1700f)
+        for (z in listOf(1.5f, 2f)) {
+            val win = NoteZoom.window(z, w / 2, h / 2, w, h, paper, visibleH = h - bar)
+            assertEquals((h - bar) / z, win.bottom - win.top, 0.01f, "window height at $z×")
+            assertEquals(w / z, win.right - win.left, 0.01f)
+            // The window's bottom edge is the last surface row visible above the bar.
+            assertEquals(h - bar, (win.bottom - win.top) * z, 0.01f)
+        }
+        // The bottom of the page can be brought above the bar: centred at the very bottom, the window ends at
+        // the paper's bottom (clamped there, not beyond).
+        val low = NoteZoom.window(2f, w / 2, 1700f, w, 1700f, paper, visibleH = 1700f - bar)
+        assertEquals(paper.bottom, low.bottom, 0.01f)
+        // At 1× nothing moves, bar or not.
+        assertEquals(PaperRect(0f, 0f, w, h), NoteZoom.window(1f, 10f, 10f, w, h, paper, visibleH = h - bar))
+    }
 }

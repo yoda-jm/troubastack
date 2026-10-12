@@ -34,12 +34,17 @@ object NoteZoom {
      * The window shown at [zoom] over a [w]×[h] surface: [w]/[zoom] × [h]/[zoom], centred as near the surface
      * point ([cx], [cy]) as the paper allows. ⟨D2⟩ it never shows beyond the paper: it is clamped inside
      * [paper] (the union of the visible pages, surface px), and on an axis where the window is larger than the
-     * paper it is centred on the paper. It always stays inside the surface, so at 1× it IS the surface.
+     * paper it is centred on the paper. It always stays inside the surface, so at 1× it IS the surface. A87:
+     * [visibleH] is the surface height the writer can actually see (the surface minus the note bar over it).
      */
-    fun window(zoom: Float, cx: Float, cy: Float, w: Float, h: Float, paper: PaperRect?): PaperRect {
+    fun window(zoom: Float, cx: Float, cy: Float, w: Float, h: Float, paper: PaperRect?, visibleH: Float = h): PaperRect {
         val z = zoom.coerceAtLeast(1f)
+        // A87 — at 1× the view is never moved. Zoomed, the window is what the writer can SEE: the note bar covers
+        // the bottom of the surface, so only [visibleH] of it shows; the window is visibleH / zoom tall, and the
+        // paper clamp then lets the bottom of the page come up above the bar.
+        if (z <= 1f) return PaperRect(0f, 0f, w, h)
         val ww = w / z
-        val wh = h / z
+        val wh = visibleH.coerceIn(1f, h) / z
         val b = paper ?: PaperRect(0f, 0f, w, h)
         fun start(c: Float, size: Float, lo: Float, hi: Float, max: Float): Float {
             val s = if (size >= hi - lo) (lo + hi) / 2f - size / 2f else (c - size / 2f).coerceIn(lo, hi - size)
