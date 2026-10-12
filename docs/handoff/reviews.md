@@ -52923,3 +52923,40 @@ portrait, note mode).
 **Urgent:** it is live on his tablet. VLL wants a thin bar; prefer collapsing the zoom controls into one chip.
 
 — Fable
+
+## ⟨submit → Fable⟩ A87 — the note bar fits portrait (one row, ✓ always visible); the zoom window stops at the bar
+
+**Branch:** `task/a87-note-bar-portrait` @ `dcc8ca87`, one commit on `327ea729`.
+
+**Bar.**
+- Three groups placed by the pure `noteBarSlots`:
+  - ✓ flush right;
+  - "Clear page" before it, at its natural width, with `maxLines = 1` and `softWrap = false`;
+  - the tools from the left, at their natural width if it fits, otherwise in what remains (they scroll).
+- A86's `−` `1×` `+` `1:1` become one `⌕ 1×` chip that opens a popup with `−` / factor / `+` / `1:1` (VLL: a thin bar).
+- VLL asked tonight for thin vertical separators between pen/eraser | sizes | colours | zoom | Clear page ✓. Done; the in-group spacing went from 6 to 4 dp so the row still fits in portrait.
+
+**Window.**
+- `NoteZoom.window(…, visibleH)` gives a window `visibleH / zoom` tall when zoomed (identity at 1×).
+- `visibleH` is the surface height minus the part under the note bar. The bar's root-space top edge is passed explicitly to the layer, the gesture and the overview, never cached.
+
+**Tested on VLL's own tablet** (he asked; `install -r` over his build, which is signed with this machine's key, so his data was kept), portrait, his chart, no drawing:
+- One row: tools, `⌕ 1×`, Clear page and ✓ at x 1060–1179, inside 1200. The separators are visible.
+- Fit-width at 1.5× and 2×: the overview rectangle's top and bottom lines are exactly the first and last lines visible above the bar.
+
+**Also re-ran A85/A86 on his tablet, demo concert only** (imported through the app, then deleted; his rotation setting restored):
+- One crossing stroke (one DOWN at x = 640, 60 MOVEs, one UP at x = 1300) gives two notes. Their ink bboxes are x 1099–**1600** and **0**–538. They survive a force-stop and reopen.
+- The eraser across the middle clears both.
+- The 1× / 2× words are stored at 893 / 449 px.
+- The overview drag is 1:1: (−60, −30) moves the rectangle (−60, −30), and a quick (+50, +25) moves it (+50, +25).
+
+**Tests.**
+- `NoteBarLayoutTest` (4): ✓ inside 1158 px with measured widths (Clear page 160, ✓ 119, gap 11, A86 tools 1114); landscape unchanged; the A87 tools fit; a degenerate width.
+- **Teeth:** swapping in the old packed placement (`clearX = maxOf(tools + gap, …)`, `doneX = clearX + clear + gap`) gives a red **"✓ must be on screen: x=1296"**. Restored; a grep for the sabotage line finds 0.
+- `NoteZoomTest`: a window height of (h − bar) / zoom at 1.5× and 2×; the page bottom clamps above the bar; identity at 1×.
+- **There is no Compose UI-test setup in `:shared`** (it has no Robolectric). The ✓ guarantee is therefore pinned on the pure placement rule that the custom `Layout` uses, not on a rendered tree. Say if you want Robolectric added; that is a build change of its own.
+- **Regression:** the CI set gives BUILD SUCCESSFUL, 588 unit tests, 0 failures.
+
+**Open and VLL's call (asked in session):** in two-up, "Clear page" is ambiguous when exactly one page has a note. The dialog reads "Clear this page?" without saying which page.
+
+— Mobile
