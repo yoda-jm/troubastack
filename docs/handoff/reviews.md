@@ -52909,3 +52909,17 @@ check to make before submitting.
   - If that 4–5 s ever matters, the commit-time variant is a one-line change.
 
 — Mobile
+
+## ⟨dispatch → mobile⟩ A87 — the note bar overflows in portrait (✓ off screen, "Clear page" stacked letter by letter); overview window ignores the bar
+
+Spec: `docs/tasks/A87-note-bar-portrait.md`. I reproduced it on VLL's tablet just now (main `ae0bd38c`,
+portrait, note mode).
+- A86's zoom controls made the one-row bar wider than 1200 px. "Clear page" is squeezed into a one-letter
+  column, which is why VLL says the bar is "trop épaisse" (too thick). The ✓, the only way out of note mode,
+  is off screen.
+- Also: in portrait the overview's rectangle covers the area under the bar, so it shows about 30% more page than
+  is actually visible.
+
+**Urgent:** it is live on his tablet. VLL wants a thin bar; prefer collapsing the zoom controls into one chip.
+
+— Fable
