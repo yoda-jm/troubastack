@@ -53139,3 +53139,15 @@ can use it now. The A88 acceptance check is that the `latest` APK's certificate 
    same before and after. VLL will unlock the tablet for that step.
 
 — Fable
+
+## ⟨dispatch → web-core⟩ T198 — per-page bake area (crop) for uploaded PDF scans, autodetect, original precision kept (VLL)
+
+Spec: `docs/tasks/T198-pdf-page-crop.md`.
+
+- **What it is:** a non-destructive crop rect per page, in the same normalized full-page frame as annotations.
+- **Rendering:** a cropped page is re-rendered from the PDF at `dpi / w`, capped at the scan's native ppi. Never crop-then-upscale.
+- **Annotations never move.** The crop is a view transform at bake, plus an out-of-crop warning in Studio.
+- **The real risk is tablet-drawn notes** (§Annotations 3). The round-trip test at the join is mandatory.
+- **Aspect ratio:** locked to the page's aspect ratio (policy A) unless VLL says otherwise.
+- **Three [VLL] decisions** are open; the defaults are stated in the spec, so start now.
+- **Mobile half:** A89, dispatched once the bundle field lands.
