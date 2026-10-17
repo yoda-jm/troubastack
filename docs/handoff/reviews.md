@@ -53222,3 +53222,54 @@ applied clean. Staging ahead: (2) crop-save API + autobake + export/import, (3) 
 crop-transform + out-of-crop warning incl. the rehearsal-note count + crop in page-sources, (5) Studio UI.
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 stage 1 @ 4fb9a252 — NO-GO, one blocker; plus ordering and the two flags (Fable)
+
+The review was independent (opus) and I re-read the blocker in the code. Vet, gofmt and the targeted bake/app/config tests are green. Verified as correct:
+- P1: an uncropped file gets an unchanged raster key, so no cached raster is invalidated;
+- the crop context is per file and never leaks;
+- page indexing works for multi-file songs;
+- if pdfimages is missing or fails, there is no cap and no bake failure.
+
+### Blocker — the native cap can make a crop WORSE than today
+
+`effectiveCropDPI` (`bake/crop.go`) gives `min(dpi/w, nativePPI)` with no floor.
+
+`parseMaxPPI` takes the max over EVERY image on the page. The reviewer ran two cases:
+- a vector page carrying a small logo reads as 7 ppi, and a 0.5 crop renders 29×41 px;
+- a 100-ppi scan cropped at w=0.8 renders at 100 dpi, which is fewer pixels than the same region gets in today's 150-dpi bake.
+
+**Required properties:**
+- a cropped page never gets fewer pixels per source inch than the uncropped bake (floor at the base dpi);
+- the native cap applies only when the page's detail really is bounded by a scan image that covers the crop area. A small embedded image must not cap a page.
+
+The mechanism is yours. Add test vectors for:
+- a small image on a vector page;
+- native ppi below the base dpi.
+
+Each must fail on the current code.
+
+### Fix in this stage (small)
+- **NaN.** `ValidateCropRect` accepts NaN; add `IsNaN`/`IsInf` checks.
+- **Page keys must be canonical** (`strconv.Itoa` form). Today `"1"` and `"01"` both validate, then merge in map order, so the bake is nondeterministic. Long keys also overflow.
+- **Validation is never called.** Wire it where the crop is set (stage 2 at the latest). Refuse a crop on a `Generated` file there (P4) instead of ignoring it silently.
+- **The region test is symmetric** (x=y=0.25, w=h=0.5), so an x/y swap passes, and so does a crop-then-upscale of a low-dpi raster.
+  - Use an off-centre, non-square rect.
+  - Compare against a direct `pdftoppm -r eff -x -y -W -H` render, or check fine detail.
+  - P2 is not proven until that test fails on crop-then-upscale.
+
+### Ordering (binding)
+Today overlays are still drawn full-frame, at `pageSizes[0].Width`. Once a user can SET a crop, marks on cropped pages would land in the wrong place.
+
+**The crop-save API (stage 2) must not land before the overlay crop-transform (your stage 4).** Either merge them, or move the transform ahead. The bake revision/dirty hash must include the crop in the same landing as the save path.
+
+### Noted, not T198
+The bake renders the MediaBox, while pdf.js shows the CropBox. This predates T198 and affects annotations too.
+
+I measured it: **0 of VLL's 157 real PDFs** differ, and the positive control on a synthetic CropBox PDF does detect it. It stays latent; nothing changes now. The crop simply uses the same frame as the whole-page bake.
+
+### Your two flags
+1. **Who may set a crop: any band member, the same as upload/delete of the file.** A member can already replace or delete the PDF, which changes the bake far more than a crop. An admin-only crop would be an inconsistent island. Kicking the bake stays admin-only, as today.
+2. **The bundle-level end-to-end test can come with the save path** (crop → Bake → the cropped page in the bundle; Reset → byte-identical bundle). It is required at that landing.
+
+Re-present stage 1 with the blocker and the small fixes.
