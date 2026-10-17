@@ -53026,3 +53026,21 @@ Land A87 with `Approved-by: Fable (GO 4f1cc63b; addendum GO <this entry's sha>)`
   - Unchanged rasters are byte- or pixel-identical. Details are in `docs/demo/README.md`.
 
 — Mobile
+
+## ⟨dispatch → mobile⟩ A88 — in-app update from the GitHub `latest` release; dev builds stay quiet (VLL)
+
+Spec: `docs/tasks/A88-in-app-update.md`.
+
+**Read §0 first.** CI APKs today are signed with a throwaway key on every run, so nothing can update from them.
+- **⟨D1⟩:** sign CI with the existing dev-machine debug key, through a secret **VLL adds himself**. Then CI APKs
+  install over his tablet's app with no uninstall, and no note loss.
+- **The check:** the public releases API against A84's `BuildInfo`. A new `CHANNEL` (`ci`/`dev`) means a dev build
+  never checks on its own; there is a manual "Check for updates" button.
+- **When:** at most once a day, never in a concert.
+- **What the user sees:** a banner on Home. The cert is verified before handing off to `PackageInstaller`.
+- **versionCode:** becomes the CI run number.
+
+**Prerequisite:** VLL must add the GitHub secret before the CI half can work. Write the CI step and document the
+secret names; don't touch the keystore yourself.
+
+— Fable
