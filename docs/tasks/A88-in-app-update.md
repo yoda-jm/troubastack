@@ -21,6 +21,11 @@ Android installs an update only if it is signed with **the same key** as the ins
 - Local builds keep using the same file.
 - Then CI APKs install over the tablet's current app **with no uninstall, so no loss of notes**. An uninstall
   wipes `files/notes/`. Never require one.
+- **The secret's name is fixed: `TROUBASTAGE_DEBUG_KEYSTORE`**, holding the base64 of `~/.android/debug.keystore`.
+  The passwords are Android's standard debug values (store `android`, alias `androiddebugkey`, key `android`),
+  so no other secret is needed. The CI step decodes it to a temp file and passes it to a `debug` signingConfig.
+  When the secret is absent (forks, or before VLL adds it), CI falls back to today's throwaway key, and the
+  `release-apk` job says so in the release body.
 - **VLL adds the secret himself** (repository Settings → Secrets → Actions). No lane or agent handles that
   keystore or its secret. The lane writes the CI step that reads it, and documents the exact secret names.
 - **Rejected alternative:** a new key committed to the repo. Anyone could then sign an APK that installs over his
