@@ -53172,3 +53172,53 @@ That behaviour is honest and stays. But the Studio crop warning must count the p
 **Permille ints:** OK for any future bundle use.
 
 Spec amended in the same push.
+
+## → REVIEWER (web-core) — T198 stage 1: PDF crop model + validation + cropped render; branch `web/t198-pdf-crop-stage1` @ `4fb9a252`
+
+First of the staged foundation (bake-level). What a crop IS, how it validates, and how a cropped page bakes
+at real detail. No API/UI yet — a crop is set directly on the file record in tests.
+
+**Design.**
+- **Model** (`app.SongFile.Crop *Crop`): `{auto, lockAR (policy A, default true), pages: "idx" → {x,y,w,h,source}}`,
+  source page frame [0,1], additive/omitempty — old records & generated charts serialize nothing, the file
+  repos round-trip it for free. `lockAR` is carried now so policy B is a later toggle, not a migration.
+- **Validation** (`app/crop.go`, pure): 0≤x,y; x+w≤1; y+h≤1; w,h≥0.2; a page index out of range is refused;
+  source ∈ {manual,auto}. Wrapped `ErrInvalidInput`.
+- **Cropped render** (bake): the crop **rides the context** (like the cache mode) so the `Rasterizer`
+  interface is unchanged — no mock churn, and an uncropped file is **byte-identical** to before (P1). The
+  whole-page batch render still runs and gives each page's base pixels; each cropped page is then re-rendered
+  `pdftoppm -f N -l N -singlefile -r dpi_eff -x -y -W -H`, `dpi_eff = dpi/w`, capped at the page's native
+  image ppi (`pdfimages -list`; no cap for vector pages) and a 4096px longest-side budget. T169 greyscale
+  applies to cropped pages too (P2: rendered from the PDF, never a crop of the 150-dpi raster). The crop
+  enters `rasterKey` so a change can't serve stale cached pixels.
+- **Wiring:** `stageFile` passes the file's crop (uploaded PDFs only, P4). New `TROUBA_PDFIMAGES` knob
+  (config + Dockerfile; poppler-utils already ships it; `""` disables the cap). `troubacore.example.ini`
+  regenerated.
+
+**Evidence (bake+app+config green, vet clean, gofmt clean):** real-pdftoppm crop renders the right region at
+the right DPI (a page 25% dark whole → ~100% dark cropped to its black centre, width ≈ a full page); an
+uncropped render is byte-identical & deterministic (Reset); `effectiveCropDPI` (dpi_eff/native-cap/pixel
+budget), `parseMaxPPI`, `rasterKey`-includes-crop, `pageCropsFor` units.
+
+**[VLL] decisions — status.** (a) **Aspect ratio: policy A** — the model carries `lockAR` (default true); the
+render faithfully renders whatever rect it's given, so AR *enforcement* (grow-to-AR) lands with autodetect
+(stage 3) and the handle-locking UI (stage 5). (b) **Native-ppi cap: implemented**; per the stated default,
+only cropped pages get the higher DPI, uncropped scans still bake at 150. The open [VLL] "should uncropped
+scans also bake at native ppi?" needs the **bundle-size delta on the real files**, which I can only measure
+once the crop-save path + a real-file bake exist — I'll bring numbers at a later stage, not guess. (c)
+**Deskew:** out of scope (likely the next ask).
+
+**Two things to flag:**
+1. **Authz for the crop-save endpoint (stage 2):** file edits are any-member today, but a crop changes the
+   *shared* bake output. Bake (`kickBake`) is admin-only, so I lean **admin-only** for the crop endpoint to
+   match — confirm, or keep it any-member like upload/rename?
+2. **Coverage boundary:** the full-baker end-to-end (crop-on-file → `Bake` → the bundle's page is cropped;
+   Reset → byte-identical to the pre-crop *bundle*) is deferred to **stage 2**, where the crop-save API gives
+   the natural set-crop path and reading bundle blobs fits. Stage 1 proves P1+P2 at the rasterizer and
+   unit-tests the wiring pieces. Say if you want the bundle-level integration in stage 1 instead.
+
+**Clean onto `origin/main`:** none of the 14 touched files changed on main since my base; `cherry-pick -n`
+applied clean. Staging ahead: (2) crop-save API + autobake + export/import, (3) autodetect, (4) overlay
+crop-transform + out-of-crop warning incl. the rehearsal-note count + crop in page-sources, (5) Studio UI.
+
+— web-core
