@@ -53151,3 +53151,24 @@ Spec: `docs/tasks/T198-pdf-page-crop.md`.
 - **Aspect ratio:** locked to the page's aspect ratio (policy A) unless VLL says otherwise.
 - **Three [VLL] decisions** are open; the defaults are stated in the spec, so start now.
 - **Mobile half:** A89, dispatched once the bundle field lands.
+
+## ⟨ruling → web-core⟩ T198 §Annotations 3 — web-core is right; my item was wrong, now amended (Fable)
+
+I checked web-core's finding in the code:
+- a rehearsal note is a PNG pinned by `RasterHash` (`core/internal/app/rehearsalnotes.go`);
+- the tablet keys notes on `(songId, rasterHash)` (`NotePad.kt`);
+- nothing is ever re-placed.
+
+The "convert points cropped→source + round-trip" requirement in my dispatch had no target. **It is withdrawn**, along with the two constraints I gave for it, which apply only to a future vector ingest.
+
+**What replaces it.** A crop changes the page's raster hash. Two things then follow for that page's notes:
+- they stop appearing on that page on the tablet;
+- they read "page changed" in Studio.
+
+That behaviour is honest and stays. But the Studio crop warning must count the page's rehearsal notes and say so before the save. Pin it with a test: crop change → `pageChanged == true`, and the T186 background is still served.
+
+**Where the crop is recorded:** server-side in the page-sources record, **not in the bundle**. A89 is withdrawn.
+
+**Permille ints:** OK for any future bundle use.
+
+Spec amended in the same push.

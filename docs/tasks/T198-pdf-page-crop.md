@@ -1,6 +1,6 @@
 # T198 — Per-page bake area (crop) for uploaded PDFs, with autodetect
 
-Owner: web-core (Studio + core bake). Mobile follow-up: A89 (bundle field consumer), listed at the end.
+Owner: web-core (Studio + core bake). No mobile half (amended — see §Annotations 3; A89 is withdrawn).
 Spec: Fable. Status: specced — three decisions for VLL marked **[VLL]**; implement the rest, those default as stated.
 
 ## Problem
@@ -103,14 +103,24 @@ Existing marks are stored in the full-page frame and must not move (P3). Consequ
    edge is clipped. Studio must warn BEFORE the crop is saved: "2 annotations fall outside this area (layer
    X, Y) — they won't show on the tablet." with Keep crop / Grow crop to include them. Never silently drop:
    the mark stays stored and reappears on Reset.
-3. **Tablet-authored marks (rehearsal notes, A-track).** The tablet draws on the BAKED (cropped) page, so it
-   produces points in the cropped frame. They must be stored back in the full-page frame, or every crop
-   change would move them. The bundle therefore carries the crop per page (`page.crop = {x,y,w,h}`, absent =
-   none) and the stored note must end up in the source frame. Which side converts is the lanes' call — but it
-   must be decided ONCE and covered by a round-trip test at the join: draw at a known point on a cropped
-   bake → upload → re-bake with a DIFFERENT crop → the mark sits on the same source point. An app that
-   predates the field must not corrupt coordinates: the server must be able to tell (bundle revision the
-   note was drawn on) and convert or refuse — no silent misplacement.
+3. **Tablet rehearsal notes (amended after web-core's code read — the first version of this item was wrong).**
+   A rehearsal note is NOT vector points: it is a transparent PNG pinned to the exact baked page it was drawn
+   on (`RasterHash` + `ConcertRev` + `PageInSong`, `core/internal/app/rehearsalnotes.go`), shown in Studio over
+   its OWN captured raster (`PageRasterByHash`), and keyed on the tablet by `(songId, rasterHash)`
+   (`NotePad.kt`). Nothing is ever re-placed — by design (T145). So there is no coordinate to convert, and the
+   earlier "convert cropped→source points + round-trip" requirement is withdrawn. The real consequence of a
+   crop is different and must be handled:
+   - Cropping (or re-cropping, or resetting) a page gives it a new raster hash. On the tablet, that page's
+     notes **stop showing on the page** (key mismatch); in Studio they read **"page changed"**.
+     That is the honest existing behaviour — keep it — but VLL must not discover it by surprise.
+   - Studio's crop warning (item 2) therefore also counts the **rehearsal notes on that page**:
+     "This page has 3 rehearsal notes. After this change they'll show as "page changed" and no longer
+     appear on this page on the tablet." Same Keep / Cancel choice.
+   - Pin it with a test: a crop change on a page with a note → `pageChanged == true`; the note's
+     `PageRasterByHash` background is still served (the old raster) so the T186 viewer keeps working.
+   - The crop is recorded server-side in the bake's page-sources record (per rev, per page), NOT in the bundle:
+     no tablet consumer needs it today. Should a vector tablet-mark ingest ever exist, the conversion uses that
+     record, in ONE function, and an ingest must be able to tell which crop a mark was drawn against.
 4. **Anchoring (T194–T197).** Uploaded files have no line source, so marks there are not linked; nothing to
    change. State it in a test name so a future change can't assume otherwise.
 5. **Studio editing.** Studio keeps editing in the full-page frame (the canvas shows the full page with the
@@ -140,12 +150,14 @@ Existing marks are stored in the full-page frame and must not move (P3). Consequ
   pre-crop bake.
 - Studio (vitest + one Playwright): drag handles respects AR; out-of-crop warning lists the right layers;
   preview overlay equals the bake overlay transform.
-- Round-trip at the join (Annotations §3) — this is the test that guards the real risk.
+- Annotations §3: crop change ⇒ the page's rehearsal notes read "page changed", their T186 background still
+  serves, and the Studio warning counts them.
 - Export/import round-trip carries `crop`.
-- Device pass (VLL): one real scan cropped, baked, checked on the tablet; a rehearsal note drawn on the
-  cropped page survives a crop change in place.
+- Device pass (VLL): one real scan cropped, baked, checked on the tablet; before cropping a page that has a
+  rehearsal note, the warning names it.
 
-## Mobile follow-up — A89 (specced here, dispatched after T198's bundle field lands)
+## Mobile follow-up — withdrawn
 
-Read `page.crop` from the bundle; apply Annotations §3 on the side the lanes chose; no visual change on the
-tablet otherwise (it already displays the baked raster as is).
+A89 is withdrawn. Rehearsal notes are rasters keyed by page hash, the tablet displays the baked page as it
+is, and nothing on the tablet needs the crop rect. If a bundle consumer ever needs it, it is permille ints
+(0..1000), like T149's `content_bottom_permille` — the mirror codegen has no float kind.
