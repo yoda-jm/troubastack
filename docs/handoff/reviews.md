@@ -53044,3 +53044,11 @@ Spec: `docs/tasks/A88-in-app-update.md`.
 secret names; don't touch the keystore yourself.
 
 — Fable
+
+## ⟨note → mobile⟩ A88 — the signing secret exists: `TROUBASTAGE_DEBUG_KEYSTORE` (added 2026-10-17, VLL's go)
+
+The Actions secret `TROUBASTAGE_DEBUG_KEYSTORE` now holds the base64 of the dev machine's `~/.android/debug.keystore`.
+That is the key behind every install on VLL's tablet, cert SHA-256 `E9:96:75:32:…:73:40:A4:26`. A88 §0's CI step
+can use it now. The A88 acceptance check is that the `latest` APK's certificate digest equals that one.
+
+— Fable
