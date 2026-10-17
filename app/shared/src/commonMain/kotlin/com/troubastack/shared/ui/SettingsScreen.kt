@@ -1,5 +1,7 @@
 package com.troubastack.shared.ui
 
+import androidx.compose.material3.Button
+import androidx.compose.material3.Switch
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -84,6 +86,14 @@ fun SettingsScreen(
     // A84 — which build this is, and each joined server with its version (the host probes /api/version on open).
     appBuild: String = appBuildLine,
     servers: List<Pair<String, ServerVersion>> = emptyList(),
+    // A88 — the latest-release line ("Latest: … · built …" / "Up to date" / "Couldn't check"), a by-hand check, the
+    // Update action when one is available, and the Automatic checks switch (on for CI builds, off for dev builds).
+    latestLine: String = "",
+    checkingForUpdates: Boolean = false,
+    onCheckForUpdates: (() -> Unit)? = null,
+    onUpdateApp: (() -> Unit)? = null,
+    autoChecks: Boolean = false,
+    onAutoChecks: (Boolean) -> Unit = {},
     onBack: () -> Unit,
 ) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -147,6 +157,20 @@ fun SettingsScreen(
                         }
                     }
                     TextButton(onClick = { clipboard.setText(AnnotatedString(lines.joinToString("\n"))) }) { Text("Copy") }
+                }
+                if (onCheckForUpdates != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            if (checkingForUpdates) "Checking…" else latestLine.ifEmpty { "App updates come from the GitHub latest release" },
+                            Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (onUpdateApp != null) Button(onClick = onUpdateApp) { Text("Update") }
+                        TextButton(onClick = onCheckForUpdates, enabled = !checkingForUpdates) { Text("Check for updates") }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Automatic checks (once a day, never during a concert)", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Switch(checked = autoChecks, onCheckedChange = onAutoChecks)
+                    }
                 }
             }
         }

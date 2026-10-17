@@ -18,7 +18,7 @@ fun buildLine(hash: String?, builtAtIso: String?): String {
 }
 
 /** `2026-10-09T15:07:00Z` → `2026-10-09 15:07 UTC`; anything that is not a UTC ISO instant → null. */
-internal fun utcMinute(iso: String): String? {
+fun utcMinute(iso: String): String? {
     val m = Regex("""^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(:\d{2}(\.\d+)?)?Z$""").find(iso.trim()) ?: return null
     return "${m.groupValues[1]} ${m.groupValues[2]} UTC"
 }
@@ -42,3 +42,9 @@ fun serverVersionLine(address: String, version: ServerVersion): String = "$addre
     is ServerVersion.Known -> version.version.trim().let { if (Regex("^[0-9a-f]{40}$").matches(it)) it.take(8) else it }
         .ifEmpty { "unknown" }
 }
+
+/** A88 — this build's identity for the update check (the generated BuildInfo is internal to :shared). */
+val appBuildGit: String get() = BuildInfo.GIT
+val appBuildBuiltAt: String get() = BuildInfo.BUILT_AT
+/** `"ci"` (a clean GitHub Actions build: checks for updates on its own) or `"dev"` (never on its own). */
+val appBuildChannel: String get() = BuildInfo.CHANNEL
