@@ -27,10 +27,19 @@ val gitDescribe: String = runCatching {
 // A84 — the build identity for common code: a generated BuildInfo.kt (hash + build time, UTC to the minute), so
 // the Parameters screen on Android AND iOS reads the same values and nothing is hand-maintained. The time is the
 // task's run time; to the minute, so a rebuild within the same minute writes identical bytes and recompiles nothing.
+// A88 ⟨D2⟩ — "ci" only for a clean build in GitHub Actions; everything else (a dev machine, a -dirty tree) is "dev",
+// and a dev build never checks for app updates on its own.
+val buildChannel: String = run {
+    val inCi = providers.environmentVariable("GITHUB_ACTIONS").orNull == "true" || providers.environmentVariable("CI").orNull == "true"
+    if (inCi && !gitDescribe.endsWith("-dirty") && gitDescribe != "unknown") "ci" else "dev"
+}
+
 val generateBuildInfo by tasks.registering {
     val out = layout.buildDirectory.dir("generated/buildinfo/commonMain/kotlin")
     val hash = gitDescribe
+    val channel = buildChannel
     inputs.property("hash", hash)
+    inputs.property("channel", channel)
     outputs.dir(out)
     outputs.upToDateWhen { false } // the build time is part of the output
     doLast {
@@ -43,6 +52,7 @@ val generateBuildInfo by tasks.registering {
                 "internal object BuildInfo {\n" +
                 "    const val GIT: String = \"$hash\"\n" +
                 "    const val BUILT_AT: String = \"$builtAt\"\n" +
+                "    const val CHANNEL: String = \"$channel\"\n" +
                 "}\n",
         )
     }

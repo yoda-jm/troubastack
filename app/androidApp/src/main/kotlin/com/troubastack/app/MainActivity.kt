@@ -219,6 +219,10 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     val storage = remember { Storage(context) }
     val transport = remember { HttpTransport(storage) }
     val discovery = remember { NsdServerDiscovery(context) } // B06: LAN server discovery for Connect
+    // A88 — the in-app update from the GitHub `latest` release (one controller for Home's banner and About).
+    val appScope = rememberCoroutineScope()
+    val appUpdate = remember { AppUpdateController(context, storage, appScope) }
+    AppUpdateDialogs(appUpdate)
     val updates = remember {
         UpdatesManager(
             transport = transport,
@@ -366,6 +370,16 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             onConnectPedal = connectPedal,
             midiSignal = midiSignal,
             servers = joinedServer?.let { listOf(it to joinedVersion) } ?: emptyList(),
+            // A88 — the latest release, a by-hand check (works on a dev build too), Update, and the Automatic switch.
+            latestLine = com.troubastack.shared.buildinfo.latestLine(appUpdate.verdict, appUpdate.failed),
+            checkingForUpdates = appUpdate.checking,
+            onCheckForUpdates = { appUpdate.check(manual = true) },
+            onUpdateApp = when (appUpdate.verdict) {
+                is com.troubastack.shared.buildinfo.UpdateVerdict.Available, is com.troubastack.shared.buildinfo.UpdateVerdict.Dismissed -> ({ appUpdate.update() })
+                else -> null
+            },
+            autoChecks = appUpdate.autoChecks,
+            onAutoChecks = { appUpdate.chooseAutoChecks(it) },
             onBack = { settings = false },
         )
         BackHandler { settings = false }
@@ -418,6 +432,8 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // intent; TroubaStudio → the SAME list in MANAGE intent (import/update/edit). The identity card →
     // Connect. I12 intact: Home never gates Stage — perform works fully offline with no login.
     if (atHome && selectedDir == null) {
+        // A88: Home showing ⇒ not in a concert — the once-a-day automatic check may run (a "dev" build never does).
+        LaunchedEffect(Unit) { appUpdate.maybeAutoCheck() }
         // A39: refreshTick re-lists concerts after an Update installs, so the count/resume reflect the
         // new state without a restart.
         var refreshTick by remember { mutableStateOf(0) }
@@ -510,6 +526,11 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 bake = homeBake, // A42②
                 settingsReset = Storage.settingsWereReset, // A54: one-time recovery notice after a self-heal
             ),
+            appUpdateText = appUpdate.bannerText, // A88
+            appUpdateProgress = appUpdate.progress,
+            onAppUpdate = { appUpdate.update() },
+            onAppUpdateNotNow = { appUpdate.notNow() },
+            onAppUpdateCancel = { appUpdate.cancel() },
             onPerform = { manageIntent = false; atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },
             onStudio = { studioBrowse = true; atHome = false },
@@ -1532,4 +1553,34 @@ private fun copyToTemp(context: Context, storage: Storage, uri: Uri): String {
     val temp = File(storage.tempDir(), "pick-${UUID.randomUUID()}.tstage")
     context.contentResolver.openInputStream(uri)?.use { input -> temp.outputStream().use { input.copyTo(it) } }
     return temp.path
+}
+
+/** A88 — the update flow's two questions (mobile data; "Install unknown apps") and its one-line outcome messages. */
+@Composable
+private fun AppUpdateDialogs(c: AppUpdateController) {
+    when (c.ask) {
+        AppUpdateController.Ask.METERED -> AlertDialog(
+            onDismissRequest = { c.answer(false) },
+            title = { Text("Download on mobile data?") },
+            text = { Text("The app update is about 15 MB.") },
+            confirmButton = { TextButton(onClick = { c.answer(true) }) { Text("Download") } },
+            dismissButton = { TextButton(onClick = { c.answer(false) }) { Text("Not now") } },
+        )
+        AppUpdateController.Ask.UNKNOWN_SOURCES -> AlertDialog(
+            onDismissRequest = { c.answer(false) },
+            title = { Text("Allow TroubaStage to install its updates") },
+            text = { Text("Android asks once: turn on \u201cAllow from this source\u201d for TroubaStage, then come back and tap Update again.") },
+            confirmButton = { TextButton(onClick = { c.answer(true) }) { Text("Open settings") } },
+            dismissButton = { TextButton(onClick = { c.answer(false) }) { Text("Not now") } },
+        )
+        null -> {}
+    }
+    c.message?.let { m ->
+        AlertDialog(
+            onDismissRequest = { c.message = null },
+            title = { Text("App update") },
+            text = { Text(m) },
+            confirmButton = { TextButton(onClick = { c.message = null }) { Text("OK") } },
+        )
+    }
 }

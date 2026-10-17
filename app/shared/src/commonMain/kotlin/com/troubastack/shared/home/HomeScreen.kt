@@ -406,6 +406,13 @@ fun HomeScreen(
     onCancelUpdate: () -> Unit = {},
     // A42②: one-tap re-bake of the resume concert (admin only — the row is hidden unless canReBake).
     onReBake: () -> Unit = {},
+    // A88 — a newer TroubaStage is published: the quiet banner (text), its download progress while updating, and
+    // its two actions. Null text ⇒ no banner. Home only — never on Stage.
+    appUpdateText: String? = null,
+    appUpdateProgress: Float? = null,
+    onAppUpdate: () -> Unit = {},
+    onAppUpdateNotNow: () -> Unit = {},
+    onAppUpdateCancel: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // A45: the account sheet — the ONE top-right trigger's detail + actions (Parameters / Manage /
@@ -451,6 +458,29 @@ fun HomeScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+            }
+
+            // A88 — the app-update banner: quiet (a surface, not a dialog), Update / Not now; a progress bar while the
+            // APK downloads. "App update", so it never reads as the concert-bake Update row further down.
+            if (appUpdateText != null || appUpdateProgress != null) {
+                Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val p = appUpdateProgress
+                        if (p == null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(appUpdateText ?: "", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                TextButton(onClick = onAppUpdateNotNow) { Text("Not now") }
+                                Button(onClick = onAppUpdate) { Text("Update") }
+                            }
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Downloading the app update… ${(p * 100).toInt()} %", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                TextButton(onClick = onAppUpdateCancel) { Text("Cancel") }
+                            }
+                            LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
                 }
             }
 

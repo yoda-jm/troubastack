@@ -19,6 +19,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <!-- A88: update the app from the GitHub `latest` release through PackageInstaller. Android still asks the person
+         to confirm every install, and the first time sends them to "Install unknown apps" for TroubaStage. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="true"
@@ -58,5 +61,7 @@
                 <data android:scheme="https" android:host="*" android:pathPrefix="/join/" />
             </intent-filter>
         </activity>
+        <!-- A88: PackageInstaller's status callback (pending user confirmation → Android's own install prompt). -->
+        <receiver android:name=".UpdateInstallReceiver" android:exported="false" />
     </application>
 </manifest>

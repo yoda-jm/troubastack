@@ -27,6 +27,14 @@ val gitDescribe: String = runCatching {
     }.standardOutput.asText.get().trim()
 }.getOrDefault("").ifBlank { "unknown" }
 
+// A88 §0 — ONE signing key for every build that may update another: CI decodes the TROUBASTAGE_DEBUG_KEYSTORE
+// secret (the dev machine's debug keystore, Android's standard debug passwords) to a temp file and points this at
+// it; local builds use that same file by default. Absent → AGP's own debug key, as before.
+val stableDebugKeystore: String? = providers.environmentVariable("TROUBASTAGE_DEBUG_KEYSTORE_FILE").orNull
+// A88 §3 — PackageInstaller refuses a LOWER versionCode: CI numbers its builds by run (monotonic per repo); a
+// dev build stays 1, so a CI update always installs over it (and going back is `adb install -r -d`).
+val ciVersionCode: Int? = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()
+
 android {
     namespace = "com.troubastack.app"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -35,8 +43,19 @@ android {
         applicationId = "com.troubastack.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1                    // A84: deliberately unchanged (an upgrade-policy decision, not this task)
+        versionCode = ciVersionCode ?: 1   // A88 §3 (A84 left it for this task)
         versionName = "0.1.0+$gitDescribe" // A84: `dumpsys package` answers which build this is
+    }
+
+    signingConfigs {
+        getByName("debug") {
+            if (stableDebugKeystore != null) {
+                storeFile = file(stableDebugKeystore)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
