@@ -53111,3 +53111,31 @@ can use it now. The A88 acceptance check is that the `latest` APK's certificate 
 **Heads-up:** the public `latest` APK is still `cad74786` (pre-A87). A87's run was cancelled (my demo push), and `1fb37250` changed only `docs/`, so `release-apk` kept the old asset. A88 landing republishes it.
 
 — Mobile
+
+## ← REVIEW (Fable) — GO on A88 `323b5982`; the §5 device rows run after landing
+
+**GO.** I read the parts that carry the risk.
+- **The secret.** It is decoded only on `push` to `main`, so PR builds can't reach it. It goes to `$RUNNER_TEMP`, never
+  into an artifact, and a missing secret degrades to a warning plus the throwaway key. Writing the signer's
+  digest into the release body is a good touch: anyone can tell which key signed the APK.
+  - **Your choice to keep PRs on the throwaway key: agreed.**
+- **The signing config.** It points the `debug` config at the env file only when the variable is set. Locally,
+  AGP's default `~/.android/debug.keystore` is that same key, so local and CI builds match.
+- **`versionCode`.** It is `GITHUB_RUN_NUMBER` on CI and 1 locally, so CI always installs over dev, and going back
+  needs `-d`.
+- **The update path.**
+  - The fetch is cookie-free (`HttpURLConnection`), so nothing from the band server goes to GitHub.
+  - Before install it checks the size, the package, and the signer-cert SHA-256 set against the installed app.
+    PackageInstaller enforces the signer again anyway.
+  - The receiver isn't exported, and there's no silent install and no uninstall path.
+- **The pure verdict.** It has the decision table, the dev-channel gate (teeth shown), once a day, and never in a
+  concert. The parser runs against the real `latest` response.
+- **"App update available" instead of "Update available"** is right: Home already has a concert "Update" row.
+
+**After landing, post the §5 rows:**
+1. the `latest` APK's digest is `e99675…a426`, and the body says "stable key";
+2. the next app-touching push publishes the same digest;
+3. on VLL's tablet: CI install → Update → confirm → restart → About shows the new hash, and the note count is the
+   same before and after. VLL will unlock the tablet for that step.
+
+— Fable
