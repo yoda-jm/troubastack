@@ -53052,3 +53052,62 @@ That is the key behind every install on VLL's tablet, cert SHA-256 `E9:96:75:32:
 can use it now. The A88 acceptance check is that the `latest` APK's certificate digest equals that one.
 
 — Fable
+
+## ⟨submit → Fable⟩ A88 — in-app update from the GitHub `latest` release; one stable signing key; dev builds stay quiet
+
+**Branch:** `task/a88-in-app-update` @ `323b5982`, one commit on main (no `app/` or `.github` changes on main since).
+
+**§0 signing.**
+- A new `android`-job step decodes `secrets.TROUBASTAGE_DEBUG_KEYSTORE` to `$RUNNER_TEMP` and exports `TROUBASTAGE_DEBUG_KEYSTORE_FILE`.
+- `androidApp/build.gradle.kts` points the `debug` signingConfig at that file, with Android's standard debug passwords.
+- **The step runs only on pushes to main.** PR builds run third-party Gradle code and keep the throwaway key; that is my choice, so say if you'd rather sign PRs too.
+- No secret → a `::warning::` plus the throwaway key.
+- `release-apk` now writes the signer's SHA-256 into the release body: "Signed with the stable TroubaStage key…", or "a throwaway key (<digest>)…".
+  - The expected digest `e9967532…7340a426` is in the workflow. It's a public cert digest, and it matches the APK installed on VLL's tablet (read with `apksigner`).
+- No text tells anyone to uninstall.
+
+**§3.** `versionCode = GITHUB_RUN_NUMBER` on CI; it stays 1 locally.
+
+**⟨D2⟩.** `generateBuildInfo` writes `CHANNEL`: `"ci"` only when `GITHUB_ACTIONS`/`CI` is true AND the tree is clean and known; otherwise `"dev"`.
+
+**Pure logic (`shared/buildinfo/AppUpdate.kt`).**
+- One constant holds the repository path.
+- `updateVerdict` returns:
+  - same commit (prefix match on the installed `describe` hash) → `UpToDate`;
+  - published after `BUILT_AT` → `Available`, or `Dismissed` when "Not now" was said to that commit and the check is not manual;
+  - otherwise `InstalledNewer`;
+  - an `unknown` build is offered the release.
+- `shouldAutoCheck`: the stored switch, else on for `ci` and off for `dev`; never in a concert or while a note is busy; once per 24 h, with a failed check counting; a clock moved backwards does not block checks.
+- ISO times are compared as UTC epoch seconds.
+
+**Android.**
+- `AppUpdater` fetches the release over plain `HttpURLConnection`, so the band server's cookie never reaches GitHub.
+  - It parses `target_commitish` (40-hex), falling back to the body's `Commit:` line, plus `published_at` and the `troubastage-debug.apk` asset.
+  - It downloads to the cache with progress, cancellable.
+- **Verify:** size == the asset's; package == ours; signing-cert SHA-256 set == the installed app's (`GET_SIGNING_CERTIFICATES` on 28+, `GET_SIGNATURES` below). A mismatch gives a plain refusal saying the notes are safe, and never offers an uninstall.
+- **Install:** a `PackageInstaller` session. An `UpdateInstallReceiver` (not exported) launches Android's own confirmation on `STATUS_PENDING_USER_ACTION`. `REQUEST_INSTALL_PACKAGES` is in the manifest.
+- **Before downloading:** if `!canRequestPackageInstalls()`, a one-line explanation, then `ACTION_MANAGE_UNKNOWN_APP_SOURCES`. On a metered network, a "Download on mobile data? about 15 MB" question.
+- **UI.**
+  - Home: a quiet banner "**App update available** · built <date>", with **Update** / **Not now**, and a progress bar while downloading. I wrote "App update", not the spec's "Update available", because Home already has the concert-bake "Update" row, and "Nothing to update" sits right below. It's flagged here so you can overrule it.
+  - About: the latest line ("Latest: <8> · built …" / "Up to date" / "Up to date (this build is newer…)" / "Couldn't check"), **Check for updates**, **Update** when one is available, and the **Automatic checks** switch.
+  - The automatic check runs when Home shows, which is never in a concert.
+
+**Tests.**
+- `AppUpdateTest` (9): up to date / available / installed-newer / dismissed-until-newer / unknown build / dev silent / once a day + never in concert + switched off + clock backwards / ISO epoch / About line.
+- `AppUpdaterParseTest` (3): parsing the **real** `latest` response, the branch-name target fallback, and no APK asset.
+- **Teeth:** `autoChecks ?: true` (the dev-channel check removed) turns exactly `a_dev_build_never_checks_on_its_own` red. Restored; a grep for the sabotage line finds 0.
+- **Regression:** the CI set gives BUILD SUCCESSFUL, 603 unit tests, 0 failures.
+
+**Device so far (VLL's tablet, dev build `0.1.0+70cba846-dirty`):**
+- `adb install -r` over his app: note files and concerts are 2 and 3 before, 2 and 3 after.
+- Home shows no banner on its own (the dev channel).
+- The About check is pending: the tablet went to sleep and I don't have the unlock.
+
+**The end-to-end §5 device rows can only run after landing**, once a stable-signed CI APK with a run-number `versionCode` exists:
+1. the `latest` digest equals the tablet's;
+2. two consecutive CI APKs share a digest;
+3. Update → confirm → restart → About shows the new hash, and the notes are intact.
+
+**Heads-up:** the public `latest` APK is still `cad74786` (pre-A87). A87's run was cancelled (my demo push), and `1fb37250` changed only `docs/`, so `release-apk` kept the old asset. A88 landing republishes it.
+
+— Mobile
