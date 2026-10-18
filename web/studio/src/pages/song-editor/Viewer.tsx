@@ -347,6 +347,9 @@ export function Viewer({
   const canCrop = isPdf && selectedFileId != null && selectedFile?.generated !== true;
   const persistedPages = selectedFile?.crop?.pages ?? null;
   const cropDraftsRef = useRef<Map<string, Record<string, CropRect>>>(new Map());
+  // True only when the draft was emptied by an explicit Reset, so commitCrop may send {} (a wipe); any other
+  // empty draft over a stored crop is refused, a backstop to the seed fix against the data-loss bug.
+  const cropResetIntentRef = useRef(false);
   const [cropDraft, setCropDraftRaw] = useState<Record<string, CropRect>>({});
   const [cropHidden, setCropHidden] = useState<HiddenMark[]>([]);
   const [cropWarnError, setCropWarnError] = useState(false); // the live dry run failed → never imply "nothing hidden"
@@ -367,19 +370,35 @@ export function Viewer({
     [selectedFileId],
   );
 
-  // When the open file changes, load its remembered draft if any, else seed from the saved crop. Deliberately
-  // NOT keyed on persistedPages: a save updates the file in place and the save handler syncs the draft, so
-  // re-seeding here would clobber a just-saved (or an in-flight) draft.
+  // Seed the draft from the saved crop ONCE the crop data is present. Keyed on persistedPages too (the
+  // DATA-LOSS fix): on a reload the file id arrives before the file's crop, so persistedPages is null on the
+  // first run; seeding {} and never re-seeding left a cropped file with an empty draft — and a Save then
+  // WIPED the stored crop. Now: a remembered in-session draft always wins (so a save/edit is never clobbered
+  // and the ref's presence is the per-file "seeded" marker); otherwise seed from the saved crop as soon as it
+  // arrives; an empty {} for a not-yet-loaded file is NOT recorded, so it re-seeds when the data lands.
   useEffect(() => {
-    const remembered = selectedFileId != null ? cropDraftsRef.current.get(selectedFileId) : undefined;
-    setCropDraftRaw(remembered ?? (persistedPages ? { ...persistedPages } : {}));
+    if (selectedFileId == null) {
+      setCropDraftRaw({});
+    } else {
+      const remembered = cropDraftsRef.current.get(selectedFileId);
+      if (remembered !== undefined) {
+        setCropDraftRaw(remembered);
+      } else if (persistedPages) {
+        const seeded = { ...persistedPages };
+        cropDraftsRef.current.set(selectedFileId, seeded); // mark seeded — a later persistedPages change won't reseed
+        setCropDraftRaw(seeded);
+      } else {
+        setCropDraftRaw({}); // no saved crop present yet (or none) — do NOT record, so it reseeds on arrival
+      }
+    }
+    cropResetIntentRef.current = false;
     setCropHidden([]);
     setCropWarnError(false);
     setCropError(null);
     setCropConfirmReset(false);
     setCropConfirm(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFileId]);
+  }, [selectedFileId, persistedPages]);
 
   // Leaving the Crop tool (or opening a file that cannot be cropped) drops crop mode, so a stray drag on a
   // chart can never reach the annotation path — half of the U1 blocker fix (the other half: crop is now a
@@ -419,12 +438,14 @@ export function Viewer({
 
   const setPageCrop = useCallback(
     (page: number, r: { x: number; y: number; w: number; h: number }) => {
+      cropResetIntentRef.current = false; // adding a rect is not a wipe
       setCropDraft((d) => ({ ...d, [String(page)]: { ...r, source: "manual" } }));
     },
     [setCropDraft],
   );
   const resetPageCrop = useCallback(
     (page: number) => {
+      cropResetIntentRef.current = true; // an explicit Reset — an empty result may be saved as a clear
       setCropDraft((d) => {
         const n = { ...d };
         delete n[String(page)];
@@ -436,6 +457,18 @@ export function Viewer({
 
   const commitCrop = useCallback(async () => {
     if (selectedFileId == null) return;
+    // Backstop to the seed fix: never wipe a STORED crop by saving an empty draft unless the user explicitly
+    // Reset. Guards any path that could leave an empty-but-dirty draft over a stored crop.
+    if (
+      Object.keys(cropDraft).length === 0 &&
+      persistedPages &&
+      Object.keys(persistedPages).length > 0 &&
+      !cropResetIntentRef.current
+    ) {
+      setCropError("Nothing to save yet — draw a crop, or use Reset to clear the stored one.");
+      setCropConfirm(null);
+      return;
+    }
     setCropSaving(true);
     setCropError(null);
     try {
@@ -450,7 +483,7 @@ export function Viewer({
     } finally {
       setCropSaving(false);
     }
-  }, [selectedFileId, bandId, songId, buildCrop]);
+  }, [selectedFileId, bandId, songId, buildCrop, cropDraft, persistedPages]);
 
   // requestSaveCrop runs a FRESH dry run; a failure is an error (never a silent commit), and a crop that
   // would hide marks opens the Keep/Cancel confirm listing the layers. Otherwise it commits straight away.
@@ -1917,6 +1950,7 @@ export function Viewer({
                 className="btn-sm"
                 data-testid="crop-reset-all-confirm"
                 onClick={() => {
+                  cropResetIntentRef.current = true; // explicit clear-all
                   setCropDraft({});
                   setCropConfirmReset(false);
                 }}

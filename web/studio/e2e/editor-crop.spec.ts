@@ -153,3 +153,25 @@ test("crop: a crop that hides a mark asks Keep/Cancel, naming the layer", async 
   await page.getByTestId("crop-confirm-keep").click();
   await expect(page.getByTestId("file-tab-cropped").first()).toBeVisible();
 });
+
+// HOTFIX (data loss): after a RELOAD the file id arrives before its crop data, so the draft was seeded {} and
+// never re-seeded — the window vanished and a Save WIPED the stored crop. Red on pre-fix main: post-reload
+// the crop window is absent in crop mode and Save is enabled (a wipe). Fixed: the window shows and Save is
+// disabled (draft == saved).
+test("crop: a saved crop survives a reload (no empty-seed wipe)", async ({ page }) => {
+  await openPdf(page);
+  await page.getByTestId("tool-crop").click();
+  await dragCrop(page, 0, 0.2, 0.2, 0.7, 0.7);
+  await page.getByTestId("crop-save").click();
+  await expect(page.getByTestId("file-tab-cropped").first()).toBeVisible();
+
+  // Reload: the editor re-opens the same file (?file=), its crop data arriving after the id.
+  await page.reload();
+  await expect(page.getByTestId("pdf-page").first()).toBeVisible();
+  await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+
+  await page.getByTestId("tool-crop").click();
+  // The saved crop seeded the draft: the window is there, and Save is DISABLED (nothing changed — no wipe).
+  await expect(page.getByTestId("crop-rect-0")).toBeVisible();
+  await expect(page.getByTestId("crop-save")).toBeDisabled();
+});
