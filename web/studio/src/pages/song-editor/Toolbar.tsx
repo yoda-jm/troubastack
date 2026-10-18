@@ -49,6 +49,14 @@ const JUMP_ICON = (
   </svg>
 );
 
+// T198 crop tool — two corner brackets suggesting a crop frame.
+const CROP_ICON = (
+  <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.4">
+    <path d="M4 1v11h11" strokeLinecap="round" />
+    <path d="M12 15V4H1" strokeLinecap="round" />
+  </svg>
+);
+
 type ToolButton = { tool: Tool; label: string; testid: string; icon: ReactNode };
 const TOOLS: ToolButton[] = [
   // T66: Move is first — the editor opens in pan mode; Select follows, then the draw tools.
@@ -62,6 +70,8 @@ const TOOLS: ToolButton[] = [
   })),
   // P206: not a registry type — it PLACES icon objects (a pair) via the Viewer's two-step jump flow.
   { tool: "jump", label: "Jump mark", testid: "tool-jump", icon: JUMP_ICON },
+  // T198: not a registry type and not an annotation — it edits the uploaded PDF's per-page bake area.
+  { tool: "crop", label: "Crop page", testid: "tool-crop", icon: CROP_ICON },
 ];
 
 // The shape-style presets shown as one-click buttons (#5).
@@ -569,6 +579,7 @@ export function EditorToolbar({
   onActiveLayer,
   onNewLayer,
   canDraw,
+  canCrop,
   drawLocked,
   canEditFocusedLayer,
   focusedLayerName,
@@ -607,6 +618,8 @@ export function EditorToolbar({
   onActiveLayer: (id: string) => void;
   onNewLayer: () => void;
   canDraw: boolean;
+  // T198: the current file is a croppable uploaded PDF (not a generated chart) → the Crop tool is enabled.
+  canCrop: boolean;
   drawLocked: boolean;
   // The focused layer is editable but not active → offer "Edit this layer".
   canEditFocusedLayer: boolean;
@@ -636,7 +649,7 @@ export function EditorToolbar({
   const toolsEl = (
     <div className="editor-toolbar" data-testid="editor-toolbar">
       <div className="tool-palette" role="toolbar" aria-label="Annotation tools" ref={fadeRef}>
-        {TOOLS.map((t) => (
+        {TOOLS.filter((t) => t.tool !== "crop" || canCrop).map((t) => (
           <button
             key={t.tool}
             type="button"
@@ -645,7 +658,9 @@ export function EditorToolbar({
             aria-pressed={tool === t.tool}
             aria-label={t.label}
             title={t.label}
-            disabled={(!canDraw || drawLocked) && !isNonDraw(t.tool)}
+            // Crop is a file-metadata edit, not an annotation: it is gated on canCrop, never on draw
+            // permission or the draw lock.
+            disabled={t.tool === "crop" ? !canCrop : (!canDraw || drawLocked) && !isNonDraw(t.tool)}
             onClick={() => onTool(t.tool)}
           >
             {t.icon}

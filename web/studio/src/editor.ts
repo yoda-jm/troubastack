@@ -33,11 +33,14 @@ export type Tool =
   | (string & {});
 
 /** The non-drawing tools: they create no object. `select` marquees + picks; `move` pans
- *  the document (T65). Everywhere the draw path is gated, gate on isNonDraw — the `(string
- *  & {})` escape hatch in Tool defeats `Exclude`, so an explicit guard is needed. */
-export type NonDrawTool = "select" | "move";
+ *  the document (T65); `crop` (T198) edits the page's bake area through its own overlay and
+ *  must NEVER reach the annotation draw path — a crop-mode drag that leaked into EditCanvas
+ *  was saving a `type:""` object (the U1 blocker). Everywhere the draw path is gated, gate on
+ *  isNonDraw — the `(string & {})` escape hatch in Tool defeats `Exclude`, so an explicit
+ *  guard is needed. */
+export type NonDrawTool = "select" | "move" | "crop";
 export function isNonDraw(tool: Tool): boolean {
-  return tool === "select" || tool === "move";
+  return tool === "select" || tool === "move" || tool === "crop";
 }
 
 /** Tools that draw a new object (everything but the non-drawing tools). */

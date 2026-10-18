@@ -61,3 +61,24 @@ func TestValidateCrop_PageIndex(t *testing.T) {
 		}
 	}
 }
+
+// TestValidateCrop_LockARRequiresSquare pins policy A's backstop: under lockAR a rect must be square in page
+// fractions (w == h), so a client cannot slip a distorting non-square crop past the save. Dropping the check
+// in ValidateCrop turns this red.
+func TestValidateCrop_LockARRequiresSquare(t *testing.T) {
+	nonSquare := Crop{LockAR: true, Pages: map[string]CropRect{"0": {X: 0.1, Y: 0.1, W: 0.8, H: 0.6, Source: "manual"}}}
+	if err := ValidateCrop(nonSquare, 0); err == nil || !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("a non-square aspect-locked crop must be refused, got: %v", err)
+	}
+	// The same rect is fine when lockAR is off (policy B, a later toggle).
+	free := nonSquare
+	free.LockAR = false
+	if err := ValidateCrop(free, 0); err != nil {
+		t.Fatalf("a non-square crop is allowed when not aspect-locked: %v", err)
+	}
+	// A square under lockAR passes (within the 1e-6 tolerance).
+	square := Crop{LockAR: true, Pages: map[string]CropRect{"0": {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Source: "manual"}}}
+	if err := ValidateCrop(square, 0); err != nil {
+		t.Fatalf("a square aspect-locked crop must pass: %v", err)
+	}
+}

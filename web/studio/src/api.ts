@@ -142,7 +142,18 @@ export type SongFile = {
   // Generated text charts (T19): the server renders these from an editable source.
   generated?: boolean;
   revision?: number;
+  // Per-page bake crop (T198) — the non-destructive bake area for an uploaded PDF. Absent = whole-page bake.
+  crop?: Crop;
 };
+
+// Crop (T198) is the per-page bake area. lockAR is policy A (always true today: a crop is a pure zoom, so a
+// rect is a SQUARE in page-fraction space). pages maps a stringified 0-based page index to its rect.
+export type CropRect = { x: number; y: number; w: number; h: number; source: string };
+export type Crop = { lockAR: boolean; auto?: boolean; pages?: Record<string, CropRect> };
+
+// HiddenMark (T198) names one live mark a crop would push off the tablet — the crop-save dry run returns
+// these so Studio can warn before committing.
+export type HiddenMark = { uuid: string; layerId: string; page: number };
 
 /**
  * A rehearsal note (T170 / A70 Part B): a bitmap the musician drew on Stage over one page,
@@ -693,6 +704,25 @@ export const api = {
       `/api/bands/${bandId}/songs/${songId}/files/${fileId}`,
       patch,
     ).then((r) => r.file),
+
+  // setCrop (T198) persists a per-page bake crop on an uploaded PDF and returns the updated file. The server
+  // forces policy A (lockAR, auto off) and validates geometry; an empty crop (no pages) resets to whole-page.
+  setCrop: (bandId: string, songId: string, fileId: string, crop: Crop) =>
+    request<{ file: SongFile }>(
+      "PUT",
+      `/api/bands/${bandId}/songs/${songId}/files/${fileId}/crop`,
+      { crop },
+    ).then((r) => r.file),
+
+  // cropDryRun (T198) validates a proposed crop WITHOUT persisting and returns the live marks it would push
+  // off the tablet — the pre-save warning. It shares the save's validation, so a dry run that returns marks
+  // is a crop the save will accept.
+  cropDryRun: (bandId: string, songId: string, fileId: string, crop: Crop) =>
+    request<{ hiddenMarks: HiddenMark[] }>(
+      "PUT",
+      `/api/bands/${bandId}/songs/${songId}/files/${fileId}/crop`,
+      { crop, dryRun: true },
+    ).then((r) => r.hiddenMarks),
 
   deleteFile: (bandId: string, songId: string, fileId: string) =>
     request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/files/${fileId}`),

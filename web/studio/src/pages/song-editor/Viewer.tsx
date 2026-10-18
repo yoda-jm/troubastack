@@ -8,9 +8,13 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   api,
+  ApiError,
   type AnnotationLayer,
   type AnnotationObject,
   type AnnotationStyle,
+  type Crop,
+  type CropRect,
+  type HiddenMark,
   type Role,
   type RehearsalNote,
   type Song,
@@ -37,6 +41,7 @@ import {
   type UndoEntry,
 } from "../../editor";
 import { EditorToolbar } from "./Toolbar";
+import CropOverlay from "./CropOverlay";
 import { FilePdfButton } from "./FilePdfButton";
 import { backTarget } from "./backTarget";
 import {
@@ -332,6 +337,140 @@ export function Viewer({
   const isPdf = selectedFile?.contentType === "application/pdf";
   const isImage = selectedFile?.contentType.startsWith("image/") ?? false;
 
+  // ---- T198 crop tool ----------------------------------------------------------------------------------
+  // A crop is a per-file, per-page bake area on an UPLOADED PDF (never a generated chart, P4). The Crop tool
+  // edits a working draft of the file's rects; an explicit Save persists it (the per-file edit idiom), gated
+  // by a Keep/Cancel step when it would hide annotations. Policy A: every rect is a square in page-fraction
+  // space (a pure zoom), enforced by cropGeometry + the server. Drafts are kept PER FILE so switching files
+  // and back does not lose unsaved work. Room is left for T199's angle control: the per-page rect is an
+  // object the angle field joins later, and the view transform stays server-side ("Tablet view", U1b).
+  const canCrop = isPdf && selectedFileId != null && selectedFile?.generated !== true;
+  const persistedPages = selectedFile?.crop?.pages ?? null;
+  const cropDraftsRef = useRef<Map<string, Record<string, CropRect>>>(new Map());
+  const [cropDraft, setCropDraftRaw] = useState<Record<string, CropRect>>({});
+  const [cropHidden, setCropHidden] = useState<HiddenMark[]>([]);
+  const [cropWarnError, setCropWarnError] = useState(false); // the live dry run failed → never imply "nothing hidden"
+  const [cropSaving, setCropSaving] = useState(false);
+  const [cropError, setCropError] = useState<string | null>(null);
+  const [cropConfirmReset, setCropConfirmReset] = useState(false);
+  const [cropConfirm, setCropConfirm] = useState<HiddenMark[] | null>(null); // Keep/Cancel before a hiding save
+
+  // setCropDraft updates the active draft AND remembers it per file (so a file switch preserves it).
+  const setCropDraft = useCallback(
+    (next: Record<string, CropRect> | ((prev: Record<string, CropRect>) => Record<string, CropRect>)) => {
+      setCropDraftRaw((prev) => {
+        const n = typeof next === "function" ? (next as (p: Record<string, CropRect>) => Record<string, CropRect>)(prev) : next;
+        if (selectedFileId != null) cropDraftsRef.current.set(selectedFileId, n);
+        return n;
+      });
+    },
+    [selectedFileId],
+  );
+
+  // When the open file changes, load its remembered draft if any, else seed from the saved crop. Deliberately
+  // NOT keyed on persistedPages: a save updates the file in place and the save handler syncs the draft, so
+  // re-seeding here would clobber a just-saved (or an in-flight) draft.
+  useEffect(() => {
+    const remembered = selectedFileId != null ? cropDraftsRef.current.get(selectedFileId) : undefined;
+    setCropDraftRaw(remembered ?? (persistedPages ? { ...persistedPages } : {}));
+    setCropHidden([]);
+    setCropWarnError(false);
+    setCropError(null);
+    setCropConfirmReset(false);
+    setCropConfirm(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFileId]);
+
+  // Leaving the Crop tool (or opening a file that cannot be cropped) drops crop mode, so a stray drag on a
+  // chart can never reach the annotation path — half of the U1 blocker fix (the other half: crop is now a
+  // non-draw tool). Also closes any open confirm.
+  useEffect(() => {
+    if (tool === "crop" && (!canCrop || offline)) setTool("move"); // offline: no saving, so drop crop mode
+    if (tool !== "crop") {
+      setCropConfirm(null);
+      setCropConfirmReset(false);
+    }
+  }, [tool, canCrop, offline]);
+
+  const cropDirty = useMemo(
+    () => JSON.stringify(cropDraft) !== JSON.stringify(persistedPages ?? {}),
+    [cropDraft, persistedPages],
+  );
+  const buildCrop = useCallback((): Crop => ({ lockAR: true, pages: cropDraft }), [cropDraft]);
+
+  // Debounced dry run → the live warning reflects the UNSAVED draft. A failure sets cropWarnError so the UI
+  // shows "couldn't check", never a misleading "nothing hidden".
+  useEffect(() => {
+    if (tool !== "crop" || !canCrop || selectedFileId == null) return;
+    const id = window.setTimeout(() => {
+      api
+        .cropDryRun(bandId, songId, selectedFileId, buildCrop())
+        .then((h) => {
+          setCropHidden(h);
+          setCropWarnError(false);
+        })
+        .catch(() => {
+          setCropHidden([]);
+          setCropWarnError(true);
+        });
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [tool, canCrop, selectedFileId, cropDraft, bandId, songId, buildCrop]);
+
+  const setPageCrop = useCallback(
+    (page: number, r: { x: number; y: number; w: number; h: number }) => {
+      setCropDraft((d) => ({ ...d, [String(page)]: { ...r, source: "manual" } }));
+    },
+    [setCropDraft],
+  );
+  const resetPageCrop = useCallback(
+    (page: number) => {
+      setCropDraft((d) => {
+        const n = { ...d };
+        delete n[String(page)];
+        return n;
+      });
+    },
+    [setCropDraft],
+  );
+
+  const commitCrop = useCallback(async () => {
+    if (selectedFileId == null) return;
+    setCropSaving(true);
+    setCropError(null);
+    try {
+      const updated = await api.setCrop(bandId, songId, selectedFileId, buildCrop());
+      setFiles((fs) => fs.map((f) => (f.id === updated.id ? updated : f)));
+      const savedPages = updated.crop?.pages ?? {};
+      cropDraftsRef.current.set(selectedFileId, savedPages);
+      setCropDraftRaw(savedPages); // in sync with the file → not dirty
+      setCropConfirm(null);
+    } catch (e) {
+      setCropError(e instanceof ApiError ? e.message : "Could not save the crop.");
+    } finally {
+      setCropSaving(false);
+    }
+  }, [selectedFileId, bandId, songId, buildCrop]);
+
+  // requestSaveCrop runs a FRESH dry run; a failure is an error (never a silent commit), and a crop that
+  // would hide marks opens the Keep/Cancel confirm listing the layers. Otherwise it commits straight away.
+  const requestSaveCrop = useCallback(async () => {
+    if (selectedFileId == null) return;
+    setCropError(null);
+    let hidden: HiddenMark[];
+    try {
+      hidden = await api.cropDryRun(bandId, songId, selectedFileId, buildCrop());
+    } catch (e) {
+      setCropError(e instanceof ApiError ? e.message : "Could not check the crop.");
+      return;
+    }
+    if (hidden.length > 0) {
+      setCropConfirm(hidden); // ask before hiding annotations
+      return;
+    }
+    await commitCrop();
+  }, [selectedFileId, bandId, songId, buildCrop, commitCrop]);
+
   // T68: mirror the open file into ?file=<id>. Single sync point — every selection path
   // (strip click, initial load, refresh) funnels through setSelectedFileId. `replace` so
   // switching files doesn't grow history (Back still exits the editor, not step through file
@@ -465,6 +604,13 @@ export function Viewer({
     for (const l of doc.layers) m.set(l.id, l);
     return m;
   }, [doc.layers]);
+
+  // T198 — the distinct layer NAMES a hidden-mark list touches, for the crop warning (deduped, layer order).
+  const hiddenLayerNames = (marks: HiddenMark[]): string[] => {
+    const names = new Set<string>();
+    for (const m of marks) names.add(layersById.get(m.layerId)?.name ?? "a layer");
+    return [...names];
+  };
 
   // Objects scoped to the file currently on screen (T40). Annotations are keyed by
   // song, but every layer binds to ONE file (layer.fileId); the render/hit-test must
@@ -1233,6 +1379,9 @@ export function Viewer({
   // bandmate changed the object since, so an undo can never overwrite their work. The tool stays armed:
   // undo is an edit, not a mode change.
   const undo = useCallback(() => {
+    // T198: in crop mode, undo must NEVER touch annotations — the crop tool has its own edit model (Save /
+    // Reset), and a stray Ctrl+Z here would silently revert an annotation the user cannot see editing.
+    if (tool === "crop") return;
     if (!syncRef.current) return;
     const top = undoStack[undoStack.length - 1];
     if (!top) return;
@@ -1269,7 +1418,7 @@ export function Viewer({
     } else syncRef.current.updateObject(plan.kind, plan.object);
     setLocalNotice(null);
     setUndoStack(rest);
-  }, [undoStack, doc.objects, layersById, myUserId, myRole, sweepPointersTo]);
+  }, [tool, undoStack, doc.objects, layersById, myUserId, myRole, sweepPointersTo]);
 
   // Delete/Backspace removes the current selection; Ctrl/Cmd+Z undoes. Both ignored while typing in a
   // form field, so the Details inputs below keep working normally.
@@ -1395,6 +1544,7 @@ export function Viewer({
     // drives the "read-only layer" hint text, which would mislead here; the
     // offline chip in the chrome is the explanation instead).
     canDraw: myUserId != null && selectedFileId != null && !offline,
+    canCrop: canCrop && !offline,
     drawLocked: focusLocked,
     canEditFocusedLayer,
     focusedLayerName: focusedLayer?.name ?? null,
@@ -1736,6 +1886,89 @@ export function Viewer({
         />
       )}
 
+      {/* T198 — the crop tool's controls: the pre-save warning, Reset all, Save, and the Keep/Cancel step. */}
+      {tool === "crop" && canCrop && (
+        <div className="crop-panel" data-testid="crop-panel" role="group" aria-label="Crop controls">
+          <span className="crop-panel-hint">
+            Drag on a page to set its bake area; the rest is trimmed on the tablet. Drawing stays where it is.
+          </span>
+          {cropWarnError ? (
+            <span className="crop-panel-warn" data-testid="crop-warning" role="alert">
+              Couldn't check which annotations fall outside — try again.
+            </span>
+          ) : (
+            cropHidden.length > 0 && (
+              <span className="crop-panel-warn" data-testid="crop-warning" role="status">
+                {cropHidden.length === 1 ? "1 annotation" : `${cropHidden.length} annotations`} outside this crop
+                won't show on the tablet.
+              </span>
+            )
+          )}
+          {cropError && (
+            <span className="crop-panel-warn" data-testid="crop-error" role="alert">
+              {cropError}
+            </span>
+          )}
+          {cropConfirmReset ? (
+            <span className="crop-confirm">
+              Reset every page?
+              <button
+                type="button"
+                className="btn-sm"
+                data-testid="crop-reset-all-confirm"
+                onClick={() => {
+                  setCropDraft({});
+                  setCropConfirmReset(false);
+                }}
+              >
+                Reset all
+              </button>
+              <button type="button" className="btn-sm" onClick={() => setCropConfirmReset(false)}>
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="btn-sm"
+              data-testid="crop-reset-all"
+              disabled={Object.keys(cropDraft).length === 0}
+              onClick={() => setCropConfirmReset(true)}
+            >
+              Reset all pages
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-sm primary"
+            data-testid="crop-save"
+            disabled={!cropDirty || cropSaving || cropConfirm != null}
+            onClick={requestSaveCrop}
+          >
+            {cropSaving ? "Saving…" : "Save crop"}
+          </button>
+        </div>
+      )}
+
+      {/* T198 — the Keep/Cancel step before a save that would hide annotations, naming the layers (one list). */}
+      {cropConfirm && (
+        <div className="crop-confirm-dialog" data-testid="crop-confirm" role="alertdialog" aria-label="Crop hides annotations">
+          <p>
+            This crop hides {cropConfirm.length === 1 ? "1 annotation" : `${cropConfirm.length} annotations`} on{" "}
+            {hiddenLayerNames(cropConfirm).join(", ")}. They stay saved and return if you reset the crop, but
+            they won't show on the tablet.
+          </p>
+          <div className="crop-confirm-actions">
+            <button type="button" className="btn-sm primary" data-testid="crop-confirm-keep" disabled={cropSaving} onClick={commitCrop}>
+              {cropSaving ? "Saving…" : "Keep crop"}
+            </button>
+            <button type="button" className="btn-sm" data-testid="crop-confirm-cancel" disabled={cropSaving} onClick={() => setCropConfirm(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {(rejectNotice ?? localNotice) && (
         <p className="notice editor-reject-notice" data-testid="reject-notice" role="alert">
           {rejectNotice ?? localNotice}
@@ -1838,6 +2071,26 @@ export function Viewer({
                   showLinks={showLinks}
                   onGeneratedChart={onGeneratedChart}
                 />
+                {/* T198 — the crop overlay. INTERACTIVE while the Crop tool is active on this croppable PDF
+                    (above EditCanvas, editable). Otherwise PASSIVE: if the page has a SAVED crop, its veil
+                    stays visible (pointer-events pass through, so annotating is untouched); an uncropped page
+                    shows nothing. */}
+                {(() => {
+                  const interactive = tool === "crop" && canCrop && !offline;
+                  const rect = interactive
+                    ? (cropDraft[String(i)] ?? null)
+                    : (selectedFile?.crop?.pages?.[String(i)] ?? null);
+                  if (!interactive && !rect) return null;
+                  return (
+                    <CropOverlay
+                      page={i}
+                      interactive={interactive}
+                      rect={rect}
+                      onChange={(r) => setPageCrop(i, r)}
+                      onReset={() => resetPageCrop(i)}
+                    />
+                  );
+                })()}
               </div>
             ))}
 
@@ -2024,6 +2277,17 @@ export function Viewer({
                 >
                   <span className={`pill file-tab-badge badge-${badge.toLowerCase()}`}>{badge}</span>
                   <span className="file-tab-name">{f.filename}</span>
+                  {/* T198 — mark a file whose pages have a bake crop. */}
+                  {f.crop?.pages && Object.keys(f.crop.pages).length > 0 && (
+                    <span
+                      className="pill file-tab-cropped"
+                      data-testid="file-tab-cropped"
+                      aria-label="Has a page crop"
+                      title="Some pages have a crop (bake area)"
+                    >
+                      crop
+                    </span>
+                  )}
                   {/* T138 (VLL): mark MINE — never dim the others (they open fine; dimming would falsely say
                       "unavailable"). An unset member sees exactly one marked: the default the stage takes. */}
                   {mine && (

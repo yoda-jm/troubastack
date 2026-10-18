@@ -26,4 +26,11 @@ func TestImportCrop(t *testing.T) {
 	if got := importCrop(badKey, false); got != nil {
 		t.Fatalf("a non-canonical page key must be dropped, got %+v", got)
 	}
+	// A hand-edited folder with LockAR OFF but a NON-SQUARE rect must be dropped: importCrop forces policy A
+	// before validating, so the lockAR square rule rejects it (never stored aspect-locked-but-distorted).
+	// This reds if importCrop forces LockAR AFTER validating.
+	nonSquare := &Crop{LockAR: false, Pages: map[string]CropRect{"0": {X: 0.1, Y: 0.1, W: 0.8, H: 0.5, Source: "manual"}}}
+	if got := importCrop(nonSquare, false); got != nil {
+		t.Fatalf("a non-square crop must be dropped under forced AR-lock, got %+v", got)
+	}
 }

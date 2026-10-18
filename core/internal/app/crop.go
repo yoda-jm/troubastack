@@ -52,6 +52,13 @@ func ValidateCrop(c Crop, pageCount int) error {
 		if err := ValidateCropRect(rect); err != nil {
 			return err
 		}
+		// Policy A (lockAR): a crop is a PURE ZOOM, so each rect must be a square in page-fraction space
+		// (w == h) — that is what gives it the page's aspect in pixels and keeps the tablet page shape. The
+		// server enforces it so a client that sends a non-square under lockAR is refused, not silently baked
+		// into a distorted page. (Studio's crop window keeps w == h; this is the backstop.)
+		if c.LockAR && math.Abs(rect.W-rect.H) > 1e-6 {
+			return fmt.Errorf("%w: an aspect-locked crop must be square in page fractions (w == h), got w=%.4f h=%.4f", ErrInvalidInput, rect.W, rect.H)
+		}
 	}
 	return nil
 }
@@ -68,10 +75,13 @@ func importCrop(c *Crop, generated bool) *Crop {
 	if generated {
 		return nil // P4: a generated chart lays out to the page; it has no crop.
 	}
+	// Force policy A (AR-lock) BEFORE validating, so the lockAR square rule is enforced on import too: a
+	// hand-edited folder that left LockAR off with a non-square rect is DROPPED, not silently stored
+	// aspect-locked-but-distorted.
+	c.LockAR = true
 	if ValidateCrop(*c, 0) != nil {
 		return nil
 	}
-	c.LockAR = true // policy A: a crop is always AR-locked, even if a hand-edited folder left the flag off.
 	return c
 }
 
