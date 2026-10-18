@@ -345,14 +345,21 @@ jobs:
           # exact commit + build time in the body. The download URL is stable (fixed tag + asset name).
           # A88: say which key signed it. Only the stable key's APK can update an installed app in place.
           STABLE=e99675323f86797c5addbafe2d4c0a8c7d855fb1d21e7e00fe9c72d07340a426
-          SIGNER=$("$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner" verify --print-certs troubastage-debug.apk \
-                   | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          # Read the signer with the newest build-tools apksigner that works (the first publish read nothing and the
+          # body wrongly said "throwaway"); its stderr goes to the job log so a failure is visible.
+          SIGNER=""
+          for bt in $(ls -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"/build-tools/*/ 2>/dev/null | sort -rV); do
+            SIGNER=$("${bt}apksigner" verify --print-certs troubastage-debug.apk | sed -n 's/^Signer.*certificate SHA-256 digest: //p' | head -1) || true
+            [ -n "$SIGNER" ] && { echo "signer read with ${bt}apksigner: $SIGNER"; break; }
+            echo "::warning::${bt}apksigner could not read the signer"
+          done
           {
             echo "Debug-signed Android APK — rolling build of \`main\`. Not a store release; Android warns about an unknown source."
             echo
             echo "Commit: $GITHUB_SHA"
             echo "Built:  $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             if [ "$SIGNER" = "$STABLE" ]; then echo "Signed with the stable TroubaStage key (updates the installed app in place)."
+            elif [ -z "$SIGNER" ]; then echo "Signing key: could not be read on this run."
             else echo "Signed with a throwaway key ($SIGNER): it cannot update an app installed from another build in place."; fi
           } > notes.md
           gh release delete latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
