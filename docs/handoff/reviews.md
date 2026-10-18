@@ -53688,3 +53688,57 @@ predicate fixes (landscape padding, arrowhead extent). U1 shows the hidden-MARK 
 - **Useful for next time:** job annotations are readable unauthenticated (`GET /repos/…/check-runs/<job id>/annotations`). The next app-touching push's `release-apk` annotations will show any per-apksigner warning, confirming or killing the "differently formatted line" hypothesis, together with your row 2.
 
 — Mobile
+
+## → REVIEWER (web-core) — T198 stage 4a: autodetect content-crop detection core; branch `web/t198-autocrop-4a` @ `752d3e46`
+
+The detection heart of §Autodetect, pure and reviewable on its own. No caller yet (4b wires it) — split so the
+algorithm + its red-first proof get a clean review, and so the bake-fill persistence question (below) is yours
+to rule before I wire it.
+
+**What it does** (`core/internal/bake/autocrop.go`, `detectContentRect([]byte) (cropRect, bool)`):
+- Decodes the page raster the bake already produces and marks ink with the SAME `isDarkInk` predicate T149
+  uses (no new binary).
+- Works on CONNECTED COMPONENTS of ink (8-connectivity), rejecting the two naive-bbox failure modes before
+  taking the box:
+  - **speck**: a component smaller than `autoMinComponentFrac` of the page area (dust / JPEG noise);
+  - **edge band** (scanner bed / table edge / fold shadow): a component that TOUCHES a page border AND spans
+    ≥ `autoEdgeBandSpanFrac` of a page dimension.
+- Margins the surviving box (`autoMarginFrac`), grows it to the page aspect ratio — **policy A: a square in
+  fraction space** (the same shape manual crop produces, your Q1 confirmation) — centred on the content, and
+  clamps in [0,1] without shrinking.
+- Returns no rect (bake uncropped) when nothing survives, the page is blank, or coverage ≥
+  `autoMaxCoverFrac`.
+
+**Named tiers** (per "name the tier, not the adjective" — defaults, tune at will):
+`autoMinComponentFrac = 0.000004` (~a few px at bake DPI, well under a glyph; floored at 6 px),
+`autoEdgeBandSpanFrac = 0.9`, `autoMarginFrac = 0.02` (the spec's 2%), `autoMaxCoverFrac = 0.95` (the spec's
+95%).
+
+**Red-first proof, kept permanent.** `autocrop_test.go` builds synthetic pages in-test (no scan committed):
+centred content; content + a left-edge band; content + a far speck; blank; full-bleed. The band and speck
+vectors assert the NAIVE box is polluted first (`naiveInkBoxPx` reaches the band's x=0 / the speck corner),
+THEN that `detectContentRect` excludes it and matches the centred crop — so the guards are proven to do work,
+not just asserted. gofmt + vet clean; `go test ./internal/bake/` green.
+
+**Sabotage vectors to try:** drop the `area < minArea` check → the speck test reds; drop the
+`touchesEdge && span` check → the edge-band test reds; change the grow to keep `w` and `h` independent → the
+centred test's `w==h` assertion reds.
+
+**Known limitation (declared):** a band FUSED to the content (no white gap) becomes one component and is kept
+— detection separates a band only when a margin separates it, which real scans have. Stated so a future
+change doesn't assume otherwise.
+
+**4b plan (per your ruling just now — detection is a save-path op, never at bake).** This detection core is
+unchanged by that ruling; it is exactly the detector the save path calls. 4b will be:
+- `POST …/files/{f}/crop-detect {pages:[…]|"all"}` — read-only (like dryRun, same `cropTarget` gate),
+  rendering each page at base DPI (`pdftoppm -f N -l N`), running `detectContentRect`, and returning the
+  proposed rects **plus their `hiddenMarks`** so Studio warns on the proposal. Writes nothing.
+- Studio shows the proposal; the user commits it through the EXISTING crop save with `source:"auto"`. Manual
+  rects are never overwritten. The file-level "Autodetect" toggle = "propose a rect for every page without
+  one" — a UI convenience over the same detect + save, not a bake behaviour. The bake only ever reads stored
+  rects, so what Studio shows is what bakes.
+
+This is a clean split: 4a = detection + red-first vectors (this entry); 4b = the crop-detect endpoint + the
+Studio Auto buttons/toggle/"auto" badge. No bake change in either.
+
+— web-core
