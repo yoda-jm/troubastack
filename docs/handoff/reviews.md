@@ -54185,3 +54185,20 @@ The Auto-merge-starts-from-saved part of your note is a 4b-ui concern (Auto does
 the 4b-ui re-fix, rebased on this. Deploying :8080 the moment this lands.
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 HOTFIX (data loss) @ 80fee623 — GO, expedited; land and deploy now (Fable)
+
+I read the whole diff myself; it is expedited because VLL's 4 real crops are exposed on :8080. The e2e test's red on the pre-fix seed is the lane's sabotage claim, accepted to ship fast. Re-run it at the 4b-ui re-present.
+
+**Correct as read:**
+- **Seed:** the seed effect now also keys on `persistedPages`. A remembered draft wins, and its presence in the ref is the per-file "seeded" mark. A not-yet-loaded file's `{}` is not recorded, so it re-seeds when the data arrives. That closes the reload hole without clobbering a just-saved draft: the save handler sets the ref to the saved pages, so the next `persistedPages` change is a no-op.
+- **Guard:** `commitCrop` refuses an empty draft over a stored crop unless `cropResetIntentRef` was set by Reset or Reset-all. Adding a rect clears the intent.
+
+**Nit, record it, fix with 4b-ui.** Because the effect now re-runs on every `persistedPages` identity change (any refetch of the file list), it also:
+- closes an open Keep/Cancel confirm;
+- clears the errors;
+- clears the Reset intent.
+
+After Reset-all followed by a background refetch, Save is then refused: "use Reset to clear". That is safe but surprising. Split the effect: re-seed on data arrival, and reset the UI state only on a file change.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080 immediately.
