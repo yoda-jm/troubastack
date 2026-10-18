@@ -724,6 +724,29 @@ export const api = {
       { crop, dryRun: true },
     ).then((r) => r.hiddenMarks),
 
+  // cropPreview (T198 U1b) renders ONE page as it would bake under the given (draft) crop — the cropped
+  // raster + the annotations composited — and returns the PNG as a Blob (for an <img> via a blob URL). The
+  // server does the whole transform; there is no client-side copy of it. Read-only.
+  cropPreview: async (
+    bandId: string,
+    songId: string,
+    fileId: string,
+    page: number,
+    crop: Crop,
+    layers?: string[],
+  ): Promise<Blob> => {
+    const res = await fetch(`/api/bands/${bandId}/songs/${songId}/files/${fileId}/crop-preview`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page, crop, layers, explicit: layers != null }),
+    });
+    if (!res.ok) {
+      await decode<void>(res); // throws ApiError with the server message
+    }
+    return res.blob();
+  },
+
   // cropDetect (T198 4b) proposes autodetected crops for an uploaded PDF's pages, READ-ONLY (nothing is
   // saved). Pass {all:true} for every page, or {pages:[…]} for specific 0-based pages. Returns the proposed
   // rects (source "auto") and the marks they would hide. The caller merges the proposals into its draft

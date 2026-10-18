@@ -363,3 +363,68 @@ test("crop: after a reload, Auto all keeps a saved manual rect", async ({ page }
   await expect(page.getByTestId("crop-notice")).toContainText("Kept your crop");
   await expect(page.getByTestId("crop-auto-tag-0")).toHaveCount(0);
 });
+
+// U1b: the "Tablet view" switch swaps each page for its server bake preview; editing is off while on.
+// crop-preview is mocked with a canned PNG (the e2e core has no overlay worker); the real render is
+// Go-tested (parity) and runs on :8080.
+test("crop: Tablet view swaps the page for the server preview and pauses editing", async ({ page }) => {
+  const PNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQAY3Y2wAAAAAElFTkSuQmCC",
+    "base64",
+  );
+  await openPdf(page);
+  await page.route("**/files/*/crop-preview", (route) =>
+    route.fulfill({ status: 200, contentType: "image/png", body: PNG }),
+  );
+  await page.getByTestId("tool-crop").click();
+  await dragCrop(page, 0, 0.2, 0.2, 0.7, 0.7); // a draft crop to preview
+  await expect(page.getByTestId("crop-rect-0")).toBeVisible();
+
+  // Turn Tablet view on → the page is replaced by the preview image, and the editable window is gone.
+  await page.getByTestId("crop-tablet-view").click();
+  await expect(page.getByTestId("tablet-preview-0").locator("img")).toBeVisible();
+  await expect(page.getByTestId("crop-tablet-hint")).toBeVisible();
+  await expect(page.getByTestId("crop-handle-0-nw")).toHaveCount(0); // editing paused
+
+  // Turn it off → the editable crop window returns.
+  await page.getByTestId("crop-tablet-view").click();
+  await expect(page.getByTestId("tablet-preview-0")).toHaveCount(0);
+  await expect(page.getByTestId("crop-rect-0")).toBeVisible();
+});
+
+// U1b binding: an annotation edit must INVALIDATE the Tablet-view cache — otherwise toggling back after a
+// mark shows the stale PNG. The cache key folds a doc signature, so a second preview fires after the edit.
+// Positive control: object-count proves the mark actually landed. Red under a key that ignores the doc.
+test("crop: Tablet view re-renders after an annotation edit (cache not stale)", async ({ page }) => {
+  const PNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQAY3Y2wAAAAAElFTkSuQmCC",
+    "base64",
+  );
+  let requests = 0;
+  await openPdf(page);
+  await page.route("**/files/*/crop-preview", (route) => {
+    requests++;
+    return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
+  });
+
+  // A draft crop, then Tablet view on → the first preview request.
+  await page.getByTestId("tool-crop").click();
+  await dragCrop(page, 0, 0.2, 0.2, 0.7, 0.7);
+  await page.getByTestId("crop-tablet-view").click();
+  await expect(page.getByTestId("tablet-preview-0").locator("img")).toBeVisible();
+  await expect.poll(() => requests).toBe(1);
+
+  // Leave the preview, draw a highlight (the doc changes), confirm it landed.
+  const before = await objectCount(page);
+  await page.getByTestId("crop-tablet-view").click(); // back to editing
+  await page.getByTestId("tool-rect").click();
+  await page.getByTestId("preset-highlight").click();
+  await dragOnPage(page, 0.3, 0.3, 0.6, 0.45);
+  await expect.poll(() => objectCount(page)).toBe(before + 1);
+
+  // Re-enter Tablet view with the SAME crop → a SECOND request (the doc signature changed), not a stale hit.
+  await page.getByTestId("tool-crop").click();
+  await page.getByTestId("crop-tablet-view").click();
+  await expect(page.getByTestId("tablet-preview-0").locator("img")).toBeVisible();
+  await expect.poll(() => requests).toBe(2);
+});

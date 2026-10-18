@@ -1543,6 +1543,18 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .crop-confirm-dialog p { margin: 0 0 .5rem; }
 .crop-confirm-actions { display: flex; gap: .5rem; }
 .file-tab-cropped { margin-left: .3rem; }
+
+/* T198 U1b — "Tablet view": the server-rendered bake preview covers the page while the switch is on. Opaque
+   (it replaces the page), captures pointers (editing is off), and the image fills the page width. */
+.tablet-preview {
+  position: absolute; inset: 0; z-index: 6;
+  background: var(--surface); overflow: hidden;
+  display: flex; align-items: flex-start; justify-content: center;
+}
+.tablet-preview-img { width: 100%; height: auto; display: block; }
+.tablet-preview-msg {
+  margin: 1.5rem auto; font-size: .85rem; color: var(--muted-fg, var(--fg));
+}
 .edit-layer-btn {
   padding: .35rem .6rem; font-size: .85rem;
   background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-fg);

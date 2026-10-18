@@ -42,6 +42,7 @@ import {
 } from "../../editor";
 import { EditorToolbar } from "./Toolbar";
 import CropOverlay from "./CropOverlay";
+import TabletPreview from "./TabletPreview";
 import { FilePdfButton } from "./FilePdfButton";
 import { backTarget } from "./backTarget";
 import {
@@ -103,6 +104,19 @@ function sortLayers(layers: AnnotationLayer[], myUserId: string | null): Annotat
     }
     return a.order - b.order;
   });
+}
+
+// previewSig (T198 U1b) is a compact fingerprint of the doc state the bake depends on — the file's objects
+// and the layer set — so TabletPreview's cache invalidates when a mark or a layer changes (a crop change is
+// keyed separately). FNV-1a over a stable JSON; over-invalidation only costs a re-fetch, never a stale PNG.
+function previewSig(objects: AnnotationObject[], layers: AnnotationLayer[]): string {
+  const s = JSON.stringify(objects) + "|" + JSON.stringify(layers);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
 }
 
 /** Is this file something we can render in the viewer (PDF or image)? */
@@ -374,6 +388,7 @@ export function Viewer({
   const [cropConfirm, setCropConfirm] = useState<HiddenMark[] | null>(null); // Keep/Cancel before a hiding save
   const [cropAutoBusy, setCropAutoBusy] = useState(false);
   const [cropNotice, setCropNotice] = useState<string | null>(null); // "no content detected" / skip summary
+  const [tabletView, setTabletView] = useState(false); // U1b: swap each page for its server bake preview
 
   // setCropDraft updates the active draft AND remembers it per file (so a file switch preserves it).
   const setCropDraft = useCallback(
@@ -423,6 +438,7 @@ export function Viewer({
     setCropConfirm(null);
     setCropAutoBusy(false);
     setCropNotice(null);
+    setTabletView(false);
   }, [selectedFileId]);
 
   // Leaving the Crop tool (or opening a file that cannot be cropped) drops crop mode, so a stray drag on a
@@ -433,6 +449,7 @@ export function Viewer({
     if (tool !== "crop") {
       setCropConfirm(null);
       setCropConfirmReset(false);
+      setTabletView(false); // leaving the crop tool exits the preview
     }
   }, [tool, canCrop, offline]);
 
@@ -743,6 +760,10 @@ export function Viewer({
       }),
     [doc.objects, layersById, selectedFileId],
   );
+
+  // The doc fingerprint for the Tablet-view cache: changes when this file's marks or any layer change, so a
+  // preview re-renders after an edit instead of serving a stale PNG.
+  const tabletSig = useMemo(() => previewSig(objectsForFile, doc.layers), [objectsForFile, doc.layers]);
 
   // P206 uniqueness (⟨D⟩: "a LEGIBILITY rule, not an integrity one", per FILE): the landmark glyphs
   // already spoken for by a jump in THIS file at the CURRENT colour. The palette offers them unpickable,
@@ -2022,6 +2043,21 @@ export function Viewer({
           >
             {cropAutoBusy ? "Detecting…" : "Auto all pages"}
           </button>
+          <button
+            type="button"
+            className={`btn-sm${tabletView ? " primary" : ""}`}
+            data-testid="crop-tablet-view"
+            aria-pressed={tabletView}
+            onClick={() => setTabletView((v) => !v)}
+            title="Show each page as it will look on the tablet (editing is off while on)"
+          >
+            {tabletView ? "Editing" : "Tablet view"}
+          </button>
+          {tabletView && (
+            <span className="crop-panel-hint" data-testid="crop-tablet-hint">
+              Showing the baked result — editing is paused.
+            </span>
+          )}
           {cropWarnError ? (
             <span className="crop-panel-warn" data-testid="crop-warning" role="alert">
               Couldn't check which annotations fall outside — try again.
@@ -2212,7 +2248,21 @@ export function Viewer({
                     stays visible (pointer-events pass through, so annotating is untouched); an uncropped page
                     shows nothing. */}
                 {(() => {
-                  const interactive = tool === "crop" && canCrop && !offline;
+                  // Tablet view (U1b): show the server-rendered bake preview on top; editing is off while on.
+                  const inCrop = tool === "crop" && canCrop && !offline;
+                  if (inCrop && tabletView && selectedFileId) {
+                    return (
+                      <TabletPreview
+                        bandId={bandId}
+                        songId={songId}
+                        fileId={selectedFileId}
+                        page={i}
+                        crop={buildCrop()}
+                        sig={tabletSig}
+                      />
+                    );
+                  }
+                  const interactive = inCrop; // (tabletView handled above)
                   const rect = interactive
                     ? (cropDraft[String(i)] ?? null)
                     : (selectedFile?.crop?.pages?.[String(i)] ?? null);
