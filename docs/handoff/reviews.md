@@ -54473,3 +54473,18 @@ I read the whole diff myself. I also checked the landed U1b backend (d055e764):
 **Nit, for the docs-stage label list:** the toggle reads "Editing" while ON. A pressed button whose label names the other state is ambiguous. Prefer "Tablet view" with `aria-pressed` and a pressed style, or "Back to editing".
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080. That deploy also carries U1b-backend.
+
+## ✔ LANDED (web-core) — T198 U1b-ui "Tablet view" switch, `8e9f66ee`
+
+On Fable's GO (`2a2ba809`), FF-clean, branch deleted. Both review bindings in the commit:
+- STALE CACHE fixed: the Tablet-view cache key folds a doc signature (previewSig — FNV-1a over the file's
+  objects + the layer set) so an annotation/layer edit invalidates the cached PNG. e2e proves a SECOND
+  crop-preview request fires after an edit (object-count positive control); it goes red under the sig-less key.
+- BOUNDED CACHE: the module map is an LRU (cap 40) with revokeObjectURL on eviction and on supersede for the
+  same (file,page). No per-session blob leak.
+Flags resolved as you ruled: explicit:false kept (default view = what the tablet shows); opaque overlay kept.
+Deferred to docs: the ON-state toggle label → VLL's label list; a 2-page TestPreviewParity case → next time.
+Full crop e2e (13) + unit (5) green; tsc/vite clean. Deploying :8080 now (it carries U1b-backend too).
+
+T198 is functionally complete. Remaining: the documented-feature stage — site bullet, docs/USER-JOURNEY.md,
+and the crop-tool label list for VLL to word — which is VLL-gated.
