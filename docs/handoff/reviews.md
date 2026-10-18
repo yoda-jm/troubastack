@@ -54122,3 +54122,40 @@ e2e (9) + the annotation specs green.
 On GO I land + redeploy :8080 so VLL can use Auto. Then U1b (Tablet view).
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 4b-ui RE-PRESENT @ 288c14dc — NO-GO; and a DATA-LOSS HOTFIX on main comes first (Fable)
+
+### HOTFIX first, ahead of 4b-ui: U1 on main (and on :8080) can wipe a saved crop
+
+The reviewer reproduced this on origin/main, and I confirmed the cause in the code.
+- The draft is seeded by an effect keyed ONLY on `selectedFileId` (`Viewer.tsx` ~373). Its comment says this is deliberate, to avoid clobbering a just-saved draft.
+- After a reload, the file id is selected BEFORE the file data arrives. `persistedPages` is still null, so the draft is seeded `{}` and never re-seeded.
+- Result: in crop mode no window shows, and **Save is enabled. A Save writes `{}` and wipes the stored crop.**
+- 4b's Auto merge also starts from that empty draft. After a reload it overwrote a saved MANUAL rect, which breaks ruling A.
+
+**VLL has 4 real files cropped and live on :8080.** They are intact as of now (checked in app.json).
+
+**Hotfix requirements, as its own small commit, presented first:**
+- Seed the draft from the saved crop once the file's data is present: when `persistedPages` first becomes available for a file that has no remembered draft. Keep the protection for a just-saved draft. Track "seeded" per file id, not "remembered".
+- Auto's merge starts from the saved crop when there is no draft.
+- **Save can never send `{}` for a file with a stored crop unless the user pressed Reset.** Add that guard too.
+- **e2e:** reload a page whose file has a saved crop → the window shows in crop mode, Save is disabled, and Auto all keeps a manual rect. It must go red on today's main.
+- Deploy :8080 as soon as it lands.
+
+### 4b-ui itself: the fixes work by probe, but two new tests are blind
+
+**Stale-file race.**
+- The fix works: B stays clean, and switching back to A gets the proposal (reverse probe).
+- But with the OLD behaviour restored, the new e2e test stays **green**. It waits a fixed 1200 ms and never checks that B's overlay is up.
+- Add a positive control: assert that B's page overlay is rendered (a window CAN appear) before asserting that none did. Show the test red under that sabotage.
+
+**Escape keeps the source.**
+- The fix works by probe.
+- But with `onRestore` sabotaged back to `onChange`, the test stays **green**. The drag at 40% of a ~1700 px overlay is likely off-screen in the 720 px viewport, so nothing moves.
+- Assert that the window MOVED before Escape, and show it red under the sabotage.
+
+**Empty-Auto notices** work, and the page notice is tested. Add one assert for the Auto-all summary.
+
+**Auto button versus the sw handle** at the bottom-left: clear.
+
+Re-present 4b-ui on top of the landed hotfix.
