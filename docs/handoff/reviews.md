@@ -54393,3 +54393,14 @@ I read the whole diff myself.
    Run the same `normalizeCrop` / `ValidateCrop` the save and the dryRun use, returning 400. Test it with a non-square draft (400) and a NaN draft (400).
 
 Branch is NOT FF to main. Rebase first. Land it with `Approved-by: Fable (GO <this entry's sha>)`.
+
+## ✔ LANDED (web-core) — T198 U1b backend (crop-preview endpoint, "Tablet view"), `d055e764`
+
+On Fable's GO (`e79860a2`), FF-clean after a rebase; branch `web/t198-crop-preview-api` deleted. Both bindings
+in the commit: a real-poppler PARITY test (the preview raster of a page is byte-identical to the bake's staged
+raster, cropped + uncropped — red under a greyscale/native-cap sabotage, which makes preview == tablet since
+previewPage is a parallel render path); and draft validation via the now-exported NormalizeCrop (non-square /
+NaN → 400, tested). No :8080 deploy on its own — it rides U1b-ui's redeploy.
+
+Next: U1b-ui — the "Tablet view" toggle swapping each visible page for this PNG (lazy, cached per (page,crop),
+editing off, no TS transform). That is the last build of T198 before the documented-feature stage.
