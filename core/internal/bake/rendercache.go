@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 )
 
 // T120 — a CONTENT-KEYED render cache over the bake's two shell-out stages (poppler page rasters +
@@ -166,10 +167,23 @@ func PurgeCacheDir(dir string) error {
 // step that touches the bytes. Bump `enc` whenever the raster encoding changes.
 const rasterEncoding = "gray1"
 
-func rasterKey(pdf []byte, dpi int, popplerVer string) string {
+func rasterKey(pdf []byte, dpi int, popplerVer string, crops pageCrops) string {
 	h := sha256.New()
 	h.Write(pdf)
 	fmt.Fprintf(h, "\x00dpi=%d\x00poppler=%s\x00enc=%s", dpi, popplerVer, rasterEncoding)
+	// T198: a crop changes the page pixels, so it MUST be in the key or a crop change serves stale cached
+	// rasters forever. Emit in a deterministic (sorted) order so the same crop always hashes the same.
+	if len(crops) > 0 {
+		idxs := make([]int, 0, len(crops))
+		for i := range crops {
+			idxs = append(idxs, i)
+		}
+		sort.Ints(idxs)
+		for _, i := range idxs {
+			c := crops[i]
+			fmt.Fprintf(h, "\x00crop[%d]=%.6f,%.6f,%.6f,%.6f", i, c.x, c.y, c.w, c.h)
+		}
+	}
 	return "r" + hex.EncodeToString(h.Sum(nil))
 }
 
@@ -240,7 +254,7 @@ type cachingRasterizer struct {
 
 func (r cachingRasterizer) Rasterize(ctx context.Context, pdf []byte) ([][]byte, error) {
 	mode := cacheModeFromContext(ctx)
-	key := rasterKey(pdf, r.dpi, r.popplerVer)
+	key := rasterKey(pdf, r.dpi, r.popplerVer, pageCropsFromContext(ctx))
 	if mode.reads() {
 		if b, ok := r.cache.get(key); ok {
 			if pages, err := decodeRasters(b); err == nil {

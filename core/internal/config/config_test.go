@@ -38,6 +38,7 @@ func TestDefault(t *testing.T) {
 		"TROUBA_APPS_DIR":        "",
 		"TROUBA_PUBLIC_URL":      "",
 		"TROUBA_PDFTOPPM":        "pdftoppm",
+		"TROUBA_PDFIMAGES":       "pdfimages",
 		"TROUBA_NODE":            "node",
 		"TROUBA_BAKE_CLI":        "../web/bake/dist/cli.js",
 		"TROUBA_BAKE_KEEP_REVS":  "0",

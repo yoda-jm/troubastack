@@ -260,6 +260,36 @@ type SongFile struct {
 	// same file id (the chart source itself lives in the repo, keyed by file id).
 	Generated bool `json:"generated,omitempty"`
 	Revision  int  `json:"revision,omitempty"`
+
+	// Crop (T198) is the optional, NON-DESTRUCTIVE per-page bake area for an UPLOADED PDF (never a
+	// Generated chart, P4). Absent ⇒ the whole page bakes, exactly as before. The PDF bytes are never
+	// modified (P1); a crop is pure metadata that enters the bake — the raster cache key and the cropped,
+	// higher-DPI render — and is a VIEW transform on annotations, which keep their full-page coordinates (P3).
+	Crop *Crop `json:"crop,omitempty"`
+}
+
+// Crop is T198's per-page bake area for an uploaded PDF. Rects live in the SOURCE page frame, normalized
+// [0,1] with origin top-left — the SAME frame as annotations, so one transform serves both at bake time.
+type Crop struct {
+	// Auto turns on autodetect for this file: pages with no rect get one computed at bake time and persisted
+	// with Source "auto" (so the result is stable and visible). A manual rect is never overwritten.
+	Auto bool `json:"auto,omitempty"`
+	// LockAR is T198 policy A (default true): a rect is locked to the source page's aspect ratio, so a crop is
+	// a pure zoom and the tablet page shape never changes. Policy B (free rect) is a later toggle, not a
+	// rewrite — this field is carried now so B needs no migration. Not omitempty: false must round-trip.
+	LockAR bool `json:"lockAR"`
+	// Pages maps a stringified 0-based page index ("0","1",…) to its bake area. A page with no entry bakes
+	// uncropped.
+	Pages map[string]CropRect `json:"pages,omitempty"`
+}
+
+// CropRect is one page's bake area in the source page frame, normalized [0,1], origin top-left.
+type CropRect struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	W      float64 `json:"w"`
+	H      float64 `json:"h"`
+	Source string  `json:"source"` // "manual" (user-drawn, never auto-overwritten) | "auto" (detected)
 }
 
 // FileSelection is a member's PERSONAL, ordered choice of which of a song's pool

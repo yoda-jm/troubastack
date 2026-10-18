@@ -456,11 +456,12 @@ func bakeConfig(cfg config.Config) bake.Config {
 		return err == nil
 	})
 	return bake.Config{
-		BakesDir: filepath.Join(cfg.Storage.DataDir, "bakes"),
-		Pdftoppm: cfg.Bake.Pdftoppm,
-		Node:     cfg.Bake.Node,
-		BakeCLI:  filepath.FromSlash(cli),
-		CacheDir: cacheDir,
+		BakesDir:  filepath.Join(cfg.Storage.DataDir, "bakes"),
+		Pdftoppm:  cfg.Bake.Pdftoppm,
+		Pdfimages: cfg.Bake.Pdfimages,
+		Node:      cfg.Bake.Node,
+		BakeCLI:   filepath.FromSlash(cli),
+		CacheDir:  cacheDir,
 	}
 }
 

@@ -103,11 +103,11 @@ func TestRenderCache_RasterKeyIncludesDpiAndPopplerVersion(t *testing.T) {
 		t.Fatalf("inner called %d, want 3 — dpi and poppler version must each force a distinct key", inner.calls)
 	}
 	// And the keys are provably distinct.
-	k1 := rasterKey([]byte("PDF"), 150, "v1")
-	if k1 == rasterKey([]byte("PDF"), 300, "v1") {
+	k1 := rasterKey([]byte("PDF"), 150, "v1", nil)
+	if k1 == rasterKey([]byte("PDF"), 300, "v1", nil) {
 		t.Fatal("dpi missing from raster key")
 	}
-	if k1 == rasterKey([]byte("PDF"), 150, "v2") {
+	if k1 == rasterKey([]byte("PDF"), 150, "v2", nil) {
 		t.Fatal("poppler version missing from raster key")
 	}
 }
@@ -212,13 +212,13 @@ func TestRenderCache_Purge(t *testing.T) {
 	r := cachingRasterizer{inner: inner, cache: cache, dpi: 150, popplerVer: "v1"}
 
 	r.Rasterize(context.Background(), []byte("PDF"))
-	if b, ok := cache.get(rasterKey([]byte("PDF"), 150, "v1")); !ok || len(b) == 0 {
+	if b, ok := cache.get(rasterKey([]byte("PDF"), 150, "v1", nil)); !ok || len(b) == 0 {
 		t.Fatal("expected a cached entry before purge")
 	}
 	if err := cache.purge(); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := cache.get(rasterKey([]byte("PDF"), 150, "v1")); ok {
+	if _, ok := cache.get(rasterKey([]byte("PDF"), 150, "v1", nil)); ok {
 		t.Fatal("entry survived purge")
 	}
 }
@@ -227,7 +227,7 @@ func TestRenderCache_Purge(t *testing.T) {
 
 func TestRenderCache_FileModes(t *testing.T) {
 	cache := newCache(t)
-	key := rasterKey([]byte("PDF"), 150, "v1")
+	key := rasterKey([]byte("PDF"), 150, "v1", nil)
 	if err := cache.put(key, []byte("data")); err != nil {
 		t.Fatal(err)
 	}

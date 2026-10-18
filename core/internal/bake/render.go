@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,8 +44,9 @@ type OverlayRenderer interface {
 // ---- poppler pdftoppm rasterizer ----------------------------------------
 
 type popplerRasterizer struct {
-	bin string // pdftoppm binary (TROUBA_PDFTOPPM)
-	dpi int
+	bin       string // pdftoppm binary (TROUBA_PDFTOPPM)
+	imagesBin string // pdfimages binary (TROUBA_PDFIMAGES); "" disables the T198 native-ppi crop cap
+	dpi       int
 }
 
 func (r popplerRasterizer) Rasterize(ctx context.Context, pdf []byte) ([][]byte, error) {
@@ -88,6 +90,29 @@ func (r popplerRasterizer) Rasterize(ctx context.Context, pdf []byte) ([][]byte,
 		// source of the bytes, so every consumer (hashing, the render cache, the bundle, the .tstage) sees
 		// one set of page bytes and none of them can disagree about what a page is.
 		pages = append(pages, greyscaleIfMono(b))
+	}
+
+	// T198 — per-page crop. The whole-page batch render above is unchanged (so an uncropped file, or an
+	// uncropped page of a cropped file, is byte-identical to before). For each cropped page, re-render JUST
+	// its rect FROM the PDF at a higher effective DPI, then replace that page. The batch render also gives us
+	// each page's base pixel size, which is all we need to place the crop window — no pdfinfo call.
+	if crops := pageCropsFromContext(ctx); len(crops) > 0 {
+		for idx, rect := range crops {
+			if idx < 0 || idx >= len(pages) {
+				continue // out-of-range index is refused at validation; ignore defensively here
+			}
+			cfg, _, derr := image.DecodeConfig(bytes.NewReader(pages[idx]))
+			if derr != nil {
+				return nil, fmt.Errorf("decode page %d for crop: %w", idx, derr)
+			}
+			native := r.nativePPIForPage(ctx, in, idx, cfg.Width, cfg.Height, r.dpi)
+			eff := effectiveCropDPI(r.dpi, cfg.Width, cfg.Height, rect, native)
+			out, cerr := r.renderCropPage(ctx, in, idx, rect, cfg.Width, cfg.Height, eff)
+			if cerr != nil {
+				return nil, cerr
+			}
+			pages[idx] = greyscaleIfMono(out) // T169 applies to a cropped page exactly like a whole one
+		}
 	}
 	return pages, nil
 }

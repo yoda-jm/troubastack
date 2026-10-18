@@ -40,6 +40,7 @@ type Config struct {
 	}
 	Bake struct {
 		Pdftoppm    string // TROUBA_PDFTOPPM
+		Pdfimages   string // TROUBA_PDFIMAGES
 		Node        string // TROUBA_NODE
 		CLI         string // TROUBA_BAKE_CLI
 		KeepRevs    int    // TROUBA_BAKE_KEEP_REVS
@@ -147,6 +148,9 @@ var knobs = []knob{
 	{"bake", "pdftoppm", "TROUBA_PDFTOPPM", kindString, "pdftoppm", "poppler rasteriser binary (found on PATH by default)",
 		func(c *Config) string { return c.Bake.Pdftoppm },
 		func(c *Config, v string) { c.Bake.Pdftoppm = v }},
+	{"bake", "pdfimages", "TROUBA_PDFIMAGES", kindString, "pdfimages", "poppler pdfimages binary (T198 crop native-ppi cap; found on PATH by default)",
+		func(c *Config) string { return c.Bake.Pdfimages },
+		func(c *Config, v string) { c.Bake.Pdfimages = v }},
 	{"bake", "node", "TROUBA_NODE", kindString, "node", "Node binary for the web/bake overlay worker",
 		func(c *Config) string { return c.Bake.Node },
 		func(c *Config, v string) { c.Bake.Node = v }},

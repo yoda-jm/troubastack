@@ -95,6 +95,7 @@ COPY deploy/apps/ /app/apps/
 ENV TROUBA_BAKE_CLI=/app/web/bake/dist/cli.js \
     TROUBA_NODE=node \
     TROUBA_PDFTOPPM=pdftoppm \
+    TROUBA_PDFIMAGES=pdfimages \
     TROUBA_APPS_DIR=/app/apps \
     TROUBA_DATA_DIR=/data \
     TROUBACORE_ADDR=:8080

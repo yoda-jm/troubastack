@@ -27,11 +27,12 @@ import (
 // Config carries the external toolchain locations + output root. Zero values fall
 // back to env (TROUBA_PDFTOPPM / TROUBA_NODE / TROUBA_BAKE_CLI) then sane defaults.
 type Config struct {
-	BakesDir string // where bundles are written (default <data>/bakes)
-	Pdftoppm string // pdftoppm binary
-	Node     string // node binary
-	BakeCLI  string // path to web/bake/dist/cli.js
-	DPI      int    // raster DPI (default 150)
+	BakesDir  string // where bundles are written (default <data>/bakes)
+	Pdftoppm  string // pdftoppm binary
+	Pdfimages string // pdfimages binary (T198 crop native-ppi cap)
+	Node      string // node binary
+	BakeCLI   string // path to web/bake/dist/cli.js
+	DPI       int    // raster DPI (default 150)
 	// CacheDir enables the T120 content-keyed render cache at this dir. Empty ⇒ caching OFF — which is
 	// how mem-backed cores (e2e/tests/demo) stay isolated for free; production sets it (a subdir of the
 	// data dir, or TROUBA_RENDER_CACHE). A cache test sets it to a per-test temp dir explicitly.
@@ -85,7 +86,7 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 	if dpi == 0 {
 		dpi = 150
 	}
-	var raster Rasterizer = popplerRasterizer{bin: cfg.Pdftoppm, dpi: dpi}
+	var raster Rasterizer = popplerRasterizer{bin: cfg.Pdftoppm, imagesBin: cfg.Pdfimages, dpi: dpi}
 	if cfg.Raster != nil {
 		raster = cfg.Raster
 	}
@@ -728,7 +729,10 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 		}
 	}
 
-	rasters, err := b.raster.Rasterize(ctx, pdf)
+	// T198: an uploaded PDF with a per-page crop renders those pages cropped (higher-DPI, from the PDF). The
+	// crop rides the context so the Rasterizer interface is unchanged and an uncropped file is untouched.
+	rctx := withPageCrops(ctx, pageCropsFor(file))
+	rasters, err := b.raster.Rasterize(rctx, pdf)
 	if err != nil {
 		// poppler's stderr + its binary path; the user gets a one-line, song-named reason instead.
 		return stagedFile{}, nil, b.fail(fmt.Sprintf("Couldn't read the sheet music for %q — the file may be damaged.", item.SongTitle), err)
