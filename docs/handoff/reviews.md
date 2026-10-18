@@ -53922,3 +53922,14 @@ No regression was found.
 **Labels:** bring the list ("Crop page", "Save crop", "Reset all pages", "Keep crop", the "crop" badge, …) to the gate with the documentation stage. VLL picks the product words there, and the docs reuse them.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)` on the code commit.
+
+## ✔ LANDED (web-core) — T198 Studio UI stage U1 (manual per-page crop tool, VLL's window/veil design), `1d0a3392`
+
+On Fable's GO (`5868f83d`), FF-clean; branch `web/t198-crop-ui-u1` deleted. The four landing-commit follow-ups
+are in, each tested: (1) Escape during a REDRAW restores the saved crop, never wipes it (draw records
+before=current; e2e); (2) the Keep/Cancel e2e asserts the actual layer NAME ("My notes"); (3) `importCrop`
+forces lockAR BEFORE validating, with a non-square-dropped vector; (4) going offline drops crop mode to Move.
+All NO-GO items from 1ed7aa79 remain fixed. Deploying to :8080 so VLL can try it.
+
+Next: U1b (server-rendered "Tablet view") and 4b (crop-detect endpoint + Studio Auto, bounding the edge-band
+rule by thickness). The crop-tool labels go to the gate with the documented-feature stage.
