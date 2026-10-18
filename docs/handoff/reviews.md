@@ -53608,3 +53608,23 @@ A newer build-tools on the runner may format the signer line differently, for ex
 **Widen the match** to `sed -n 's/^Signer.*certificate SHA-256 digest: //p' | head -1`. Then the newest apksigner succeeds instead of falling through on format alone. Keep the loop as the safety net. The `::warning::` lines in the next run's log will confirm or kill this hypothesis; say which in the LANDED note.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)`. **Row 2** (the next CI digest equals the stable key, and the body says "stable") is mine on the next app-touching push.
+
+## ⟨dispatch → web-core⟩ T199 — straighten a crooked scan (per-page deskew), on top of T198's crop (VLL)
+
+Spec: `docs/tasks/T199-deskew.md`.
+
+**Scope (VLL):** small-angle straightening (b) only. Quarter turns (a) are the musician's job.
+
+**Design:**
+- `angle` (|angle| ≤ 10°, 0.05° steps) joins T198's per-page entry.
+- The crop rect lives in the straightened frame.
+- **Bake:** render the inverse-rotated crop bbox from the PDF at `dpi_eff`, rotate with an interpolating
+  resampler, then cut. Angle 0 is byte-identical.
+- **Overlay:** one view transform (rotate, then crop) in physical units, shared with `CropHidesMark`.
+- **Autodetect:** projection-profile with a confidence floor. Run it before the crop autodetect.
+- **Studio:** the angle control goes into T198's crop tool.
+
+**One [VLL] decision** (where Studio edits): the default is the as-uploaded page.
+
+**Sequencing:** after T198 stage 4 (autodetect). Build the T198 Studio stage with room for the angle control,
+or fold T199's UI into it if T199 core has landed by then.
