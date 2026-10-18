@@ -37,9 +37,12 @@ crop: {
 
 - Rects are in the SOURCE page frame, normalized [0,1], origin top-left — the same frame as annotations, so
   one transform serves both.
-- A page with no entry bakes uncropped. `auto: true` fills missing pages from detection at bake time
-  (detected rects are persisted with `source: "auto"` so the result is stable and visible in Studio);
-  a `manual` rect is never overwritten by detection.
+- A page with no entry bakes uncropped. **Amended (Fable, stage-4b ruling):** detection never runs at bake, and a
+  bake never writes to the file record. Autodetect is a save-path operation: a read-only detect call proposes
+  rects (with the hiddenMarks for the proposal), Studio shows them, and the user commits them through the normal
+  crop save with `source: "auto"`. The `auto` toggle means "when switched on, propose rects for pages without
+  one". It is a UI convenience over detect + save, not a bake behaviour. A `manual` rect is never overwritten.
+  The bake only reads stored rects, so what Studio shows is what bakes. Auto-on-upload is out of scope.
 - Validation server-side: 0 ≤ x, y; x+w ≤ 1; y+h ≤ 1; w, h ≥ 0.2 (a smaller rect is almost surely a mistake
   — refuse with a message). Unknown page indexes are refused.
 - The crop is part of the file's bake input: it enters the raster cache key and the bake revision hash, so
@@ -69,7 +72,7 @@ do not build B's Stage consequences in this task.
 - Add a margin (default 2% of page width each side), then apply the AR policy, then clamp.
 - If detection finds nothing, or the result covers > 95% of the page, store no rect (bake uncropped).
 - Detection is per page. Studio offers: **Auto (this page)**, **Auto (all pages)** (does not touch manual
-  rects), **Reset (this page)**, and the file-level **Autodetect new uploads / missing pages** toggle.
+  rects), **Reset (this page)**, and the file-level **Autodetect** toggle (proposes rects for pages without one; see §Data model).
 - Test vectors (red-first, synthetic images generated in the test — no real scan committed): centred content
   with white margins; content + black scanner-edge band on one side; content + a single isolated dust speck
   far away; blank page; full-bleed page. The edge-band and speck vectors must fail on a naive bbox (prove it
