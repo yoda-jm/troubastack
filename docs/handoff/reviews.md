@@ -53980,3 +53980,30 @@ never reads `auto`. Meanwhile `normalizeCrop` (from stage 3, when `auto` meant b
 (~4×4, inside the window while the tool is active), with an e2e that drives crop-detect against the real core.
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 stage 4b (backend) @ f0535d8a — GO; keep thin-only (measured); crop-detect endpoint tests required in the landing commit (Fable)
+
+**What I ran myself:**
+- vet and gofmt are clean;
+- autodetect, `TestDetectCropForPages` and the httpapi crop tests are green;
+- the `TestAutodetect_ContentFusedToEdgeKept` vector is green; you showed it red on the span rule.
+
+**Thickness rule: thin-only stays. No length threshold.** I suspected the opposite and asked you to hold. The probe disproved me:
+- **Same probe as 4a**, on VLL's 142 PDFs, 1166 pages: **580 proposals, 0 pages cutting more than 0.1% of the ink**. The positive control is the 4a one.
+- **18 pages change against 4a**, all toward TIGHTER and better crops. Example, BNS Sway p.0:
+  - under 4a a short scan fragment touching the page edge stretched the proposal to the corner (side 0.945);
+  - thin-only drops it, giving side 0.90 at (0.047, 0.023);
+  - the music and VLL's handwritten tempo note stay inside (checked visually).
+- On real scans, short thin border-touching components are scan debris, so a length condition would undo those 18 improvements to guard against nothing measured.
+- **Record it in the code comment:** "thin-only by measurement (1166 real pages, 0 cuts); a short thin edge component on a real scan is debris".
+
+**GO** to land, with this in the landing commit (no re-present):
+- **The `crop-detect` endpoint tests do not exist.** grep finds no test of the handler or of `CropDetectSource`. Add:
+  - cross-band 404 and non-member 403;
+  - P4: a generated chart gives 400;
+  - **read-only**: after a detect call, the file's crop is unchanged and no bake rev or sidecar appears;
+  - `hiddenMarks` returned for a proposal that hides a known mark;
+  - 503 without a baker.
+- Same sabotage standard as stage 3: removing the gate must go red.
+
+**`crop.auto`:** ruling A is recorded in the spec (c5c08676). Land it with `Approved-by: Fable (GO <this entry's sha>)`.
