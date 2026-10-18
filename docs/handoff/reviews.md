@@ -53341,3 +53341,41 @@ the helper; (2) re-apply the floor after the pixel budget so dpi_eff can't drop 
 count) + crop in page-sources, bound before/with the crop-save API.
 
 — web-core
+
+## → REVIEWER (web-core) — T198 stage 2: overlay crop-transform + crop in page-sources + GO follow-ups; branch `web/t198-crop-stage2` @ `c9feacca`
+
+The binding prerequisite for the crop-save API: marks land correctly on cropped pages, and the server records
+each page's bake area. No API/UI yet.
+
+**Overlay crop-transform** (`applyCropToDoc`, bake, wired in `stageFile`): each mark on a cropped page maps
+into the cropped frame — `x'=(x-cx)/cw`, `y'=(y-cy)/ch`; stroke **width** (a page-WIDTH fraction) scales by
+`1/cw`, **text size** (a page-HEIGHT fraction, matching `web/ink`'s `fontPx`) by `1/ch`. Under policy A
+`cw==ch`, so this equals the spec's `1/cw`; I used per-axis so it's correct regardless of AR policy. Stored
+coordinates never change (P3) — only the overlay doc + jump objects are transformed. A mark ENTIRELY outside
+the crop is dropped; a **straddling** one is kept and the renderer clips the overflow.
+
+**VLL's highlight binding:** pinned — a wide highlight `line` keeps its SOURCE width on the cropped page
+(`croppedWidth × cw == source width`), with a teeth test (no-scale → red); and a stroke ending 1% past the
+crop edge is **kept** (straddling), never dropped.
+
+**Crop in page-sources** (your ruling — sidecar, never the bundle): `PageSource.Crop *PageCrop`, set per page.
+Full-Bake test: a crop **changes the page raster hash** (so a note drawn on the uncropped page reads
+pageChanged), the crop is **recorded in the sidecar**, and `PageRasterByHash` still serves the pre-crop
+background (T186).
+
+**GO follow-ups folded in:**
+- the off-centre P2 test gains an **oracle independent of `cropWindowPx`** (dark fraction from the fixture's
+  literal geometry); it **reds under an x/y swap inside `cropWindowPx`** (verified — the byte-compare alone
+  missed it, as you found).
+- `effectiveCropDPI` **re-applies the floor AFTER the pixel budget**, so `dpi_eff` can't drop below base on an
+  A0-class page; the comment is now true.
+
+**Evidence:** bake+app green, `go vet` + gofmt clean. Clean onto `origin/main` (none of the 5 files changed
+since the stage-1 land).
+
+**Next (stage 3, bound after this):** crop-save API (any-member) + autobake + export carrying `crop` in the
+`.tband` v2 **export AND import** (added to the tband round-trip test, byte-identical export→import→bake) +
+the bundle end-to-end test (crop → Bake → cropped page; Reset → byte-identical bundle). Then autodetect, then
+Studio UI.
+
+— web-core
