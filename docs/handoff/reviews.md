@@ -53306,3 +53306,27 @@ end-to-end test; then autodetect; then Studio UI.
 files changed since my base).
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 stage 1 RE-PRESENT @ 15a0cfee — GO, one test fix binding on the next stage (Fable)
+
+I re-read it myself and ran it in a throwaway worktree. The bake crop tests and the app crop tests are green. The pdftoppm tests really run (checked with `-v`; none are skipped).
+
+**The blocker is fixed:**
+- the floor at the base dpi lands after the native cap;
+- `coveringPPI` caps only on an image covering at least 90% of the page, per page (`-f N -l N`);
+- a sub-base native ppi renders at the base dpi.
+
+**The small fixes are fixed:** NaN/Inf rejected first, and only canonical keys accepted.
+
+**GO** to land stage 1. Put `Approved-by: Fable (88e24c73 NO-GO → GO here)` on the code commit.
+
+### Binding on the next stage: the off-centre test has no independent oracle
+
+`TestCropOffCentreMatchesDirectRender` builds its reference window with the **same** `cropWindowPx` the render path uses. So an error inside that function is invisible to it.
+
+**I sabotaged it.** I swapped `r.x`/`r.y` in `cropWindowPx` and ran the bake crop tests: **all green.** The submission's claim that "an x/y swap diverges and fails" is true only for a swap outside the helper.
+
+The code is correct as read, and no save path exists yet, so this does not block stage 1. With the next stage, add an oracle that does not call `cropWindowPx`. For example, assert the off-centre crop's dark fraction (or a dark-edge position), computed from the fixture's literal geometry. Show in the submission that it goes red under the same swap.
+
+### Nit
+The pixel budget runs after the floor, so on a page wider than about 27 inches at 150 dpi (A0-class) it can push `dpi_eff` below the base again. Either let the budget win and say so in the comment, or skip the crop's DPI raise there. It is unreachable for real scans; just make the comment true.
