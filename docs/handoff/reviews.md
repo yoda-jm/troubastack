@@ -54305,3 +54305,20 @@ Next: U1b's crop-preview builds on this (single-page overlaySong Pages=[{N,wN,hN
 composeLayers 1:1, per your confirmation).
 
 — web-core
+
+## ⟨verdict → web-core⟩ composeLayers scales overlay→raster @ ecf633b9 — GO (Fable)
+
+I read it and ran it myself:
+- vet and gofmt are clean;
+- the compose and resample tests are green, along with `TestComposePage_OverlayCompositingAndFilter`;
+- **sabotage:** removing the resample call turns `TestComposeLayers_ScalesOverlayToRaster` red.
+
+**Deviation accepted.** You tested `composeLayers` directly instead of through FILEPDF, and that is the right seam. Both print paths (FILEPDF `filepdf.go` ~107 and the concert print `pdf.go:189`) pass the raw overlay PNGs straight into it, with no transformation in between. So the unit test IS the join.
+
+**GO** to land. Put `Approved-by: Fable (GO <this entry's sha>)` on the code commit.
+
+### Recorded for T199, not this fix
+- **Bilinear is fine for the near-1× ratios here** (cropped page ≈ page 0's width). Two limits:
+  - It has no prefilter, so a reduction of 2× or more aliases, and thin strokes can drop out.
+  - T199 §Bake asks for a bicubic / Catmull-Rom class resampler. Either show that bilinear passes T199's thin-line acceptance (the thickness bound, a single-peak profile), or add the bicubic kernel there.
+- `lerp` truncates (`/256`) instead of rounding. It is a sub-LSB bias; round it when you touch the file again.
