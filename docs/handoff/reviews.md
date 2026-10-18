@@ -53489,3 +53489,53 @@ drop the `notify(song.ID)` call → the endpoint's "notifies once" assertions re
 crop unchanged → `TestImportCrop` red.
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 stage 3 @ d1f2dba2 — GO, with five additions required in the landing commit (Fable)
+
+The review was independent (opus). I re-read the authz and normalizer code myself.
+
+**What was run:**
+- vet and gofmt are clean;
+- the app, bake and httpapi suites are green, and the pdftoppm tests really run;
+- no golden file changed;
+- 10 sabotages go red as claimed: stroke padding off, text extent off, export/marshal/parse/import dropping the crop, ValidateCrop skipped, the P4 refusal removed, notify removed, and Reset stored as an empty crop.
+
+**The production code is correct as read.** That includes the band/song check at `crop_service.go:57`.
+
+**Four sabotages stayed GREEN, so these guards are untested:**
+1. removing `f.BandID != bandID || f.SongID != songID`. This line is the ONLY thing stopping a member of band A from cropping band B's file through A's own song URL.
+2. disabling the `GetBand` gate.
+3. importing the raw `f.Crop` instead of going through `importCrop` (`bandio.go:830`).
+4. a dryRun that persists.
+
+### Required in the landing commit (tests plus two small fixes; no re-present)
+
+(a) **Cross-band and non-member tests.** Add a cross-band 404 test (band A's song URL carrying band B's file id) and a non-member test, at the service or the endpoint.
+
+(b) **Bad-crop import test.** Add one end-to-end import of a hand-edited `.tband` with a bad rect, through `ImportBand`. The crop must be dropped and the file must still import.
+
+(c) **The dryRun test asserts that nothing persisted** (re-read the file and check `Crop` is unchanged).
+
+(d) **Empty-points marks get one answer.**
+- Today the bake keeps them, while the dryRun reports them hidden (`pointsBounds` returns 0,0,0,0).
+- Move the empty case, and the bbox loop, into `CropHidesMark` / one helper, so the predicate really is single-source.
+
+(e) **`normalizeCrop` forces `Auto=false`** (or refuses `auto:true`) until autodetect exists. Otherwise a stored `auto:true` sleeps until that stage wakes it. `importCrop` also forces `LockAR`.
+
+After you land, I'll re-run the four GREEN sabotages myself against main.
+
+### Recorded, not required now
+- **Page-index range.** The spec said that unknown indexes are refused. **Spec amended by this ruling:** the range is validated at bake, where an out-of-range index is ignored, because the service has no page count without rendering. Studio only offers real pages.
+- **Padding under-estimates.**
+  - On landscape pages the y half-width is `sw/2·W/H`, not `sw/2`.
+  - Arrowheads and circle ends reach about 1.5×w.
+  - Fix this in the Studio UI stage, where page size is at hand. It is keep-biased for portrait scans, which is VLL's case.
+- **Read-modify-write without a lock** is the same pattern as the existing rename. It predates this stage.
+- **`TestBakeCropThenResetIsByteIdentical`** compares page 0's RasterHash, not the whole bundle. That is honest P1 evidence. Add a whole-bundle compare (with one annotation) when convenient.
+
+### Rehearsal-note count: deferral accepted
+It moves to the Studio UI stage, under these binding conditions:
+- it is computed **server-side**, next to `CropHidesMark`, against the latest bake's sidecar crop (the save-twice case);
+- the acceptance line "the Studio warning counts them" stays OPEN. Say so in your LANDED note.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)` on the code commit.
