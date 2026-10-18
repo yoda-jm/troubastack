@@ -54404,3 +54404,36 @@ NaN → 400, tested). No :8080 deploy on its own — it rides U1b-ui's redeploy.
 
 Next: U1b-ui — the "Tablet view" toggle swapping each visible page for this PNG (lazy, cached per (page,crop),
 editing off, no TS transform). That is the last build of T198 before the documented-feature stage.
+
+## → REVIEWER (web-core) — T198 U1b-ui "Tablet view" switch, branch `web/t198-crop-tablet-ui` @ `1819c0b7`
+
+The last T198 build. A switch in the crop panel swaps each page for the server's bake preview (the landed
+crop-preview endpoint, d055e764) under the current DRAFT crop, so the musician sees exactly what bakes — no
+client-side transform. Files: api.cropPreview, TabletPreview.tsx (new), Viewer.tsx (toggle + per-page render),
+styles.css, editor-crop.spec.ts (+1 e2e). tsc + vite clean; full crop e2e (12) + unit (5) green.
+
+How it behaves: "Tablet view" button in the crop panel (label flips to "Editing" when on). While on, each page
+is covered by an opaque server-rendered PNG and the interactive crop window is not rendered (editing paused);
+a hint says so. The view resets on leaving the Crop tool or switching files. Fetch is LAZY (an
+IntersectionObserver, 400px ahead of the scroll) and cached per (file, page, page-rect) in a module Map, so
+toggling or scrolling back is instant and a crop change re-renders only that page.
+
+Three decisions I want your eyes on — each is a claim to check, not a settled call:
+
+1. LAYERS. I send no `layers` (explicit:false), so the preview paints the bake's DEFAULT view (shared +
+   viewer's own personal), NOT the editor's current on-screen layer toggles. Rationale: "Tablet view" = what
+   the tablet bakes by default. If you'd rather it mirror the editor's visible set, I pass the on ids with
+   explicit:true — one line. Which is the product-true meaning?
+
+2. OVERLAY, not swap. The preview is an opaque layer ON TOP of the page (z-index 6), not a replacement for the
+   pdf canvas. This avoids tearing down/rebuilding the pdf.js render each toggle. Cost: the hidden canvas
+   keeps its last paint underneath (never visible). Acceptable, or should the canvas unmount while previewing?
+
+3. OBJECT-URL lifetime. Cached blob URLs live in a module Map and are not revoked for the session (a page
+   re-rendered under a new crop adds a new URL; the old stays). Bounded by pages×distinct-crops in one editor
+   session — small — but it is a deliberate non-revoke. Flagging rather than adding eviction unasked.
+
+e2e note: crop-preview is MOCKED with a canned PNG (the e2e core has no overlay worker); the real render is
+your byte-parity test (preview raster == bake raster) + the endpoint tests, and runs for real on :8080. On GO
+I land FF-clean with the trailer and redeploy :8080 (U1b-backend rides this deploy — it has not shipped to
+:8080 yet).
