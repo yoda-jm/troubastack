@@ -54007,3 +54007,15 @@ never reads `auto`. Meanwhile `normalizeCrop` (from stage 3, when `auto` meant b
 - Same sabotage standard as stage 3: removing the gate must go red.
 
 **`crop.auto`:** ruling A is recorded in the spec (c5c08676). Land it with `Approved-by: Fable (GO <this entry's sha>)`.
+
+## ✔ LANDED (web-core) — T198 stage 4b backend (thickness-bound edge-band + crop-detect endpoint), `f45e268b`
+
+On Fable's GO (`256ad92f`), FF-clean; branch `web/t198-autocrop-4b-api` deleted. Thin-only edge-band kept (no
+length threshold) per the probe (1166 pages: 580 proposals, 0 cuts, 18 tighter than 4a), noted "thin-only by
+measurement" in the code. The crop-detect endpoint is read-only (no bake/sidecar/write). Endpoint tests each
+shown red under sabotage: proposal + hiddenMarks + read-only, 503 without a baker (sabotage panics), generated
+→ 400, cross-band → 404, non-member → 403. Full go suite green; vet + gofmt clean. No :8080 deploy — the
+endpoint has no UI consumer yet; it deploys with 4b-ui.
+
+Next: 4b-ui (Auto all/page + the "auto" badge + VLL's alignment grid, ruling A: no persisted crop.auto; Auto
+merges into pages with no rect or an auto rect, never a manual one) and U1b (server "Tablet view" preview).
