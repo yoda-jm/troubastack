@@ -53628,3 +53628,51 @@ Spec: `docs/tasks/T199-deskew.md`.
 
 **Sequencing:** after T198 stage 4 (autodetect). Build the T198 Studio stage with room for the angle control,
 or fold T199's UI into it if T199 core has landed by then.
+
+## → REVIEWER (web-core) — T198 Studio UI stage U1: manual per-page crop tool; branch `web/t198-crop-ui-u1` @ `760f041e`
+
+The authoring loop for the crop backend (`ce5aa289`). Frontend only — no backend change. VLL asked me to go
+autonomous on the Studio crop UI + autodetect; this is the first stage (manual crop), the next are autodetect
+(backend, then its buttons) and U1b (the server-rendered preview).
+
+**What it does**
+- A **Crop tool** (`tool-crop`) in the editor toolbar, shown ONLY for an uploaded PDF (never a generated
+  chart — P4; disabled offline). It is a file-metadata edit, not an annotation: gated on `canCrop`, never on
+  draw permission or the draw lock, and it never touches the annotation undo stack. Modelled on the
+  non-registry `jump` tool.
+- **CropOverlay** (`src/pages/song-editor/CropOverlay.tsx`): a per-page overlay rendered above EditCanvas
+  ONLY while the tool is active, so annotation gestures are untouched the rest of the time. Draw / move /
+  resize a rectangle with corner handles; the area outside is dimmed. Arrow keys nudge (Shift = bigger),
+  Escape cancels an in-progress drag.
+- **Policy A as a square in page-fraction space.** The rect is kept `w == h` in normalized coords, because a
+  `cw==ch` fraction maps to a page-aspect rectangle in pixels (`w·W` by `w·H`) — a pure zoom, tablet page
+  shape unchanged, matching the bake's `cw==ch` assumption and `minCropSide 0.2`. Corner drags scale the
+  square; there are no edge handles. **Please confirm this is the intended reading of "AR-locked handles,
+  policy A"** — i.e. manual crop = a page-shaped rect the user sizes, not a free rect the UI reshapes.
+- **Explicit Save** (the per-file edit idiom): edits a working draft; Save persists via `PUT …/crop`; a
+  **debounced dry run** keeps the "N annotations fall outside — won't show on the tablet" warning live
+  against the UNSAVED draft. Per-page **Reset** (× on the rect) and **Reset all** (in-page confirm, no
+  `confirm()`). A **"crop" badge** on the file tab marks a file whose pages carry a bake area.
+
+**The preview question you flagged.** U1 ships NO "Preview as tablet" and NO client-side copy of the view
+transform — the tool edits the full-page frame only. I'm taking your preferred option for the preview: a
+**server-rendered single cropped page (raster + overlay)** from the bake code, as a separate stage **U1b**
+right behind this one, so preview / warning / tablet stay one transform. Shape I propose for U1b:
+`GET /api/bands/{b}/songs/{s}/files/{f}/crop-preview?page=N` taking the proposed crop (query or a small POST),
+reusing `renderCropPage` + `applyCropToDoc` + the overlay worker for one ad-hoc (file, page, crop) — NOT a
+concert bake. **Before I build U1b: does a single-page ad-hoc render path exist, or do I add one to the
+Baker?** If adding one is heavy I'll keep U1b small and sequential; either way no TS transform ships.
+
+**T199 room.** The per-page crop state is an object the angle field joins later, and the controls sit in a
+column the angle slider drops into; the view transform stays server-side (U1b), so T199 extends it.
+
+**Tests.** `e2e/editor-crop.spec.ts` against the real in-mem core: draw → Save → the file-tab badge appears;
+Reset → Save → badge gone; Save enable/disable tracks the draft. `tsc -b` + `vite build` clean;
+`editor.spec.ts` (annotations: draw/realtime/delete) still green, so the toolbar/Viewer changes didn't
+regress the annotation editor. No eslint gate in CI (only buf lint for proto).
+
+Not in U1 (later stages, as planned): Auto (page/all) + the Autodetect toggle + the "auto" badge (need the
+autodetect backend); the rehearsal-note COUNT in the warning (the OPEN server-side item); your parked
+predicate fixes (landscape padding, arrowhead extent). U1 shows the hidden-MARK count only.
+
+— web-core
