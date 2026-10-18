@@ -407,7 +407,11 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		var srcs []PageSource
 		for _, sf := range st.files {
 			for i, r := range sf.rasters {
-				srcs = append(srcs, PageSource{FileID: sf.fileID, FilePage: int32(i), RasterHash: Sha256Hex(r)})
+				ps := PageSource{FileID: sf.fileID, FilePage: int32(i), RasterHash: Sha256Hex(r)}
+				if c, ok := sf.crops[i]; ok { // T198: record the bake area for this page in the sidecar
+					ps.Crop = &PageCrop{X: c.x, Y: c.y, W: c.w, H: c.h}
+				}
+				srcs = append(srcs, ps)
 			}
 		}
 		if len(srcs) > 0 {
@@ -535,6 +539,9 @@ type stagedFile struct {
 	// hotspots are resolved from these at assembly time, where a page's index in the pool is known, so a
 	// hotspot can never disagree with the ink it belongs to. Empty for a file with nothing drawn.
 	objects []docObject
+	// T198: the per-page crop that produced this file's rasters (nil ⇒ whole-page). Recorded in the
+	// page-sources sidecar so the server knows each baked page's bake area.
+	crops pageCrops
 }
 
 // stagedSong is a song after phase 1 (metadata + rasters), waiting for its overlays from the one
@@ -731,7 +738,8 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 
 	// T198: an uploaded PDF with a per-page crop renders those pages cropped (higher-DPI, from the PDF). The
 	// crop rides the context so the Rasterizer interface is unchanged and an uncropped file is untouched.
-	rctx := withPageCrops(ctx, pageCropsFor(file))
+	crops := pageCropsFor(file)
+	rctx := withPageCrops(ctx, crops)
 	rasters, err := b.raster.Rasterize(rctx, pdf)
 	if err != nil {
 		// poppler's stderr + its binary path; the user gets a one-line, song-named reason instead.
@@ -760,7 +768,7 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 			ownerByLayer[l.ID] = o
 		}
 	}
-	sf := stagedFile{fileID: file.ID, rasters: rasters, nameByLayer: nameByLayer, ownerByLayer: ownerByLayer}
+	sf := stagedFile{fileID: file.ID, rasters: rasters, nameByLayer: nameByLayer, ownerByLayer: ownerByLayer, crops: crops}
 	// T195 (anchoring stage 2): for a generated chart, linked marks are projected onto the chart's current
 	// render before baking, so a mark follows its line (the reflow-orphan guard in assembleSong is the
 	// backstop for fixed and lost marks). Only against a render that reproduces file.BlobHash byte-for-byte
@@ -775,6 +783,9 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 	// T97/T98: a file enters the overlay batch only if it has objects to draw (scoped to THIS file — a
 	// multi-file song carries per-file layers, B11/T40). Zero objects → no spawn contribution.
 	doc := snapshotToDoc(snap, file.ID, chart)
+	// T198: on a cropped page, transform marks into the cropped frame so they land on the same music (a
+	// bake-time view transform; stored coords never change). Uploaded PDFs only (pageCropsFor skips others).
+	doc = applyCropToDoc(doc, crops)
 	sf.objects = doc.Objects
 	if len(doc.Objects) == 0 {
 		return sf, nil, nil

@@ -94,6 +94,13 @@ func effectiveCropDPI(baseDPI, baseW, baseH int, r cropRect, nativePPI int) int 
 	if longest := math.Max(cw, ch); longest > maxCropSidePx {
 		dpi *= maxCropSidePx / longest
 	}
+	// Re-apply the floor AFTER the budget: on an A0-class page the budget reduction could otherwise drop
+	// below the base dpi, which the top-of-function promise forbids. A crop at base dpi is never larger than
+	// the whole page at base dpi (which is already baked today), so keeping base is safe — that one page's
+	// crop simply isn't shrunk to the 4096 budget.
+	if dpi < float64(baseDPI) {
+		dpi = float64(baseDPI)
+	}
 	if dpi < 1 {
 		dpi = 1
 	}
@@ -247,4 +254,43 @@ func fieldFloat(fields []string, i int) float64 {
 		return 0
 	}
 	return v
+}
+
+// applyCropToDoc transforms each mark on a cropped page into the CROPPED page frame, so it composites on the
+// same music after the crop. The stored coordinates never change (P3) — this is a bake-time VIEW transform
+// on the overlay doc only. A point maps x'=(x-cx)/cw, y'=(y-cy)/ch; the stroke width (a page-WIDTH fraction)
+// scales by 1/cw and the text size (a page-HEIGHT fraction, matching web/ink's fontPx) by 1/ch. A mark whose
+// transformed box lands entirely outside the crop is dropped — it isn't on the tablet; a straddling mark
+// keeps its points and the renderer clips the overflow.
+func applyCropToDoc(doc annotationsDoc, crops pageCrops) annotationsDoc {
+	if len(crops) == 0 {
+		return doc
+	}
+	out := make([]docObject, 0, len(doc.Objects))
+	for _, o := range doc.Objects {
+		c, cropped := crops[o.Page]
+		if !cropped || c.w <= 0 || c.h <= 0 {
+			out = append(out, o)
+			continue
+		}
+		to := o
+		to.Points = make([]docPoint, len(o.Points))
+		minX, minY, maxX, maxY := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
+		for i, p := range o.Points {
+			nx := (p.X - c.x) / c.w
+			ny := (p.Y - c.y) / c.h
+			to.Points[i] = docPoint{X: nx, Y: ny, Pressure: p.Pressure}
+			minX, maxX = math.Min(minX, nx), math.Max(maxX, nx)
+			minY, maxY = math.Min(minY, ny), math.Max(maxY, ny)
+		}
+		if len(o.Points) > 0 && (maxX < 0 || minX > 1 || maxY < 0 || minY > 1) {
+			continue // entirely outside the cropped page — not drawn on the tablet
+		}
+		to.Style = o.Style
+		to.Style.Width = o.Style.Width / c.w
+		to.Style.FontSize = o.Style.FontSize / c.h
+		out = append(out, to)
+	}
+	doc.Objects = out
+	return doc
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"image"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -207,6 +208,15 @@ func TestCropOffCentreMatchesDirectRender(t *testing.T) {
 	if gw, gh := dims(t, got[0]); gw == gh {
 		t.Errorf("expected a NON-square crop, got %dx%d", gw, gh)
 	}
+
+	// ORACLE independent of cropWindowPx (Fable's GO condition): the expected dark fraction is derived from
+	// the fixture's LITERAL geometry, so an x/y swap INSIDE cropWindowPx — which the byte-compare above misses
+	// (it uses the same helper for its reference) — changes the captured region and reddens this.
+	// Fixture black rect: frame x,y ∈ [0.25,0.75]. Crop {0.4,0.1,0.5,0.35} ⇒ inside the crop frame the rect
+	// occupies x ∈ [0, 0.70] and y ∈ [(0.25-0.1)/0.35, 1] = [0.4286, 1]. Dark fraction = 0.70 × (1-0.4286) ≈ 0.40.
+	if df := darkFraction(t, got[0]); df < 0.35 || df > 0.45 {
+		t.Fatalf("off-centre crop dark fraction = %.3f, want ≈0.40 from the fixture geometry — the crop captured the wrong region (e.g. an x/y swap)", df)
+	}
 }
 
 func TestRasterKeyIncludesCrop(t *testing.T) {
@@ -243,5 +253,77 @@ func TestPageCropsFor(t *testing.T) {
 	got := pageCropsFor(f)
 	if len(got) != 2 || got[0].x != 0.1 || got[2].w != 0.6 {
 		t.Errorf("pageCropsFor = %+v, want pages 0 and 2 mapped", got)
+	}
+}
+
+func TestApplyCropToDoc(t *testing.T) {
+	doc := annotationsDoc{Objects: []docObject{
+		{UUID: "centre", Page: 0, Points: []docPoint{{X: 0.5, Y: 0.5}}, Style: docStyle{Width: 0.01, FontSize: 0.03}},
+		{UUID: "corner", Page: 0, Points: []docPoint{{X: 0.3, Y: 0.3}}, Style: docStyle{Width: 0.01}},
+		{UUID: "outside", Page: 0, Points: []docPoint{{X: 0.9, Y: 0.9}}, Style: docStyle{Width: 0.01}},
+		{UUID: "otherpage", Page: 1, Points: []docPoint{{X: 0.5, Y: 0.5}}, Style: docStyle{Width: 0.01}},
+	}}
+	out := applyCropToDoc(doc, pageCrops{0: {x: 0.25, y: 0.25, w: 0.5, h: 0.5}})
+
+	byID := map[string]docObject{}
+	for _, o := range out.Objects {
+		byID[o.UUID] = o
+	}
+	if _, ok := byID["outside"]; ok {
+		t.Error("a mark fully outside the crop must be dropped")
+	}
+	// centre of the page is the centre of a centred crop.
+	near := func(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
+	c := byID["centre"]
+	if !near(c.Points[0].X, 0.5) || !near(c.Points[0].Y, 0.5) {
+		t.Errorf("centre mark mapped to %v, want (0.5,0.5)", c.Points[0])
+	}
+	// width (page-width fraction) scales by 1/cw; fontSize (page-height fraction) by 1/ch.
+	if !near(c.Style.Width, 0.02) || !near(c.Style.FontSize, 0.06) {
+		t.Errorf("centre style = w %.3f fs %.3f, want 0.02 / 0.06", c.Style.Width, c.Style.FontSize)
+	}
+	corner := byID["corner"]
+	if !near(corner.Points[0].X, 0.1) || !near(corner.Points[0].Y, 0.1) {
+		t.Errorf("corner mark mapped to %v, want (0.1,0.1)", corner.Points[0])
+	}
+	// a mark on an uncropped page is untouched.
+	op := byID["otherpage"]
+	if !near(op.Points[0].X, 0.5) || !near(op.Style.Width, 0.01) {
+		t.Errorf("uncropped-page mark was changed: %v", op)
+	}
+}
+
+// TestCropKeepsHighlightSourceWidth pins VLL's requirement: a wide highlight `line` must cover the SAME
+// source region (the same lyric-line height) on the cropped page as on the PDF. The stroke width scales by
+// 1/cw, so (cropped width) × (crop width fraction) == the original source width. A transform that does NOT
+// scale the width fails this (the teeth below).
+func TestCropKeepsHighlightSourceWidth(t *testing.T) {
+	const srcWidth = 0.03 // a wide highlighter stroke, as a fraction of page width
+	const cw = 0.5
+	doc := annotationsDoc{Objects: []docObject{
+		{UUID: "hl", Type: "line", Page: 0, Points: []docPoint{{X: 0.3, Y: 0.5}, {X: 0.7, Y: 0.5}}, Style: docStyle{Width: srcWidth}},
+	}}
+	out := applyCropToDoc(doc, pageCrops{0: {x: 0.25, y: 0.25, w: cw, h: cw}})
+	got := out.Objects[0].Style.Width * cw // back to source-width units
+	if math.Abs(got-srcWidth) > 1e-9 {
+		t.Fatalf("highlight width in source units = %.4f, want %.4f (width must scale by 1/cw)", got, srcWidth)
+	}
+}
+
+// TestCropStraddlingStrokeIsKept pins the clip-not-drop rule: a highlight whose end falls just past the crop's
+// right edge (VLL's lines end within 0.3–1% of the auto-crop edge) straddles the boundary and must be KEPT
+// (the renderer clips the overflow); only a mark ENTIRELY outside the crop is dropped.
+func TestCropStraddlingStrokeIsKept(t *testing.T) {
+	doc := annotationsDoc{Objects: []docObject{
+		// crop is x∈[0.25,0.75]; this line ends at 0.76 — 1% past the right edge.
+		{UUID: "straddle", Type: "line", Page: 0, Points: []docPoint{{X: 0.3, Y: 0.5}, {X: 0.76, Y: 0.5}}, Style: docStyle{Width: 0.02}},
+	}}
+	out := applyCropToDoc(doc, pageCrops{0: {x: 0.25, y: 0.25, w: 0.5, h: 0.5}})
+	if len(out.Objects) != 1 {
+		t.Fatalf("a stroke straddling the crop edge was dropped; want it kept (clip the overflow): %d objects", len(out.Objects))
+	}
+	// Its far end is past 1.0 (will be clipped), its near end inside — i.e. it was kept, not dropped.
+	if maxX := out.Objects[0].Points[1].X; maxX <= 1.0 {
+		t.Errorf("straddling stroke's far end = %.3f, expected > 1.0 (past the clip edge)", maxX)
 	}
 }

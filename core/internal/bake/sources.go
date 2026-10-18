@@ -28,6 +28,19 @@ type PageSource struct {
 	FileID     string `json:"fileId"`
 	FilePage   int32  `json:"filePage"` // 0-based page within the file
 	RasterHash string `json:"rasterHash"`
+	// Crop (T198) is the bake area that produced this page's raster, in the SOURCE page frame [0,1]. Absent
+	// ⇒ the page was baked whole. Recorded here (the server-side sidecar), NEVER in the bundle, so the server
+	// knows which crop a baked page was rendered under.
+	Crop *PageCrop `json:"crop,omitempty"`
+}
+
+// PageCrop is a page's bake area in the source frame, normalized [0,1] — the sidecar's record of the crop in
+// effect for one baked page.
+type PageCrop struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	W float64 `json:"w"`
+	H float64 `json:"h"`
 }
 
 type SourceMap struct {
