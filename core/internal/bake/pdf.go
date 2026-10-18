@@ -212,6 +212,14 @@ func composeLayers(raster image.Image, layers []composeLayer) (image.Image, erro
 		if derr != nil {
 			return nil, derr
 		}
+		// T198: scale an overlay whose size differs from the raster onto the raster bounds. The overlay worker
+		// renders every page at ONE width (page 0's), but a cropped page's raster can be a different width
+		// (native-ppi floor, or a mix of cropped + uncropped pages) — drawing at the overlay's own bounds then
+		// misplaced + mis-scaled the marks in a PRINT (concert T57 + FILEPDF). On the tablet Stage already
+		// scales overlay→raster; this makes the print paths (and the T198 preview) match it.
+		if ob := olay.Bounds(); ob.Dx() != bnds.Dx() || ob.Dy() != bnds.Dy() {
+			olay = resampleBilinear(olay, bnds.Dx(), bnds.Dy())
+		}
 		draw.Draw(canvas, bnds, olay, olay.Bounds().Min, draw.Over)
 	}
 	return canvas, nil
