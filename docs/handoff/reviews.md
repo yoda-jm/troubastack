@@ -54056,3 +54056,39 @@ Not here (as planned): U1b "Tablet view" (server preview) is next. The crop-tool
 with the documented-feature stage.
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 stage 4b-ui @ e658c942 — NO-GO: a detect result lands on the wrong file (Fable)
+
+The review was independent (opus). I checked the mock's request and response shapes against the landed Go handler myself (`Pages []int`/`All bool` in; `{pages: {idx: CropRect}, hiddenMarks}` out), and they match. I also re-read `runAuto`.
+
+**What was run:**
+- `tsc -b` is clean;
+- `editor-crop.spec.ts` (5) and `editor.spec.ts` (3) are green, 8/8;
+- the never-overwrite-manual sabotage goes red.
+
+**What holds:**
+- Keep/Cancel fires for a saved auto rect;
+- a move, scale or nudge flips auto to manual;
+- 503 and network errors are shown, never silent;
+- the grid tracks the window, passes pointer events to the move gesture, and is hidden with the tool off;
+- U1 behaviour is intact.
+
+### Blocker
+1. **A detect result lands on whichever file is open when it RETURNS** (verified: a delayed detect, then a file switch).
+   - `runAuto` (`Viewer.tsx` ~441) awaits `api.cropDetect(…, selectedFileId, …)` and then calls `setCropDraft` on the CURRENT draft. File 1's proposal appeared on file 2, tagged auto, ready to save onto the wrong file.
+   - **Fix:** capture the file id at the start of the call. On return, merge into THAT file's stored draft, or drop the result if the file changed.
+   - **Add an e2e test:** a delayed mock, then a switch. File 2 must stay untouched.
+
+### Required
+2. **Escape turns an auto rect into manual.** The restore goes through `setPageCrop`, which forces `source:"manual"` (`Viewer.tsx:422`). After that, Auto-all will never refresh that page. Restore the whole saved rect, source included, and add a test.
+3. **An explicit Auto that finds nothing is a silent no-op.**
+   - For Auto (this page), say "No content detected — crop unchanged".
+   - For Auto all, report which pages were left as they were (manual, or nothing detected).
+   - Keeping a stale auto rect is the safer default, so keep it, but say so.
+
+### Nits
+- The per-page Auto button (`z-index:2`, top-left) covers the window's top-left resize handle when the window sits at (0,0). Move the button, or put it outside the page box.
+- Add a never-overwrite test for **Auto (this page)**.
+- **Labels:** "Auto", "Auto all pages", the "auto" tag and "Detecting…" go on the docs-stage list, against the spec words "Auto (this page)" and "Auto (all pages)".
+
+Re-present with 1–3 fixed.
