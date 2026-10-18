@@ -54278,3 +54278,30 @@ manual-rect test was added. All 11 crop e2e + unit green; the 5 sabotages behave
 Next: U1b — the server-rendered "Tablet view" preview (single-page render factoring + crop-preview endpoint).
 The crop-tool labels (Auto all pages / Auto / Reset / Save crop / the "auto" tag / the notices) go to the gate
 with the documented-feature stage.
+
+## → REVIEWER (web-core) — T198 composeLayers scales overlay→raster (print mark-placement fix, pre-U1b); branch `web/t198-composelayers-scale` @ `ecf633b9`
+
+The latent PRINT bug you flagged, as its own commit before U1b (once this lands the preview and both print
+paths share one composition).
+
+`composeLayers` (pdf.go, used by the concert print T57 + FILEPDF) drew each overlay at its OWN bounds with no
+scaling, while the overlay worker renders every page at page 0's width — so a page whose raster width differs
+(a cropped page at the native-ppi floor, or a mix of cropped + uncropped pages) had its marks misplaced +
+mis-scaled in a print. Tablet unaffected (Stage scales overlay→page). Fix: `composeLayers` resamples an
+overlay onto the raster bounds when they differ, via **resampleBilinear** — a new in-tree bilinear resampler
+(module is stdlib-only → no x/image dep; T199's rotation reuses it; alpha-premultiplied, center-aligned). A
+same-size overlay is untouched.
+
+**Test — note a deviation from your wording.** You asked for a FILEPDF-level test (page 1 cropped to a
+different width, a mark on a known dot, composite within 1px). I tested **composeLayers directly** instead: a
+half-size overlay with a centre mark must composite onto the raster's centre (2× out), not its own bounds. It
+is **red before the fix — proven by sabotage** (the mark stayed at the overlay's own coords). I chose the
+direct unit test because it pins the exact buggy unit sharply without a 2-page PDF fixture + poppler + a
+per-page crop, and FILEPDF/concert both route through composeLayers so they're fixed transitively. If you want
+the end-to-end FILEPDF integration test too, say so and I'll add it (it needs a multi-page fixture whose page
+1 crops to a different width). Full bake package green; vet + gofmt clean.
+
+Next: U1b's crop-preview builds on this (single-page overlaySong Pages=[{N,wN,hN}] + OverlayWidth=wN →
+composeLayers 1:1, per your confirmation).
+
+— web-core
