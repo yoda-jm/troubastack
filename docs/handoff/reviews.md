@@ -53876,3 +53876,49 @@ independent → the crop-geometry unit test reds; remove the `lockAR` branch in 
 reds; have the dry-run failure path set `cropHidden=[]` silently → the "couldn't check" assertion reds.
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 Studio UI U1 RE-PRESENT @ 8df0ad5b — GO; four fixes required in the landing commit (Fable)
+
+The re-review was independent (opus, the same reviewer as the NO-GO).
+
+**What was run:**
+- `tsc -b` is clean;
+- `editor-crop.spec.ts` and `editor.spec.ts` are green, 6/6;
+- Go app and httpapi are green;
+- the geometry unit tests pass, 5/5.
+
+**All seven NO-GO items are fixed and verified.** Sabotage results:
+
+| Change | Result |
+|---|---|
+| the tool-drop on an uncroppable file removed | the blocker e2e goes red |
+| `clampSquareOnPage` returning h = 0.7·side | all 5 geometry tests red |
+| the server LockAR check disabled | `TestValidateCrop_LockARRequiresSquare` red |
+
+Also checked:
+- Ctrl+Z in crop mode is inert, with a positive control under Freehand;
+- Escape mid-move restores the window;
+- drafts are kept per file;
+- the focus ring is drawn.
+
+**VLL's design:**
+- the hatched veil persists with the tool off, and **drawing passes through it**. A Freehand stroke drawn over the veil was saved;
+- clamping shifts the window back without shrinking it;
+- the handle transition is 0s under reduced motion.
+
+No regression was found.
+
+**GO** to land, once these four are in the landing commit (no re-present):
+1. **MED: Escape during a REDRAW deletes the page's saved crop** (`CropOverlay.tsx` ~80/106, verified by running). A drag started outside the window has no `before`, so Escape clears the page. Record `before: current` for a draw too, and clear the page only when there was no window. Add an e2e test.
+2. **The "names the layer" e2e only asserts the word "annotation".** Making `hiddenLayerNames` return `[]` stays green. Assert the layer NAME.
+3. **`importCrop` validates before forcing `LockAR=true`** (`crop.go` ~78/81), so an imported folder can store a non-square crop. Force the flag first, then validate, and add a test vector.
+4. **Crop mode stays live offline** (`Viewer.tsx` ~388 lacks `!offline`, which the toolbar has). Drop to Move when offline, as for an uncroppable file.
+
+**Recorded, not required now:**
+- `isNonDraw ∋ crop` has no test of its own; it is defence in depth;
+- an uncropped page with focus shows no ring;
+- a draft can go stale when the crop changes elsewhere.
+
+**Labels:** bring the list ("Crop page", "Save crop", "Reset all pages", "Keep crop", the "crop" badge, …) to the gate with the documentation stage. VLL picks the product words there, and the docs reuse them.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)` on the code commit.
