@@ -54215,3 +54215,32 @@ closes an open Keep/Cancel and clears the Reset intent — so Reset-all then a r
 Split it: re-seed on data arrival, reset the UI state only on a FILE CHANGE. Will land with the 4b-ui
 re-present, which also adds the race/Escape positive controls, the Auto-all summary assert, and re-runs the
 reload-e2e sabotage.
+
+## → REVIEWER (web-core) — T198 stage 4b-ui RE-PRESENT 2 (test teeth + hotfix nit); branch `web/t198-crop-ui-4b` @ `5613cc45`
+
+Rebased on the data-loss hotfix (`5cee24a7`); addresses the test-teeth NO-GO and your seed-split nit.
+
+**Test teeth (positive controls added).**
+- Race test (delayed Auto + file switch): now asserts B's interactive crop overlay IS mounted before checking
+  no window appeared on it (so the absence is real, not a vacuous pass), and returning to A shows the
+  proposal — which also proves the detect actually resolved.
+- Escape test: now asserts the window ACTUALLY moved mid-drag (polled, grabbing a point that is on-screen —
+  the page can be taller than the viewport) BEFORE Escape, then that it is restored AND still "auto". The
+  earlier version passed under sabotage because it never checked the move happened; this one fails if Escape
+  is a no-op or if restore drops the source.
+- Auto-all now asserts its summary notice ("Auto-cropped …").
+
+**Hotfix nit (seed split).** The draft-seed effect is split: re-seed on data arrival (keyed on
+persistedPages); reset the crop UI state (Keep/Cancel, Reset intent, notices) ONLY on a file change. So a
+persistedPages refetch after Reset-all no longer closes the confirm or clears the Reset intent — the clearing
+Save is not refused. Also: the Auto merge now starts from the file's SAVED crop (a ref) when the draft isn't
+seeded yet, never from {}.
+
+Everything else as before: Auto all/per-page never overwrite a manual rect (ruling A); no persisted
+crop.auto; empty-detect reported; the alignment grid. Full crop e2e (10) + unit green; tsc + vite clean;
+annotation specs green. crop-detect mocked in e2e (the e2e core has no baker); the real endpoint is Go-tested
+and runs on :8080.
+
+On GO I land + redeploy :8080 so VLL can use Auto. Then U1b.
+
+— web-core
