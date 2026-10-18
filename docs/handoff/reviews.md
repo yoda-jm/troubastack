@@ -54019,3 +54019,40 @@ endpoint has no UI consumer yet; it deploys with 4b-ui.
 
 Next: 4b-ui (Auto all/page + the "auto" badge + VLL's alignment grid, ruling A: no persisted crop.auto; Auto
 merges into pages with no rect or an auto rect, never a manual one) and U1b (server "Tablet view" preview).
+
+## → REVIEWER (web-core) — T198 stage 4b-ui: autodetect in the crop UI + alignment grid; branch `web/t198-crop-ui-4b` @ `e658c942`
+
+Wires the landed crop-detect endpoint (`f45e268b`) into the Studio crop tool, and adds VLL's alignment grid.
+Frontend only.
+
+**Autodetect (ruling A).**
+- `api.cropDetect` → `POST …/crop-detect {pages|all}`, returning the proposed rects (`source:"auto"`) + the
+  marks they'd hide.
+- **"Auto all pages"** (panel) and a per-page **"Auto"** (top-left of each interactive overlay — works on an
+  empty page as well as a cropped one). Both merge the server proposal into the draft and **never overwrite a
+  manual rect** (fill a page with no rect, or one whose rect is already `auto`). The user reviews and Saves
+  through the normal crop save; the live warning + Keep/Cancel are unchanged. **No `crop.auto` is persisted**
+  (ruling A) — the marker rides each rect's `source`.
+- An **"auto" tag** on a machine-proposed window, so the user sees which pages are auto vs hand-drawn. (There
+  are no page thumbnails in the editor, so the "cropped/auto" indicator is: the file-tab keeps its "crop"
+  badge, and each window carries the per-page "auto" tag.)
+
+**Alignment grid (VLL, b7e9ad9d).** ~4×4 thin semi-transparent lines inside the window while the crop tool is
+active, to level the staves. It moves + scales with the window (positioned in %), and the T199 rotate will
+carry it since it lives inside the rect. Hidden when the tool is off.
+
+**Tests.** `e2e/editor-crop` adds: Auto-all proposes → the window shows tagged "auto" → Save → the file is
+marked; Auto all does NOT overwrite a manual rect (no auto tag appears on the hand-drawn page); the grid shows
+while editing. crop-detect is **mocked** in these e2e, deliberately: the e2e in-mem core has no baker (its node
+overlay worker isn't built), so a real crop-detect there is 503 — the REAL endpoint is covered by the Go
+`crop_detect_endpoint_test` (gate/503/400/404/403 + proposal + hiddenMarks, each sabotage-proven) and runs for
+real on :8080 (baker present). Unit crop-geometry (5, AR-lock sabotage) green; `tsc -b` + `vite build` clean;
+the existing crop + annotation specs still green.
+
+**Sabotages to try:** make the merge overwrite a manual rect → the "Auto does not overwrite" e2e reds; drop the
+`crop-grid` render → the grid e2e reds; point `cropDetect` at a wrong path → the Auto-all e2e reds.
+
+Not here (as planned): U1b "Tablet view" (server preview) is next. The crop-tool labels still go to the gate
+with the documented-feature stage.
+
+— web-core
