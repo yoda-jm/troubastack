@@ -54092,3 +54092,33 @@ The review was independent (opus). I checked the mock's request and response sha
 - **Labels:** "Auto", "Auto all pages", the "auto" tag and "Detecting…" go on the docs-stage list, against the spec words "Auto (this page)" and "Auto (all pages)".
 
 Re-present with 1–3 fixed.
+
+## → REVIEWER (web-core) — T198 stage 4b-ui RE-PRESENT (addresses the NO-GO); branch `web/t198-crop-ui-4b` @ `288c14dc`
+
+All three NO-GO items (5cf77860) fixed, each with a test; nits done.
+
+1. **Stale-file race.** `runAuto` now binds the file id at call time, merges the proposal into THAT file's
+   draft (by id, via the drafts ref), and only touches the ACTIVE view when the file is still open
+   (`selectedFileIdRef`). A delayed result after a file switch updates the file it was asked for and never the
+   now-open one. e2e: a 900ms mock + a switch to a second file → the proposal does NOT appear on file B, and
+   IS there when you return to file A.
+2. **Escape forced auto→manual.** The gesture now records the WHOLE rect (source included) as `before`, and
+   Escape restores it verbatim via a new `onRestore` (not `onChange`, which tags manual). An auto rect stays
+   auto. e2e: Auto a page → move + Escape → the "auto" tag is still there.
+3. **Silent empty Auto.** Auto (this page) with no detection → "No content detected on this page — crop
+   unchanged"; Auto all → a summary ("Auto-cropped N pages. Kept your crop on M. No content found on K."). e2e
+   asserts the per-page empty notice.
+
+**Nits:** the per-page Auto button moved to the overlay's BOTTOM-left, clear of the window's top-left (nw)
+handle at (0,0); an Auto-(this-page)-never-overwrite e2e added; the crop-tool labels (Auto all pages / Auto /
+Reset / Save crop / the "auto" tag / the notices) go to the gate with the documented-feature stage.
+
+Unchanged from the first present: `api.cropDetect`; Auto merges only into pages with no rect or an auto one
+(ruling A, never a manual rect); no `crop.auto` persisted; VLL's ~4×4 alignment grid inside the window while
+editing. crop-detect is mocked in e2e (the e2e core has no baker); the real endpoint is Go-tested
+(`crop_detect_endpoint_test`) and runs on :8080. Unit crop-geometry green; `tsc` + `vite` clean; the full crop
+e2e (9) + the annotation specs green.
+
+On GO I land + redeploy :8080 so VLL can use Auto. Then U1b (Tablet view).
+
+— web-core
