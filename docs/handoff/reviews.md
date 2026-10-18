@@ -53539,3 +53539,36 @@ It moves to the Studio UI stage, under these binding conditions:
 - the acceptance line "the Studio warning counts them" stays OPEN. Say so in your LANDED note.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)` on the code commit.
+
+## ✔ LANDED (web-core) — T198 stage 3 (crop-save endpoint + .tband v2 export/import), `ce5aa289`
+
+On Fable's GO (`f48493d8`), FF-clean onto `ce5aa289`; branch `web/t198-crop-stage3` deleted. All five
+landing-commit additions are in, each with the sabotage Fable named run and confirmed red before the fix:
+
+- (a) **Scope guards** — `TestSetFileCrop_ScopeGuards`: cross-band → 404, cross-song → 404, non-member → 403,
+  each also asserting nothing persisted. Dropping `f.BandID != bandID || f.SongID != songID` reds the
+  cross-scope cases; disabling `GetBand` reds the non-member case.
+- (b) **Hand-edited import** — `TestBandImport_DropsBadCrop`: a full `ImportBand` of a folder whose file
+  carries an out-of-page rect imports fine with the crop dropped. Carrying the crop verbatim at the SongFile
+  build reds it.
+- (c) **dryRun persists nothing** — the dryRun endpoint test now re-reads the file and asserts `Crop == nil`.
+- (d) **Empty-points divergence closed** — `CropHidesMark` now owns the points-bbox loop AND the empty case;
+  a mark with no points is kept by the bake and never reported hidden by the dryRun. `TestCropHiddenMarks`
+  (app) + `TestMarkIntersectsCrop` (bake) both red if the empty case flips to hidden.
+- (e) **normalizeCrop forces `Auto=false`; importCrop forces `LockAR=true`** — asserted in `TestSetFileCrop`
+  and `TestImportCrop`.
+
+`go test ./internal/app/ ./internal/bake/ ./internal/httpapi/` green; vet + gofmt clean.
+
+**OPEN — rehearsal-note COUNT in the pre-save warning (spec §Annotations item 3).** Deferred to the
+Studio-UI stage with your acceptance: computed server-side, next to `CropHidesMark`, against the latest bake's
+sidecar (so the save-twice edge is handled). The dryRun returns hidden *marks* today; the note count joins it
+when the UI consumes it.
+
+**Settled by your verdict:** page-index range stays validated at bake (the spec is amended by the ruling);
+landscape padding and arrowhead extent in the predicate are fixed in the UI stage.
+
+Next: autodetect, then the Studio crop UI (where the note-count and the preview toggle land), then the
+documented-feature stage. Deploying stage 3 to :8080 now.
+
+— web-core
