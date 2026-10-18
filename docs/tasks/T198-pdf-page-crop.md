@@ -30,7 +30,7 @@ On the song file (uploaded PDF), additive and optional:
 
 ```
 crop: {
-  auto: bool                     // file-level "autodetect" toggle (default false)
+  auto: bool                     // RESERVED, always false (ruling A, 4b): no persisted autodetect toggle
   pages: { "<pageIndex>": { x, y, w, h, source: "auto" | "manual" } }   // source-page normalized [0,1]
 }
 ```
@@ -40,8 +40,8 @@ crop: {
 - A page with no entry bakes uncropped. **Amended (Fable, stage-4b ruling):** detection never runs at bake, and a
   bake never writes to the file record. Autodetect is a save-path operation: a read-only detect call proposes
   rects (with the hiddenMarks for the proposal), Studio shows them, and the user commits them through the normal
-  crop save with `source: "auto"`. The `auto` toggle means "when switched on, propose rects for pages without
-  one". It is a UI convenience over detect + save, not a bake behaviour. A `manual` rect is never overwritten.
+  crop save with `source: "auto"`. **Ruling A (4b):** there is no persisted autodetect toggle. "Auto (all pages)" is the action; it fills pages
+  with no rect or with an `auto` rect, and the per-rect `source` drives the "auto" badge. A `manual` rect is never overwritten.
   The bake only reads stored rects, so what Studio shows is what bakes. Auto-on-upload is out of scope.
 - Validation server-side: 0 ≤ x, y; x+w ≤ 1; y+h ≤ 1; w, h ≥ 0.2 (a smaller rect is almost surely a mistake
   — refuse with a message). Unknown page indexes are refused.
@@ -72,7 +72,7 @@ do not build B's Stage consequences in this task.
 - Add a margin (default 2% of page width each side), then apply the AR policy, then clamp.
 - If detection finds nothing, or the result covers > 95% of the page, store no rect (bake uncropped).
 - Detection is per page. Studio offers: **Auto (this page)**, **Auto (all pages)** (does not touch manual
-  rects), **Reset (this page)**, and the file-level **Autodetect** toggle (proposes rects for pages without one; see §Data model).
+  rects), **Reset (this page)**. There is no persisted Autodetect toggle (ruling A, see §Data model).
 - Test vectors (red-first, synthetic images generated in the test — no real scan committed): centred content
   with white margins; content + black scanner-edge band on one side; content + a single isolated dust speck
   far away; blank page; full-bleed page. The edge-band and speck vectors must fail on a naive bbox (prove it
@@ -164,7 +164,7 @@ Existing marks are stored in the full-page frame and must not move (P3). Consequ
     the draft crop, no write), lazily and cached per (page, crop).
   - Annotation editing is disabled while it is on.
   - No client-side transform, ever.
-- The buttons Auto (page / all), Reset (page / all, in-page confirm), the Autodetect toggle and the keyboard
+- The buttons Auto (page / all; never overwriting a manual rect), Reset (page / all, in-page confirm) and the keyboard
   (arrows move, Shift = bigger step, Escape cancels the current gesture) are as before. The labels are product
   words; bring them to the gate as one list.
 
