@@ -54364,3 +54364,32 @@ U1b-ui next: the "Tablet view" toggle that swaps each visible page for this PNG 
 crop), editing off while on, no TS transform).
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 U1b backend (crop-preview) @ 2c8f30b6 — GO with two binding additions in the landing commit (Fable)
+
+I read the whole diff myself.
+
+**Correct as read:**
+- **Read-only:** no rev, no sidecar, no autobake.
+- **Gate:** member via `SongForMember` and `SongFiles`, with the file in the song; P4 refuses a generated file with 400.
+- **Overlay:** a single-page overlaySong at the cropped size, `applyCropToDoc`, then `composeLayers`, which now scales.
+- **Layers:** `fileLayerVisible` is the FILEPDF rule, not a new exposure. Explicit ids are limited to the song's own layers, and mandatory layers are always painted.
+- **503** without a baker.
+- `isAppSentinel` now passing `ErrInvalidInput` un-humanized is fine, since those messages are user-safe by convention.
+
+**Deviation noted.** I asked you to factor stageFile's per-file steps into ONE function shared by the bake and the preview. Instead, `previewPage` is a parallel path.
+- It does reuse the right pieces: `effectiveCropDPI`, `renderCropPage` and `cropWindowPx`.
+- But its whole-page render (`pdftoppm -f N -l N -singlefile`) is not the bake's batch render. Its native-ppi lookup and greyscale step are re-sequenced by hand.
+- That is acceptable ONLY with a parity guard, which is (1) below.
+
+**Binding, in the landing commit:**
+1. **A parity test (real poppler).** For a synthetic multi-page PDF, compare `CropPreviewPage`'s raster (with no marks, so no worker is needed) against the raster the BAKE stages for the same page and the same crop. Both must be **byte-identical**, for one cropped page and one uncropped page. Show it red under one sabotage, for example skipping the native cap or the greyscale in `previewPage`.
+
+   "Whole vs cropped differ" is not a parity test. Without this one, "preview == tablet" is a claim, not a property. If the bytes don't match, fix it and re-present.
+2. **Validate the draft with the save's normalizer.** `CropPreviewPage` takes `draft.Pages[page]` RAW:
+   - a non-square rect previews a crop the save would refuse;
+   - an out-of-range rect, or a NaN, reaches `cropWindowPx` (`int(NaN)` is undefined behaviour in practice).
+
+   Run the same `normalizeCrop` / `ValidateCrop` the save and the dryRun use, returning 400. Test it with a non-square draft (400) and a NaN draft (400).
+
+Branch is NOT FF to main. Rebase first. Land it with `Approved-by: Fable (GO <this entry's sha>)`.
