@@ -130,14 +130,35 @@ Existing marks are stored in the full-page frame and must not move (P3). Consequ
    cropped-out area dimmed). A "Preview as tablet" toggle shows the cropped page with the transformed overlay
    — it must use the same transform function as the bake (shared TS helper, or the server-rendered preview).
 
-## Studio UI
+## Studio UI — VLL's design (2026-10-18; supersedes the earlier sketch)
 
-- Per-page **Crop** tool in the file editor: rect with corner + edge handles over the page, outside dimmed;
-  AR-locked handles under policy A (corner drags scale, edge drags are disabled or scale symmetrically).
-- Buttons: Auto (page), Auto (all), Reset (page), Reset (all — confirm in-page, no `confirm()`),
-  and the Autodetect toggle. A small badge on page thumbnails: "cropped" / "auto".
-- Keyboard: arrows nudge the rect, Shift for bigger steps; Escape cancels the drag.
-- Save is explicit (or on drag end, like other edits — match the editor's existing save idiom); undo works.
+> "a transparent area that you can move/rotate/scale that has always the aspect ratio of a page and cannot go
+> out of the real pdf page, the inside is transparent … the outside area is light transparent grey with maybe
+> dashed 45° grid in darker grey … the greyed area can stay even when the tool is not selected … a display as
+> in tablet … should be a simple switch"
+
+- **The window.** A transparent rectangle, ALWAYS the page's aspect ratio (policy A: w == h in page fractions).
+  - **Move:** drag inside it.
+  - **Scale:** drag a corner, about the opposite corner or the centre (pick one and keep it).
+  - **Rotate:** a handle above the top edge (arrives with T199; build U1 so the handle slots in).
+  - It **never leaves the real PDF page**. Every corner, rotated ones included, stays inside [0,1]². A drag that
+    would push it out is clamped, never refused with an error.
+  - Minimum side 0.2.
+- **Affordances.** Inside the window: a faint grey move cross. Near the corners: a scale sign. On the rotate
+  handle: a rotate sign. Static by default. A subtle animation on hover/focus is allowed, and must be OFF
+  under `prefers-reduced-motion`.
+- **Outside the window:** a light, translucent grey veil with a dashed 45° hatch in a darker grey.
+  - The veil **stays visible when the tool is not selected**, so the baked area is always in view while
+    annotating.
+  - It must not block drawing: pointer events pass through when the tool is off.
+- **"Tablet view" switch** (one simple toggle, Fable's call on VLL's "I let you decide"):
+  - It swaps each VISIBLE page of the scroll view for its server-rendered bake preview (U1b: the same bake code,
+    the draft crop, no write), lazily and cached per (page, crop).
+  - Annotation editing is disabled while it is on.
+  - No client-side transform, ever.
+- The buttons Auto (page / all), Reset (page / all, in-page confirm), the Autodetect toggle and the keyboard
+  (arrows move, Shift = bigger step, Escape cancels the current gesture) are as before. The labels are product
+  words; bring them to the gate as one list.
 
 ## Documented feature (last stage, VLL)
 

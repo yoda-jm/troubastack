@@ -33,8 +33,14 @@ crop.pages["<i>"] = { x, y, w, h, source, angle? }   // angle in degrees, + = co
 
 - `angle` is optional. 0 or absent means no rotation (P1 byte-identity).
 - Validation: finite, `|angle| ≤ 10`, rounded to 0.05° on save, so tiny float noise can't mint new raster hashes.
-- **Frame:** the page is rotated about its centre (same page size, white fill), and the crop rect `x,y,w,h` is
-  then expressed in that **straightened** frame. With angle 0 it is T198's frame unchanged.
+- **Frame (amended 2026-10-18, follows VLL's UI: the user rotates a WINDOW over the uploaded page).**
+  `x,y,w,h` describe the window's unrotated box in the SOURCE page frame. `angle` rotates that box about its own
+  centre. The bake straightens the content so the window becomes upright, then cuts it. With angle 0 this is
+  T198's rect, unchanged.
+  - Validation: all four rotated corners lie in [0,1]², computed in PHYSICAL units with the page's W/H.
+  - Studio clamps to the same rule.
+  - The angle's sign convention is pinned by one test: a window rotated +θ to match staves crooked by +θ yields
+    level staves.
 - A page can carry an angle with a full rect (`0,0,1,1`) when only straightening is wanted.
 - The angle enters the raster cache key and the bake input exactly as the crop does. It goes through the same
   crop API (`PUT …/files/{fileId}/crop`, dryRun included) and the same `.tband` export/import. Extend the
@@ -43,8 +49,7 @@ crop.pages["<i>"] = { x, y, w, h, source, angle? }   // angle in degrees, + = co
 ## Bake
 
 For a page with an angle:
-1. Map the straightened crop rect back into the source frame (inverse rotation) and take its axis-aligned
-   bounding box.
+1. Take the axis-aligned bounding box of the rotated window in the source frame.
 2. Render only that box from the PDF at `dpi_eff` (`pdftoppm -x -y -W -H`, T198's floor and native cap
    included), plus a few pixels of margin for the interpolation kernel.
 3. Rotate by the angle with a proper interpolating resampler (bicubic / Catmull-Rom class; never
