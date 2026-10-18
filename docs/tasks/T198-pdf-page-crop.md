@@ -136,6 +136,22 @@ Existing marks are stored in the full-page frame and must not move (P3). Consequ
 - Keyboard: arrows nudge the rect, Shift for bigger steps; Escape cancels the drag.
 - Save is explicit (or on drag end, like other edits — match the editor's existing save idiom); undo works.
 
+## Documented feature (last stage, VLL)
+
+VLL wants this to ship as a **documented feature**, not a hidden tool. Once the Studio UI lands, in the same
+landing or right after it:
+
+- **Public site** (`web/site/index.html`, the "Bring a PDF" `feat-list`), one bullet in the page's voice.
+  Starting copy, which may be tuned at the gate:
+  `<li><strong>Scanned crooked, with big margins? No problem</strong> — TroubaStack finds the music on each
+  page and fills the screen with it, rendered sharp from your PDF. Your marks stay on their notes.</li>`
+  "Crooked" is only true once deskew exists. Until then, use "Scanned with big margins?".
+- **User docs** (`docs/USER-JOURNEY.md`, the upload step): a short paragraph covering what Auto does, how to
+  adjust or reset one page, and that rehearsal notes on a re-cropped page show as "page changed".
+- **No band material** in screenshots or examples: use the demo charts only.
+- The wording is a product word (memory: a label is a product word). Bring the final copy to the gate, and
+  keep the UI labels (Auto, Reset, Bake area…) identical between Studio and the docs.
+
 ## Out of scope
 
 - Deskew / rotation of crooked scans (**[VLL]** — likely the next ask after this one; say so in the report).
