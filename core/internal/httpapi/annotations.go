@@ -20,12 +20,16 @@ import (
 type AnnotationsAPI struct {
 	svc *app.Service
 	eng *engine.Engine
+	// notify (T198) fires the autobaker when a crop is saved, so a live setlist containing the song
+	// re-bakes with the new bake area. nil when no baker is wired (most unit tests, and dev without bake).
+	notify func(songID string)
 }
 
 // NewAnnotationsAPI builds the annotation adapter over the relational Service (for
 // member/song authorization) and the per-song apply engine (the annotation authority).
-func NewAnnotationsAPI(svc *app.Service, eng *engine.Engine) *AnnotationsAPI {
-	return &AnnotationsAPI{svc: svc, eng: eng}
+// notify (may be nil) is the autobaker hook fired after a crop save; see doc.go wiring.
+func NewAnnotationsAPI(svc *app.Service, eng *engine.Engine, notify func(songID string)) *AnnotationsAPI {
+	return &AnnotationsAPI{svc: svc, eng: eng, notify: notify}
 }
 
 // Mount registers the annotation routes. They sit under the song path so the band +
@@ -36,6 +40,8 @@ func (a *AnnotationsAPI) Mount(mux *http.ServeMux, authed func(authedHandler) ht
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/live-setlists", authed(a.liveSetlists))
 	// T196: the pre-bake list of Check / Lost marks (linkcheck_t196.go). Informs, never blocks.
 	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}/link-check", authed(a.linkCheck))
+	// T198: save (or dry-run) a per-page bake crop on an uploaded PDF (crop.go).
+	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/files/{fileId}/crop", authed(a.setCrop))
 }
 
 // ---- wire types (the EXACT contract the frontend + seeder speak) ----

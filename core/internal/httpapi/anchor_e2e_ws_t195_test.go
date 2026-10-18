@@ -75,7 +75,7 @@ func newE2E(t *testing.T, src string) *e2eWorld {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	NewAnnotationsAPI(svc, eng).Mount(mux, func(h authedHandler) http.HandlerFunc {
+	NewAnnotationsAPI(svc, eng, nil).Mount(mux, func(h authedHandler) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) { h(w, r, admin) }
 	})
 	mountWS(mux, svc, eng, nil)

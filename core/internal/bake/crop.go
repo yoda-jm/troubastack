@@ -256,12 +256,23 @@ func fieldFloat(fields []string, i int) float64 {
 	return v
 }
 
+// markIntersectsCrop reports whether a mark has any pixel inside the crop rect c. It defers to the ONE shared
+// predicate app.CropHidesMark (extent-aware: stroke half-width pad + text glyph run, and the empty-points
+// case) so the bake drop and the crop-save warning can never disagree about what a crop hides.
+func markIntersectsCrop(o docObject, c cropRect) bool {
+	pts := make([][2]float64, len(o.Points))
+	for i, p := range o.Points {
+		pts[i] = [2]float64{p.X, p.Y}
+	}
+	return !app.CropHidesMark(pts, o.Style.Width, o.Style.FontSize, o.Type == "text", o.Text, c.x, c.y, c.w, c.h)
+}
+
 // applyCropToDoc transforms each mark on a cropped page into the CROPPED page frame, so it composites on the
 // same music after the crop. The stored coordinates never change (P3) — this is a bake-time VIEW transform
 // on the overlay doc only. A point maps x'=(x-cx)/cw, y'=(y-cy)/ch; the stroke width (a page-WIDTH fraction)
-// scales by 1/cw and the text size (a page-HEIGHT fraction, matching web/ink's fontPx) by 1/ch. A mark whose
-// transformed box lands entirely outside the crop is dropped — it isn't on the tablet; a straddling mark
-// keeps its points and the renderer clips the overflow.
+// scales by 1/cw and the text size (a page-HEIGHT fraction, matching web/ink's fontPx) by 1/ch. A mark that
+// does not intersect the crop (markIntersectsCrop, extent-aware) is dropped — it isn't on the tablet; a
+// straddling mark keeps its points and the renderer clips the overflow.
 func applyCropToDoc(doc annotationsDoc, crops pageCrops) annotationsDoc {
 	if len(crops) == 0 {
 		return doc
@@ -273,18 +284,13 @@ func applyCropToDoc(doc annotationsDoc, crops pageCrops) annotationsDoc {
 			out = append(out, o)
 			continue
 		}
+		if !markIntersectsCrop(o, c) {
+			continue // entirely outside the cropped page — not drawn on the tablet
+		}
 		to := o
 		to.Points = make([]docPoint, len(o.Points))
-		minX, minY, maxX, maxY := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
 		for i, p := range o.Points {
-			nx := (p.X - c.x) / c.w
-			ny := (p.Y - c.y) / c.h
-			to.Points[i] = docPoint{X: nx, Y: ny, Pressure: p.Pressure}
-			minX, maxX = math.Min(minX, nx), math.Max(maxX, nx)
-			minY, maxY = math.Min(minY, ny), math.Max(maxY, ny)
-		}
-		if len(o.Points) > 0 && (maxX < 0 || minX > 1 || maxY < 0 || minY > 1) {
-			continue // entirely outside the cropped page — not drawn on the tablet
+			to.Points[i] = docPoint{X: (p.X - c.x) / c.w, Y: (p.Y - c.y) / c.h, Pressure: p.Pressure}
 		}
 		to.Style = o.Style
 		to.Style.Width = o.Style.Width / c.w

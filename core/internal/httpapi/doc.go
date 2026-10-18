@@ -69,9 +69,27 @@ func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *ba
 	web := NewWebAPI(svc, secureCookies, baker)
 	web.Mount(mux)
 
-	// Annotation API (view-only): read a song's materialized HEAD, import layers
-	// + objects. Reuses the relational auth middleware so it shares one auth path.
-	NewAnnotationsAPI(svc, eng).Mount(mux, web.auth)
+	// Rehearsal live mode autobaker (P201/I11 stage 1b): when a baker is wired, a
+	// debounced autobaker turns annotation commits on a live setlist's songs into
+	// auto-bakes. The bake closure wraps baker.Bake (a system bake as the enabling
+	// admin), so the app package needs no bake import. Started for the process
+	// lifetime; a nil baker (most unit tests) skips it entirely. Built HERE, before the
+	// routes, because both the annotation API (a crop save, T198) and the WebSocket
+	// (each accepted apply) fire onCommit.
+	var onCommit func(songID string)
+	if baker != nil {
+		ab := app.NewAutoBaker(svc, func(ctx context.Context, bandID, setlistID string, actor app.User) error {
+			_, _, err := baker.Bake(ctx, bandID, setlistID, actor, nil, "") // shared band bake (P205: no dialog → legacy defaults)
+			return err
+		}, nil, 0)
+		go ab.Run(ctx, time.Second) // stops when ctx is cancelled (server shutdown / test cleanup)
+		onCommit = ab.Notify
+	}
+
+	// Annotation API (view-only reads + layer/object import, and the T198 crop save).
+	// Reuses the relational auth middleware so it shares one auth path. onCommit lets a
+	// crop save re-bake a live setlist.
+	NewAnnotationsAPI(svc, eng, onCommit).Mount(mux, web.auth)
 
 	// Whole-band export/import (T62): admin exports a .tband zip; any user imports
 	// one into a new band. Needs the engine (annotations ride the export).
@@ -85,21 +103,6 @@ func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *ba
 	// so a band installs it from its own server. Unauthenticated (pre-account members
 	// are the audience). appsDir == "" (dev / no embedded apps) ⇒ empty manifest.
 	NewAppsAPI(appsDir, buildinfo.Version()).Mount(mux)
-
-	// Rehearsal live mode autobaker (P201/I11 stage 1b): when a baker is wired, a
-	// debounced autobaker turns annotation commits on a live setlist's songs into
-	// auto-bakes. The bake closure wraps baker.Bake (a system bake as the enabling
-	// admin), so the app package needs no bake import. Started for the process
-	// lifetime; a nil baker (most unit tests) skips it entirely.
-	var onCommit func(songID string)
-	if baker != nil {
-		ab := app.NewAutoBaker(svc, func(ctx context.Context, bandID, setlistID string, actor app.User) error {
-			_, _, err := baker.Bake(ctx, bandID, setlistID, actor, nil, "") // shared band bake (P205: no dialog → legacy defaults)
-			return err
-		}, nil, 0)
-		go ab.Run(ctx, time.Second) // stops when ctx is cancelled (server shutdown / test cleanup)
-		onCommit = ab.Notify
-	}
 
 	// Realtime annotation sync: a per-song WebSocket over the SAME engine, so live
 	// edits and the REST read see one consistent HEAD (I6). onCommit (if wired) fires

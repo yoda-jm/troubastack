@@ -327,3 +327,35 @@ func TestCropStraddlingStrokeIsKept(t *testing.T) {
 		t.Errorf("straddling stroke's far end = %.3f, expected > 1.0 (past the clip edge)", maxX)
 	}
 }
+
+// TestMarkIntersectsCrop pins Fable's extent-aware predicate (stage 3): the drop/warning must account for the
+// stroke width (half-width pad) and the text glyph run (right+down from the anchor), not just the anchor box.
+func TestMarkIntersectsCrop(t *testing.T) {
+	crop := cropRect{x: 0.25, y: 0.25, w: 0.5, h: 0.5} // [0.25,0.75]²
+	// A thick line whose centre sits half-a-width OUTSIDE the left edge: its stroke reaches the edge ⇒ kept.
+	line := docObject{Type: "line", Style: docStyle{Width: 0.04}, Points: []docPoint{{X: 0.23, Y: 0.5}}} // 0.25-0.04/2
+	if !markIntersectsCrop(line, crop) {
+		t.Error("a line 0.5×width outside the edge must be KEPT (pad by half the stroke width)")
+	}
+	// A text anchored 1% LEFT of the left edge: its glyphs run right into the crop ⇒ kept.
+	textLeft := docObject{Type: "text", Text: "lyric line", Style: docStyle{FontSize: 0.03}, Points: []docPoint{{X: 0.24, Y: 0.5}}}
+	if !markIntersectsCrop(textLeft, crop) {
+		t.Error("a text anchored 1% left of the crop must be KEPT (glyphs run right)")
+	}
+	// A text anchored to the RIGHT of the crop: its glyphs run further right, away from the crop ⇒ dropped.
+	textRight := docObject{Type: "text", Text: "lyric line", Style: docStyle{FontSize: 0.03}, Points: []docPoint{{X: 0.80, Y: 0.5}}}
+	if markIntersectsCrop(textRight, crop) {
+		t.Error("a text anchored right of the crop must be DROPPED (glyphs run away from the crop)")
+	}
+	// A plain point mark far outside stays dropped.
+	far := docObject{Type: "rect", Style: docStyle{Width: 0.01}, Points: []docPoint{{X: 0.95, Y: 0.95}}}
+	if markIntersectsCrop(far, crop) {
+		t.Error("a mark far outside the crop must be dropped")
+	}
+	// A mark with NO points is KEPT (no extent to place off the page) — the empty case lives in the shared
+	// predicate so the bake and the dryRun agree.
+	empty := docObject{Type: "rect", Style: docStyle{Width: 0.01}, Points: nil}
+	if !markIntersectsCrop(empty, crop) {
+		t.Error("an empty-points mark must be KEPT, not dropped")
+	}
+}

@@ -120,6 +120,8 @@ type manifestFile struct {
 	// LineIdentity (T194): the chart's line ids, so a mark linked to a line survives a band round trip.
 	// Optional: a manifest without it (pre-T194, hand-written) gets ids re-derived on import.
 	LineIdentity *ChartLineIdentity `json:"lineIdentity,omitempty"`
+	// Crop (T198): the file's non-destructive per-page bake area, carried so a crop round-trips. Optional.
+	Crop *Crop `json:"crop,omitempty"`
 }
 
 type manifestSetlist struct {
@@ -292,6 +294,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 			mf := manifestFile{
 				ID: f.ID, Filename: f.Filename, ContentType: f.ContentType, Size: f.Size,
 				BlobHash: f.BlobHash, DisplayOrder: f.DisplayOrder, Generated: f.Generated, Revision: f.Revision,
+				Crop: f.Crop, // T198: the bake area travels with the file.
 			}
 			// The file bytes are fetched by marshalV2 via s.blobs.Get and written under `<slug>/<filename>`
 			// (amendment 4 — no blobs/); here we only carry the metadata + integrity hash.
@@ -824,7 +827,7 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 			nf := SongFile{
 				ID: fid, SongID: ns.ID, BandID: band.ID, Filename: f.Filename, ContentType: f.ContentType,
 				Size: size, BlobHash: hash, DisplayOrder: f.DisplayOrder, UploadedBy: caller.ID, CreatedAt: now,
-				Generated: f.Generated, Revision: f.Revision,
+				Generated: f.Generated, Revision: f.Revision, Crop: importCrop(f.Crop, f.Generated),
 			}
 			// T194: what this file id held before the import (a re-import over a stable id), so its line ids
 			// can be carried rather than re-minted.
