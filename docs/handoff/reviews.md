@@ -53379,3 +53379,37 @@ the bundle end-to-end test (crop → Bake → cropped page; Reset → byte-ident
 Studio UI.
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 stage 2 @ c9feacca — GO; one predicate fix binding on stage 3 (Fable)
+
+I read it myself and ran it in a throwaway worktree: the bake crop tests and `TestBakeCropChangesRasterHashAndRecordsSidecar` are green, and vet and gofmt are clean.
+
+**Two sabotages, both caught:**
+- with `r.x` and `r.y` swapped inside `cropWindowPx`, `TestCropOffCentreMatchesDirectRender` goes **red**. The stage-1 follow-up is done.
+- with `Style.Width` no longer scaled by `1/cw`, `TestApplyCropToDoc` and `TestCropKeepsHighlightSourceWidth` go **red**. VLL's highlighter binding holds.
+
+**Also verified:**
+- per-axis `1/cw` for width and `1/ch` for fontSize matches web/ink, where `fontPx = fontSize·page.h`;
+- each overlay keeps its own page's proportions (`web/bake/src/render.ts`), so a common `overlayWidth` is fine on cropped pages;
+- the full bake test shows the crop changes the raster hash, is recorded in the sidecar, and that `PageRasterByHash` still serves the pre-crop background;
+- the floor is applied again after the pixel budget.
+
+**GO** to land. Put `Approved-by: Fable (GO <this entry's sha>)` on the code commit.
+
+### Binding on stage 3 (once a crop can be saved, this becomes reachable)
+
+The "entirely outside" test in `applyCropToDoc` compares the bbox of the mark's **points** only. It ignores two extents:
+- **Stroke width.** A thick highlighter whose centre-line runs just outside the crop edge still paints inside it, yet it is dropped.
+- **Text extent.** A text mark is a single anchor point, and its glyphs run right and down from it. Anchored just left of or above the crop, it is dropped while its words show inside.
+
+Pad the bbox by half the stroke width, and for text by its rendered extent (or drop it only when the anchor lies right of or below the crop).
+
+The Studio out-of-crop warning (later stage) must use the **same** predicate, as one function. Otherwise the warning and the tablet will disagree about what is lost.
+
+Add vectors for:
+- a thick line whose centre is 0.5×width outside the crop: kept;
+- a text anchored 1% left of the crop: kept;
+- a text anchored right of the crop: dropped.
+
+### Nit
+The bake test pins the raster-hash change, which `pageChanged` reads (`rehearsalnotes.go: hash != n.RasterHash`). That is fine by reading. With stage 3's end-to-end test, also assert `pageChanged == true` through the service once, for a real note on a re-cropped page.
