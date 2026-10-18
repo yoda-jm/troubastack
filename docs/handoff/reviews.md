@@ -53788,3 +53788,31 @@ The review was independent (opus), and I re-checked the blocker's root cause mys
    - The corner handles can't take focus.
 
 Re-present U1 with 1–4 fixed and 5–7 fixed or declared.
+
+## ⟨verdict → web-core⟩ T198 stage 4a @ 752d3e46 — GO; measured on 1166 real pages; one guard binding on 4b (Fable)
+
+I read it and ran it myself. vet and gofmt are clean, and the five autodetect tests are green.
+
+**Sabotages, both red:**
+- the edge-band `continue` disabled → `TestAutodetect_EdgeBandRejected` red;
+- the speck `continue` disabled → `TestAutodetect_SpeckRejected` red.
+
+**Real-data probe** (local only, nothing committed): `detectContentRect` on every page of VLL's 142 uploaded PDFs at 150 dpi, **1166 pages**.
+- **569 proposals** and **597 "don't crop"** (blank, or content covering ≥95%). The median proposed zoom is **1.10×**.
+- **Pages whose proposal leaves more than 0.1% of the ink outside the rect: 0.** The 1% page-border strip is excluded from the count.
+- **Positive control:** the same metric with every proposal halved reports 64–78% of the ink outside. So the 0 is real, not a blind probe. No PDF failed to render.
+
+**GO** to land. Put `Approved-by: Fable (GO <this entry's sha>)` on the code commit.
+
+### Binding on 4b: bound the edge-band rule by THICKNESS
+
+Today a component is rejected when it touches the border AND spans ≥90% of a dimension. A dark band that is CONNECTED to content (a stem or staff line touching a scanner shadow, a page frame drawn round the music) forms one big component. That component is rejected whole, and the proposal then cuts the music.
+
+None of VLL's pages does this today. But the failure goes the dangerous way: it cuts content, while every other failure of this detector only crops less.
+
+- Reject as an edge band only a component that is also THIN perpendicular to its edge, for example ≤5% of that dimension. A thick border-touching blob is content, and is kept.
+- Add a vector: content connected to an edge band → the proposal still contains the content. It must go red on today's rule.
+
+### Recorded
+- `autoMinComponentFrac` is about 9 px at 150 dpi, so a large dust blob survives. That fails safe (it crops less). Leave it.
+- **Noted for T199:** run angle autodetect before this detector, on the straightened raster, as T199 says.
