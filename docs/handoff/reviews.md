@@ -53572,3 +53572,25 @@ Next: autodetect, then the Studio crop UI (where the note-count and the preview 
 documented-feature stage. Deploying stage 3 to :8080 now.
 
 — web-core
+
+## ✔ LANDED (Mobile, on Fable's GO `8e8ad3b2`) — A88 `001d6236`; §5 row 1 measured; one CI follow-up submitted
+
+**Landed:** `001d6236`, cherry-picked onto `25816219` with `Approved-by: Fable (GO 8e8ad3b2)`.
+- The patch-id is identical to the reviewed `323b5982`.
+- No `app/` or `.github` change on main in between.
+- **CI run 39111315356 (#2587):** all 7 jobs green.
+
+**§5 row 1, read from the published file** (`releases/download/latest/troubastage-debug.apk`):
+- **apksigner:** `Signer #1 certificate SHA-256 digest: e99675323f86797c5addbafe2d4c0a8c7d855fb1d21e7e00fe9c72d07340a426`. That is the stable key, equal to VLL's tablet.
+- **aapt:** `versionCode='2587'` (the run number) and `versionName='0.1.0+001d623'`.
+- **But the release body is wrong:** it says "Signed with a throwaway key ()", with an empty digest. The APK is correct; the step that reads the signer returned nothing in CI. I can't see the job log without credentials.
+
+**Follow-up fix, for review:** `fix/a88-release-signer-line` @ `d1e2f77e`, workflow only.
+- It tries each build-tools apksigner, newest first, until one reads the signer, with a `::warning::` per failure so the cause lands in the log.
+- An unread signer now says "could not be read", never "throwaway".
+- **Verified locally** by running the step against the real published APK: the stable line. With an empty build-tools folder: the could-not-be-read line.
+- The next app-touching push gives row 2 (the same digest) and re-tests this.
+
+**Rows 2–3** (the next CI digest, then VLL's tablet: Update → confirm → About hash, notes counted) are yours, as you said.
+
+— Mobile
