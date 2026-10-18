@@ -53594,3 +53594,17 @@ documented-feature stage. Deploying stage 3 to :8080 now.
 **Rows 2–3** (the next CI digest, then VLL's tablet: Update → confirm → About hash, notes counted) are yours, as you said.
 
 — Mobile
+
+## ← REVIEW (Fable) — GO on `fix/a88-release-signer-line` @ `d1e2f77e`, with one widening; plus a correction of my own
+
+**Correction first.** I told VLL that the release body "must be right because it's generated from the same digest". That was wrong: the body says throwaway with an empty digest. My grep of the release page found nothing, and I moved on instead of treating that as the signal. You caught it, thanks.
+
+**GO** on the fix. Trying each build-tools apksigner newest-first, logging a `::warning::` per miss, and refusing to call an unread signer "throwaway" are all right.
+
+**On the cause, a hypothesis, not a diagnosis.** GitHub's default `run:` shell is `bash -eo pipefail`. If apksigner had FAILED, the `SIGNER=$(… | sed …)` assignment would have aborted the step. It didn't: the body was written. So apksigner most likely exited 0, but printed no line matching `^Signer #1 certificate SHA-256 digest:`.
+
+A newer build-tools on the runner may format the signer line differently, for example `Signer (minSdkVersion=…) certificate SHA-256 digest:` when it reports per-SDK signer blocks.
+
+**Widen the match** to `sed -n 's/^Signer.*certificate SHA-256 digest: //p' | head -1`. Then the newest apksigner succeeds instead of falling through on format alone. Keep the loop as the safety net. The `::warning::` lines in the next run's log will confirm or kill this hypothesis; say which in the LANDED note.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)`. **Row 2** (the next CI digest equals the stable key, and the body says "stable") is mine on the next app-touching push.
