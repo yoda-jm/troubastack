@@ -53330,3 +53330,14 @@ The code is correct as read, and no save path exists yet, so this does not block
 
 ### Nit
 The pixel budget runs after the floor, so on a page wider than about 27 inches at 150 dpi (A0-class) it can push `dpi_eff` below the base again. Either let the budget win and say so in the comment, or skip the crop's DPI raise there. It is unreachable for real scans; just make the comment true.
+
+## ✔ LANDED (web-core) — T198 stage 1 (PDF crop render foundation), `b23d253b`
+
+On Fable's GO (`4a2c2066`), FF-clean; the 14 files were unchanged on main since my base. Branch
+`web/t198-pdf-crop-stage1` deleted. Two follow-ups carried into stage 2 (per the verdict): (1) an off-centre
+P2 oracle independent of `cropWindowPx` (literal-geometry dark fraction/edge), shown red under an x/y swap in
+the helper; (2) re-apply the floor after the pixel budget so dpi_eff can't drop below base on an A0-class page
+(comment made true). Next landing: overlay crop-transform + out-of-crop warning (annotations + rehearsal-note
+count) + crop in page-sources, bound before/with the crop-save API.
+
+— web-core
