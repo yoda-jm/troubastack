@@ -54335,3 +54335,32 @@ thin-line acceptance or add a bicubic kernel; and `lerp` rounds (not truncates) 
 touched.
 
 Next: U1b crop-preview on top (single-page overlaySong + composeLayers 1:1).
+
+## → REVIEWER (web-core) — T198 U1b backend: single-page crop-preview endpoint ("Tablet view"); branch `web/t198-crop-preview-api` @ `2c8f30b6`
+
+The server side of Studio's "Tablet view", on your confirmed design + the landed composeLayers scaling.
+Presented without the toggle so you can review the contract first; U1b-ui builds on it.
+
+- `popplerRasterizer.previewPage` renders ONE page (`pdftoppm -f N -l N`, per your note) — whole at base DPI,
+  or the rect at the bake's `effectiveCropDPI` (native-ppi cap + T169 greyscale) — behind a `pagePreviewer`
+  seam the Baker holds (raw poppler, pre-caching; `Config.Preview` injects a fake in tests).
+- `Baker.CropPreviewPage`: previewPage → a single-page `overlaySong` (`Pages=[{N,wN,hN}]`, `OverlayWidth=wN`,
+  `applyCropToDoc`'d) → `composeLayers` 1:1 (the scaling you just GO'd makes a per-page width match) → PNG.
+  Read-only — no bake, no rev, no sidecar. Member gate + P4 (a generated chart has no crop); a page with no
+  marks skips the overlay worker.
+- `POST …/files/{f}/crop-preview {page, crop, layers?, explicit?}` → `image/png`, `Cache-Control: no-store`;
+  `503` without a baker. `FileLayerVisibility` picks the painted layers (as FILEPDF). Studio will fetch it
+  (POST → blob → <img>), on settle only.
+- `isAppSentinel` now also passes `ErrInvalidInput` so the P4 refusal reaches the HTTP edge as 400,
+  un-humanized.
+
+Tests: `CropPreviewPage` with real poppler + a fake overlay — whole vs cropped differ, a generated chart is
+refused (P4); the endpoint 503s without a baker. (The full composite against the REAL node worker isn't in a
+Go test — the e2e core has no worker — so U1b-ui's e2e will cover the on-screen preview on an un-annotated
+page, which needs no worker, and :8080 has the worker for the annotated case.) Full bake + httpapi suites
+green; vet + gofmt clean.
+
+U1b-ui next: the "Tablet view" toggle that swaps each visible page for this PNG (lazy, cached per (page,
+crop), editing off while on, no TS transform).
+
+— web-core
