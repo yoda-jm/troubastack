@@ -42,6 +42,8 @@ type Config struct {
 	// that blocks so the T103 "a hung-up client does not cancel the bake" race has an observable window.
 	Raster   Rasterizer
 	Overlays OverlayRenderer
+	// Preview injects the T198 single-page preview renderer (nil ⇒ the real poppler). Tests use it.
+	Preview pagePreviewer
 }
 
 // Baker turns a setlist into a downloadable .tstage (I11): resolve songs →
@@ -51,6 +53,7 @@ type Baker struct {
 	svc      *app.Service
 	eng      *engine.Engine
 	raster   Rasterizer
+	preview  pagePreviewer // T198 single-page preview renderer (raw poppler; nil in bare-literal test bakers)
 	overlays OverlayRenderer
 	cache    *renderCache // T120 render cache (nil ⇒ disabled); held for PurgeCache
 	bakesDir string
@@ -86,9 +89,17 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 	if dpi == 0 {
 		dpi = 150
 	}
-	var raster Rasterizer = popplerRasterizer{bin: cfg.Pdftoppm, imagesBin: cfg.Pdfimages, dpi: dpi}
+	poppler := popplerRasterizer{bin: cfg.Pdftoppm, imagesBin: cfg.Pdfimages, dpi: dpi}
+	var raster Rasterizer = poppler
 	if cfg.Raster != nil {
 		raster = cfg.Raster
+	}
+	// T198 preview (U1b): a single-page renderer, the raw poppler (never the caching wrapper — a preview of a
+	// draft crop would not be a cache hit anyway, and Studio caches per (page, crop)). cfg.Preview overrides
+	// it in tests.
+	var preview pagePreviewer = poppler
+	if cfg.Preview != nil {
+		preview = cfg.Preview
 	}
 	var overlays OverlayRenderer = nodeOverlayRenderer{node: cfg.Node, cli: cfg.BakeCLI}
 	if cfg.Overlays != nil {
@@ -106,6 +117,7 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 		svc:       svc,
 		eng:       eng,
 		raster:    raster,
+		preview:   preview,
 		overlays:  overlays,
 		cache:     cache,
 		bakesDir:  cfg.BakesDir,

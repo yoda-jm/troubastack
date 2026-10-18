@@ -16,7 +16,7 @@ func (s *Service) SetFileCrop(caller User, bandID, songID, fileID string, crop C
 	if err != nil {
 		return SongFile{}, err
 	}
-	if err := normalizeCrop(&crop); err != nil {
+	if err := NormalizeCrop(&crop); err != nil {
 		return SongFile{}, err
 	}
 	if len(crop.Pages) == 0 && !crop.Auto {
@@ -33,14 +33,14 @@ func (s *Service) SetFileCrop(caller User, bandID, songID, fileID string, crop C
 
 // PreviewFileCrop is the crop-save DRY RUN: it resolves and validates a proposed crop EXACTLY as SetFileCrop
 // would (same member gate, same P4 refusal, same geometry check) but persists nothing, and returns the live
-// marks the crop would hide on the tablet. Because it shares cropTarget + normalizeCrop with the save, a
+// marks the crop would hide on the tablet. Because it shares cropTarget + NormalizeCrop with the save, a
 // preview that returns marks is a crop the save will accept — the warning and the result cannot diverge.
 // snap is the song's current annotation HEAD (the caller holds the engine; the service stays engine-free).
 func (s *Service) PreviewFileCrop(caller User, bandID, songID, fileID string, crop Crop, snap domain.Snapshot) ([]HiddenMark, error) {
 	if _, err := s.cropTarget(caller, bandID, songID, fileID); err != nil {
 		return nil, err
 	}
-	if err := normalizeCrop(&crop); err != nil {
+	if err := NormalizeCrop(&crop); err != nil {
 		return nil, err
 	}
 	return CropHiddenMarks(snap, fileID, crop), nil
@@ -78,12 +78,12 @@ func (s *Service) cropTarget(caller User, bandID, songID, fileID string) (SongFi
 	return f, nil
 }
 
-// normalizeCrop forces policy A (LockAR: a crop is a pure zoom) on and defaults each rect's source to manual
+// NormalizeCrop forces policy A (LockAR: a crop is a pure zoom) on and defaults each rect's source to manual
 // — autodetect is a separate task, so a manual save never turns Auto on and any rect it carries is manual —
 // then validates geometry + canonical page keys. Page-index RANGE is validated at bake (the service has no
 // page count without rendering); an out-of-range index is harmlessly ignored by the rasterizer. Mutates in
 // place and is shared by the save and its dry run so a preview and a save agree on what is valid.
-func normalizeCrop(crop *Crop) error {
+func NormalizeCrop(crop *Crop) error {
 	crop.LockAR = true
 	crop.Auto = false // a manual save never turns autodetect on; that is a separate task's path.
 	for key, r := range crop.Pages {

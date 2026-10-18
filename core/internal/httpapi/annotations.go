@@ -49,6 +49,8 @@ func (a *AnnotationsAPI) Mount(mux *http.ServeMux, authed func(authedHandler) ht
 	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/files/{fileId}/crop", authed(a.setCrop))
 	// T198 4b: propose autodetected crops for an uploaded PDF's pages (read-only; crop.go).
 	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/files/{fileId}/crop-detect", authed(a.detectCrop))
+	// T198 U1b: server-rendered "Tablet view" preview of one page under a draft crop (read-only PNG; crop.go).
+	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/files/{fileId}/crop-preview", authed(a.previewCrop))
 }
 
 // ---- wire types (the EXACT contract the frontend + seeder speak) ----

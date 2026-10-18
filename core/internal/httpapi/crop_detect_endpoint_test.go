@@ -176,3 +176,14 @@ func TestCropDetect_CrossBandAndNonMember(t *testing.T) {
 		t.Fatalf("non-member: %d %s, want 403", rec.Code, rec.Body)
 	}
 }
+
+func TestCropPreview_503WithoutBaker(t *testing.T) {
+	f := newDetectFixture(t, false) // no baker wired
+	b, _ := json.Marshal(map[string]any{"page": 0, "crop": map[string]any{}})
+	rec := httptest.NewRecorder()
+	url := "/api/bands/" + f.band + "/songs/" + f.song + "/files/" + f.file + "/crop-preview"
+	f.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, url, bytes.NewReader(b)))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("crop-preview without a baker: %d %s, want 503", rec.Code, rec.Body)
+	}
+}

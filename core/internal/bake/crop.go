@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image"
 	"math"
 	"os"
 	"os/exec"
@@ -135,6 +136,69 @@ func cropWindowPx(baseW, baseH, baseDPI, effDPI int, r cropRect) (x, y, w, h int
 		h = int(fullH) - y
 	}
 	return x, y, w, h
+}
+
+// pagePreviewer renders ONE page of an uploaded PDF — whole, or cropped to a rect — for the T198 "Tablet
+// view" preview (U1b). popplerRasterizer implements it; a test can inject a fake. It is page-at-a-time by
+// design (pdftoppm -f N -l N), never the whole PDF.
+type pagePreviewer interface {
+	previewPage(ctx context.Context, pdf []byte, page int, crop *cropRect) ([]byte, error)
+}
+
+// previewPage renders page `page` (0-based) of pdf. With crop == nil it is the whole page at base DPI; with a
+// crop it is the rect re-rendered from the PDF at the SAME effective DPI the bake uses (effectiveCropDPI +
+// the native-ppi cap), so the preview raster matches what bakes. T169 greyscale applies as in the bake.
+func (pr popplerRasterizer) previewPage(ctx context.Context, pdf []byte, page int, crop *cropRect) ([]byte, error) {
+	dir, err := os.MkdirTemp("", "trouba-preview-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	in := filepath.Join(dir, "in.pdf")
+	if err := os.WriteFile(in, pdf, 0o600); err != nil {
+		return nil, err
+	}
+	base, err := pr.renderPageFull(ctx, in, page, pr.dpi)
+	if err != nil {
+		return nil, err
+	}
+	if crop == nil {
+		return greyscaleIfMono(base), nil
+	}
+	cfg, _, derr := image.DecodeConfig(bytes.NewReader(base))
+	if derr != nil {
+		return nil, fmt.Errorf("decode page %d for preview crop: %w", page, derr)
+	}
+	native := pr.nativePPIForPage(ctx, in, page, cfg.Width, cfg.Height, pr.dpi)
+	eff := effectiveCropDPI(pr.dpi, cfg.Width, cfg.Height, *crop, native)
+	out, cerr := pr.renderCropPage(ctx, in, page, *crop, cfg.Width, cfg.Height, eff)
+	if cerr != nil {
+		return nil, cerr
+	}
+	return greyscaleIfMono(out), nil
+}
+
+// renderPageFull renders page idx (0-based) WHOLE at dpi → PNG. Mirrors renderCropPage's pdftoppm call with
+// no crop window; the preview uses it to size a page and to show an uncropped page.
+func (pr popplerRasterizer) renderPageFull(ctx context.Context, in string, idx, dpi int) ([]byte, error) {
+	dir, err := os.MkdirTemp("", "trouba-page-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	prefix := filepath.Join(dir, "page")
+	page := strconv.Itoa(idx + 1) // pdftoppm pages are 1-based
+	cmd := exec.CommandContext(ctx, pr.bin, "-png", "-f", page, "-l", page, "-singlefile", "-r", strconv.Itoa(dpi), in, prefix)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("pdftoppm page %d: %w: %s", idx, err, strings.TrimSpace(stderr.String()))
+	}
+	out, err := os.ReadFile(prefix + ".png")
+	if err != nil {
+		return nil, fmt.Errorf("page %d produced no output: %w", idx, err)
+	}
+	return out, nil
 }
 
 func (pr popplerRasterizer) renderCropPage(ctx context.Context, in string, idx int, r cropRect, baseW, baseH, effDPI int) ([]byte, error) {

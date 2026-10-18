@@ -127,3 +127,45 @@ func (a *AnnotationsAPI) detectCrop(w http.ResponseWriter, r *http.Request, u ap
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"pages": rects, "hiddenMarks": hidden})
 }
+
+// previewCrop renders one page of an uploaded PDF as it would bake under a DRAFT crop — the raster cropped +
+// the annotations composited — and returns it as a PNG (T198 U1b, "Tablet view"). Read-only: nothing is
+// written. Same member gate + P4 as the save. The client POSTs {page, crop, layers?, explicit?} and uses the
+// PNG as an <img> (via a blob URL); it requests a page on settle, never per drag frame.
+//
+//	POST /api/bands/{bandId}/songs/{songId}/files/{fileId}/crop-preview
+//	{ "page": 0, "crop": {lockAR, pages}, "layers": ["L1"], "explicit": true }  → image/png
+func (a *AnnotationsAPI) previewCrop(w http.ResponseWriter, r *http.Request, u app.User) {
+	bandID := r.PathValue("bandId")
+	song, err := a.svc.SongForMember(u, bandID, r.PathValue("songId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	var in struct {
+		Page     int      `json:"page"`
+		Crop     app.Crop `json:"crop"`
+		Layers   []string `json:"layers"`
+		Explicit bool     `json:"explicit,omitempty"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if a.baker == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "the tablet preview needs the bake toolchain, which this server does not have"})
+		return
+	}
+	visible, err := a.baker.FileLayerVisibility(song.ID, u.ID, in.Layers, in.Explicit)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	png, err := a.baker.CropPreviewPage(r.Context(), bandID, song.ID, r.PathValue("fileId"), u, in.Page, in.Crop, visible)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(png)
+}

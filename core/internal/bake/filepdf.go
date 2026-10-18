@@ -127,9 +127,11 @@ func FileDisplayName(f app.SongFile) string {
 }
 
 // isAppSentinel reports whether err is one of the service's classified errors, which the HTTP edge maps to
-// a status (404/403/401) and which are already user-safe — so FilePDF passes them through un-humanized.
+// a status (404/403/401/400) and which are already user-safe — so FilePDF / the preview pass them through
+// un-humanized (ErrInvalidInput carries the T198 crop-preview P4 refusal, mapped to 400).
 func isAppSentinel(err error) bool {
-	return errors.Is(err, app.ErrNotFound) || errors.Is(err, app.ErrForbidden) || errors.Is(err, app.ErrUnauthorized)
+	return errors.Is(err, app.ErrNotFound) || errors.Is(err, app.ErrForbidden) ||
+		errors.Is(err, app.ErrUnauthorized) || errors.Is(err, app.ErrInvalidInput)
 }
 
 // FileLayerVisibility resolves which layers of a song a single-file print paints (FILEPDF), from the song's
