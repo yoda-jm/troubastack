@@ -147,6 +147,14 @@ Existing marks are stored in the full-page frame and must not move (P3). Consequ
 - **Affordances.** Inside the window: a faint grey move cross. Near the corners: a scale sign. On the rotate
   handle: a rotate sign. Static by default. A subtle animation on hover/focus is allowed, and must be OFF
   under `prefers-reduced-motion`.
+- **Alignment grid (VLL, 2026-10-18):** "a very large grid in the middle, it helps seeing how it aligns and
+  moves, so the next rotate will be easier to align".
+  - While the crop tool is active, the window shows a large-cell grid INSIDE it: about 4×4 cells, thin and
+    semi-transparent, readable over both white paper and dark ink. A centre cross may be slightly stronger.
+  - The grid belongs to the WINDOW: it moves and scales with it, and with T199 it rotates with it. Aligning
+    the grid's horizontals on the staves is how the user judges the rotation.
+  - Hidden when the tool is off; the veil alone stays.
+  - Pointer events pass through to the window's own move gesture.
 - **Outside the window:** a light, translucent grey veil with a dashed 45° hatch in a darker grey.
   - The veil **stays visible when the tool is not selected**, so the baked area is always in view while
     annotating.

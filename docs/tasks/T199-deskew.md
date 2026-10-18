@@ -113,7 +113,8 @@ against the latest bake's sidecar), and the T186 background is still served.
 This goes into T198's crop tool, not a second tool.
 - An angle control per page: fine steps (±0.05° / ±0.5°) plus a numeric field.
 - **Auto angle (this page)** and **Auto angle (all pages)**.
-- Faint horizontal guide lines over the page while adjusting, so "level" can be judged by eye.
+- Alignment: use T198's window grid (it rotates WITH the window). The user rotates until the grid's horizontals
+  run along the staves. No separate page-level guide lines.
 - Reset clears the angle together with the crop, or offer "Reset angle" separately if the UI makes it natural.
 - The preview shows the straightened, cropped page.
 
