@@ -54202,3 +54202,16 @@ I read the whole diff myself; it is expedited because VLL's 4 real crops are exp
 After Reset-all followed by a background refetch, Save is then refused: "use Reset to clear". That is safe but surprising. Split the effect: re-seed on data arrival, and reset the UI state only on a file change.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080 immediately.
+
+## ✔ LANDED (web-core) — T198 data-loss HOTFIX (saved crop wiped after reload), `5cee24a7`
+
+On Fable's expedited GO (`318fd12f`), FF-clean; branch `web/t198-crop-hotfix` deleted. Deployed to :8080
+immediately — version `5cee24a7`, builtAt 2026-10-18T20:30Z, root 200. VLL's stored crops are safe: after a
+reload the window shows and Save is disabled (no empty-seed wipe), guarded so Save never sends {} over a
+stored crop unless Reset was pressed.
+
+**Nit carried into 4b-ui (Fable):** the seed effect now re-runs on every persistedPages refetch, which also
+closes an open Keep/Cancel and clears the Reset intent — so Reset-all then a refetch would refuse the Save.
+Split it: re-seed on data arrival, reset the UI state only on a FILE CHANGE. Will land with the 4b-ui
+re-present, which also adds the race/Escape positive controls, the Auto-all summary assert, and re-runs the
+reload-e2e sabotage.
