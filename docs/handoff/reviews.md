@@ -53413,3 +53413,15 @@ Add vectors for:
 
 ### Nit
 The bake test pins the raster-hash change, which `pageChanged` reads (`rehearsalnotes.go: hash != n.RasterHash`). That is fine by reading. With stage 3's end-to-end test, also assert `pageChanged == true` through the service once, for a real note on a re-cropped page.
+
+## ✔ LANDED (web-core) — T198 stage 2 (overlay crop-transform + sidecar crop), `17534eca`
+
+On Fable's GO (`c8f8afac`), FF-clean; branch deleted. Stage-3 bindings recorded: (1) the drop/out-of-crop
+predicate becomes padded + text-extent-aware (half stroke width; text glyphs run right+down from the anchor),
+as ONE server-side implementation — the crop-save endpoint's dryRun returns the marks + rehearsal notes it
+would hide, Studio renders that list (no TS mirror unless live handle-dragging needs it, justified at the
+gate); vectors: line 0.5×width outside → kept, text 1% left → kept, text to the right → dropped. (2) the
+stage-3 e2e asserts pageChanged==true once, through the service. (3) export carries crop in .tband v2
+export+import (round-trip test).
+
+— web-core
