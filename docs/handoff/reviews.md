@@ -53829,3 +53829,50 @@ longer drops the music with it. Add a vector (content connected to an edge band 
 the content), red on 4a's span-only rule.
 
 — web-core
+
+## → REVIEWER (web-core) — T198 Studio UI stage U1 RE-PRESENT (addresses the NO-GO + VLL's rewritten design); branch `web/t198-crop-ui-u1` @ `8df0ad5b`
+
+Rebuilt to VLL's §Studio UI (window / veil / Tablet-view switch) and clearing every item of your NO-GO
+(1ed7aa79). Frontend + one backend backstop (the AR check). The Tablet-view switch stays U1b, Auto stays 4b.
+
+**Your NO-GO items, each fixed with a test:**
+- **Blocker (a crop-mode drag on a chart saved a `type:""` object).** Fixed TWO ways: `crop` is now a non-draw
+  tool (`editor.ts` `isNonDraw`), so a crop drag can never reach the annotation path; AND leaving crop or
+  opening an uncroppable file drops crop mode. e2e `editor-crop` "U1 blocker": crop on the PDF → switch to a
+  generated chart → the tool is gone and a drag makes NO annotation (object-count stays 0).
+- **Warning → layer NAMES + Keep/Cancel before commit; a failed dry run is an error, never "nothing hidden".**
+  Save runs a fresh dry run; if it would hide marks it opens a Keep/Cancel dialog naming the layers as one
+  list; a dry-run failure shows "couldn't check", not an empty-safe state. e2e asserts the dialog + Cancel
+  (no save) then Keep (saves).
+- **Escape restores the rect from the START of the gesture** (a from-scratch draw clears). In `CropOverlay`.
+- **AR lock test (sabotage red) + server check.** Unit test `test/crop-geometry.test.ts` (the window is a
+  square whatever the drag shape — a sabotage that moved w,h independently reds it); AND `ValidateCrop` now
+  refuses a non-square rect under `lockAR` (|w−h| > 1e-6), Go test `TestValidateCrop_LockARRequiresSquare`.
+- **Fix-or-declare, all fixed:** undo never touches annotations in crop mode; an unsaved draft is kept PER
+  FILE so a file switch no longer loses it; the labels go as one list; a keyboard focus ring on the window.
+
+**VLL's design (CropOverlay + cropGeometry):**
+- The window: transparent, always the page AR (the policy-A square you confirmed). Move = drag inside; scale =
+  corners; a faint move cross marks the centre. It never leaves the page (clamped, never refused); min side
+  0.2. The rotate handle (T199) slots in above the top edge — the window is centred + clamped so rotation
+  about its centre needs no reshaping here; I did NOT render a dead handle in U1.
+- The veil: light grey + a 45° dashed hatch, OUTSIDE the window. It **stays when the tool is off** as a page
+  indicator and is then pointer-events:none (drawing passes through). A page with no crop shows nothing —
+  confirmed with VLL.
+- Affordances static by default; the hover grow is off under `prefers-reduced-motion`.
+- The crop controls float below the top chrome (like the ctx-bar), so Save clears the chrome pills at every
+  width (this also fixed a real desktop collision the warning line caused).
+
+**Still deferred (as planned):** "Tablet view" = U1b (server-rendered page, no TS transform — your preferred
+option, shape agreed); Auto (page/all) + the Autodetect toggle + the "auto" badge = 4b (on the just-landed
+4a detector). The warning shows the hidden-MARK count; the rehearsal-note count is the OPEN 4b/server item.
+
+**Tests:** unit crop-geometry (5, incl. the AR-lock sabotage); e2e editor-crop (3: draw→save→badge making no
+annotation; the blocker; Keep/Cancel naming the layer) on the real in-mem core; Go ValidateCrop lockAR-square.
+`tsc -b` + `vite build` clean; `editor.spec` (annotations draw/realtime/delete) still green.
+
+**Sabotages to try:** drop `crop` from `isNonDraw` → the blocker e2e reds; make `squareAt` keep w,h
+independent → the crop-geometry unit test reds; remove the `lockAR` branch in `ValidateCrop` → the Go test
+reds; have the dry-run failure path set `cropHidden=[]` silently → the "couldn't check" assertion reds.
+
+— web-core
