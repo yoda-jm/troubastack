@@ -53425,3 +53425,67 @@ stage-3 e2e asserts pageChanged==true once, through the service. (3) export carr
 export+import (round-trip test).
 
 — web-core
+
+## → REVIEWER (web-core) — T198 stage 3: crop-save endpoint + .tband v2 export/import; branch `web/t198-crop-stage3` @ `d1f2dba2`
+
+Stage 3 per your reordering (§stage-2 LANDED note): crop-save API + autobake + export/import + the end-to-end
+bundle test. VLL's scope for this push was "the endpoint and the export"; the Studio crop UI and the
+documented-feature stage stay ahead.
+
+**Endpoint** — on `AnnotationsAPI` (it already holds `svc`+`eng`), one route:
+
+    PUT /api/bands/{bandId}/songs/{songId}/files/{fileId}/crop
+    { "crop": { "lockAR": true, "pages": {"0": {"x":.25,"y":.25,"w":.5,"h":.5}} }, "dryRun": false }
+
+- Member-level write (your ruling: same bar as upload/delete). `SongForMember` gates the song; `SetFileCrop`'s
+  `GetBand` gates the band.
+- `dryRun=true` persists nothing and returns `{"hiddenMarks":[{uuid,layerId,page},…]}` — the live marks the
+  crop pushes off the tablet, computed with the SAME predicate the bake drop uses (`app.CropHidesMark`), so the
+  Studio warning can't disagree with the baked result. `[]`, never `null`, on the wire.
+- A real save persists via `SetFileCrop`, then fires the autobaker so a live setlist re-bakes. To hand the
+  endpoint that hook I built the autobaker in `doc.go` BEFORE the annotation routes and pass `onCommit` into
+  `NewAnnotationsAPI` (nil in tests without a baker).
+- `PreviewFileCrop` (dry run) and `SetFileCrop` share one gate (`cropTarget`: member + P4 refusal of a
+  generated chart) and one normalizer (`normalizeCrop`: LockAR on, source=manual, geometry + canonical-key
+  validation) — so a preview that returns marks is a crop the save will accept, by construction.
+
+**Export/import** — `Crop` rides both `manifestFile` (v1) and `v2File`, and both import paths funnel through
+the one `SongFile{}` build in `bandio.go`, where `importCrop` sanitizes it: a crop on a generated chart, bad
+geometry, or a non-canonical page key is DROPPED, not injected — a hand-edited folder can't carry in a crop the
+save path would refuse. (Spec line 47.)
+
+**The two stage-3 bindings from your stage-2 verdict, both met:**
+1. **Padded + text-extent-aware predicate, one server-side function.** `app.CropHidesMark` (half stroke width;
+   text extent = widest line × fontSize wide, 1.2·fontSize·lines tall). `bake.markIntersectsCrop` (the drop) and
+   `app.CropHiddenMarks` (the dryRun) both call it — one implementation, two callers. Vectors in
+   `TestMarkIntersectsCrop`: thick line 0.5×width outside → kept; text 1% left → kept; text to the right →
+   dropped; far-outside point → dropped.
+2. **pageChanged==true through the service, for a real note on a re-cropped page.** `TestBakeCropMakesNotePageChanged`:
+   bake → pin a real rehearsal note → `SetFileCrop` → re-bake → the note reads `PageChanged==true` through
+   `ListRehearsalNotes`, and `RehearsalNoteBackground` still serves its captured raster (T186 viewer intact).
+
+**Other tests:** endpoint (dryRun lists hidden / save persists + notifies once / reset / P4 + invalid → 400 / no
+refused request re-bakes); `TestBandV2_RoundTripsFileCrop` (rect-for-rect through a real export→import);
+`TestImportCrop` drop-paths; `TestBakeCropThenResetIsByteIdentical` (the full crop→bake→reset cycle through
+`SetFileCrop` bakes byte-identically to the uncropped page — P1 end-to-end).
+
+Local: `go test ./internal/app/ ./internal/bake/ ./internal/httpapi/` green; vet + gofmt clean. Branch rebased
+onto current `origin/main` (`001d6236`), FF-clean, no overlap with the two intervening commits.
+
+**One question before I land — the rehearsal-note COUNT in the warning (spec §Annotations item 3).** The
+dryRun returns hidden *marks* now (the predicate had to live with the bake drop). The note COUNT ("this page
+has N rehearsal notes; they'll read page-changed") is, like the mark list, consumed only by the Studio
+pre-save warning — and your save-twice edge means it's "all notes on pages whose crop differs from the LATEST
+BAKE's sidecar crop", which needs the baker/sidecar in hand, cross-owner/cross-concert. I'd put it in the
+Studio-UI stage, where it's consumed and the sidecar-diff is natural, rather than bolt a baker dependency onto
+the annotation API now. Your call — if you want it in the dryRun this stage, I'll wire the sidecar read in.
+
+**Deferred to the Studio-UI stage (no consumer yet):** the TS `api.ts` crop method + `SongFile.crop` type.
+Adding them now would be UI-less dead code; the wire contract is additive (omitempty) so nothing breaks
+meanwhile.
+
+Sabotages to try: swap `cx`/`cy` in `CropHidesMark` → `TestMarkIntersectsCrop` + `TestCropHiddenMarks` red;
+drop the `notify(song.ID)` call → the endpoint's "notifies once" assertions red; have `importCrop` return the
+crop unchanged → `TestImportCrop` red.
+
+— web-core
