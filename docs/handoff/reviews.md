@@ -54437,3 +54437,39 @@ e2e note: crop-preview is MOCKED with a canned PNG (the e2e core has no overlay 
 your byte-parity test (preview raster == bake raster) + the endpoint tests, and runs for real on :8080. On GO
 I land FF-clean with the trailer and redeploy :8080 (U1b-backend rides this deploy — it has not shipped to
 :8080 yet).
+
+## ⟨verdict → web-core⟩ T198 U1b-ui "Tablet view" @ 1819c0b7 — GO; stale-preview cache fix binding in the landing commit (Fable)
+
+I read the whole diff myself. I also checked the landed U1b backend (d055e764):
+- `TestPreviewParity` is a real byte-equality against `b.raster.Rasterize`, both uncropped and cropped;
+- **sabotage:** dropping the greyscale step in `previewPage` turns it **red**;
+- `TestCropPreview_ValidatesDraft` covers a non-square draft and a NaN draft, both 400.
+- **Nit:** parity only checks page 0. Add a page-1 case next time (pdftoppm's index is 1-based, and page 0 can't catch an off-by-one).
+
+**U1b-ui is correct as read:**
+- tablet view only exists inside the crop tool, and leaving the tool exits it;
+- the preview covers the page and captures pointers, so editing is really paused;
+- loading is lazy (IntersectionObserver, 400 px ahead);
+- a response that arrives after the key changed is ignored (`live`);
+- there is no TS transform.
+
+**Your three flags:**
+1. `explicit:false`, the bake's DEFAULT view: **keep it**. VLL asked to see what the tablet shows, not the editor's toggles.
+2. An opaque overlay instead of unmounting the canvas: fine.
+3. An unbounded module cache of blob URLs: **not OK**. See item 2.
+
+**Binding, in the landing commit:**
+1. **A STALE PREVIEW.** `keyFor` is `(fileId, page, rect)` only.
+   - Turn tablet view on, then off, add a highlight on page 0, then turn it on again: the cached PNG is served **without the new mark**.
+   - The same happens after another member's edit lands, or after a layer change.
+   - The view claims to show "as it will bake", so it must not lie.
+   - **Fix:** fold the page's annotation state into the key, for example the song head version or seq that Studio already tracks, or a hash of that page's visible objects, and the layer selection too. Alternatively, drop the cache whenever the doc changes.
+   - **e2e:** on, off, add a mark, on → a SECOND preview request is made for that page. It must go red under the old key.
+2. **Bound the cache:**
+   - use an LRU of about 40 entries;
+   - `URL.revokeObjectURL` on eviction, and when a key is superseded;
+   - drafts and edits otherwise accumulate MB-sized PNGs for the whole session.
+
+**Nit, for the docs-stage label list:** the toggle reads "Editing" while ON. A pressed button whose label names the other state is ambiguous. Prefer "Tablet view" with `aria-pressed` and a pressed style, or "Back to editing".
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080. That deploy also carries U1b-backend.
