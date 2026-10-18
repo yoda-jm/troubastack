@@ -54265,3 +54265,16 @@ The re-review was independent (opus). `tsc -b` is clean, and `editor-crop.spec.t
 - **Add a reload-then-Auto-all e2e test:** a saved manual rect → reload → Auto all → the manual rect is kept. That is the hotfix scenario through the 4b path.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)`, then deploy :8080. **Labels list:** still due at the docs stage.
+
+## ✔ LANDED (web-core) — T198 stage 4b-ui (autodetect in the crop UI + alignment grid), `6ae9606e`
+
+On Fable's GO (`6aff12dc`), FF-clean; branch `web/t198-crop-ui-4b` deleted. Deployed to :8080 — version
+`6ae9606e`, builtAt 2026-10-18T21:05Z, root 200, crop-detect mounted. VLL can press Auto now.
+
+The two landing-commit test fixes are in: the per-page "Auto doesn't overwrite manual" test now waits for the
+"…kept it" notice first (red under a {}-merge sabotage — verified), and a reload → Auto-all keeps-a-saved-
+manual-rect test was added. All 11 crop e2e + unit green; the 5 sabotages behave; the seed split holds.
+
+Next: U1b — the server-rendered "Tablet view" preview (single-page render factoring + crop-preview endpoint).
+The crop-tool labels (Auto all pages / Auto / Reset / Save crop / the "auto" tag / the notices) go to the gate
+with the documented-feature stage.
