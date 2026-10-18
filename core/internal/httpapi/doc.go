@@ -89,7 +89,7 @@ func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *ba
 	// Annotation API (view-only reads + layer/object import, and the T198 crop save).
 	// Reuses the relational auth middleware so it shares one auth path. onCommit lets a
 	// crop save re-bake a live setlist.
-	NewAnnotationsAPI(svc, eng, onCommit).Mount(mux, web.auth)
+	NewAnnotationsAPI(svc, eng, onCommit, baker).Mount(mux, web.auth)
 
 	// Whole-band export/import (T62): admin exports a .tband zip; any user imports
 	// one into a new band. Needs the engine (annotations ride the export).

@@ -46,6 +46,21 @@ func (s *Service) PreviewFileCrop(caller User, bandID, songID, fileID string, cr
 	return CropHiddenMarks(snap, fileID, crop), nil
 }
 
+// CropDetectSource returns an uploaded PDF's bytes for an autodetect proposal, enforcing the SAME gate as a
+// crop save (member via cropTarget + P4 refusal of a generated chart). Read-only — the caller (httpapi) runs
+// detection through the baker and proposes rects the user then saves through the normal crop save.
+func (s *Service) CropDetectSource(caller User, bandID, songID, fileID string) ([]byte, error) {
+	f, err := s.cropTarget(caller, bandID, songID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	data, err := s.blobs.Get(f.BlobHash)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 // cropTarget resolves the uploaded PDF a crop applies to, enforcing the member gate (GetBand: any member may
 // crop) and P4 (a generated chart is refused — it already lays out to the page). Shared by the save and its
 // dry run so both accept and refuse exactly the same files.

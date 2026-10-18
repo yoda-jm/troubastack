@@ -84,7 +84,7 @@ func newCropFixture(t *testing.T) *cropFixture {
 
 	notified := &[]string{}
 	mux := http.NewServeMux()
-	NewAnnotationsAPI(svc, eng, func(songID string) { *notified = append(*notified, songID) }).
+	NewAnnotationsAPI(svc, eng, func(songID string) { *notified = append(*notified, songID) }, nil).
 		Mount(mux, func(h authedHandler) http.HandlerFunc {
 			return func(w http.ResponseWriter, r *http.Request) { h(w, r, admin) }
 		})

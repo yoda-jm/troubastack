@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"troubastack/core/internal/app"
+	"troubastack/core/internal/bake"
 	"troubastack/core/internal/chartpdf"
 	"troubastack/core/internal/domain"
 	"troubastack/core/internal/engine"
@@ -23,13 +24,17 @@ type AnnotationsAPI struct {
 	// notify (T198) fires the autobaker when a crop is saved, so a live setlist containing the song
 	// re-bakes with the new bake area. nil when no baker is wired (most unit tests, and dev without bake).
 	notify func(songID string)
+	// baker (T198 4b) runs autodetect for the crop-detect endpoint (rasterize-then-detect). nil when no baker
+	// is wired — crop-detect then returns 503.
+	baker *bake.Baker
 }
 
 // NewAnnotationsAPI builds the annotation adapter over the relational Service (for
 // member/song authorization) and the per-song apply engine (the annotation authority).
-// notify (may be nil) is the autobaker hook fired after a crop save; see doc.go wiring.
-func NewAnnotationsAPI(svc *app.Service, eng *engine.Engine, notify func(songID string)) *AnnotationsAPI {
-	return &AnnotationsAPI{svc: svc, eng: eng, notify: notify}
+// notify (may be nil) is the autobaker hook fired after a crop save; baker (may be nil)
+// runs autodetect for crop-detect. See doc.go wiring.
+func NewAnnotationsAPI(svc *app.Service, eng *engine.Engine, notify func(songID string), baker *bake.Baker) *AnnotationsAPI {
+	return &AnnotationsAPI{svc: svc, eng: eng, notify: notify, baker: baker}
 }
 
 // Mount registers the annotation routes. They sit under the song path so the band +
@@ -42,6 +47,8 @@ func (a *AnnotationsAPI) Mount(mux *http.ServeMux, authed func(authedHandler) ht
 	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}/link-check", authed(a.linkCheck))
 	// T198: save (or dry-run) a per-page bake crop on an uploaded PDF (crop.go).
 	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/files/{fileId}/crop", authed(a.setCrop))
+	// T198 4b: propose autodetected crops for an uploaded PDF's pages (read-only; crop.go).
+	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/files/{fileId}/crop-detect", authed(a.detectCrop))
 }
 
 // ---- wire types (the EXACT contract the frontend + seeder speak) ----

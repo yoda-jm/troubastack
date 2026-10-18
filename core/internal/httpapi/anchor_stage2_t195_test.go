@@ -80,7 +80,7 @@ func newStage2Fixture(t *testing.T) *stage2Fixture {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	NewAnnotationsAPI(svc, eng, nil).Mount(mux, func(h authedHandler) http.HandlerFunc {
+	NewAnnotationsAPI(svc, eng, nil, nil).Mount(mux, func(h authedHandler) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) { h(w, r, admin) }
 	})
 	return &stage2Fixture{svc: svc, eng: eng, admin: admin, band: band.ID, song: song.ID, chart: chart, target: target, mux: mux}

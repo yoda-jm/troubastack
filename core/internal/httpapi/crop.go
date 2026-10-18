@@ -63,3 +63,67 @@ func (a *AnnotationsAPI) setCrop(w http.ResponseWriter, r *http.Request, u app.U
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"file": f})
 }
+
+// detectCrop proposes autodetected crops for an uploaded PDF's pages (T198 4b), READ-ONLY — it writes
+// nothing. Same member gate + P4 refusal as the save (via CropDetectSource). It renders the pages through
+// the bake path and runs the content detector, then returns the proposed rects AND the marks they would hide
+// (PreviewFileCrop), so Studio shows the proposal with its warning. The user commits a proposal through the
+// normal crop save with source "auto"; a manual rect is never overwritten here. Detection is never a bake.
+//
+//	POST /api/bands/{bandId}/songs/{songId}/files/{fileId}/crop-detect
+//	{ "pages": [0,2] }  — or  { "all": true }
+//	→ { "pages": {"0": {x,y,w,h,source:"auto"}, …}, "hiddenMarks": [...] }
+func (a *AnnotationsAPI) detectCrop(w http.ResponseWriter, r *http.Request, u app.User) {
+	bandID := r.PathValue("bandId")
+	song, err := a.svc.SongForMember(u, bandID, r.PathValue("songId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	fileID := r.PathValue("fileId")
+	var in struct {
+		Pages []int `json:"pages"`
+		All   bool  `json:"all,omitempty"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if a.baker == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "autodetect needs the bake toolchain, which this server does not have"})
+		return
+	}
+	// Gate (member + P4) and fetch the PDF bytes.
+	pdf, err := a.svc.CropDetectSource(u, bandID, song.ID, fileID)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	want := map[int]bool{}
+	for _, p := range in.Pages {
+		want[p] = true
+	}
+	rects, err := a.baker.DetectCropForPages(r.Context(), pdf, want, in.All)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	// The proposal's hidden marks, by the same predicate the save/warning use. The proposed rects are square
+	// (policy A) and ≥ the min side, so PreviewFileCrop's validation accepts them.
+	snap, err := a.eng.Head(song.ID)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	hidden, err := a.svc.PreviewFileCrop(u, bandID, song.ID, fileID, app.Crop{LockAR: true, Pages: rects}, snap)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if hidden == nil {
+		hidden = []app.HiddenMark{}
+	}
+	if rects == nil {
+		rects = map[string]app.CropRect{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"pages": rects, "hiddenMarks": hidden})
+}

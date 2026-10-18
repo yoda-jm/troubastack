@@ -2,6 +2,7 @@ package bake
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/color"
 	"image/png"
@@ -103,6 +104,24 @@ func TestAutodetect_SpeckRejected(t *testing.T) {
 	approx(t, r.x, 0.28, 0.02, "x")
 }
 
+// TestAutodetect_ContentFusedToEdgeKept: a wide strip of content that reaches a page edge (music fused to a
+// scanner band, or a full-width system touching the margin) is THICK, so the edge-band rule keeps it and the
+// proposal still contains the content. Red on the old span-only rule, which rejected any border-touching
+// component spanning ≥90% of a dimension and so dropped the music with the band (Fable's real-data finding).
+func TestAutodetect_ContentFusedToEdgeKept(t *testing.T) {
+	// 0.9 wide (spans width → the old rule rejected it), 0.36 tall (far thicker than the 5% band bound), and
+	// it reaches the left edge.
+	strip := image.Rect(0, 90, 180, 190)
+	r, ok := detectContentRect(page(pw, ph, strip))
+	if !ok {
+		t.Fatal("content fused to an edge must still yield a crop (not be dropped as a band)")
+	}
+	// The crop contains the content's centre (≈0.45, 0.5).
+	if !(r.x <= 0.45 && 0.45 <= r.x+r.w && r.y <= 0.5 && 0.5 <= r.y+r.h) {
+		t.Fatalf("the crop must contain the fused content, got %+v", r)
+	}
+}
+
 // TestAutodetect_BlankPage: an all-white page has nothing to crop.
 func TestAutodetect_BlankPage(t *testing.T) {
 	if _, ok := detectContentRect(page(pw, ph)); ok {
@@ -114,5 +133,40 @@ func TestAutodetect_BlankPage(t *testing.T) {
 func TestAutodetect_FullBleed(t *testing.T) {
 	if _, ok := detectContentRect(page(pw, ph, image.Rect(2, 2, pw-2, ph-2))); ok {
 		t.Fatal("a full-bleed page must not yield a crop")
+	}
+}
+
+// pagesRaster is a fake Rasterizer returning canned page PNGs, for DetectCropForPages' glue (page selection,
+// map keys, source tag) without poppler.
+type pagesRaster struct{ pages [][]byte }
+
+func (p pagesRaster) Rasterize(_ context.Context, _ []byte) ([][]byte, error) { return p.pages, nil }
+
+// TestDetectCropForPages: the detector glue selects the requested pages (or all), keys by page index, and
+// tags proposals "auto". Page 0 has centred content (→ a proposal); page 1 is blank (→ none).
+func TestDetectCropForPages(t *testing.T) {
+	b := &Baker{raster: pagesRaster{pages: [][]byte{page(pw, ph, contentBlock), page(pw, ph)}}}
+
+	// "this page" = page 0 only.
+	got, err := b.DetectCropForPages(context.Background(), []byte("pdf"), map[int]bool{0: true}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got["0"].Source != "auto" || got["0"].W <= 0 {
+		t.Fatalf("page-0 detect = %+v, want one auto rect on page 0", got)
+	}
+	if math.Abs(got["0"].W-got["0"].H) > 1e-9 {
+		t.Fatalf("a proposed rect must be square (policy A), got %+v", got["0"])
+	}
+
+	// A page that was NOT requested yields nothing.
+	if only1, _ := b.DetectCropForPages(context.Background(), []byte("pdf"), map[int]bool{1: true}, false); len(only1) != 0 {
+		t.Fatalf("blank page 1 must propose no crop, got %+v", only1)
+	}
+
+	// "all": page 0 proposes, blank page 1 does not.
+	all, _ := b.DetectCropForPages(context.Background(), []byte("pdf"), nil, true)
+	if len(all) != 1 || all["0"].Source != "auto" {
+		t.Fatalf("all-pages detect = %+v, want just page 0", all)
 	}
 }
