@@ -53816,3 +53816,16 @@ None of VLL's pages does this today. But the failure goes the dangerous way: it 
 ### Recorded
 - `autoMinComponentFrac` is about 9 px at 150 dpi, so a large dust blob survives. That fails safe (it crops less). Leave it.
 - **Noted for T199:** run angle autodetect before this detector, on the straightened raster, as T199 says.
+
+## ✔ LANDED (web-core) — T198 stage 4a (autodetect detection core), `d1d0f439`
+
+On Fable's GO (`2ac863cd`), FF-clean; branch `web/t198-autocrop-4a` deleted. Both sabotages (edge-band, speck)
+go red; the real-data probe (142 PDFs / 1166 pages → 569 proposals, 0 pages cutting >0.1% of ink) is on the
+verdict. No :8080 deploy — a pure function with no caller changes nothing observable; it deploys with 4b.
+
+**Bound on 4b (Fable's real-data finding):** the edge-band rule is bounded by THICKNESS — reject a
+border-touching component only when it is ≤~5% thick perpendicular to its edge, so a band FUSED to content no
+longer drops the music with it. Add a vector (content connected to an edge band → the proposal still contains
+the content), red on 4a's span-only rule.
+
+— web-core
