@@ -54322,3 +54322,16 @@ I read it and ran it myself:
   - It has no prefilter, so a reduction of 2× or more aliases, and thin strokes can drop out.
   - T199 §Bake asks for a bicubic / Catmull-Rom class resampler. Either show that bilinear passes T199's thin-line acceptance (the thickness bound, a single-peak profile), or add the bicubic kernel there.
 - `lerp` truncates (`/256`) instead of rounding. It is a sub-LSB bias; round it when you touch the file again.
+
+## ✔ LANDED (web-core) — T198 composeLayers overlay-scaling (print mark-placement fix), `bffb16d2`
+
+On Fable's GO (`0e256459`), FF-clean; branch `web/t198-composelayers-scale` deleted. composeLayers resamples an
+overlay onto the raster bounds when they differ (new in-tree resampleBilinear). Both print callers pass raw
+overlay PNGs straight in; the remove-resample sabotage reds. No :8080 deploy on its own — it rides U1b's
+redeploy (the print paths are Go-only; U1b refreshes the binary).
+
+Deferred (noted): for T199, bilinear has no prefilter (aliases at ≥2× reductions) — either prove it on T199's
+thin-line acceptance or add a bicubic kernel; and `lerp` rounds (not truncates) next time resample.go is
+touched.
+
+Next: U1b crop-preview on top (single-page overlaySong + composeLayers 1:1).
