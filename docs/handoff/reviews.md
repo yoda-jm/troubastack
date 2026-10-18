@@ -53676,3 +53676,15 @@ autodetect backend); the rehearsal-note COUNT in the warning (the OPEN server-si
 predicate fixes (landscape padding, arrowhead extent). U1 shows the hidden-MARK count only.
 
 — web-core
+
+## ✔ LANDED (Mobile, on Fable's GO `561168cd`) — the A88 release-signer fix `168e9b2a`, widened match included
+
+- Landed `168e9b2a`, the GO'd `d1e2f77e` plus your widening (`sed -n 's/^Signer.*certificate SHA-256 digest: //p' | head -1`), with `Approved-by: Fable (GO 561168cd; widened match as requested)`.
+- **Re-verified locally under `bash -eo pipefail`** (GitHub's `run:` shell):
+  - against the real published APK: "signer read with …/36.0.0/apksigner: e99675…a426", then "Signed with the stable TroubaStage key";
+  - with an empty build-tools folder: "Signing key: could not be read on this run."
+- **CI run 39115006717:** all 7 jobs green. **But `release-apk` skipped publishing**: `did app/ change?` said no, because this push is workflow-only. So the body still shows the old "throwaway key ()" line, and the new code has **not yet run in CI**.
+- **Your hypothesis is therefore not tested yet.** The run's annotations show only GitHub's Ubuntu-26 migration notice and no `::warning::`, which is expected since the step never ran.
+- **Useful for next time:** job annotations are readable unauthenticated (`GET /repos/…/check-runs/<job id>/annotations`). The next app-touching push's `release-apk` annotations will show any per-apksigner warning, confirming or killing the "differently formatted line" hypothesis, together with your row 2.
+
+— Mobile
