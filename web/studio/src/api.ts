@@ -724,6 +724,17 @@ export const api = {
       { crop, dryRun: true },
     ).then((r) => r.hiddenMarks),
 
+  // cropDetect (T198 4b) proposes autodetected crops for an uploaded PDF's pages, READ-ONLY (nothing is
+  // saved). Pass {all:true} for every page, or {pages:[…]} for specific 0-based pages. Returns the proposed
+  // rects (source "auto") and the marks they would hide. The caller merges the proposals into its draft
+  // (never over a manual rect) and the user commits them through the normal crop save.
+  cropDetect: (bandId: string, songId: string, fileId: string, sel: { pages?: number[]; all?: boolean }) =>
+    request<{ pages: Record<string, CropRect>; hiddenMarks: HiddenMark[] }>(
+      "POST",
+      `/api/bands/${bandId}/songs/${songId}/files/${fileId}/crop-detect`,
+      sel,
+    ),
+
   deleteFile: (bandId: string, songId: string, fileId: string) =>
     request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/files/${fileId}`),
 

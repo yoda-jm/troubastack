@@ -27,12 +27,12 @@ function oppositeCorner(r: Rect, h: HandleId): { x: number; y: number } {
 }
 
 type Gesture =
-  // `before` is the rect as the gesture STARTED, so Escape restores it (or clears, when the page had no crop
-  // and this is a from-scratch draw). A redraw over an existing crop records the existing rect, so Escape
-  // never wipes a saved crop.
-  | { kind: "draw"; before: Rect | null; ax: number; ay: number }
-  | { kind: "move"; before: Rect; orig: Rect; startX: number; startY: number }
-  | { kind: "resize"; before: Rect; handle: HandleId; ax: number; ay: number };
+  // `before` is the WHOLE rect (source included) as the gesture STARTED, so Escape restores it verbatim —
+  // an auto rect stays auto, not forced to manual — or clears when the page had no crop (a from-scratch
+  // draw). A redraw over an existing crop records it, so Escape never wipes a saved crop.
+  | { kind: "draw"; before: CropRect | null; ax: number; ay: number }
+  | { kind: "move"; before: CropRect; orig: Rect; startX: number; startY: number }
+  | { kind: "resize"; before: CropRect; handle: HandleId; ax: number; ay: number };
 
 export type CropOverlayProps = {
   /** The rect to show (draft while editing, saved otherwise), or null when the page is uncropped. */
@@ -43,10 +43,18 @@ export type CropOverlayProps = {
   onChange: (rect: Rect) => void;
   /** Clear THIS page's crop (the per-page Reset, and the Escape of a from-scratch draw). */
   onReset: () => void;
+  /** Restore a rect VERBATIM (source included) — the Escape of an edit over an existing crop. */
+  onRestore: (rect: CropRect) => void;
+  /** Autodetect THIS page's crop (server proposal merged into the draft). */
+  onAuto: () => void;
+  /** An autodetect request is in flight (disables the Auto buttons). */
+  autoBusy: boolean;
   page: number;
 };
 
-export default function CropOverlay({ rect, interactive, onChange, onReset, page }: CropOverlayProps) {
+const GRID_LINES = [1, 2, 3]; // the inner lines of a 4×4 alignment grid (quarters)
+
+export default function CropOverlay({ rect, interactive, onChange, onReset, onRestore, onAuto, autoBusy, page }: CropOverlayProps) {
   const ref = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -74,15 +82,16 @@ export default function CropOverlay({ rect, interactive, onChange, onReset, page
       ref.current?.focus();
       const pt = toFrac(e.clientX, e.clientY);
       const handle = (e.target as HTMLElement).dataset?.handle as HandleId | undefined;
-      if (handle && current) {
+      // `before` is the WHOLE rect (the prop, with source) so Escape restores it verbatim.
+      if (handle && current && rect) {
         const opp = oppositeCorner(current, handle);
-        gestureRef.current = { kind: "resize", before: current, handle, ax: opp.x, ay: opp.y };
-      } else if (current && pt.x >= current.x && pt.x <= current.x + current.w && pt.y >= current.y && pt.y <= current.y + current.h) {
-        gestureRef.current = { kind: "move", before: current, orig: current, startX: pt.x, startY: pt.y };
+        gestureRef.current = { kind: "resize", before: rect, handle, ax: opp.x, ay: opp.y };
+      } else if (current && rect && pt.x >= current.x && pt.x <= current.x + current.w && pt.y >= current.y && pt.y <= current.y + current.h) {
+        gestureRef.current = { kind: "move", before: rect, orig: current, startX: pt.x, startY: pt.y };
       } else {
-        // A draw from empty space. `before: current` so Escape restores a pre-existing crop rather than
-        // wiping it; it is null only on a genuinely uncropped page (then Escape clears).
-        gestureRef.current = { kind: "draw", before: current, ax: pt.x, ay: pt.y };
+        // A draw from empty space. `before: rect` so Escape restores a pre-existing crop rather than wiping
+        // it; it is null only on a genuinely uncropped page (then Escape clears).
+        gestureRef.current = { kind: "draw", before: rect, ax: pt.x, ay: pt.y };
       }
       setDragging(true);
     },
@@ -107,7 +116,7 @@ export default function CropOverlay({ rect, interactive, onChange, onReset, page
         // Restore the rect to the START of the in-progress gesture (and a from-scratch draw clears the page).
         const g = gestureRef.current;
         if (g) {
-          if (g.before) onChange(g.before);
+          if (g.before) onRestore(g.before); // verbatim — keeps the original source (auto stays auto)
           else onReset();
           endGesture();
           e.preventDefault();
@@ -126,7 +135,7 @@ export default function CropOverlay({ rect, interactive, onChange, onReset, page
       e.preventDefault();
       onChange(moveRect(current, dx, dy));
     },
-    [interactive, current, onChange, onReset, endGesture],
+    [interactive, current, onChange, onReset, onRestore, endGesture],
   );
 
   // A page with no crop and no active tool shows nothing. But when the tool IS active we still mount the
@@ -155,6 +164,25 @@ export default function CropOverlay({ rect, interactive, onChange, onReset, page
       onPointerCancel={endGesture}
       onKeyDown={onKeyDown}
     >
+      {interactive && (
+        // Per-page "Auto (this page)" — works whether or not the page already has a crop. Top-left so it
+        // clears the window and its handles.
+        <button
+          type="button"
+          className="crop-auto-btn"
+          data-testid={`crop-auto-${page}`}
+          title="Autodetect this page's content"
+          aria-label="Autodetect this page"
+          disabled={autoBusy}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onAuto();
+          }}
+        >
+          Auto
+        </button>
+      )}
       {current && (
         <>
           {/* The hatched grey veil over the four bands OUTSIDE the window. */}
@@ -163,36 +191,51 @@ export default function CropOverlay({ rect, interactive, onChange, onReset, page
           <div className="crop-dim" style={{ left: 0, top: `${current.y * 100}%`, width: `${current.x * 100}%`, height: `${current.h * 100}%` }} />
           <div className="crop-dim" style={{ left: `${(current.x + current.w) * 100}%`, top: `${current.y * 100}%`, right: 0, height: `${current.h * 100}%` }} />
 
-          {/* The transparent window. Handles + affordances + reset only when interactive. */}
+          {/* The transparent window. Alignment grid + handles + affordances + buttons only when interactive. */}
           <div className="crop-rect" data-testid={`crop-rect-${page}`} style={pct(current)}>
             {interactive && (
-          <>
-            {/* faint move cross (centre) — the move affordance; never blocks the move drag */}
-            <span className="crop-move-cross" aria-hidden="true" />
-            {HANDLES.map((h) => (
-              <span
-                key={h}
-                className={`crop-handle crop-handle-${h}`}
-                data-handle={h}
-                data-testid={`crop-handle-${page}-${h}`}
-              />
-            ))}
-            {/* T199 rotate handle mounts here, above the top edge; the window is centred so rotation about its
-                centre slots in without reshaping this. */}
-            <button
-              type="button"
-              className="crop-reset-btn"
-              data-testid={`crop-reset-${page}`}
-              title="Reset this page (bake the whole page)"
-              aria-label="Reset this page"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onReset();
-              }}
-            >
-              ×
-            </button>
+              <>
+                {/* Alignment grid (~4×4): thin, semi-transparent lines to level the staves. It moves + scales
+                    with the window (it is inside it) and will rotate with it under T199. */}
+                <div className="crop-grid" aria-hidden="true" data-testid={`crop-grid-${page}`}>
+                  {GRID_LINES.map((n) => (
+                    <span key={`v${n}`} className="crop-grid-v" style={{ left: `${(n / 4) * 100}%` }} />
+                  ))}
+                  {GRID_LINES.map((n) => (
+                    <span key={`h${n}`} className="crop-grid-h" style={{ top: `${(n / 4) * 100}%` }} />
+                  ))}
+                </div>
+                {/* faint move cross (centre) — the move affordance; never blocks the move drag */}
+                <span className="crop-move-cross" aria-hidden="true" />
+                {HANDLES.map((h) => (
+                  <span
+                    key={h}
+                    className={`crop-handle crop-handle-${h}`}
+                    data-handle={h}
+                    data-testid={`crop-handle-${page}-${h}`}
+                  />
+                ))}
+                {/* An auto-detected rect is tagged so the user sees which pages are machine-proposed. */}
+                {rect?.source === "auto" && (
+                  <span className="crop-auto-tag" data-testid={`crop-auto-tag-${page}`} aria-label="Autodetected">
+                    auto
+                  </span>
+                )}
+                {/* T199 rotate handle mounts above the top edge; the window is centred + clamped for it. */}
+                <button
+                  type="button"
+                  className="crop-reset-btn"
+                  data-testid={`crop-reset-${page}`}
+                  title="Reset this page (bake the whole page)"
+                  aria-label="Reset this page"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReset();
+                  }}
+                >
+                  ×
+                </button>
               </>
             )}
           </div>

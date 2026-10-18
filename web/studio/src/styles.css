@@ -1486,6 +1486,26 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   .crop-overlay.interactive .crop-handle { transition: transform .08s ease; }
   .crop-overlay.interactive .crop-handle:hover { transform: translate(0, 0) scale(1.25); }
 }
+/* Alignment grid inside the window (~4×4): thin, semi-transparent, readable over paper and ink. It scales
+   with the window because it is positioned in %. */
+.crop-grid { position: absolute; inset: 0; pointer-events: none; }
+.crop-grid-v { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(120, 120, 120, 0.55); }
+.crop-grid-h { position: absolute; left: 0; right: 0; height: 1px; background: rgba(120, 120, 120, 0.55); }
+/* "auto" tag on a machine-proposed window. */
+.crop-auto-tag {
+  position: absolute; left: 2px; bottom: 2px; padding: 0 4px;
+  font-size: 10px; line-height: 15px; border-radius: 3px;
+  background: var(--accent); color: var(--surface); pointer-events: none;
+}
+/* per-page "Auto (this page)" button, BOTTOM-left of the overlay — clear of the window's top handles (the
+   top-left nw handle sits at the overlay corner when the window is at 0,0). */
+.crop-auto-btn {
+  position: absolute; bottom: 4px; left: 4px; z-index: 2;
+  padding: 2px 7px; font-size: 12px; cursor: pointer;
+  background: var(--surface); color: var(--fg);
+  border: 1px solid var(--accent); border-radius: 4px;
+}
+.crop-auto-btn:disabled { opacity: .6; cursor: default; }
 .crop-reset-btn {
   position: absolute; top: 2px; right: 2px;
   width: 20px; height: 20px; line-height: 1; padding: 0;
@@ -1510,6 +1530,7 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .crop-panel button, .crop-panel .crop-confirm { pointer-events: auto; }
 .crop-panel-hint { color: var(--muted-fg, var(--fg)); }
 .crop-panel-warn { color: var(--warn-fg); background: var(--warn-bg); border: 1px solid var(--warn-border); padding: .15rem .4rem; border-radius: 3px; }
+.crop-panel-notice { color: var(--muted-fg, var(--fg)); }
 .crop-confirm { display: inline-flex; align-items: center; gap: .4rem; color: var(--warn-fg); }
 .crop-confirm-dialog {
   position: absolute; z-index: 8;

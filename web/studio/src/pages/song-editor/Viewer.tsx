@@ -350,6 +350,21 @@ export function Viewer({
   // True only when the draft was emptied by an explicit Reset, so commitCrop may send {} (a wipe); any other
   // empty draft over a stored crop is refused, a backstop to the seed fix against the data-loss bug.
   const cropResetIntentRef = useRef(false);
+  // Live mirror of the open file id, so an async autodetect that RETURNS after a file switch merges into the
+  // file it was asked for (via the ref) and only touches the active view when that file is still open.
+  const selectedFileIdRef = useRef(selectedFileId);
+  useEffect(() => {
+    selectedFileIdRef.current = selectedFileId;
+  }, [selectedFileId]);
+  // numPages is destructured from a hook further down; mirror it in a ref so the async runAuto can read the
+  // open file's page count for its "no content on N pages" summary without a forward reference.
+  const numPagesRef = useRef(0);
+  // The open file's SAVED crop, mirrored, so an Auto merge starts from the stored crop even if the draft ref
+  // hasn't been seeded yet (never from {} — that could drop a stored crop).
+  const persistedPagesRef = useRef<Record<string, CropRect> | null>(persistedPages);
+  useEffect(() => {
+    persistedPagesRef.current = persistedPages;
+  }, [persistedPages]);
   const [cropDraft, setCropDraftRaw] = useState<Record<string, CropRect>>({});
   const [cropHidden, setCropHidden] = useState<HiddenMark[]>([]);
   const [cropWarnError, setCropWarnError] = useState(false); // the live dry run failed → never imply "nothing hidden"
@@ -357,6 +372,8 @@ export function Viewer({
   const [cropError, setCropError] = useState<string | null>(null);
   const [cropConfirmReset, setCropConfirmReset] = useState(false);
   const [cropConfirm, setCropConfirm] = useState<HiddenMark[] | null>(null); // Keep/Cancel before a hiding save
+  const [cropAutoBusy, setCropAutoBusy] = useState(false);
+  const [cropNotice, setCropNotice] = useState<string | null>(null); // "no content detected" / skip summary
 
   // setCropDraft updates the active draft AND remembers it per file (so a file switch preserves it).
   const setCropDraft = useCallback(
@@ -391,14 +408,22 @@ export function Viewer({
         setCropDraftRaw({}); // no saved crop present yet (or none) — do NOT record, so it reseeds on arrival
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFileId, persistedPages]);
+
+  // Reset the crop UI state ONLY on a file change — NOT on a persistedPages refetch. Keeping these out of the
+  // seed effect (which re-runs on data arrival) is Fable's nit: otherwise a refetch after Reset-all would
+  // close an open Keep/Cancel and clear the Reset intent, making the clearing Save refuse itself.
+  useEffect(() => {
     cropResetIntentRef.current = false;
     setCropHidden([]);
     setCropWarnError(false);
     setCropError(null);
     setCropConfirmReset(false);
     setCropConfirm(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFileId, persistedPages]);
+    setCropAutoBusy(false);
+    setCropNotice(null);
+  }, [selectedFileId]);
 
   // Leaving the Crop tool (or opening a file that cannot be cropped) drops crop mode, so a stray drag on a
   // chart can never reach the annotation path — half of the U1 blocker fix (the other half: crop is now a
@@ -453,6 +478,65 @@ export function Viewer({
       });
     },
     [setCropDraft],
+  );
+
+  // T198 4b — autodetect. runAuto asks the server to propose crops (read-only) and merges them into the
+  // draft, NEVER over a manual rect (ruling A: Auto fills pages with no rect or an auto one). The user then
+  // Saves as usual. {all:true} does every page; {pages:[i]} a single one.
+  const runAuto = useCallback(
+    async (sel: { pages?: number[]; all?: boolean }) => {
+      const fileId = selectedFileId; // bind the file NOW; the result may return after a file switch
+      if (fileId == null) return;
+      setCropAutoBusy(true);
+      setCropError(null);
+      setCropNotice(null);
+      try {
+        const res = await api.cropDetect(bandId, songId, fileId, sel);
+        // Merge into THAT file's draft (by id, via the ref), never over a manual rect. applied/keptManual
+        // count the outcome for the notice.
+        // Start from the file's current draft; if it hasn't been seeded yet, from its SAVED crop (when that
+        // file is still open) — never from {}, which could drop a stored crop.
+        const base =
+          cropDraftsRef.current.get(fileId) ??
+          (selectedFileIdRef.current === fileId ? { ...(persistedPagesRef.current ?? {}) } : {});
+        const merged = { ...base };
+        let applied = 0;
+        let keptManual = 0;
+        for (const [key, rect] of Object.entries(res.pages)) {
+          const existing = merged[key];
+          if (!existing || existing.source === "auto") {
+            merged[key] = rect;
+            applied++;
+          } else {
+            keptManual++;
+          }
+        }
+        cropDraftsRef.current.set(fileId, merged);
+        const stillOpen = selectedFileIdRef.current === fileId;
+        if (stillOpen) {
+          setCropDraftRaw(merged);
+          // Tell the user when an explicit Auto changed nothing, or what it skipped.
+          if (sel.pages && sel.pages.length === 1) {
+            const key = String(sel.pages[0]);
+            if (!res.pages[key]) setCropNotice("No content detected on this page — crop unchanged.");
+            else if (applied === 0 && keptManual > 0) setCropNotice("That page already has a crop you drew — kept it.");
+          } else {
+            const parts = [`Auto-cropped ${applied} page${applied === 1 ? "" : "s"}.`];
+            if (keptManual > 0) parts.push(`Kept your crop on ${keptManual}.`);
+            const noContent = numPagesRef.current - Object.keys(res.pages).length;
+            if (noContent > 0) parts.push(`No content found on ${noContent}.`);
+            setCropNotice(parts.join(" "));
+          }
+        }
+      } catch (e) {
+        if (selectedFileIdRef.current === fileId) {
+          setCropError(e instanceof ApiError ? e.message : "Autodetect isn't available right now.");
+        }
+      } finally {
+        if (selectedFileIdRef.current === fileId) setCropAutoBusy(false);
+      }
+    },
+    [selectedFileId, bandId, songId],
   );
 
   const commitCrop = useCallback(async () => {
@@ -736,6 +820,9 @@ export function Viewer({
     visible,
     layerRank,
   });
+  useEffect(() => {
+    numPagesRef.current = numPages;
+  }, [numPages]);
 
   // ---- editable layers (for the active-layer selector) ----
   // Layers I may draw into, scoped to the currently selected file: my own
@@ -1925,6 +2012,16 @@ export function Viewer({
           <span className="crop-panel-hint">
             Drag on a page to set its bake area; the rest is trimmed on the tablet. Drawing stays where it is.
           </span>
+          <button
+            type="button"
+            className="btn-sm"
+            data-testid="crop-auto-all"
+            disabled={cropAutoBusy}
+            onClick={() => runAuto({ all: true })}
+            title="Detect the content on every page and propose a crop (your hand-drawn crops are kept)"
+          >
+            {cropAutoBusy ? "Detecting…" : "Auto all pages"}
+          </button>
           {cropWarnError ? (
             <span className="crop-panel-warn" data-testid="crop-warning" role="alert">
               Couldn't check which annotations fall outside — try again.
@@ -1940,6 +2037,11 @@ export function Viewer({
           {cropError && (
             <span className="crop-panel-warn" data-testid="crop-error" role="alert">
               {cropError}
+            </span>
+          )}
+          {cropNotice && (
+            <span className="crop-panel-notice" data-testid="crop-notice" role="status">
+              {cropNotice}
             </span>
           )}
           {cropConfirmReset ? (
@@ -2122,6 +2224,9 @@ export function Viewer({
                       rect={rect}
                       onChange={(r) => setPageCrop(i, r)}
                       onReset={() => resetPageCrop(i)}
+                      onRestore={(r) => setCropDraft((d) => ({ ...d, [String(i)]: r }))}
+                      onAuto={() => runAuto({ pages: [i] })}
+                      autoBusy={cropAutoBusy}
                     />
                   );
                 })()}
