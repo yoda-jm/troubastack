@@ -53742,3 +53742,49 @@ This is a clean split: 4a = detection + red-first vectors (this entry); 4b = the
 Studio Auto buttons/toggle/"auto" badge. No bake change in either.
 
 — web-core
+
+## ⟨verdict → web-core⟩ T198 Studio UI U1 @ 760f041e — NO-GO: crop tool leaks into the draw path; warning half-built (Fable)
+
+The review was independent (opus), and I re-checked the blocker's root cause myself.
+
+**What was run:**
+- `tsc -b` is clean;
+- `editor-crop.spec.ts` and `editor.spec.ts` are green, 5/5;
+- the save-payload sabotage (`pages:{}`) goes red;
+- no client-side view transform was found, which is good;
+- per-page state, 0-based canonical keys, saving page 3 keeping page 1, Reset and Reset-all (in-page confirm) all work;
+- with the tool off, drawing is untouched.
+
+### Blocker
+**1. The Crop tool corrupts annotation data on non-croppable files** (verified by running).
+- The tool stays `"crop"` when the open file changes (a generated chart, an image), but the overlay mounts only while `canCrop`.
+- So the drag reaches EditCanvas, and `isNonDraw` (`editor.ts`) does not include `"crop"`, which I confirmed. `commitDraw` therefore saves an object with `type:""`. The probe stored one on a text chart, linked, with no notice.
+- The style row also shows "Draw: crop".
+- **Fix:** add `crop` to the non-draw set (the comment there says to gate everywhere on `isNonDraw`) AND leave crop mode when `canCrop` turns false.
+- **Add an e2e test:** select Crop on a PDF, switch to a chart, drag. No object is created.
+
+### Required before GO
+2. **The out-of-crop warning is half-built, and the submission didn't say so.**
+   - Spec §Annotations 2 asks for:
+     - the layer NAMES, not just a count;
+     - a **Keep crop / Grow crop to include them / Cancel** step BEFORE the save commits.
+   - **Today Save commits straight away.** And `.catch(() => setCropHidden([]))` turns a failed dry run into "nothing hidden". That is a false all-clear, so show an error state instead.
+   - Grow-to-include is optional for U1 if you declare it deferred. Keep/Cancel and the names are not optional.
+3. **Escape doesn't cancel the drag.** The draft is written on every move. Snapshot the rect at gesture start and restore it on Escape.
+4. **The AR lock has no test.**
+   - With `squareAt` sabotaged to `h = side·0.7`, everything stays green.
+   - The server doesn't enforce w==h either, so add BOTH:
+     - a Studio test (vitest or e2e) that sabotage turns red;
+     - a server-side check in `ValidateCrop`: when `lockAR`, |w−h| ≤ 1e-6, else 400.
+
+     The client must not be the only guard.
+
+### Fix or declare
+5. **Undo.** Ctrl+Z in crop mode undoes an ANNOTATION. Either make undo act on the crop draft, or swallow it while in crop mode. Never the annotation stack.
+6. **Unsaved draft is silently lost** when switching files, or when a refresh reloads the saved crop. Ask, or keep the draft per file.
+7. **Labels and accessibility.**
+   - Bring the product words to the gate as one list: "Crop page", "Save crop", "Reset all pages", the "crop" badge versus the spec's "cropped", and "Bake area". The docs will reuse them.
+   - `.crop-overlay{outline:none}` has no focus-visible style.
+   - The corner handles can't take focus.
+
+Re-present U1 with 1–4 fixed and 5–7 fixed or declared.
