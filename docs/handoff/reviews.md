@@ -53933,3 +53933,50 @@ All NO-GO items from 1ed7aa79 remain fixed. Deploying to :8080 so VLL can try it
 
 Next: U1b (server-rendered "Tablet view") and 4b (crop-detect endpoint + Studio Auto, bounding the edge-band
 rule by thickness). The crop-tool labels go to the gate with the documented-feature stage.
+
+## → REVIEWER (web-core) — T198 stage 4b (backend): thickness-bound edge-band + crop-detect endpoint; branch `web/t198-autocrop-4b-api` @ `f0535d8a`
+
+The save-path autodetect backend, per your 4b ruling (detection never bakes; the bake only reads stored
+rects). Presented without the UI so you can review the endpoint contract first; 4b-ui (Auto buttons +
+alignment grid) builds on it.
+
+**Thickness-bound edge-band (your real-data finding).** The edge-band rule now rejects a border-touching
+component only when it is ≤ `autoEdgeBandThickFrac` (5%) thick PERPENDICULAR to its edge — a thin vertical
+band hugs a side, a thin horizontal band hugs top/bottom. A band FUSED to the music makes a THICK component,
+so it is kept and the content is not dropped with it. New vector `TestAutodetect_ContentFusedToEdgeKept` (a
+0.9-wide content strip reaching the left edge): **red on the old span-only rule** (I ran the sabotage — the
+old rule drops it, the thickness rule keeps it), green now. The speck + thin-band vectors stay green. A
+detected side is floored at the save's min (0.2) so a proposal always validates.
+
+**Endpoint** `POST /api/bands/{b}/songs/{s}/files/{f}/crop-detect`  body `{ "pages": [0,2] }` or `{ "all": true }`:
+- **Read-only** — no bake, no sidecar, no file write (your ruling). Same gate + P4 as the save, via
+  `Service.CropDetectSource` (cropTarget + the blob bytes).
+- `Baker.DetectCropForPages` rasterizes the PDF at base DPI through the SAME path a bake uses
+  (`b.raster.Rasterize` — shared render cache, so what is detected is what bakes) and runs `detectContentRect`
+  per requested page.
+- Returns `{ "pages": {"0": {x,y,w,h,source:"auto"}, …}, "hiddenMarks": [...] }` — the proposed square rects
+  plus the marks they would hide (`PreviewFileCrop`, the same predicate the save/warning use). The user
+  commits a proposal through the EXISTING crop save with `source:"auto"`; a manual rect is never overwritten
+  here. `503` when no baker is wired.
+- Mounted on `AnnotationsAPI` (now carries the baker, nil in bake-less tests), beside the crop save.
+
+**Tests:** the autodetect vectors (incl. the fused-edge one); `TestDetectCropForPages` (page selection, map
+keys, `source:"auto"`, square) via a fake rasterizer. The endpoint itself is covered end-to-end by the 4b-ui
+e2e against the wired in-mem core. Full `go test ./internal/app/ ./internal/bake/ ./internal/httpapi/` green;
+vet + gofmt clean.
+
+**One ruling I need for 4b-ui — the persistent "Autodetect" file-toggle (`crop.auto`).** Your 4b ruling says
+the toggle means "propose rects for pages without one — a UI convenience over detect + save", and the bake
+never reads `auto`. Meanwhile `normalizeCrop` (from stage 3, when `auto` meant bake-fill) still forces
+`Auto=false` on every save. Two readings — your call:
+- **(A, my default)** The toggle is just the "Auto all pages" ACTION; nothing persists `crop.auto` (keep
+  `normalizeCrop` forcing it false). The "auto" badge is driven per-rect by `source=="auto"`, which DOES
+  persist. Simplest, and bake ignores `auto` anyway.
+- **(B)** `crop.auto` persists as a UI hint (remembered toggle state); I stop forcing it false in
+  `normalizeCrop` and let it round-trip. Needed only if you want the toggle's ON state remembered across
+  sessions.
+
+4b-ui will add **Auto (all pages)** + **Auto (this page)**, the **auto** badge, and VLL's **alignment grid**
+(~4×4, inside the window while the tool is active), with an e2e that drives crop-detect against the real core.
+
+— web-core
