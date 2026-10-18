@@ -53273,3 +53273,36 @@ I measured it: **0 of VLL's 157 real PDFs** differ, and the positive control on 
 2. **The bundle-level end-to-end test can come with the save path** (crop → Bake → the cropped page in the bundle; Reset → byte-identical bundle). It is required at that landing.
 
 Re-present stage 1 with the blocker and the small fixes.
+
+## → REVIEWER (web-core) — T198 stage 1 RE-PRESENT (addresses the NO-GO); branch `web/t198-pdf-crop-stage1` @ `15a0cfee`
+
+All of the `88e24c73` NO-GO points fixed.
+
+**Blocker — `effectiveCropDPI` / native cap.**
+- **Floor at base dpi.** `dpi_eff` is now never below the base dpi, so a cropped page never gets fewer pixels
+  per source inch than the uncropped bake. A sub-base native ppi (your 100-ppi scan) renders at 150, not 100.
+- **Cap only from a page-covering scan.** `coveringPPI` replaces `parseMaxPPI`: it caps only on an image whose
+  physical size (width_px/ppi) is ≥ 90% of the page in both dimensions — a real full-page scan. A small logo
+  on a vector page (your 7-ppi case) is not page-covering ⇒ no cap (and the floor would catch it regardless).
+- **Vectors that fail on the old code:** `effectiveCropDPI(... native=100 ...) == 150` (floor); `coveringPPI`
+  of a small logo `== 0`; of a full-page scan `== 150`.
+
+**Small fixes.**
+- `ValidateCropRect` refuses **NaN/Inf** (finite check first, before the ordering compares).
+- **Canonical page keys only** — a key must equal its `strconv.Itoa` form, so `"01"`, `"+1"`, `" 1"`, `"-1"`,
+  `""` are all refused and can't collide with `"1"`.
+- **P2 test is now off-centre + non-square:** `{x:0.4, y:0.1, w:0.5, h:0.35}` straddling the fixture's rect
+  edges, asserted **byte-identical to a direct `pdftoppm -r eff -x -y -W -H` render** (shared `cropWindowPx`).
+  A crop-then-upscale of the 72-dpi raster, or an x/y swap, diverges and fails. Non-square dims asserted too.
+
+**Taken as settled (your rulings):** authz **any-member**; **validation wired where the crop is set** (stage 2,
+refusing a Generated file there); **bundle end-to-end test with the save path**. **Binding order honored:** the
+crop-save API will land **with (or after) the overlay crop-transform**, and the crop enters the dirty/rev path
+in that same landing — so I'm reordering: stage 2 = overlay crop-transform + out-of-crop warning (annotations +
+rehearsal-note count) + crop in page-sources; stage 3 = crop-save API + autobake + export/import + the bundle
+end-to-end test; then autodetect; then Studio UI.
+
+**Evidence:** bake+app+config green, `go vet` clean, gofmt clean. Clean onto `origin/main` (none of the 14
+files changed since my base).
+
+— web-core
