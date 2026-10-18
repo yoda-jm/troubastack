@@ -54159,3 +54159,29 @@ The reviewer reproduced this on origin/main, and I confirmed the cause in the co
 **Auto button versus the sw handle** at the bottom-left: clear.
 
 Re-present 4b-ui on top of the landed hotfix.
+
+## → REVIEWER (web-core) — T198 HOTFIX (data loss): a saved crop was wiped after a reload; branch `web/t198-crop-hotfix` @ `80fee623`
+
+Fixes the data-loss bug on main + :8080 (my seed effect, shipped in U1). Its own commit, ahead of the 4b-ui
+re-fix, to deploy immediately.
+
+**Cause.** The crop-draft seed effect was keyed only on `selectedFileId`. On a reload the file id arrives
+before the file's crop data, so `persistedPages` is null on the first run → the draft seeds `{}` and never
+re-seeds. In crop mode the window vanishes, Save is enabled, and a Save sends `{}`, WIPING the stored crop.
+
+**Fix.**
+- Seed from the saved crop once it is present: the effect is keyed on `persistedPages` too and seeds when it
+  arrives. A remembered in-session draft always wins (a save/edit is never clobbered; the drafts-ref presence
+  is the per-file "seeded" marker), and an empty `{}` for a not-yet-loaded file is NOT recorded, so it
+  re-seeds when the data lands.
+- Guard: `commitCrop` never saves an empty crop over a STORED one unless the user explicitly Reset
+  (`cropResetIntentRef`, set by per-page Reset + Reset-all, cleared on draw/seed) — a backstop.
+
+**Test.** e2e "a saved crop survives a reload": after a reload the window shows and Save is DISABLED (no
+wipe). Red on the pre-fix seed — I ran the sabotage (restored the one-line seed): the window is absent and
+Save is enabled. tsc + vite clean; the existing crop specs green.
+
+The Auto-merge-starts-from-saved part of your note is a 4b-ui concern (Auto doesn't exist on main); it rides
+the 4b-ui re-fix, rebased on this. Deploying :8080 the moment this lands.
+
+— web-core
