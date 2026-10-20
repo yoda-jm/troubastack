@@ -155,3 +155,48 @@ func TestBakeEndpoints_authAndFlow(t *testing.T) {
 		t.Fatalf("outsider should not list a band's concerts, got 200")
 	}
 }
+
+// TestConcertManifest_ArchivedKept (T200): an archived concert is NOT dropped from the manifest — it stays,
+// flagged archived:true, and carries the base setlist's eventDate/venue + per-song title (A91 +1).
+func TestConcertManifest_ArchivedKept(t *testing.T) {
+	srv := bakeServer(t)
+	admin := &client{t: t, srv: srv}
+	band := admin.makeBand("alice", "Band")
+
+	_, body := admin.do(http.MethodPost, "/api/bands/"+band.ID+"/setlists",
+		map[string]string{"name": "Spring Gig", "eventDate": "2026-05-01", "venue": "The Hall"})
+	var sl app.Setlist
+	unmarshalField(t, body, "setlist", &sl)
+	seedSongInSetlist(t, admin, band.ID, sl.ID) // adds a song titled "Sound Check"
+	awaitBake(t, admin, band.ID, sl.ID)
+
+	// Archive the setlist.
+	resp, _ := admin.do(http.MethodPatch, "/api/bands/"+band.ID+"/setlists/"+sl.ID, map[string]any{"archived": true})
+	mustStatus(t, resp, http.StatusOK)
+
+	// The concert is STILL in the manifest, flagged + carrying meta.
+	resp, lbody := admin.do(http.MethodGet, "/api/bands/"+band.ID+"/concerts", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var concerts []struct {
+		ConcertID string `json:"concertId"`
+		Archived  bool   `json:"archived"`
+		EventDate string `json:"eventDate"`
+		Venue     string `json:"venue"`
+		Songs     []struct {
+			Title string `json:"title"`
+		} `json:"songs"`
+	}
+	unmarshalField(t, lbody, "concerts", &concerts)
+	if len(concerts) != 1 || concerts[0].ConcertID != sl.ID {
+		t.Fatalf("archived concert dropped from manifest: %+v", concerts)
+	}
+	if !concerts[0].Archived {
+		t.Fatalf("manifest concert missing archived:true: %+v", concerts[0])
+	}
+	if concerts[0].EventDate != "2026-05-01" || concerts[0].Venue != "The Hall" {
+		t.Fatalf("manifest missing eventDate/venue: %+v", concerts[0])
+	}
+	if len(concerts[0].Songs) == 0 || concerts[0].Songs[0].Title != "Sound Check" {
+		t.Fatalf("manifest missing per-song title: %+v", concerts[0].Songs)
+	}
+}

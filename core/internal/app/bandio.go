@@ -127,12 +127,16 @@ type manifestFile struct {
 type manifestSetlist struct {
 	// T150: the setlist's declared durable id (same rule as the band's). Empty → import derives a stable id
 	// from the band id + setlist name.
-	ID        string         `json:"id,omitempty"`
-	Name      string         `json:"name"`
-	EventDate string         `json:"eventDate,omitempty"`
-	Venue     string         `json:"venue,omitempty"`
-	Notes     string         `json:"notes,omitempty"`
-	Items     []manifestItem `json:"items"`
+	ID        string `json:"id,omitempty"`
+	Name      string `json:"name"`
+	EventDate string `json:"eventDate,omitempty"`
+	Venue     string `json:"venue,omitempty"`
+	Notes     string `json:"notes,omitempty"`
+	// Archived (T200): the setlist's archived state travels with the band so a .tband
+	// round-trip keeps it. The archive FLAG only — ArchivedAt is a local audit stamp,
+	// like live mode's runtime deadline, and is not carried.
+	Archived bool           `json:"archived,omitempty"`
+	Items    []manifestItem `json:"items"`
 }
 
 type manifestItem struct {
@@ -344,7 +348,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 		return nil, "", err
 	}
 	for _, sl := range setlists {
-		msl := manifestSetlist{ID: sl.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes}
+		msl := manifestSetlist{ID: sl.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, Archived: sl.Archived}
 		items, err := s.repo.ItemsOfSetlist(sl.ID)
 		if err != nil {
 			return nil, "", err
@@ -965,7 +969,9 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 		if slid == "" {
 			slid = uuidV5(band.ID, "setlist:"+sl.Name)
 		}
-		nsl := Setlist{ID: slid, BandID: band.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, CreatedAt: now}
+		// Archived (T200) travels; ArchivedAt is a local stamp, left zero on import (the flag is what the
+		// tablet and Studio act on).
+		nsl := Setlist{ID: slid, BandID: band.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, Archived: sl.Archived, CreatedAt: now}
 		if err := s.repo.CreateSetlist(nsl); err != nil {
 			return ImportReport{}, err
 		}

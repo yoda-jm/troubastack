@@ -102,6 +102,18 @@ export function SetlistDetail() {
   const benchCount = items.length - mainCount;
   const sub = [setlist.eventDate, setlist.venue].filter(Boolean).join(" · ");
 
+  // T200: one-click unarchive from the opened concert (admin-only). An archived concert can still be
+  // opened and edited here; this brings it back to the live list and the tablets.
+  async function onUnarchive() {
+    if (!setlist) return;
+    setError(null);
+    try {
+      setSetlist(await api.setSetlistArchived(bandId!, setlist.id, false));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn’t unarchive the concert");
+    }
+  }
+
   // T158: download the running order as a printable A4 PDF (the sheet for the floor / a sound engineer).
   async function exportPdf() {
     setError(null);
@@ -144,9 +156,24 @@ export function SetlistDetail() {
               {mainCount} song{mainCount === 1 ? "" : "s"}
             </span>
             {benchCount > 0 && <span className="chip brand">{benchCount} on call</span>}
+            {setlist.archived && (
+              <span className="chip" data-testid="setlist-archived-tag" title="Archived — kept in Studio, not offered on the tablets">
+                Archived
+              </span>
+            )}
           </div>
         </div>
         <div className="phead-actions">
+          {setlist.archived && myRole === "admin" && (
+            <button
+              type="button"
+              className="secondary"
+              data-testid="setlist-unarchive"
+              onClick={() => void onUnarchive()}
+            >
+              Unarchive
+            </button>
+          )}
           <button
             type="button"
             className="secondary"

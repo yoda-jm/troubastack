@@ -2457,3 +2457,11 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .segmented .seg-btn:hover { color: var(--fg); }
 .segmented .seg-btn.on { background: var(--brand-tint); color: var(--brand-strong); font-weight: 600; }
 @media (max-width: 480px) { .tags-head-controls { width: 100%; margin-left: 0; } }
+
+/* T200 — the collapsed "Archives (N)" section at the bottom of the setlists list. */
+.archives-section { margin-top: 1.25rem; }
+.archives-section > summary {
+  cursor: pointer; user-select: none; padding: .35rem 0;
+  color: var(--muted-fg, var(--fg)); font-size: .9rem;
+}
+.archives-section > summary:hover { color: var(--fg); }

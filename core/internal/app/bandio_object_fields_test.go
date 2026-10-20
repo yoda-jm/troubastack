@@ -318,11 +318,12 @@ func TestBandFolder_RoundTripsEverySongField(t *testing.T) {
 // whether the chart is transposed, whether it is on the bench, whether it is a break at all). A silent
 // loss here is a gig played in the wrong key.
 var setlistNotCarried = map[string]string{
-	"ID":        "the folder declares its own id (T150) and the importer honours it; asserted separately",
-	"BandID":    "the import creates a new band; asserted separately as the imported band's id",
-	"CreatedAt": "stamped by the importing server — a folder is a description, not a history",
-	"LiveUntil": "rehearsal live mode is a self-expiring RUNTIME flag (P201); a folder must never carry a deadline",
-	"LiveBy":    "the other half of live mode, and json:\"-\" — never leaves the server it was set on",
+	"ID":         "the folder declares its own id (T150) and the importer honours it; asserted separately",
+	"BandID":     "the import creates a new band; asserted separately as the imported band's id",
+	"CreatedAt":  "stamped by the importing server — a folder is a description, not a history",
+	"LiveUntil":  "rehearsal live mode is a self-expiring RUNTIME flag (P201); a folder must never carry a deadline",
+	"LiveBy":     "the other half of live mode, and json:\"-\" — never leaves the server it was set on",
+	"ArchivedAt": "T200: a local audit stamp; the .tband carries the archive FLAG (asserted below), not the when",
 }
 
 var itemNotCarried = map[string]string{
@@ -354,6 +355,10 @@ func TestBandFolder_RoundTripsEverySetlistField(t *testing.T) {
 	}
 	if _, err := src.svc.AddSetlistIntermission(admin, bandID, sl.ID, "Fifteen minutes"); err != nil {
 		t.Fatalf("intermission: %v", err)
+	}
+	archived := true // T200: exercise the archive flag across the round-trip
+	if _, err := src.svc.UpdateSetlist(admin, bandID, sl.ID, app.SetlistInput{Archived: &archived}); err != nil {
+		t.Fatalf("archive: %v", err)
 	}
 	want, err := src.svc.Setlist(admin, bandID, sl.ID)
 	if err != nil {
@@ -397,6 +402,13 @@ func TestBandFolder_RoundTripsEverySetlistField(t *testing.T) {
 		}
 	}
 	compare("Setlist", reflect.ValueOf(want.Setlist), reflect.ValueOf(got.Setlist), setlistNotCarried)
+	// T200 positive control: the source was archived, so a vacuous false==false can't pass the compare.
+	if !want.Setlist.Archived {
+		t.Fatal("test setup: source setlist should be archived before export")
+	}
+	if !got.Setlist.Archived {
+		t.Error("archived flag did not survive the .tband round-trip")
+	}
 
 	if len(got.Items) != len(want.Items) {
 		t.Fatalf("imported %d items, want %d", len(got.Items), len(want.Items))

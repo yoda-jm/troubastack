@@ -133,12 +133,15 @@ type v2SetlistsFile struct {
 
 type v2Setlist struct {
 	// T150: the setlist's durable declared id. omitempty — a pre-T150 folder has none.
-	ID        string          `json:"id,omitempty"`
-	Name      string          `json:"name"`
-	EventDate string          `json:"eventDate,omitempty"`
-	Venue     string          `json:"venue,omitempty"`
-	Notes     string          `json:"notes,omitempty"`
-	Items     []v2SetlistItem `json:"items"`
+	ID        string `json:"id,omitempty"`
+	Name      string `json:"name"`
+	EventDate string `json:"eventDate,omitempty"`
+	Venue     string `json:"venue,omitempty"`
+	Notes     string `json:"notes,omitempty"`
+	// Archived (T200): the archive flag travels with the folder. omitempty — a pre-T200
+	// folder has none and reads as not archived. The timestamp is not carried.
+	Archived bool            `json:"archived,omitempty"`
+	Items    []v2SetlistItem `json:"items"`
 }
 
 type v2SetlistItem struct {
@@ -401,7 +404,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 	// Setlists.
 	sls := v2SetlistsFile{}
 	for _, msl := range man.Setlists {
-		vsl := v2Setlist{ID: msl.ID, Name: msl.Name, EventDate: msl.EventDate, Venue: msl.Venue, Notes: msl.Notes}
+		vsl := v2Setlist{ID: msl.ID, Name: msl.Name, EventDate: msl.EventDate, Venue: msl.Venue, Notes: msl.Notes, Archived: msl.Archived}
 		for _, it := range msl.Items {
 			// T153: an intermission has no song, so it has no slug to resolve. Export it by kind+label;
 			// the unknown-song guard below still protects every entry that CLAIMS to be a song.
@@ -656,7 +659,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 		}
 	}
 	for _, vsl := range sls.Setlists {
-		msl := manifestSetlist{ID: vsl.ID, Name: vsl.Name, EventDate: vsl.EventDate, Venue: vsl.Venue, Notes: vsl.Notes}
+		msl := manifestSetlist{ID: vsl.ID, Name: vsl.Name, EventDate: vsl.EventDate, Venue: vsl.Venue, Notes: vsl.Notes, Archived: vsl.Archived}
 		for idx, it := range vsl.Items {
 			// T153: an intermission occupies a position like any entry but references no song. Everything
 			// else in the loop (Position from array order, T140) applies to it unchanged.

@@ -131,3 +131,53 @@ func TestSetlistLive_pure(t *testing.T) {
 		t.Fatal("past LiveUntil must read not-live")
 	}
 }
+
+// TestSetlistArchive (T200): archive/unarchive is admin-only, stamps ArchivedAt, and turns live mode OFF;
+// a member may still edit metadata but not the archived flag.
+func TestSetlistArchive(t *testing.T) {
+	base := time.Date(2026, 7, 12, 20, 0, 0, 0, time.UTC)
+	clock := base
+	svc, admin, member, bandID, slID := setlistLiveFixture(t, &clock)
+	yes, no := true, false
+
+	// Arm live, then archive → archived + stamped, and live is switched OFF in the same change.
+	if _, err := svc.SetSetlistLive(admin, bandID, slID, true); err != nil {
+		t.Fatalf("arm live: %v", err)
+	}
+	got, err := svc.UpdateSetlist(admin, bandID, slID, app.SetlistInput{Archived: &yes})
+	if err != nil {
+		t.Fatalf("admin archive: %v", err)
+	}
+	if !got.Archived {
+		t.Error("setlist should be archived")
+	}
+	if got.ArchivedAt.IsZero() {
+		t.Error("ArchivedAt should be stamped on archive")
+	}
+	if !got.LiveUntil.IsZero() || svc.SetlistLiveNow(got) {
+		t.Errorf("archiving must turn live mode off: LiveUntil=%v live=%v", got.LiveUntil, svc.SetlistLiveNow(got))
+	}
+
+	// A non-admin member cannot archive or unarchive.
+	if _, err := svc.UpdateSetlist(member, bandID, slID, app.SetlistInput{Archived: &yes}); !errors.Is(err, app.ErrForbidden) {
+		t.Errorf("member archive: got %v, want ErrForbidden", err)
+	}
+	if _, err := svc.UpdateSetlist(member, bandID, slID, app.SetlistInput{Archived: &no}); !errors.Is(err, app.ErrForbidden) {
+		t.Errorf("member unarchive: got %v, want ErrForbidden", err)
+	}
+
+	// ...but a member may still edit metadata (the member-level fields are unchanged).
+	name := "Renamed while archived"
+	if _, err := svc.UpdateSetlist(member, bandID, slID, app.SetlistInput{Name: &name}); err != nil {
+		t.Errorf("member rename should still work: %v", err)
+	}
+
+	// Admin unarchive clears the flag and the stamp.
+	un, err := svc.UpdateSetlist(admin, bandID, slID, app.SetlistInput{Archived: &no})
+	if err != nil {
+		t.Fatalf("admin unarchive: %v", err)
+	}
+	if un.Archived || !un.ArchivedAt.IsZero() {
+		t.Errorf("unarchive should clear flag + stamp: archived=%v at=%v", un.Archived, un.ArchivedAt)
+	}
+}

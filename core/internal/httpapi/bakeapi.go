@@ -53,14 +53,24 @@ func (a *BakeAPI) Mount(mux *http.ServeMux, authed func(authedHandler) http.Hand
 type songRevView struct {
 	SongID string `json:"songId"`
 	Rev    uint64 `json:"rev,string"`
+	// Title (T200, A91): the baked title snapshot, so the tablet can NAME an added song
+	// in "what changed" without a separate lookup. Additive; omitempty for an older mirror.
+	Title string `json:"title,omitempty"`
 }
 
 type concertView struct {
-	ConcertID   string        `json:"concertId"`
-	Name        string        `json:"name"`
-	CurrentRev  uint64        `json:"currentRev,string"`
-	UpdatedAt   int64         `json:"updatedAt,string"`
-	FinalLocked bool          `json:"finalLocked,omitempty"`
+	ConcertID   string `json:"concertId"`
+	Name        string `json:"name"`
+	CurrentRev  uint64 `json:"currentRev,string"`
+	UpdatedAt   int64  `json:"updatedAt,string"`
+	FinalLocked bool   `json:"finalLocked,omitempty"`
+	// Archived (T200): the base setlist's archived flag, so the tablet (A91) can tell an
+	// archived concert from a gone one — archived concerts are KEPT in the manifest, not
+	// dropped. EventDate/Venue (T200 +1) come from the base setlist so A91 can date and
+	// place a server-only row. All additive + omitempty.
+	Archived    bool          `json:"archived,omitempty"`
+	EventDate   string        `json:"eventDate,omitempty"`
+	Venue       string        `json:"venue,omitempty"`
 	Songs       []songRevView `json:"songs"`
 	BakedBy     string        `json:"bakedBy,omitempty"` // extra (studio history)
 	DownloadURL string        `json:"downloadUrl"`       // extra (studio + app download)
@@ -70,10 +80,13 @@ type concertView struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-func viewOf(bandID string, cb bake.ConcertBundle) concertView {
+// viewOf projects a baked bundle to the manifest row. base is the concert's base setlist
+// (for the T200 archived flag + the +1 eventDate/venue); its zero value is harmless for a
+// concert whose base setlist has been removed.
+func viewOf(bandID string, cb bake.ConcertBundle, base app.Setlist) concertView {
 	songs := make([]songRevView, 0, len(cb.Songs))
 	for _, s := range cb.Songs {
-		songs = append(songs, songRevView{SongID: s.SongID, Rev: s.SourceRevision})
+		songs = append(songs, songRevView{SongID: s.SongID, Rev: s.SourceRevision, Title: s.Title})
 	}
 	return concertView{
 		ConcertID:   cb.ConcertID,
@@ -81,6 +94,9 @@ func viewOf(bandID string, cb bake.ConcertBundle) concertView {
 		CurrentRev:  cb.ConcertRev,
 		UpdatedAt:   cb.BakedAt,
 		FinalLocked: cb.FinalLocked,
+		Archived:    base.Archived,
+		EventDate:   base.EventDate,
+		Venue:       base.Venue,
 		Songs:       songs,
 		BakedBy:     cb.BakedBy,
 		DownloadURL: "/api/bands/" + bandID + "/concerts/" + cb.ConcertID + "/bundle",
@@ -275,24 +291,26 @@ func (a *BakeAPI) listConcerts(w http.ResponseWriter, r *http.Request, u app.Use
 		writeErr(w, err)
 		return
 	}
-	inBand := make(map[string]bool, len(setlists))
+	inBand := make(map[string]app.Setlist, len(setlists))
 	for _, sl := range setlists {
-		inBand[sl.ID] = true
+		inBand[sl.ID] = sl
 	}
 	views := []concertView{}
 	if a.baker != nil {
 		for _, cb := range a.baker.ListConcerts() {
 			// A concert is visible if its base setlist is in this band AND, for a
 			// per-member variant (B07), it belongs to the caller — never another
-			// member's variant.
-			base, owner, isVariant := bake.ParseConcertID(cb.ConcertID)
-			if !inBand[base] {
+			// member's variant. ARCHIVED concerts are KEPT (flagged, T200) — not dropped —
+			// so the tablet (A91) can tell "archived" from "gone".
+			baseID, owner, isVariant := bake.ParseConcertID(cb.ConcertID)
+			base, ok := inBand[baseID]
+			if !ok {
 				continue
 			}
 			if isVariant && owner != u.ID {
 				continue
 			}
-			views = append(views, viewOf(bandID, cb))
+			views = append(views, viewOf(bandID, cb, base))
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"concerts": views})

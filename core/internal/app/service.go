@@ -1949,6 +1949,7 @@ type SetlistInput struct {
 	EventDate *string
 	Venue     *string
 	Notes     *string
+	Archived  *bool // T200: admin-only; archiving also turns live mode off
 }
 
 // validEventDate reports whether d is empty or a well-formed ISO yyyy-mm-dd date.
@@ -2074,12 +2075,21 @@ func (s *Service) Setlist(caller User, bandID, setlistID string) (SetlistDetail,
 	return SetlistDetail{Setlist: sl, Items: views}, nil
 }
 
-// UpdateSetlist patches a setlist's metadata (any member). Only supplied fields
-// change; Name (if supplied) must be non-empty; eventDate (if supplied) must be ISO.
+// UpdateSetlist patches a setlist's metadata. The metadata fields (name, eventDate,
+// venue, notes) are any-member; the T200 `archived` flag is ADMIN-only — a member
+// PATCH that includes it is 403'd. Only supplied fields change; Name (if supplied) must
+// be non-empty; eventDate (if supplied) must be ISO. Archiving also turns live mode OFF
+// (zeroed in the same write).
 func (s *Service) UpdateSetlist(caller User, bandID, setlistID string, in SetlistInput) (Setlist, error) {
 	sl, err := s.getSetlistForMember(caller, bandID, setlistID)
 	if err != nil {
 		return Setlist{}, err
+	}
+	if in.Archived != nil {
+		// Archive / unarchive is an admin action (same bar as live / delete).
+		if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
+			return Setlist{}, err
+		}
 	}
 	if in.Name != nil {
 		name := strings.TrimSpace(*in.Name)
@@ -2100,6 +2110,21 @@ func (s *Service) UpdateSetlist(caller User, bandID, setlistID string, in Setlis
 	}
 	if in.Notes != nil {
 		sl.Notes = *in.Notes
+	}
+	if in.Archived != nil {
+		if *in.Archived {
+			if !sl.Archived {
+				sl.Archived = true
+				sl.ArchivedAt = s.now().UTC()
+			}
+			// Archiving turns rehearsal live mode OFF — zeroed in this same write, so the
+			// autobaker's SetlistLive filter stops seeing it (no round-trip through SetSetlistLive).
+			sl.LiveUntil = time.Time{}
+			sl.LiveBy = ""
+		} else {
+			sl.Archived = false
+			sl.ArchivedAt = time.Time{}
+		}
 	}
 	if err := s.repo.UpdateSetlist(sl); err != nil {
 		return Setlist{}, err

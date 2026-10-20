@@ -378,6 +378,16 @@ type Setlist struct {
 	// (stage 1b) bakes AS, so an auto-bake is attributed to whoever started rehearsal
 	// (and is a valid member/admin for the bake's authorization). Cleared with LiveUntil.
 	LiveBy string `json:"-"`
+
+	// Archived (T200) moves a past concert out of the tablet offer (A91) and into
+	// Studio's collapsed "Archives" section — reversible, nothing deleted: the setlist,
+	// its bakes and its notes all stay, and it can still be opened, edited, exported and
+	// baked in Studio. Archiving also turns live mode OFF. Additive + omitempty, so
+	// existing data reads as not archived; the manifest KEEPS archived concerts (flagged)
+	// so a tablet can tell "archived" from "gone". ArchivedAt is a local audit stamp (not
+	// carried in a .tband — only the flag is).
+	Archived   bool      `json:"archived,omitempty"`
+	ArchivedAt time.Time `json:"archivedAt,omitempty"`
 }
 
 // LiveModeWindow is how long a setlist stays in rehearsal live mode after an admin

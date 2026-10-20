@@ -142,11 +142,31 @@ export function Setlists() {
     }
   }
 
+  // T200: archive / unarchive from the row (admin-only; the server turns live mode off on archive). Like
+  // onToggleLive, no confirm — the ⋯ menu is anchored to the row and it is instantly reversible.
+  async function onArchive(sl: Setlist, archived: boolean) {
+    try {
+      await api.setSetlistArchived(bandId, sl.id, archived);
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : archived
+            ? "Couldn’t archive the concert"
+            : "Couldn’t unarchive the concert",
+      );
+    }
+  }
+
   const q = foldText(query.trim());
   const filtered = q
     ? setlists.filter((s) => foldText(`${s.name} ${s.venue ?? ""} ${s.eventDate ?? ""}`).includes(q))
     : setlists;
-  const { current, past } = partitionSetlists(filtered, todayLocal());
+  // T200: archived concerts drop out of the main (date-ordered) list into a collapsed "Archives" section.
+  const active = filtered.filter((s) => !s.archived);
+  const archivedList = filtered.filter((s) => s.archived);
+  const { current, past } = partitionSetlists(active, todayLocal());
   const ordered = [...current, ...past];
   const shown = ordered.slice(0, limit);
 
@@ -323,6 +343,18 @@ export function Setlists() {
                               )}
                               {myRole === "admin" && (
                                 <RowMenuItem
+                                  testId="setlist-archive"
+                                  title="Move this concert to Archives — it stays in Studio but is no longer offered on the tablets."
+                                  onClick={() => {
+                                    closeMenu();
+                                    void onArchive(sl, true);
+                                  }}
+                                >
+                                  Archive
+                                </RowMenuItem>
+                              )}
+                              {myRole === "admin" && (
+                                <RowMenuItem
                                   testId="setlist-delete"
                                   danger
                                   onClick={() => {
@@ -340,17 +372,44 @@ export function Setlists() {
                   </Fragment>
                 ))}
               </ul>
-              {filtered.length > limit && (
+              {active.length > limit && (
                 <button
                   type="button"
                   className="ghost-btn"
                   data-testid="setlists-view-more"
                   onClick={() => setLimit((l) => l + SETLISTS_PAGE)}
                 >
-                  View more ({filtered.length - limit} more)
+                  View more ({active.length - limit} more)
                 </button>
               )}
             </>
+          )}
+          {/* T200: archived concerts, folded into a collapsed section at the bottom. They can still be
+              opened (the link) and, for an admin, unarchived from here. */}
+          {archivedList.length > 0 && (
+            <details className="archives-section" data-testid="archives-section">
+              <summary data-testid="archives-toggle">Archives ({archivedList.length})</summary>
+              <ul className="list" data-testid="archives-list">
+                {archivedList.map((sl) => (
+                  <li key={sl.id} className="concert-past">
+                    <Link to={`/bands/${bandId}/setlists/${sl.id}`} data-testid="setlist-link">
+                      {sl.name}
+                      {sl.eventDate ? <span className="muted"> — {sl.eventDate}</span> : null}
+                    </Link>
+                    {myRole === "admin" && (
+                      <button
+                        type="button"
+                        className="ghost-btn"
+                        data-testid="setlist-unarchive"
+                        onClick={() => void onArchive(sl, false)}
+                      >
+                        Unarchive
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
         </>
       )}

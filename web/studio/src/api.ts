@@ -208,6 +208,10 @@ export type Setlist = {
   // songs auto-bake. Self-expiring (server-side window). Absent/zero = off. Prefer the
   // server-computed `live` boolean from setSetlistLive over re-deriving from this.
   liveUntil?: string;
+  // T200: archived moves a past concert into Studio's "Archives" section and off the tablets.
+  // archivedAt is a server audit stamp. Both absent/false ⇒ not archived.
+  archived?: boolean;
+  archivedAt?: string;
   // T131 list-only metadata (the /setlists list, not the detail): the song count so the row can
   // reproduce the empty-setlist bake guard, and — only when a SHARED bake exists — when it was last
   // baked (unix seconds) + the .tstage download URL. lastBakedAt/downloadUrl absent ⇒ never baked, so
@@ -222,6 +226,7 @@ export type SetlistPatch = {
   eventDate?: string;
   venue?: string;
   notes?: string;
+  archived?: boolean; // T200: admin-only; archiving also turns live mode off (server-side)
 };
 
 export type SetlistItem = {
@@ -969,6 +974,14 @@ export const api = {
       `/api/bands/${bandId}/setlists/${setlistId}/live`,
       { live },
     ),
+
+  // T200: archive / unarchive a setlist (admin-only; the server also turns live mode off on archive).
+  setSetlistArchived: (bandId: string, setlistId: string, archived: boolean) =>
+    request<{ setlist: Setlist }>(
+      "PATCH",
+      `/api/bands/${bandId}/setlists/${setlistId}`,
+      { archived },
+    ).then((r) => r.setlist),
 
   addSetlistItem: (bandId: string, setlistId: string, songId: string) =>
     request<{ item: SetlistItem }>(

@@ -1153,6 +1153,7 @@ func (a *WebAPI) updateSetlist(w http.ResponseWriter, r *http.Request, u app.Use
 		EventDate *string `json:"eventDate"`
 		Venue     *string `json:"venue"`
 		Notes     *string `json:"notes"`
+		Archived  *bool   `json:"archived"` // T200: admin-only; archiving also turns live mode off
 	}
 	if !decode(w, r, &in) {
 		return
@@ -1162,6 +1163,7 @@ func (a *WebAPI) updateSetlist(w http.ResponseWriter, r *http.Request, u app.Use
 		EventDate: in.EventDate,
 		Venue:     in.Venue,
 		Notes:     in.Notes,
+		Archived:  in.Archived,
 	})
 	if err != nil {
 		writeErr(w, err)
