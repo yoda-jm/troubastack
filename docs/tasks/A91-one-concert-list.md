@@ -1,6 +1,6 @@
 # A91 — One concert list in Stage: one row per concert, one state, one action (absorbs A90)
 
-Owner: mobile. Spec: Fable, 2026-10-20. Status: specced. One **[VLL]** decision, implement on its default.
+Owner: mobile. Spec: Fable, 2026-10-20. Status: specced. Amended 2026-10-20 (VLL): no automatic list updates; archived concerts (T200) are not listed.
 **Absorbs A90** (a deleted concert can never be downloaded again). Implement A90's red-first tests here. Do not
 land a separate A90.
 
@@ -63,16 +63,22 @@ Each row shows: the name, the band, the date or venue, and a **state line in pla
 6. **Never during a performance.** Nothing downloads or swaps while a concert is open in Stage. That is I13, kept.
    P201 rehearsal auto-update inside an open concert is unchanged.
 
-### [VLL] Automatic updates
+### Updates are manual (VLL, 2026-10-20: "mise à jour automatique désactivée")
 
-- **Default (implement): "Keep concerts up to date" ON**, one switch at the top of the list.
-  - When the list is shown, NOT during a performance, every concert in state "Update available" that is not frozen
-    installs by itself, and its row shows the progress.
-  - Why: VLL's pain is having to decide. Most rows then simply read "Up to date".
-- **Cost to state on the switch:** an update re-bakes pages. A rehearsal note drawn on a page that changed
-  **no longer shows on that page** (its key is the page's raster hash), and in Studio it reads
-  "not in the current bake". Notes on unchanged pages are unaffected. The switch's caption says this in one line.
-- **Alternative:** OFF by default, so "Update" stays a tap.
+There is **no automatic install from the list.** "Update" is always the user's tap. The earlier "Keep concerts up to
+date" switch is withdrawn.
+
+Rehearsal **live mode** (P201: an OPEN concert follows re-bakes during a rehearsal) is a different feature. It is
+unchanged and stays in ⋯ (admin). VLL hasn't decided whether it stays at all, and that is not part of A91.
+
+### Archived concerts (T200)
+
+- A concert the server flags `archived: true` is **not listed** in Stage, and never offered for download or update.
+- **If a copy is on this tablet,** it moves to a collapsed **"Archived on this tablet (N)"** section at the bottom.
+  From there it can still be opened (offline safety), and deleted. Nothing is deleted automatically.
+- **When it is unarchived on the server,** it returns to the main list on the next refresh, with its normal state.
+- `rowState` gets the `archived` input. Test: archived plus a local copy goes to the Archived section; archived with
+  no local copy is not listed at all.
 
 ## Where the other things go
 
@@ -103,14 +109,15 @@ Each row shows: the name, the band, the date or venue, and a **state line in pla
   `finalLocked`, offline with and without a local copy, damaged, local-only, and in-flight.
 - **What changed:** changed, added and removed counts against a fixture manifest and bundle.
 - **Delete from tablet** with the server reachable gives "Not on this tablet", and the row is not removed.
-- **Auto-update ON:** a non-frozen "Update available" concert gets an apply call while the list is shown, and NO
-  apply while a concert is open (the I13 guard). Frozen: no apply.
+- **No automatic apply:** with an "Update available" row shown, no apply happens without the tap.
+- **Archived:** with a local copy, the row goes to the Archived section; without one, it is not listed.
 
 ## Device pass (VLL)
 
 On the tablet:
 - delete a concert → it is still listed as "On the server", Download → it opens;
-- re-bake from ⋯ → the row shows progress, then "New version", then it updates (auto ON) → "Up to date";
+- re-bake from ⋯ → the row shows progress, then "New version" → tap Update → "Up to date";
+- archive a concert in Studio → refresh → it leaves the list (or goes to "Archived on this tablet").
 - airplane mode → "Last checked …", and Open still works.
 
 ## Out of scope

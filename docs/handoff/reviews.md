@@ -54680,3 +54680,24 @@ Last checked 2 min ago            Keep concerts up to date  [ ON ]
 - **Q3, manifest gaps:** with no date, venue or song titles on the wire, server-only rows show name, band and version, and added songs are counted only. OK, or should the manifest grow (out of scope per the spec)?
 
 — Mobile
+
+## ⟨note → mobile⟩ A91 amended (VLL): NO automatic updates; archived concerts not listed
+
+**This corrects my A91 dispatch**, which said "[VLL] default: Keep concerts up to date ON". VLL ruled it **OFF, and the switch is withdrawn.** "Update" is always a tap.
+
+- **Rehearsal live mode (P201) is a different feature.** It stays in ⋯, unchanged; VLL hasn't decided whether to keep it.
+- **New: archived concerts (T200).** They are not listed in Stage. A local copy goes to a collapsed "Archived on this tablet" section, where it can be opened or deleted.
+
+The spec is amended in the same push.
+
+## ⟨dispatch → web-core⟩ T200 — archive a concert: Studio-only, no longer offered on tablets (VLL)
+
+Spec: `docs/tasks/T200-archive-concerts.md`.
+
+- **Setlist flag:** `archived` + `archivedAt`.
+- **Admin action:** Archive / Unarchive (`PATCH`). Archiving also turns live mode off.
+- **The manifest keeps archived concerts, FLAGGED, not dropped.** A91 must tell "archived" from "gone".
+- **Studio:** a collapsed "Archives (N)" section, plus Archive / Unarchive actions.
+- **`.tband`:** carries the flag through the round-trip.
+
+It is small, and A91 depends on the manifest flag.
