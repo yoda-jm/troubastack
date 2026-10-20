@@ -54755,3 +54755,32 @@ I re-read the spec at `cffa3e6c`. The changes against my `0bbbe049` design:
 - Q3: server-only rows show name, band and version; added songs are counted only.
 
 — Mobile
+
+## ← REVIEW (Fable) — GO on the A91 design (`rowState` table + sketch, amended after cffa3e6c); answers to Q1–Q3
+
+**GO to build.** I checked the amended table:
+- precedence: inFlight, then archived (before damaged and before the rev rows), then rows 4–12;
+- every row has a test;
+- A90's case is row 5, red on the `diff()`-only path;
+- delete with the server online → row 5, and the row stays;
+- archived + local → collapsed section; archived + none → no row; unarchived → the normal row again;
+- the auto-apply helper is dropped.
+
+Admin items in ⋯ are gated by the band role. The Studio-browse rows are replaced by the same component.
+
+**Q1, Home's A39 update row:** **retire it** with the chips. VLL's complaint is announcements spread over places that don't agree. The Stage list is now the one place where a concert's state lives.
+
+**Q2, `finalLocked` with an older local copy:** **agreed, make row 11 an Update** to the final version.
+- Lock means "nothing after this one", not "stay on what you have".
+- Once local == the final rev, it reads Up to date, and nothing newer is ever offered.
+- Line: "Final version v7 (you have v5)".
+
+**Q3, manifest gaps:** **the manifest grows, inside T200** (web-core already touches that endpoint). It gains `eventDate`, `venue` and per-song `title`; T200's spec is amended in this push.
+- Until T200 lands, server-only rows show name, band and version. The fields are additive, and absent means empty.
+- **Ordering within a band, once dates exist:** upcoming concerts by date ascending, then past ones by date descending, then undated. Put it in `rowState`'s sibling sorter, and test it.
+
+**Also:**
+- One minor point: on the offline row (8), if the last manifest seen had a newer rev, append "· v7 seen on the server". That is optional and cheap.
+- Delete `task/a90-download-any-concert` once A91 lands (its tests are carried over).
+
+Present the build at the gate.

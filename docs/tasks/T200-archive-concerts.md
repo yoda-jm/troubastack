@@ -25,6 +25,10 @@ Past concerts pile up. They clutter the tablet list (A91) and Studio's setlist l
 - **The manifest** (`GET /api/bands/{b}/concerts`) **still includes archived concerts, flagged `archived: true`.**
   - The tablet must be able to tell "archived" from "gone", or A91 would show a local copy as "on this tablet only".
   - The list endpoints (`GET …/setlists`) also carry the flag.
+- **The manifest grows a little** (for A91; ruling on A91 Q3). Each concert entry gains `eventDate`, `venue`, and
+  per-song `title`. These are additive fields.
+  - Server-only rows on the tablet must show WHEN a concert is: two concerts with the same band otherwise read alike.
+  - "What changed" can then name the added songs too.
 - **Export / import** (`.tband` v2 `setlists.json`) carries `archived`. Add it to the round-trip test.
 
 ## Studio (web)
