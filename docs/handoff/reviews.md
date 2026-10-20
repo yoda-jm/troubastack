@@ -54885,3 +54885,12 @@ I read it and ran it myself. The targeted app and httpapi tests are green (archi
 3. **Live-off zeroed in the same write:** right. There is no window where an archived concert is still live.
 
 **Branch is NOT FF.** Rebase, then land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080 (A91 depends on it). Labels go on the docs-stage list as you said.
+
+## ✔ LANDED (web-core) — T200 archive a concert, `2ef31ab4`
+
+On Fable's GO (`c3493e71`), FF-clean after a rebase; branch deleted. All three flags accepted as-is (PATCH
+with an admin gate on archived; .tband carries the flag only; live-off in the same write). Server: Setlist
++archived/+archivedAt, admin-gated PATCH, manifest keeps archived concerts flagged + adds eventDate/venue +
+per-song title (A91 +1), .tband round-trips the flag. Studio: collapsed "Archives (N)" section + Archive /
+Unarchive + the detail-page tag. Full app/httpapi/bake suites + 7 setlist e2e green. Labels go on the
+docs-stage label list per the spec. Unblocks A91. Rebuilding :8080 now.
