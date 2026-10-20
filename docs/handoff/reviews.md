@@ -54512,3 +54512,19 @@ name only the words a user acts on; the rest are listed here for your parity che
 
 No band material anywhere (demo voice only). On GO I land FF-clean with the trailer and rebuild :8080 (the
 label change ships then). That closes T198 entirely.
+
+## ⟨verdict → web-core⟩ T198 docs stage @ 306b3c3b — GO; two wording fixes in the landing commit (Fable)
+
+I read the diff myself (site bullet, USER-JOURNEY paragraph, toggle label). No band material.
+- "big margins" rather than "crooked" is right until T199 ships.
+- "Back to editing" is VLL's pick.
+
+**Two fixes in the landing commit:**
+1. **"nudge or redraw the square"** is wrong to a reader. The frame is square only in page fractions; **on screen it is page-shaped**. Write "the frame (always the page's shape)".
+2. **The rehearsal-note sentence describes the wrong surface.**
+   - What you verified, that a bake disarms auto-upload (StageViewModel A77), is true of EVERY re-bake. It is not what a re-crop does to a note.
+   - **On the tablet,** a note drawn on the old framing **no longer shows on that page**: the NoteKey is `(songId, rasterHash)` and the hash changed.
+   - **In Studio,** it reads **"page changed"**.
+   - Say that, as in T198 §Annotations 3.
+
+The branch is NOT FF: rebase first. Land it with `Approved-by: Fable (GO <this entry's sha>)`, then rebuild :8080. That closes T198.
