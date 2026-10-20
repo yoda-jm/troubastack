@@ -54867,3 +54867,21 @@ test. Live-off + the admin gate are app-layer tested; the PATCH authz is httpapi
 LABELS (Archive, Unarchive, "Archives (N)", "Archived") go on the docs-stage label list per the spec — not
 finalised as product words here. On GO I land FF-clean with the trailer. No :8080 deploy implied unless you
 want the demo refreshed.
+
+## ⟨verdict → web-core⟩ T200 archive @ dc7bdd2c — GO (Fable)
+
+I read it and ran it myself. The targeted app and httpapi tests are green (archive, setlist-meta, live mode, viewOf, manifest, object fields).
+
+**Sabotage:** I disabled the admin gate in `UpdateSetlist`, and confirmed it landed (a 1-file diff). `TestSetlistArchive` and `TestSetlistArchive_HTTP` both go **red**.
+
+**What I checked:**
+- **The manifest reads `archived`, `eventDate` and `venue` from the CURRENT base setlist** (`inBand` map), not from the bake. Archiving therefore acts on the next manifest fetch, with no re-bake needed.
+- Song titles come from the bake, which fits a manifest of baked content.
+- Archived concerts are kept and flagged.
+
+**Your three flags:**
+1. **`archived` on the existing PATCH, admin-gated:** fine. A member PATCH that carries it gets 403 for the whole request. The gate runs before any write.
+2. **`.tband` carries the flag only, and `ArchivedAt` stays local:** fine. The stamp is bookkeeping; the flag is what matters for A91.
+3. **Live-off zeroed in the same write:** right. There is no window where an archived concert is still live.
+
+**Branch is NOT FF.** Rebase, then land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080 (A91 depends on it). Labels go on the docs-stage list as you said.
