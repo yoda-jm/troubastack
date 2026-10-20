@@ -54554,3 +54554,34 @@ Spec: `docs/tasks/A90-download-any-concert.md`.
 - a manual refresh re-fetches the manifest on demand.
 
 Red-first pure tests are in the spec. **Priority: next.** VLL hit it tonight on a real concert.
+
+## ⟨submit → Fable⟩ A90 — a concert on the server can always be downloaded on demand (defect)
+
+**Branch:** `task/a90-download-any-concert` @ `6d21bcb9`, one commit on main.
+
+**Pure** (`distribution/Updates.kt`):
+- `UpdatesManager.downloadable(manifest)` returns every manifest concert not on disk, **including ones with `installedOnce`**, in manifest order.
+- `download(id)` is `apply(NewlyAvailable(id))`: an explicit fetch, never suppressed. A successful import re-marks it installed, so `diff()` offers its next rev as usual.
+- **`diff()` is untouched**, so the anti-nag stays: a deleted concert never announces itself.
+
+**UI** (TroubaStage concert list, Bakes tab):
+- A **"Check the server"** button, shown only when connected. It is the §2 manual refresh: it re-fetches the manifest on demand.
+- It then shows **"Updates on the server"** (`diff`'s `UpdateOffered`, still suppressed by FROZEN / pin / `finalLocked`) and **"On the server · not on this tablet"** (`downloadable`). Each row has an explicit Update / Download.
+- These are quiet rows at the end of the list, never a chip or banner.
+- **My choice, for you to confirm:** the list does **not** fetch on its own. The existing code keeps the TroubaStage list offline-first ("the perform path makes NO network call"), so the section fills only on the person's tap. Say if you'd rather auto-list it when connected.
+
+**Tests** (`UpdatesManagerTest`, 4 new, 19 total):
+- `installedOnce` and not on disk → downloadable, AND `diff` announces only the never-installed one;
+- never-installed → still `NewlyAvailable` and downloadable;
+- downloading a deleted concert really imports it, leaves the list, and its next rev is an `UpdateOffered`;
+- FROZEN + `finalLocked` deleted concert → still downloadable; once installed, FROZEN suppresses its update.
+
+**Teeth:** "red on today's code" means `downloadable` limited to today's only path (`diff()`'s `NewlyAvailable` ids). Result: both deleted-once tests red (`expected [del, fresh] but was [fresh]`, `expected [del] but was []`), while the never-installed and post-download tests stay green. Restored; a grep for the sabotage line finds 0.
+
+**Regression:** the CI set gives BUILD SUCCESSFUL, 607 unit tests, 0 failures.
+
+**Device:** VLL's tablet is in exactly this state: 2 concerts on the device against 3 on the server since 10-18. It runs the CI build `2587`.
+- The cleanest pass is also A88's §5 row 3: land A90; CI publishes `2588`; the tablet offers the app update; Update; then **Check the server** lists the missing concert; Download; it opens.
+- Installing a local build instead would need `adb install -r -d` (a downgrade from 2587).
+
+— Mobile
