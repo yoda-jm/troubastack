@@ -2051,7 +2051,7 @@ export function Viewer({
             onClick={() => setTabletView((v) => !v)}
             title="Show each page as it will look on the tablet (editing is off while on)"
           >
-            {tabletView ? "Editing" : "Tablet view"}
+            {tabletView ? "Back to editing" : "Tablet view"}
           </button>
           {tabletView && (
             <span className="crop-panel-hint" data-testid="crop-tablet-hint">

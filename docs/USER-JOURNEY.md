@@ -75,6 +75,17 @@ prefers his tab on top; Marie wants vocals first. Nobody wants to fight about it
   private.
 - Seed proves the flow end to end with real content, incl. an original chart ("The
   Open Road", committed PDF → seed → pipeline).
+- **Per-page crop (T198)** — a scanned PDF often carries big margins or a title block that
+  waste the tablet screen. In Studio, the **Crop page** tool sets a per-page *bake area*:
+  **Auto** proposes the content on one page (or **Auto all pages** for the whole file),
+  and you can nudge or redraw the frame (always the page's shape) by dragging it. The **×** on a page clears its
+  crop (bake the whole page again); **Reset all pages** clears them together. Nothing is
+  cut from the file — the crop is a non-destructive bake instruction, and **Tablet view**
+  shows each page exactly as it will bake. Marks you've already drawn stay on their notes;
+  if a crop would push an annotation off the page, Studio names the layers before you save
+  it. A re-cropped page re-bakes with a new raster, so a rehearsal note drawn on the old
+  framing no longer lines up — on the tablet it drops off that page (notes are keyed by the
+  page's raster hash), and in Studio the note is flagged **not in the current bake**.
 
 **Gaps:**
 - Non-PDF assets (audio references, lyrics-only text): `[accepted]` — the product is
