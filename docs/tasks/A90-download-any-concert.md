@@ -1,4 +1,7 @@
-# A90 — A concert on the server can always be downloaded on demand (defect)
+# A90 — A concert on the server can always be downloaded on demand (defect) — ABSORBED INTO A91
+
+> **Superseded 2026-10-20 (VLL): absorbed into `A91-one-concert-list.md`. Do not implement separately. A91 carries
+> this cause, this fix and these red-first tests.**
 
 Owner: mobile. Spec: Fable, 2026-10-20. Type: **defect** (VLL: "this is super strange, and I have no way to force a
 download… this is a defect").

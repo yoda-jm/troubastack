@@ -54585,3 +54585,17 @@ Red-first pure tests are in the spec. **Priority: next.** VLL hit it tonight on 
 - Installing a local build instead would need `adb install -r -d` (a downgrade from 2587).
 
 — Mobile
+
+## ⟨dispatch → mobile⟩ A91 — ONE concert list in Stage: one row per concert, one state, one action (absorbs A90) (VLL)
+
+Spec: `docs/tasks/A91-one-concert-list.md`. **A90 is absorbed. Do not land it separately**; its red-first tests are in A91.
+
+- **Why:** VLL finds the Home lists unpredictable ("ça marche jamais comme on pense"). The root cause is A31's Perform/Manage split, which shows the same list twice and puts downloads on the other tile, plus state hidden in chips and flags (`installedOnce`).
+- **What:** the TroubaStage tile becomes the ONLY concert list. It is the union of the server manifest and the local bundles. Each row carries a plain-words state and ONE primary action:
+  - Open / Update / Download;
+  - Freeze, Re-bake, Live and Delete in ⋯, admin items gated by band role;
+  - a deleted concert stays listed as "On the server", never announced;
+  - Refresh, "last checked" and "what changed" (per-song revs).
+- **State machine:** a pure `rowState()` function in shared code, table-tested.
+- **[VLL] default:** "Keep concerts up to date" is ON, and never during a performance.
+- **Priority:** next on the mobile lane.
