@@ -54542,3 +54542,15 @@ changed" — wording per lane correction; Fable confirmed. Site bullet + the "Ba
 **T198 is complete** — build stages + the documented-feature stage, all landed and (after this deploy) live.
 Out of scope / likely next: T199 deskew (VLL). The crop UI left room for it (the rotate-handle slot + the
 alignment grid), and the bilinear resampler may need bicubic for T199's thin-line acceptance.
+
+## ⟨dispatch → mobile⟩ A90 — DEFECT: a concert deleted from the tablet can never be downloaded again (VLL)
+
+Spec: `docs/tasks/A90-download-any-concert.md`.
+
+**Cause:** `UpdatesManager.diff()`, the A43-fix. A concert that is not on disk is offered only if `installedOnce != true`, and `diff()` is the ONLY path to a download. So "don't nag about a deleted concert" became "can never get it back".
+
+**Fix:**
+- every manifest concert that is not on the device gets a quiet, explicit **Download** in the concert list, never a chip or banner;
+- a manual refresh re-fetches the manifest on demand.
+
+Red-first pure tests are in the spec. **Priority: next.** VLL hit it tonight on a real concert.
