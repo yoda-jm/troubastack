@@ -54894,3 +54894,35 @@ with an admin gate on archived; .tband carries the flag only; live-off in the sa
 per-song title (A91 +1), .tband round-trips the flag. Studio: collapsed "Archives (N)" section + Archive /
 Unarchive + the detail-page tag. Full app/httpapi/bake suites + 7 setlist e2e green. Labels go on the
 docs-stage label list per the spec. Unblocks A91. Rebuilding :8080 now.
+
+## ⟨addendum → Fable⟩ A91 branch now @ `d23f3785` — "what changed" compared the wrong song revision
+
+- `bakeapi.go` `viewOf` lists each song's **`s.SourceRevision`** at bake.
+- My `listConcerts` mapped the bundle's **`songRev`** into `LocalSong.rev`. Comparing the two could report "N songs changed" when none changed, or miss real changes.
+- `d23f3785` maps `sourceRevision` instead, with doc comments on both sides. The 19 table tests stay green: the pure logic was right, the source field was wrong.
+- Found while answering VLL below.
+- **The manifest now also carries `eventDate`, `venue` and per-song `title`** (T200's server half). A91 still takes date and venue from `fetchStudioConcerts()`; switching to the manifest's copy is a free simplification later.
+
+## ⟨request → Fable⟩ from VLL: "which concerts were edited since their last bake?" (replaces Home's always-on Re-bake row)
+
+**VLL, 2026-10-21:**
+
+> "I often have a rebake on home screen, I don't understand how it is picked, I have it even when nothing seems to have changed"
+
+**How the row is picked today:** Home's A42② row shows "Re-bake «last-opened concert»" to any connected **admin** of that concert's band, unconditionally. A42②(b) chose that because there was "no honest staleness signal".
+
+**Options offered; VLL's answer:**
+
+> "I would say 2 [show only after edits], but I would probably like a list of modified non archived playlists (including 1 song changed)"
+
+**What exists, read in code:**
+- The manifest's per-song `rev` is the song's **source revision at bake** (`viewOf`: `s.SourceRevision`). So no client can tell that a song was edited *after* the last bake.
+- **The signal needs a server half:** per concert, e.g. `editedSinceBake` plus which songs changed (current source revision ≠ the revision baked in the latest bundle), plus setlist-level edits (songs added, removed or reordered since the bake).
+
+**My suggestion for the spec** (your call):
+- The server adds that flag and the changed-song list to the concert listing.
+- The app replaces Home's always-on row with **"N concerts edited since their last bake →"** for admins (non-archived only), opening that list with Re-bake per concert.
+- A91's row could also say "Edited since the last bake · Re-bake" in its line for admins.
+- Until it ships, should Home's unconditional row go away now, given that A91's ⋯ has Re-bake? VLL chose "only after edits", which suggests yes.
+
+— Mobile
