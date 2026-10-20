@@ -54784,3 +54784,51 @@ Admin items in ⋯ are gated by the band role. The Studio-browse rows are replac
 - Delete `task/a90-download-any-concert` once A91 lands (its tests are carried over).
 
 Present the build at the gate.
+
+## ⟨submit → Fable⟩ A91 — ONE concert list in TroubaStage, built on your design GO (A90 absorbed)
+
+**Branch:** `task/a91-one-concert-list` @ `07ab02e3`, one commit on main: 7 files, +756 / −548.
+
+**Pure** (`distribution/ConcertRows.kt`): `rowState` / `concertRows` / `songChanges` / `agoText`, exactly the amended table.
+- Precedence: busy → archived (with a copy: the Archived section; without: no row) → damaged → not on the tablet (online: Download; offline: disabled) → local only → offline ("· v7 seen on the server", your optional) → up to date → frozen → **final** (Q2: "Final version v7 (you have v5)" + **Update**) → update available.
+- `AvailableConcert.archived` is added (default false).
+- `UpdatesManager` gains `isFrozen` / `freeze` / `unfreeze` (FROZEN-or-pin read as one concept) and A90's `download()`.
+- `diff()` is unchanged; it still feeds P201's `autoUpdateTick`.
+
+**Sources, merged by concert id:**
+- the manifest (rev, per-song revs, `finalLocked`, `archived`);
+- `fetchStudioConcerts()`, matched by `setlistIdOf`: name, band, **eventDate, venue**, `isAdmin`, live. So date, venue and the Q3 ordering work **now**, before T200;
+- the bundles on disk (rev, `bakedAt`, `songs[].songRev` and titles).
+
+The last server answer is cached (`concertList.server`) for the offline rows.
+
+**Ordering:** bands A→Z, then no-band last; inside a band, upcoming ascending, past descending, undated last.
+
+**UI:** `ConcertListPane.kt`.
+- A header with "Last checked …" and ↻ Refresh; it also refreshes on open and on reconnect.
+- One card per row: name, date · venue, the state line, and one primary button. Tapping the state line of an update shows "what changed" (titles for changed and removed songs, a count for added ones).
+- ⋯ holds: Open this version, Freeze / Unfreeze, Re-bake (inline "Baking on the server… 3 of 12", then the row refreshes by itself), live mode on/off, and Delete (the dialog says it stays on the server when it does).
+- A collapsed "Archived on this tablet (N)" section.
+- Import a .tstage… sits in the top bar.
+- **No auto-apply anywhere.**
+
+**Retired:**
+- `ConcertIntent` + `manageIntent`;
+- the old `ConcertRow` / `OfferChip` / `BandHeader`;
+- **Home's A39 update row** (Q1): its manifest/diff probe and the Update/Cancel handlers;
+- the Studio browse **Concerts tab**, with its ⋯, Live chip and helpers. The Studio tile opens on Bands.
+
+**Deviation, my call:** the spec puts the Notes tab under the Studio tile, but it lives in the Stage screen today. I kept it there as the second tab ("Concerts | Notes") rather than move it in this change. Say if you want it moved.
+
+**Tests** (`ConcertRowsTest`, 19): one per table row, plus archived never offered, unarchived back to normal, admin gating, delete keeps the row as "On the server", band and date ordering, and what-changed counts.
+- **Teeth:** `rowState` returning no row for a not-on-tablet concert (today's path) gives 4 red: A90's r5, r6, delete-keeps-the-row, and ordering. Restored; a grep for the sabotage line finds 0.
+- **"No automatic apply":** there is no apply path outside the row's tap (the switch was never built), so there is nothing to assert beyond its absence. Stated rather than faked.
+- **Regression:** the CI set gives BUILD SUCCESSFUL, 622 unit tests, 0 failures.
+
+**Seen on VLL's tablet** (an `install -r -d` debuggable downgrade from CI 2587; note files and concerts 2 / 4 before and after; screenshot local only, real names):
+- two band sections, rows ordered by the rule, dates and venues shown;
+- "Up to date · v29 · baked 2 days ago" and friends;
+- **A90's concert listed as "On the server · v7" with Download.**
+- I tapped nothing. The device pass (Download / Delete / Re-bake / airplane) is VLL's, and the next CI build returns the tablet to the CI channel.
+
+— Mobile
