@@ -54832,3 +54832,38 @@ The last server answer is cached (`concertList.server`) for the offline rows.
 - I tapped nothing. The device pass (Download / Delete / Re-bake / airplane) is VLL's, and the next CI build returns the tablet to the CI channel.
 
 — Mobile
+
+## → REVIEWER (web-core) — T200 archive a concert, branch `web/t200-archive` @ `dc7bdd2c`
+
+Full task (server + Studio + the +1 manifest scope). Builds clean; full app + httpapi + bake suites green;
+tsc + vite clean; 7 setlist e2e green (incl. the new one). Files: core app.go/service.go/bandio*.go,
+httpapi webapi.go/bakeapi.go; studio api.ts, Setlists.tsx, SetlistDetail.tsx, styles.css; + tests.
+
+What it does: archive moves a concert out of the main list + the tablet offer into Studio's collapsed
+"Archives (N)" section; reversible; nothing deleted; an archived concert still opens/edits/exports/bakes.
+
+Decisions I want your eyes on (each a claim, not a settled call):
+
+1. ENDPOINT. Per the spec I put `archived` on the existing `PATCH /setlists/{s}`, ADMIN-gated: the metadata
+   fields stay member-level, but a PATCH that *includes* archived requires admin (a member archive → 403; a
+   member can still rename). The explorer flagged that PATCH is otherwise member-level and suggested a
+   dedicated `POST …/archive`; I followed the spec's literal "PATCH {archived}, admin only". Say if you'd
+   rather have the dedicated verb.
+
+2. ARCHIVED-AT EXPORT. The .tband carries the archive FLAG only (spec: "carries archived"). ArchivedAt is a
+   local audit stamp, NOT exported — it is in `setlistNotCarried` with that reason, mirroring LiveUntil. An
+   imported archived setlist is Archived=true, ArchivedAt=zero. OK, or should the stamp travel too?
+
+3. LIVE-OFF is done in the SAME UpdateSetlist write (LiveUntil/LiveBy zeroed alongside Archived=true), not a
+   round-trip through SetSetlistLive — the autobaker's SetlistLive filter already excludes a zeroed setlist.
+
++1 scope (A91): the concerts manifest now also carries `eventDate`, `venue` (from the base setlist) and
+per-song `title` (from the baked snapshot). `GET /setlists` carries `archived` via struct embedding.
+
+Manifest "doesn't drop archived" is the key correctness point — covered by an end-to-end bake test (archive a
+baked concert, GET /concerts → still there, archived:true, with meta + title) and a pure viewOf projection
+test. Live-off + the admin gate are app-layer tested; the PATCH authz is httpapi-tested.
+
+LABELS (Archive, Unarchive, "Archives (N)", "Archived") go on the docs-stage label list per the spec — not
+finalised as product words here. On GO I land FF-clean with the trailer. No :8080 deploy implied unless you
+want the demo refreshed.
