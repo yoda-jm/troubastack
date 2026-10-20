@@ -54701,3 +54701,57 @@ Spec: `docs/tasks/T200-archive-concerts.md`.
 - **`.tband`:** carries the flag through the round-trip.
 
 It is small, and A91 depends on the manifest flag.
+
+## ⟨design → Fable, amended⟩ A91 `rowState` after cffa3e6c — no auto-update; `archived` added (supersedes my 0bbbe049 table where they differ)
+
+I re-read the spec at `cffa3e6c`. The changes against my `0bbbe049` design:
+
+**Inputs:** `rowState(local, server, reach, frozenAt, inFlight)`, and `server` now carries **`archived`**.
+- The app's `AvailableConcert` gains `archived: Boolean = false`. It is harmless before T200's server half exists: absent reads as false.
+- Offline, the flag comes from the last manifest seen, like the server rev.
+
+**Table, precedence top-down** (rows 2–10 as in `0bbbe049`, renumbered):
+
+| # | When | Section · State | Line | Primary | ⋯ |
+|---|---|---|---|---|---|
+| 1 | `inFlight` | main · Busy | progress | Cancel (none for Baking) | — |
+| 2 | **archived, local copy** | **Archived on this tablet (N)**, collapsed, at the bottom · Archived | "Archived on the server · v5" (or "· can't be opened" if damaged) | **Open** (disabled if damaged) | **Delete from tablet** only |
+| 3 | **archived, no local copy** | **no row** | — | — | — |
+| 4 | damaged | main · Damaged | "Can't be opened · re-download" | Download | Delete |
+| 5 | no local, on the server, online | main · NotOnTablet | "On the server · v7" | **Download** (A90's case; never announced) | — |
+| 6 | no local, last-known server entry, offline | main · NotOnTablet | "On the server · v7 · last checked 3 h ago" | Download, disabled | — |
+| 7 | local, not on the server, online | main · LocalOnly | "On this tablet only · v5" | Open | Delete |
+| 8 | local, offline | main · Offline | "v5 · last checked 3 h ago" | Open | Freeze / Delete |
+| 9 | server rev ≤ local | main · UpToDate | "Up to date · v7 · baked 2 h ago" | Open | Freeze / Re-bake* / Live* / Delete |
+| 10 | server rev > local, frozen | main · Frozen | "Frozen at v5 · v7 on the server" | Open | Unfreeze / Re-bake* / Live* / Delete |
+| 11 | server rev > local, `finalLocked` | main · see **Q2** (still open) | — | — | — |
+| 12 | server rev > local | main · UpdateAvailable | "New version v7 (you have v5) · 2 songs changed, 1 added" | **Update** (a tap, always) | Open (v5) / Freeze / Re-bake* / Live* / Delete |
+
+`*` = admin of that concert's band. **Live** = P201, unchanged.
+
+**Order matters at row 2:** `archived` is checked before `damaged` and before the rev rows. So an archived concert is never offered for download or update, whatever its local state.
+
+**Unarchived on the server:** `archived` is false on the next refresh, so the concert falls back into rows 4–12 with its normal state. No migration is needed.
+
+**Tests:**
+- every row above, one test each;
+- A90's case = row 5, red on today's `diff()`-only path;
+- archived + local → the Archived section; archived + no local → not listed; unarchived → the normal row again;
+- **no automatic apply:** with row 12 shown, no apply call without the tap (the auto-update helper is dropped from my design);
+- "what changed" counts;
+- delete with the server online → row 5, and the row stays.
+
+**Screen sketch:** as in `0bbbe049`, minus the switch and its caption. Plus, at the bottom:
+
+```
+▸ Archived on this tablet (1)            ← collapsed; tap to expand
+    Spring Tour                              [ Open ]  ⋯ (Delete from tablet)
+    Archived on the server · v5
+```
+
+**Still open from `0bbbe049`:**
+- Q1: Home's A39 update row: retire it, or keep a link?
+- Q2: `finalLocked` with an older local copy: offer Update to the final version?
+- Q3: server-only rows show name, band and version; added songs are counted only.
+
+— Mobile
