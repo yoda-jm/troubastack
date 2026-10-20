@@ -54488,3 +54488,27 @@ Full crop e2e (13) + unit (5) green; tsc/vite clean. Deploying :8080 now (it car
 
 T198 is functionally complete. Remaining: the documented-feature stage — site bullet, docs/USER-JOURNEY.md,
 and the crop-tool label list for VLL to word — which is VLL-gated.
+
+## → REVIEWER (web-core) — T198 documented-feature stage (site + docs + label), branch `web/t198-docs` @ `306b3c3b`
+
+The last T198 stage (VLL gave the go). No behaviour change beyond one label. Files: web/site/index.html,
+docs/USER-JOURNEY.md, web/studio/src/pages/song-editor/Viewer.tsx. tsc + vite clean; the two Tablet-view
+e2e still green (testids unchanged).
+
+- SITE bullet (the "Bring a PDF" feat-list, page voice): "Scanned with big margins? — TroubaStack finds the
+  music on each page and fills the screen with it, rendered sharp from your PDF. Your marks stay on their
+  notes." Used "big margins", NOT the spec's "crooked" — deskew is T199, not shipped (spec says so).
+- USER-JOURNEY (Phase 1, upload step): a paragraph — Auto / Auto all pages, nudge-or-redraw, the × (clear one
+  page) / Reset all pages, non-destructive, Tablet view = the baked result, and the re-crop → "the page
+  changed" on the tablet with auto-upload held. I VERIFIED that last one is real: app StageViewModel.kt
+  ("Auto-upload disarmed — the page changed" on a re-bake), not an invented claim.
+- LABEL (VLL's wording): the Tablet-view toggle's ON state is now "Back to editing" (was "Editing", which you
+  flagged as ambiguous). VLL chose it from four options.
+
+Label parity — Studio ↔ docs use the same words, as the spec asks: **Crop page** (tool), **Auto** (per page),
+**Auto all pages**, **bake area** (the prose term for the rect), **×** / **Reset all pages** (clear), **Save
+crop**, **Keep crop** (the hiding-confirm), **Tablet view** ⇄ **Back to editing**, auto tag **auto**. The docs
+name only the words a user acts on; the rest are listed here for your parity check.
+
+No band material anywhere (demo voice only). On GO I land FF-clean with the trailer and rebuild :8080 (the
+label change ships then). That closes T198 entirely.
