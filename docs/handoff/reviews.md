@@ -54599,3 +54599,84 @@ Spec: `docs/tasks/A91-one-concert-list.md`. **A90 is absorbed. Do not land it se
 - **State machine:** a pure `rowState()` function in shared code, table-tested.
 - **[VLL] default:** "Keep concerts up to date" is ON, and never during a performance.
 - **Priority:** next on the mobile lane.
+
+## ⟨design → Fable⟩ A91 — the `rowState` table and a screen sketch, before the build (A90 absorbed; its branch will not land)
+
+**`rowState` (pure, `commonMain/distribution/ConcertRows.kt`):**
+
+```
+rowState(local: LocalBundle?, server: AvailableConcert?, reach: Reach, frozenAt: ULong?, inFlight: Op?) → Row(state, line, primary, menu)
+  LocalBundle  = id, rev, bakedAt, songRevs, damaged      (from the bundle on disk)
+  server       = the manifest entry: rev, finalLocked, songs[].rev   (null = not in the last manifest)
+  Reach        = Online(checkedAt) | Offline(lastCheckedAt?)          (one value for the whole list)
+  frozenAt     = the policy book's FROZEN-or-pin, merged into ONE "frozen at vN" (the jargon goes; the stored book stays)
+  Op           = Downloading(p) | Updating(p) | Baking(step)
+```
+
+**Precedence: the first matching row wins.** Each row gets its own test, and A90's case is row 3:
+
+| # | When | State | Line (plain words, goes on the label list) | Primary |
+|---|---|---|---|---|
+| 1 | `inFlight` = Downloading / Updating | Busy | "Downloading… 42 %" / "Updating to v7… 42 %" | **Cancel** |
+| 1b | `inFlight` = Baking | Busy | "Baking on the server… 3/12" | none (a bake can't be cancelled; Open stays in ⋯) |
+| 2 | local damaged | Damaged | "Can't be opened · re-download" | **Download** (disabled offline or when not on the server) |
+| 3 | no local, on the server, online | NotOnTablet | "On the server · v7" | **Download**. Deleted once or never, the same row, never announced (**A90**) |
+| 4 | no local, server entry known only from the last manifest, offline | NotOnTablet | "On the server · v7 · last checked 3 h ago" | Download, disabled |
+| 5 | local, not on the server, online | LocalOnly | "On this tablet only · v5" | **Open** |
+| 6 | local, offline | Offline | "v5 · last checked 3 h ago" | **Open** |
+| 7 | local, server rev ≤ local rev | UpToDate | "Up to date · v7 · baked 2 h ago" | **Open** |
+| 8 | server rev > local, `frozenAt` set | Frozen | "Frozen at v5 · v7 on the server" | **Open** |
+| 9 | server rev > local, `finalLocked` | Locked | "The band marked v7 final · you have v5" | **Open** (see Q2) |
+| 10 | server rev > local | UpdateAvailable | "New version v7 (you have v5) · 2 songs changed, 1 added" | **Update** (Open in ⋯, on v5) |
+
+- A row with neither a local bundle nor a server entry does not exist.
+- **Delete from tablet** with the server online → row 3, and the row stays.
+
+**"What changed"** is `songDiff(localSongRevs, serverSongs)` → changed, added and removed. The manifest has song ids and revs only: changed and removed songs get **titles** from the local bundle, added ones only a count.
+
+**⋯ menu** (gated by `isAdmin` of the concert's band, not by the tile):
+- **Open** (when the primary isn't Open);
+- **Freeze this version** / **Unfreeze**;
+- **Re-bake** (admin; inline progress via row 1b, then the row turns 10 by itself);
+- **Rehearsal live mode** (admin);
+- **Delete from tablet** (local only).
+- **Import a .tstage…** goes in the top-bar menu, once.
+
+**Auto-update ("Keep concerts up to date", ON by default, [VLL]):**
+- `autoApply(rows, listShown, performing)` returns the ids of row-10 concerts. It returns nothing if `performing`, never row 8 or 9, and one at a time.
+- Tested pure: an apply call while the list is shown, none while a concert is open, none for Frozen.
+- The caption under the switch: "Notes drawn on a page that changes stay with the old version of that page."
+
+**Refresh:** the list fetches the manifest when it opens and from a ↻ in the top bar. "Last checked …" always shows in the header.
+
+**Screen sketch** (TroubaStage tile → this list; the only concert list):
+
+```
+‹ Home   TroubaStage                         ↻   ⋯ (Import a .tstage…)
+Last checked 2 min ago            Keep concerts up to date  [ ON ]
+  Notes drawn on a page that changes stay with the old version of that page.
+▾ The Troubadours
+  Sat @ The Anchor                                        [ Open ]  ⋯
+  Up to date · v7 · baked 2 h ago
+  Autumn Fair                                           [ Update ]  ⋯
+  New version v4 (you have v3) · 2 songs changed, 1 added   ← tap: titles
+  Christmas Set                                       [ Download ]  ⋯
+  On the server · v2
+▾ On this tablet only
+  rehearsal-copy                                          [ Open ]  ⋯
+  On this tablet only · v1
+```
+
+**Migration (the build, after your GO):**
+1. Retire `ConcertIntent`. TroubaStage opens this list.
+2. TroubaStudio loses its concert list and keeps Bands / invites / QR / Connect / Open Studio / the Notes tab / About.
+3. The A65/A83 Studio-browse concert rows are replaced by the same component.
+4. `diff()` keeps update suppression only.
+5. A90's `downloadable()` and tests are carried over as row 3.
+
+**Questions:**
+- **Q1, Home:** Home's A39 "Update / Nothing to update" row is an announcement. Retire it with the chips, or keep it as a one-line link "2 concerts have updates →"?
+- **Q2, `finalLocked`:** today it suppresses the update. But if the band marked **v7** final and the tablet has v5, shouldn't Update be offered, since v7 *is* the final? My reading: lock means no newer bakes, not "stay old". I'd make row 9 an Update. Your call.
+- **Q3, manifest gaps:** with no date, venue or song titles on the wire, server-only rows show name, band and version, and added songs are counted only. OK, or should the manifest grow (out of scope per the spec)?
+
+— Mobile
