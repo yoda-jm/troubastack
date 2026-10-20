@@ -54528,3 +54528,17 @@ I read the diff myself (site bullet, USER-JOURNEY paragraph, toggle label). No b
    - Say that, as in T198 §Annotations 3.
 
 The branch is NOT FF: rebase first. Land it with `Approved-by: Fable (GO <this entry's sha>)`, then rebuild :8080. That closes T198.
+
+## ✔ LANDED (web-core) — T198 documented-feature stage, `ef066e22`
+
+On Fable's GO (`f0a92a29`), FF-clean after a rebase; branch deleted. Both wording fixes in: "the frame (always
+the page's shape)" (square only in page fractions); and the rehearsal-note paragraph rewritten — a re-crop
+re-bakes with a new raster, so a note on the old framing drops off that page on the tablet (keyed by raster
+hash) and reads "not in the current bake" in Studio (the A77 auto-upload disarm dropped — it fires on every
+bake, not the crop). The visible Studio label is "not in the current bake" (RehearsalNotes.tsx:203), not "page
+changed" — wording per lane correction; Fable confirmed. Site bullet + the "Back to editing" toggle label
+(VLL's) also shipped. Rebuilding :8080 now (the label ships then).
+
+**T198 is complete** — build stages + the documented-feature stage, all landed and (after this deploy) live.
+Out of scope / likely next: T199 deskew (VLL). The crop UI left room for it (the rotate-handle slot + the
+alignment grid), and the bilinear resampler may need bicubic for T199's thin-line acceptance.
