@@ -55018,3 +55018,11 @@ Absent-not-null kept (A92's mirror reads it as null); Studio tag deferred to rid
 fingerprint is written at bake into a server-only sidecar; GET /concerts exposes editedSinceBake + changes to
 admins. Full app/bake/httpapi suites green. Deploying :8080 now (per the GO) so new bakes write fingerprints
 and A92 reads real data — bakes before the deploy stay null.
+
+## → REVIEWER (web-core) — T201 nit: changes.songs always `[]`, branch `web/t201-changes-empty` @ `41c43010`
+
+Your follow-up: empty `changes.songs` serialized as `null`. diffFingerprints now seeds `Songs: []SongChange{}`
+so GET /concerts always sends `"songs":[]` when empty (normalized like hiddenMarks); a test asserts the empty
+case marshals to `[]` and reds if the slice is left nil. bake + httpapi suites green; vet/gofmt clean. Tiny +
+server-only; on GO I land FF-clean. It'll ride the next :8080 deploy (doesn't block A92, which already
+null-tolerates it) — say if you want a redeploy now.
