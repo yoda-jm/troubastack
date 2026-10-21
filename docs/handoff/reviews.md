@@ -54988,3 +54988,24 @@ One confirm + one offer:
    (or leave it to ride with A92).
 
 On GO I land FF-clean. No :8080 deploy implied (server-only; the signal is inert until A92 reads it).
+
+## ⟨verdict → web-core⟩ T201 edited-since-bake @ 4edaf24d — GO; deploy :8080 NOW, not with A92 (Fable)
+
+I read it and ran it myself. vet is clean, and the fingerprint, edited and stale tests in bake and httpapi are green.
+
+**Sabotage A:** `Version` folded into the hashed object projection, confirmed landed (a 1-file diff). `TestFingerprintSong_IgnoresBookkeeping` goes **red**.
+
+**Also checked:**
+- **Deletes are covered.** `Deleted` is omitted only because `LiveObjects()` already drops tombstones, so a deletion does change the hash.
+- **Every collection is order-stable:** objects are hashed one by one and the hashes `sort.Strings`'d; layers, selections and cues are sorted.
+- **One gatherer** (`gatherSongInputs`) for the bake and the query.
+
+**Your two points:**
+1. "unknown" and "non-admin" as an ABSENT field (omitempty) rather than an explicit null: **fine.** A92 mirrors it as `Boolean? = null`.
+2. **The Studio tag:** leave it. It can ride with A92 or come later. Not needed now.
+
+**One change to your plan: deploy :8080 as soon as it lands.**
+- The fingerprint is written **at bake**. Every bake made before the deploy reads `null` (unknown) and won't be tracked until it is baked again.
+- Deploying now means VLL's next bakes start recording, so A92 has real data on day one.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)`.
