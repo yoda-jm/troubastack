@@ -427,18 +427,38 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
 
     private fun cookie(): String? = sessionCookieFor(storage::getSecret, baseUrl)
 
+    /** A92/T201 — the listing's fields that are not in the generated proto mirror: "edited since its last bake" (admins
+     *  only; null = unknown), what changed, and the concert date. Read from the SAME response as [fetchManifest]; keyed
+     *  by concert id. The mirror (BundleModel.kt) is generated from proto and must not be hand-edited. */
+    @Serializable data class ConcertExtras(
+        val concertId: String = "",
+        val editedSinceBake: Boolean? = null,
+        val changes: com.troubastack.shared.distribution.ConcertEdits? = null,
+        val eventDate: String = "",
+    )
+    @Serializable private data class ConcertExtrasList(val concerts: List<ConcertExtras> = emptyList())
+    private val extrasJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+    /** A92 — the extras from the last [fetchManifest], by concert id. */
+    @Volatile var lastExtras: Map<String, ConcertExtras> = emptyMap()
+        private set
+
     override suspend fun fetchManifest(): AvailableConcerts {
         val ck = cookie() ?: return AvailableConcerts()
         val bands = client.get("$baseUrl/api/bands") { header("Cookie", ck) }.body<Bands>()
         val all = ArrayList<AvailableConcert>()
+        val extras = HashMap<String, ConcertExtras>()
         for (b in bands.bands) {
             val resp = client.get("$baseUrl/api/bands/${b.id}/concerts") { header("Cookie", ck) }
             if (!resp.status.isSuccess()) continue
-            resp.body<AvailableConcerts>().concerts.forEach {
+            val text = resp.body<String>()
+            extrasJson.decodeFromString(AvailableConcerts.serializer(), text).concerts.forEach {
                 concertBand[it.concertId] = b.id
                 all += it
             }
+            runCatching { extrasJson.decodeFromString(ConcertExtrasList.serializer(), text) }.getOrNull()
+                ?.concerts?.forEach { extras[it.concertId] = it }
         }
+        lastExtras = extras
         return AvailableConcerts(all)
     }
 

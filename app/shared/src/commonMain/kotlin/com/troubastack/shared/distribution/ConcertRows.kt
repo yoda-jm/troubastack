@@ -39,6 +39,9 @@ data class ServerConcert(
     val songs: List<ServerSong> = emptyList(),
     val isAdmin: Boolean = false,
     val live: Boolean = false,
+    // A92/T201 — sent for admins only: true / false / null (unknown: a pre-T201 bake, or not an admin), and what differs.
+    val editedSinceBake: Boolean? = null,
+    val edits: ConcertEdits? = null,
 )
 
 /** A song as the manifest lists it: its id and current rev. */
@@ -128,14 +131,17 @@ fun rowState(local: LocalBundle?, server: ServerConcert?, reach: Reach, frozen: 
     val admin = online && server != null && server.isAdmin
     fun menu(vararg items: RowMenuItem?) = items.filterNotNull()
     val adminItems = if (admin) listOf(RowMenuItem.REBAKE, if (server!!.live) RowMenuItem.LIVE_OFF else RowMenuItem.LIVE_ON) else emptyList()
-    fun row(section: RowSection, state: RowStateKind, line: String, primary: RowAction, enabled: Boolean, menu: List<RowMenuItem>, changes: SongChanges? = null) =
+    // A92: an admin's row says when the server reports edits since the last bake (Re-bake is in ⋯); never on unknown.
+    val editedNote = if (server?.editedSinceBake == true && !server.archived) " · edited since its last bake" else ""
+    fun row(section: RowSection, state: RowStateKind, line0: String, primary: RowAction, enabled: Boolean, menu: List<RowMenuItem>, changes: SongChanges? = null) =
         ConcertRow(
             id = local?.id ?: server!!.id,
             name = server?.name?.ifBlank { null } ?: local?.name?.ifBlank { null } ?: (local?.id ?: server!!.id),
             bandId = server?.bandId?.ifBlank { null } ?: local?.bandId ?: "",
             bandName = server?.bandName?.ifBlank { null } ?: local?.bandName ?: "",
             eventDate = server?.eventDate ?: "", venue = server?.venue ?: "",
-            section = section, state = state, line = line, primary = primary, primaryEnabled = enabled, menu = menu, changes = changes,
+            section = section, state = state, line = if (state == RowStateKind.BUSY || section == RowSection.ARCHIVED) line0 else line0 + editedNote,
+            primary = primary, primaryEnabled = enabled, menu = menu, changes = changes,
         )
     val deleteItem = if (local != null) RowMenuItem.DELETE else null
 

@@ -38,7 +38,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.troubastack.shared.bundle.ImportResult
 import com.troubastack.shared.distribution.Availability
-import com.troubastack.shared.distribution.BakeStatus
 import com.troubastack.shared.distribution.ConcertRow
 import com.troubastack.shared.distribution.LocalBundle
 import com.troubastack.shared.distribution.Reach
@@ -51,13 +50,10 @@ import com.troubastack.shared.distribution.ServerSong
 import com.troubastack.shared.distribution.UpdateProgress
 import com.troubastack.shared.distribution.UpdatesManager
 import com.troubastack.shared.distribution.agoText
-import com.troubastack.shared.distribution.bakePollStep
 import com.troubastack.shared.distribution.concertRows
 import com.troubastack.shared.distribution.setlistIdOf
 import com.troubastack.shared.seams.Storage
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -119,6 +115,8 @@ internal fun ConcertListPane(
                         eventDate = s?.eventDate ?: "", venue = s?.venue ?: "", finalLocked = c.finalLocked, archived = c.archived,
                         songs = c.songs.map { ServerSong(it.songId, it.rev) }, isAdmin = s?.isAdmin ?: false,
                         live = s?.liveUntil?.let { runCatching { java.time.Instant.parse(it).isAfter(java.time.Instant.now()) }.getOrDefault(false) } ?: false,
+                        // A92/T201: admins-only "edited since its last bake" + what changed (null = unknown).
+                        editedSinceBake = transport.lastExtras[c.concertId]?.editedSinceBake, edits = transport.lastExtras[c.concertId]?.changes,
                     )
                 }
                 cache = ServerCache(System.currentTimeMillis() / 1000, servers)
@@ -161,16 +159,7 @@ internal fun ConcertListPane(
         ops[row.id] = RowOp.Baking("")
         jobs[row.id] = scope.launch {
             try {
-                val bakeId = java.util.UUID.randomUUID().toString()
-                val kickErr = runCatching { transport.reBake(row.id, bakeId) }.getOrElse { "Couldn't reach the server" }
-                if (kickErr != null) { message(kickErr); return@launch }
-                var step = bakePollStep(null); var polls = 0
-                while (!step.done && isActive && polls < 600) {
-                    delay(1000); polls++
-                    step = bakePollStep(runCatching { transport.bakeProgress(row.id, bakeId) }.getOrNull())
-                    (step.status as? BakeStatus.Baking)?.let { ops[row.id] = RowOp.Baking(it.label.removePrefix("Baking").trim()) }
-                }
-                (step.status as? BakeStatus.Failed)?.let { message(it.message) }
+                runReBake(transport, row.id) { ops[row.id] = RowOp.Baking(it.removePrefix("Baking").trim()) }?.let(message)
             } finally {
                 ops.remove(row.id); jobs.remove(row.id); refresh() // the row turns "New version" by itself
             }

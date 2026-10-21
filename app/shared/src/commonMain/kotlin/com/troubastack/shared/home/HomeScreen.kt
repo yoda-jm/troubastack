@@ -408,6 +408,9 @@ fun HomeScreen(
     onReBake: () -> Unit = {},
     // A88 — a newer TroubaStage is published: the quiet banner (text), its download progress while updating, and
     // its two actions. Null text ⇒ no banner. Home only — never on Stage.
+    // A92 — "N concerts edited since their last bake →" (admins; null ⇒ nothing on Home) and its tap.
+    editedLine: String? = null,
+    onEdited: () -> Unit = {},
     appUpdateText: String? = null,
     appUpdateProgress: Float? = null,
     onAppUpdate: () -> Unit = {},
@@ -589,6 +592,10 @@ fun HomeScreen(
 
             // A42②: one-tap re-bake — shown only to an admin of the resume concert's band (canReBake).
             BakeRow(state.bake, state.canReBake, state.lastConcertName, onReBake = onReBake)
+            // A92 — the honest replacement for that row: a quiet line, only when the server reports edits (T201).
+            if (editedLine != null) {
+                TextButton(onClick = onEdited, modifier = Modifier.align(Alignment.Start)) { Text(editedLine) }
+            }
         }
     }
     if (showAccount) {

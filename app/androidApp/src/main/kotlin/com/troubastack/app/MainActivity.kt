@@ -292,6 +292,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // offline, tap-to-perform) or via TroubaStudio (manage: import/update/edit affordances).
     var connecting by remember { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
+    var showEdited by rememberSaveable { mutableStateOf(false) } // A92: the "edited since their last bake" list
     // A65: the native Studio browse (Concerts | Bands launchers) is the TroubaStudio entry point; a row
     // taps into the Studio WebView at a deep-link path, with the band name for the frame title.
     var studioBrowse by rememberSaveable { mutableStateOf(false) }
@@ -429,6 +430,10 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // A27/A31: HOME is the task root, TWO branded products. TroubaStage → the concert list in PERFORM
     // intent; TroubaStudio → the SAME list in MANAGE intent (import/update/edit). The identity card →
     // Connect. I12 intact: Home never gates Stage — perform works fully offline with no login.
+    if (showEdited) {
+        EditedConcertsScreen(transport, onBack = { showEdited = false })
+        return
+    }
     if (atHome && selectedDir == null) {
         // A88: Home showing ⇒ not in a concert — the once-a-day automatic check may run (a "dev" build never does).
         LaunchedEffect(Unit) { appUpdate.maybeAutoCheck() }
@@ -438,6 +443,8 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         val entries = remember(refreshTick) { listConcerts(storage).filter { !it.damaged } }
         val lastDir = remember(entries) { storage.getSecret(LAST_CONCERT_KEY)?.takeIf { d -> entries.any { it.dir == d } } }
         val scope = rememberCoroutineScope()
+        // A92 — how many concerts the server reports as edited since their last bake (admins only; 0 ⇒ no Home line).
+        var editedCount by remember { mutableStateOf(0) }
         // A91 (Fable, Q1): Home's A39 "Update / Nothing to update" row is retired — concert updates live in the ONE
         // concert list (TroubaStage), written on each row; Home no longer announces them.
         // A91 (Fable GO, binding): Home's A42② always-on "Re-bake «last opened»" row is removed — it showed "even when
@@ -467,12 +474,13 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 is Presence.Online -> {
                     me = CurrentIdentity(userId = p.userId, displayName = p.displayName, band = p.band)
                     homeIdentity = Identity.Connected(name = p.displayName, band = p.band)
+                    editedCount = fetchServerConcertsWithEdits(transport)?.let { com.troubastack.shared.distribution.editedConcerts(it).size } ?: 0
                 }
                 // Keep last-known `me` so offline auto-match still resolves the performer's own view (I12).
-                Presence.Unreachable -> { homeIdentity = Identity.Offline(band = me?.band ?: "") }
+                Presence.Unreachable -> { homeIdentity = Identity.Offline(band = me?.band ?: ""); editedCount = 0 }
                 // A38: expired session on a known server → Guest. KEEP the band (don't null `me`) so
                 // "Sign in" reads as resuming, not starting over — matching the Unreachable branch.
-                Presence.Unauthorized -> { homeIdentity = Identity.SignedOut(band = me?.band ?: "") }
+                Presence.Unauthorized -> { homeIdentity = Identity.SignedOut(band = me?.band ?: ""); editedCount = 0 }
             }
         }
 
@@ -485,6 +493,8 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 update = UpdateStatus.Hidden, // A91: retired (see above)
                 settingsReset = Storage.settingsWereReset, // A54: one-time recovery notice after a self-heal
             ),
+            editedLine = com.troubastack.shared.distribution.editedHomeLine(editedCount), // A92
+            onEdited = { showEdited = true },
             appUpdateText = appUpdate.bannerText, // A88
             appUpdateProgress = appUpdate.progress,
             onAppUpdate = { appUpdate.update() },
