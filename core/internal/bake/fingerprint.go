@@ -223,7 +223,9 @@ func fingerprintSetlist(detail app.SetlistDetail) string {
 // diffFingerprints compares a stored fingerprint to the current one. editedSinceBake is true iff anything a
 // re-bake consumes differs.
 func diffFingerprints(stored, cur bakeFingerprint) (bool, ConcertChanges) {
-	ch := ConcertChanges{Setlist: stored.Setlist != cur.Setlist}
+	// Songs starts as a non-nil empty slice so it serializes as [] (never null) on the wire — A92 never has to
+	// null-check it, same as hiddenMarks.
+	ch := ConcertChanges{Songs: []SongChange{}, Setlist: stored.Setlist != cur.Setlist}
 	pos := func(order []string) map[string]int {
 		m := make(map[string]int, len(order))
 		for i, id := range order {

@@ -2,10 +2,12 @@ package bake
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"troubastack/core/internal/app"
@@ -219,5 +221,25 @@ func TestFingerprint_NoSidecarIsNull(t *testing.T) {
 	}
 	if edited != nil {
 		t.Fatalf("a bake with no fingerprint sidecar must read as null (nil), got %v", *edited)
+	}
+}
+
+// TestDiffFingerprints_EmptyChangesIsArray: with nothing changed, ConcertChanges.Songs must be a non-nil
+// empty slice so it serializes as [] (never null) — A92 never null-checks it.
+func TestDiffFingerprints_EmptyChangesIsArray(t *testing.T) {
+	fp := bakeFingerprint{V: 1, Setlist: "s", Order: []string{"x"}, Songs: map[string]songPrint{"x": {Hash: "h", Title: "T"}}}
+	edited, ch := diffFingerprints(fp, fp)
+	if edited {
+		t.Fatal("identical fingerprints must read not-edited")
+	}
+	if ch.Songs == nil {
+		t.Fatal("Songs must be a non-nil empty slice")
+	}
+	b, err := json.Marshal(ch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"songs":[]`) {
+		t.Fatalf("empty changes must serialize songs as [], got %s", b)
 	}
 }
