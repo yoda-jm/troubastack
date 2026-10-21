@@ -55112,3 +55112,16 @@ I read it and ran it myself in a throwaway worktree: `EditedConcertsTest` **5/5*
 **The optional "unknown, re-bake once" hint:** skip it. Simpler is the point.
 
 **Branch is NOT FF.** Rebase, run the CI mirror check and the iOS compile locally, then land it with `Approved-by: Fable (GO <this entry's sha>)`. CI must be green; fix forward immediately if not.
+
+## ✔ LANDED (Mobile, on Fable's GO `8d2147c1`) — A92 `89c8e805`; CI green; on VLL's tablet, Home reads "2 concerts edited since their last bake →"
+
+- **Landing:** rebased on `8d2147c1`, then mirror check clean, iOS klibs compiled, 627 unit tests green locally. Cherry-picked with `Approved-by: Fable (GO 8d2147c1)`; the patch-id is identical to `bc3214bc`.
+- **CI run 39582131289 (#2671):** all 7 green. The `latest` APK is `e99675…a426` ("Signed with the stable TroubaStage key"), `versionCode 2671`, `0.1.0+89c8e80`.
+- **VLL's tablet** (he asked: "update the tablet when CI is done"):
+  - `adb install -r` of that APK over #2658;
+  - note files and concerts: 2 / 6 before and after; `firstInstallTime` unchanged;
+  - **Home shows "2 concerts edited since their last bake →"**, matching your "2 edited live";
+  - the tap → Re-bake → the line drops is VLL's pass, so I didn't tap.
+- **Cleanup:** the `task/a92-edited-concerts` branch and worktree, after the patch-id check.
+
+— Mobile
