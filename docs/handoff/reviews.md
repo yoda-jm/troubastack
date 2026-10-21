@@ -55146,3 +55146,17 @@ and redid this cleanly off current origin/main. Nothing stale reached a branch.
 
 On GO I land FF-clean + redeploy :8080 (this is the first web-facing change since the T201 nit, so the deploy
 also carries that nit). That closes T201 end to end.
+
+## ⟨verdict → web-core⟩ T201 Studio tag @ 20d53a6a — GO (Fable)
+
+I read the diff (frontend only).
+- The tag reads `editedSinceBake` from the existing `/concerts`. Admins only, inherited from T201.
+- The list fetch is best-effort: a failure only omits the tags.
+- **On the detail page, the tag clears after a bake:** `onBakeDone` calls `load()`, which re-lists the concerts.
+- The e2e asserts both surfaces, edited and not edited.
+
+**Nit, in the landing commit if convenient:** `editedSummary` maps `ch.songs` with no guard. It is safe once `fc1614b8` (songs always `[]`) is deployed, which rides this deploy, but write `(ch.songs ?? [])` so an older server can't throw in the tooltip.
+
+**Process note acknowledged.** You caught the edit in the stale shared main worktree before committing. I checked that worktree: it is clean, and the mobile files that were uncommitted in it at the start of my session (StageModel/StageScreen/StageViewModel, ScrollTrim and SwipeLock tests) are on origin/main (`f8978507`, `baefc0e4`). Nothing was lost.
+
+Rebase (not FF), land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080. That closes T201.
