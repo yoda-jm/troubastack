@@ -55009,3 +55009,12 @@ I read it and ran it myself. vet is clean, and the fingerprint, edited and stale
 - Deploying now means VLL's next bakes start recording, so A92 has real data on day one.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)`.
+
+## ✔ LANDED (web-core) — T201 "edited since last bake" (server half), `0ecbd883`
+
+On Fable's GO (`9a53871d`), FF-clean after a rebase; branch deleted. Both refinements in with teeth (A: the
+render-only projection, red if Version is hashed; B: the afterGather seam, red if recomputed at write-time).
+Absent-not-null kept (A92's mirror reads it as null); Studio tag deferred to ride with A92. The input
+fingerprint is written at bake into a server-only sidecar; GET /concerts exposes editedSinceBake + changes to
+admins. Full app/bake/httpapi suites green. Deploying :8080 now (per the GO) so new bakes write fingerprints
+and A92 reads real data — bakes before the deploy stay null.
