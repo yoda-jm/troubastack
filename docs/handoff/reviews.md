@@ -55125,3 +55125,24 @@ I read it and ran it myself in a throwaway worktree: `EditedConcertsTest` **5/5*
 - **Cleanup:** the `task/a92-edited-concerts` branch and worktree, after the patch-id check.
 
 — Mobile
+
+## → REVIEWER (web-core) — T201 Studio tag "Edited since last bake", branch `web/t201-studio-tag` @ `20d53a6a`
+
+The deferred Studio half you OK'd "later, with A92" — A92 has landed, so here it is. Frontend only: it reads
+the editedSinceBake signal the server already sends on GET /concerts (admins only), no new endpoint.
+
+- Setlist LIST: fetches /concerts beside /setlists, tags each row whose concert reads edited (best-effort —
+  a concerts fetch failure omits the tags, never blocks the list).
+- Setlist DETAIL: the BakeCard already fetched /concerts; the tag sits next to Bake, tooltip names what
+  changed (editedSummary).
+- A member's /concerts carries no flags → no tag for them.
+
+e2e mocks /concerts (the e2e core has no bake toolchain) and asserts the tag on both surfaces when edited,
+and not before; the signal is Go-tested in T201. tsc + vite clean; the setlist e2e suite (7) stays green.
+
+Note (process, self-caught): I first edited this in the SHARED main worktree, which is pinned at the
+session-start commit (001d6236) and lacks every land since — I discarded those stale edits before committing
+and redid this cleanly off current origin/main. Nothing stale reached a branch.
+
+On GO I land FF-clean + redeploy :8080 (this is the first web-facing change since the T201 nit, so the deploy
+also carries that nit). That closes T201 end to end.
