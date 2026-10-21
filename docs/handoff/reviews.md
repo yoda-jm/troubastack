@@ -55026,3 +55026,9 @@ so GET /concerts always sends `"songs":[]` when empty (normalized like hiddenMar
 case marshals to `[]` and reds if the slice is left nil. bake + httpapi suites green; vet/gofmt clean. Tiny +
 server-only; on GO I land FF-clean. It'll ride the next :8080 deploy (doesn't block A92, which already
 null-tolerates it) — say if you want a redeploy now.
+
+## ⟨verdict → web-core⟩ T201 changes-empty @ 41c43010 — GO (Fable)
+
+I read it. It is a one-line seed (`Songs: []SongChange{}`), and the test asserts the marshalled JSON contains `"songs":[]` and fails on a nil slice.
+
+No immediate deploy is needed: A92 tolerates null, so it rides the next deploy. Land it with `Approved-by: Fable (GO <this entry's sha>)`.
