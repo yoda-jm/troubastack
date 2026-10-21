@@ -68,12 +68,17 @@ type concertView struct {
 	// archived concert from a gone one — archived concerts are KEPT in the manifest, not
 	// dropped. EventDate/Venue (T200 +1) come from the base setlist so A91 can date and
 	// place a server-only row. All additive + omitempty.
-	Archived    bool          `json:"archived,omitempty"`
-	EventDate   string        `json:"eventDate,omitempty"`
-	Venue       string        `json:"venue,omitempty"`
-	Songs       []songRevView `json:"songs"`
-	BakedBy     string        `json:"bakedBy,omitempty"` // extra (studio history)
-	DownloadURL string        `json:"downloadUrl"`       // extra (studio + app download)
+	Archived  bool   `json:"archived,omitempty"`
+	EventDate string `json:"eventDate,omitempty"`
+	Venue     string `json:"venue,omitempty"`
+	// EditedSinceBake (T201) is set only for ADMINS (Re-bake is admin-only, and the compare reads admin-only
+	// inputs). nil ⇒ the field is absent: either a non-admin caller, an archived concert (not reported), or a
+	// pre-T201 bake (unknown). The A92 mirror reads absent as null. Changes details what differs, admins only.
+	EditedSinceBake *bool                `json:"editedSinceBake,omitempty"`
+	Changes         *bake.ConcertChanges `json:"changes,omitempty"`
+	Songs           []songRevView        `json:"songs"`
+	BakedBy         string               `json:"bakedBy,omitempty"` // extra (studio history)
+	DownloadURL     string               `json:"downloadUrl"`       // extra (studio + app download)
 	// Warnings surface per-song bake issues in the Studio bake dialog. Set only on the
 	// bake POST (omitempty → absent for listConcerts). T60: items that asked to transpose
 	// but whose conditions didn't hold at bake time (baked untransposed, not failed).
@@ -291,6 +296,8 @@ func (a *BakeAPI) listConcerts(w http.ResponseWriter, r *http.Request, u app.Use
 		writeErr(w, err)
 		return
 	}
+	_, role, _ := a.svc.GetBand(u, bandID) // for the T201 admin-only staleness signal
+	isAdmin := role == app.RoleAdmin
 	inBand := make(map[string]app.Setlist, len(setlists))
 	for _, sl := range setlists {
 		inBand[sl.ID] = sl
@@ -310,7 +317,18 @@ func (a *BakeAPI) listConcerts(w http.ResponseWriter, r *http.Request, u app.Use
 			if isVariant && owner != u.ID {
 				continue
 			}
-			views = append(views, viewOf(bandID, cb, base))
+			v := viewOf(bandID, cb, base)
+			// T201: the "edited since last bake" signal — admins only, and never for an archived concert.
+			if isAdmin && !isVariant && !base.Archived {
+				if detail, derr := a.svc.Setlist(u, bandID, baseID); derr == nil {
+					if edited, changes, eerr := a.baker.EditedSinceBake(r.Context(), bandID, u, detail, cb.ConcertID, cb.ConcertRev); eerr == nil && edited != nil {
+						v.EditedSinceBake = edited
+						ch := changes
+						v.Changes = &ch
+					}
+				}
+			}
+			views = append(views, v)
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"concerts": views})

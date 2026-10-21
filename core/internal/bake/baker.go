@@ -62,6 +62,10 @@ type Baker struct {
 	// (nil in production) letting the B08 test deterministically publish a concurrent
 	// rev in the window between our nextRev and our claim/publish.
 	afterNextRev func()
+	// afterGather, if set, is called once after all songs are staged (their inputs gathered + fingerprinted)
+	// but before the sidecars are written — a T201 TEST SEAM (nil in production) to inject an edit in that
+	// window and prove the stored fingerprint reflects the GATHERED snapshot, not a later re-read.
+	afterGather func()
 	// progress is the T96 bake-progress registry (nil ⇒ progress publishing is a no-op,
 	// e.g. a bare struct-literal Baker in a legacy test). newBakeID mints the per-bake id
 	// (nil ⇒ the package default); onProgress is a TEST SEAM (nil in production) that
@@ -407,6 +411,10 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	// files whose rasters are hashed the same way the pool pages are. Persisted as a sidecar below, never in
 	// the bundle.
 	srcMap := SourceMap{Songs: map[string][]PageSource{}}
+	// T201: the input fingerprint, built from the SAME staged inputs the bundle rendered (each song's fpHash
+	// was hashed from the snapshot stageSong gathered). Intermissions carry no songId — they ride the setlist
+	// hash instead. The setlist-level hash is of the detail the bake consumed.
+	fp := bakeFingerprint{V: fingerprintVersion, Setlist: fingerprintSetlist(detail), Songs: map[string]songPrint{}}
 	for _, st := range staged {
 		song, warns, aerr := b.assembleSong(st, overlaysByKey, blobsDir, layerDefaults)
 		if aerr != nil {
@@ -429,6 +437,15 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		if len(srcs) > 0 {
 			srcMap.Songs[st.song.SongID] = srcs
 		}
+		if st.song.SongID != "" { // a real song (not an intermission)
+			fp.Order = append(fp.Order, st.song.SongID)
+			fp.Songs[st.song.SongID] = songPrint{Hash: st.fpHash, Title: st.song.Title}
+		}
+	}
+	// T201 test seam: inject an edit here to prove the fingerprint reflects the gathered snapshot, not a read
+	// after staging (so an edit landing mid-bake is flagged, never recorded as baked).
+	if b.afterGather != nil {
+		b.afterGather()
 	}
 
 	// T124: derive the terminal state from the ARTEFACT, not from reaching the end of the code. A bake
@@ -478,6 +495,9 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	// T185 ⟨D1⟩: the source sidecar is rev-independent, so write it once into the staging dir; it rides the
 	// atomic `<rev>/` rename like the blobs and bundle.json.
 	if err := writeSourceMap(stageDir, srcMap); err != nil {
+		return ConcertBundle{}, bakeID, err
+	}
+	if err := writeFingerprint(stageDir, fp); err != nil { // T201 sidecar, rides the same atomic rename
 		return ConcertBundle{}, bakeID, err
 	}
 	tstageStage := stageDir + ".tstage" // unique: we exclusively hold stageDir
@@ -567,6 +587,7 @@ type stagedSong struct {
 	selections    []app.MemberFileSelection // per-member ordered file choices → member_pages (⟨D1⟩)
 	defaultFileID string                    // files[0].fileID, or "" if metadata-only / no default PDF
 	metadataOnly  bool
+	fpHash        string // T201: content fingerprint of this song's bake inputs (empty for an intermission)
 }
 
 // bakedKindIntermission is the BakedSong.Kind value for a break. It is the ONE string the wire, the
@@ -606,43 +627,47 @@ func (b *Baker) stageIntermission(ctx context.Context, si int, item app.SetlistI
 	return stagedSong{si: si, song: song, files: []stagedFile{{rasters: rasters}}}, nil
 }
 
-// stageSong does everything up to the overlay render: metadata, snapshot, member cues, and — per file in
-// the T137 POOL — resolve/transpose/rasterize + build the overlay doc. It returns the staged state plus
-// one overlay request per file that has something to draw (T97's skip generalised: a file with nothing to
-// draw never enters the batch, so it costs no spawn). One pool file ⇒ today's single-file song.
-func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView) (stagedSong, []overlaySong, error) {
+// songBakeInputs is everything a bake gathers for ONE song BEFORE rendering — the inputs the T201
+// fingerprint hashes. gatherSongInputs produces it with NO rasterizing, so the manifest query can recompute
+// an identical fingerprint without a bake, and the bake-time write uses the very snapshot it gathered.
+type songBakeInputs struct {
+	song          BakedSong // metadata + member cues + the current head annotation revision
+	snap          domain.Snapshot
+	union         []app.SongFile    // the pool files that bake, in order (files[0] = default)
+	defaultFileID string            // "" if metadata-only / no default PDF
+	transpose     bool              // item.TransposeChords (swaps the default to the generated chart)
+	chartSrc      map[string]string // generated union fileID -> chart source text (its render depends on it)
+	selections    []app.MemberFileSelection
+	metadataOnly  bool // no PDF anywhere
+}
+
+// gatherSongInputs reads everything a song's bake consumes (metadata, cues, the pool-source union, member
+// selections, the annotation head) without rendering. It is the SINGLE gatherer shared by staging (the bake)
+// and the T201 fingerprint recompute, so the two can't drift.
+func (b *Baker) gatherSongInputs(ctx context.Context, bandID string, actor app.User, item app.SetlistItemView) (songBakeInputs, error) {
 	song := BakedSong{
 		SongID:       item.SongID,
 		SongRev:      1,
 		DisplayNotes: item.Notes,
-		// T86: bake the EFFECTIVE key/tempo — the setlist override when set, else the
-		// song's own value. Baking the override alone left tempo=0 (and key="") for every
-		// song without a per-setlist override, so the Stage beat never appeared. 0/"" have
-		// always meant "no override", so override semantics are unchanged.
+		// T86: bake the EFFECTIVE key/tempo — the setlist override when set, else the song's own value.
 		Key:    effectiveKey(item),
 		Tempo:  int32(effectiveTempo(item)),
 		OnCall: item.OnCall,     // bench membership rides into the bundle (T23)
 		Title:  item.SongTitle,  // real title snapshot → kills the "Song N" fallback (T26)
-		Artist: item.SongArtist, // P207: artist snapshot at bake time; empty is normal (no artist)
+		Artist: item.SongArtist, // P207: artist snapshot at bake time
 		Meter:  item.SongMeter,  // T86: the song's metre → the Stage beat (A35)
 	}
-	// source_revision = the song's CURRENT head annotation revision. (There is no
-	// per-setlist-item revision pin today — SetlistItem carries no revision, and
-	// domain.Pin is a store-level GC construct not wired to setlists. If setlist
-	// pinning is added later, prefer the pin here.)
+	// source_revision = the song's CURRENT head annotation revision (no per-item pin today).
 	snap, err := b.eng.Head(item.SongID)
 	if err != nil {
-		return stagedSong{}, nil, err
+		return songBakeInputs{}, err
 	}
 	song.SourceRevision = snap.Revision
 
-	// P205: the band-wide bake carries EVERY member's cues as `member_cues` (field 11),
-	// keyed by member id; the viewer shows only its own identity's entry (Stage 3). The
-	// personal-variant field 10 (`cues`) is retired with the scope=mine bake — it stays
-	// empty so an old app degrades to no-cues, never wrong-cues (the ruled compat guard).
+	// P205: EVERY member's cues ride as member_cues (the viewer shows only its own).
 	mcs, mcerr := b.svc.AllMemberCues(actor, bandID, item.SongID)
 	if mcerr != nil {
-		return stagedSong{}, nil, mcerr
+		return songBakeInputs{}, mcerr
 	}
 	for _, mc := range mcs {
 		cues := make([]SongCue, 0, len(mc.Cues))
@@ -653,12 +678,11 @@ func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.
 	}
 
 	// T137: resolve the pool SOURCES. files[0] is the DEFAULT — the lowest-DisplayOrder viewable PDF, or
-	// (⟨D3⟩: default-only) the generated chart when the item transposes (D1) — followed by the DISTINCT
-	// files any member selected, in Members order. Everything resolves through SongFiles so a stale
-	// selection ref (a deleted file) is skipped, never a bake failure.
+	// (⟨D3⟩) the generated chart when the item transposes (D1) — followed by the DISTINCT files any member
+	// selected, in Members order. Everything resolves through SongFiles so a stale selection ref is skipped.
 	allFiles, err := b.svc.SongFiles(actor, bandID, item.SongID)
 	if err != nil {
-		return stagedSong{}, nil, err
+		return songBakeInputs{}, err
 	}
 	byID := make(map[string]app.SongFile, len(allFiles))
 	for _, f := range allFiles {
@@ -666,18 +690,18 @@ func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.
 	}
 	def, hasDefault, err := b.defaultFile(actor, bandID, item.SongID)
 	if err != nil {
-		return stagedSong{}, nil, err
+		return songBakeInputs{}, err
 	}
 	if hasDefault && item.TransposeChords {
 		if gen, genOK, gerr := b.generatedChart(actor, bandID, item.SongID); gerr != nil {
-			return stagedSong{}, nil, gerr
+			return songBakeInputs{}, gerr
 		} else if genOK {
 			def = gen // D1: transpose forces the DEFAULT to the generated chart (the previewed file)
 		}
 	}
 	sels, serr := b.svc.AllFileSelections(actor, bandID, item.SongID)
 	if serr != nil {
-		return stagedSong{}, nil, serr
+		return songBakeInputs{}, serr
 	}
 
 	union := make([]app.SongFile, 0, 1+len(sels))
@@ -697,17 +721,45 @@ func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.
 			}
 		}
 	}
-	if len(union) == 0 {
-		return stagedSong{si: si, song: song, metadataOnly: true}, nil, nil // no PDF anywhere
-	}
 
-	st := stagedSong{si: si, song: song, selections: sels}
+	in := songBakeInputs{song: song, snap: snap, union: union, selections: sels, transpose: item.TransposeChords}
 	if hasDefault {
-		st.defaultFileID = def.ID
+		in.defaultFileID = def.ID
 	}
+	if len(union) == 0 {
+		in.metadataOnly = true // no PDF anywhere
+		return in, nil
+	}
+	// A generated chart's rendered bytes depend on its chart source, which its BlobHash need not track; carry
+	// the source text so a source edit flips the fingerprint even without a re-render.
+	for _, f := range union {
+		if f.Generated {
+			if _, src, cerr := b.svc.ChartSource(actor, bandID, item.SongID, f.ID); cerr == nil {
+				if in.chartSrc == nil {
+					in.chartSrc = map[string]string{}
+				}
+				in.chartSrc[f.ID] = src
+			}
+		}
+	}
+	return in, nil
+}
+
+// stageSong gathers the song's inputs (shared with the T201 fingerprint), records the fingerprint on the
+// staged state, then renders each pool file. One pool file ⇒ today's single-file song.
+func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView) (stagedSong, []overlaySong, error) {
+	in, err := b.gatherSongInputs(ctx, bandID, actor, item)
+	if err != nil {
+		return stagedSong{}, nil, err
+	}
+	fp := fingerprintSong(in) // T201: hashed from the snapshot we just gathered (same pass)
+	if in.metadataOnly {
+		return stagedSong{si: si, song: in.song, metadataOnly: true, fpHash: fp}, nil, nil
+	}
+	st := stagedSong{si: si, song: in.song, selections: in.selections, defaultFileID: in.defaultFileID, fpHash: fp}
 	var reqs []overlaySong
-	for fi, f := range union {
-		sf, req, ferr := b.stageFile(ctx, si, fi, bandID, actor, item, snap, f)
+	for fi, f := range in.union {
+		sf, req, ferr := b.stageFile(ctx, si, fi, bandID, actor, item, in.snap, f)
 		if ferr != nil {
 			return stagedSong{}, nil, ferr
 		}
