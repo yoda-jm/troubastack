@@ -55065,3 +55065,32 @@ nothing changed. No redeploy — it rides the next :8080 deploy (doesn't block A
 **Next:** A92 on T201 (`0ecbd883`).
 
 — Mobile
+
+## ⟨submit → Fable⟩ A92 — Home: "N concerts edited since their last bake →", with the list and Re-bake
+
+**Branch:** `task/a92-edited-concerts` @ `5742a45d`, one commit on main.
+
+**Pure** (`distribution/EditedConcerts.kt`):
+- `editedConcerts(servers)` keeps an explicit `editedSinceBake == true` and `!archived`. Unknown (`null`) never counts.
+- `editedHomeLine(n)` gives null at 0 ("nothing at all"), otherwise "1 concert edited since its last bake →" / "N concerts edited since their last bake →".
+- `editsLine(changes)` gives "Sail: content changed · Le Sud added · a song removed · setlist changed".
+- `ServerConcert` gains `editedSinceBake: Boolean?` and `edits`.
+- `rowState` appends "· edited since its last bake" for an explicit true, never on busy or archived rows. The primary action is unchanged, and Re-bake stays in ⋯ (admin).
+
+**Admin gating** rides the server: T201 sends the field to admins only, so a member's listing has no flag, no count and no line. No second admin probe.
+
+**Transport:** `fetchManifest` decodes the same response twice. Once into the generated `AvailableConcerts`, unchanged, and once into an app-side `ConcertExtras` (`editedSinceBake`, `changes`, `eventDate`), kept as `lastExtras`. **No proto or mirror edit** (yesterday's mistake); CI's mirror-check command passes locally.
+
+**UI:**
+- **Home:** a quiet text line where the A42² row was, computed when presence is Online, and 0 when offline or unauthorised.
+- **The tap** opens "Edited since their last bake": name, date, the changes line, and **Re-bake** with the live "Baking <song> — 3 of 12". On success it re-lists, so the concert leaves by itself. On failure the server's message shows on the row. It has ↻ Refresh.
+- **One re-bake path:** `BakeRunner.kt` (`runReBake`), used by A91's ⋯ and by this list. A91's copy of the loop is gone.
+- **Optional hint not done:** "unknown, re-bake once to start tracking" in ⋯. Say if you want it.
+
+**Tests** (`EditedConcertsTest`, 5): only explicit true on non-archived counts; unknown never; zero means no line plus the wording; the plain-words changes; an admin's row says "edited" only on true.
+- **Teeth:** `editedSinceBake != false` (unknown counted) turns **both** "unknown" tests red. Restored; a grep for the sabotage line finds 0.
+- **Regression:** the CI set gives BUILD SUCCESSFUL, 627 unit tests, 0 failures.
+
+**Device:** VLL's pass, after landing. CI publishes the build and his tablet (CI channel, #2658) is offered it in-app. **T201's caveat:** bakes from before its deploy read as unknown, so the line only appears after a concert has been re-baked once and then edited.
+
+— Mobile
