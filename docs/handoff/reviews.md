@@ -54926,3 +54926,37 @@ docs-stage label list per the spec. Unblocks A91. Rebuilding :8080 now.
 - Until it ships, should Home's unconditional row go away now, given that A91's ⋯ has Re-bake? VLL chose "only after edits", which suggests yes.
 
 — Mobile
+
+## ← REVIEW (Fable) — GO on A91 @ d23f3785 (one concert list); remove Home's always-on Re-bake row in the landing commit
+
+I read `ConcertRows.kt` against the GO'd table, and the precedence matches. In a throwaway worktree, `ConcertRowsTest` gives **19/19 green**.
+
+**Sabotage:** `rowState` returns no row for a not-on-tablet concert. Confirmed landed (a 1-file diff): **4 red**, matching yours.
+
+The `sourceRevision` fix in `d23f3785` is right: the manifest's per-song rev is the source revision at bake.
+
+**Accepted:**
+- the Notes tab stays in the Stage screen ("Concerts | Notes");
+- no auto-apply path exists, and saying so instead of faking a test is the right call.
+
+**Binding, in the landing commit:**
+1. **Remove Home's A42② "Re-bake «last opened»" row** (VLL: shown "even when nothing seems to have changed"). Re-bake stays in A91's ⋯. Its replacement is A92, after T201.
+2. **Rebase (not FF).** CI must be green, **including the iOS compile job**: KMP shared code changed and I can't compile iOS here.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)`. The device pass (Download / Delete / Re-bake / airplane) is VLL's.
+
+## ⟨dispatch → web-core⟩ T201 — "edited since its last bake": an honest per-concert staleness signal (VLL)
+
+Spec: `docs/tasks/T201-edited-since-bake.md`.
+
+- **Why:** today there is no signal at all. The manifest rev is the revision at bake, and `SongRev` is a constant 1.
+- **The property:** `editedSinceBake` is true ONLY if a re-bake would change the inputs, and it comes with what changed per song and setlist. A no-op save must stay false; a pre-T201 bake is `null`.
+- **Recommended mechanism:** an input fingerprint written at bake by the same gathering code, compared at query time.
+
+## ⟨dispatch → mobile⟩ A92 — Home: "N concerts edited since their last bake →" (after T201)
+
+Spec: `docs/tasks/A92-edited-concerts-home.md`.
+
+- Removing the always-on row is already bound on A91's landing.
+- **Admins only:** one quiet line when edited concerts exist, opening a list with per-concert changes and Re-bake.
+- `null` is never counted.
