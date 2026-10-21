@@ -277,6 +277,16 @@ export type Concert = {
   // T60: per-song bake warnings (e.g. a transposed item that wasn't eligible at bake).
   // Present only on the bake POST response.
   warnings?: string[];
+  // T201: the "edited since last bake" signal, present for ADMINS only. true ⇒ a re-bake would change the
+  // bundle's inputs; false ⇒ up to date; absent ⇒ unknown (a pre-T201 bake) or a non-admin caller. `changes`
+  // names what differs (songs by their `what`, and whether the setlist structure changed).
+  editedSinceBake?: boolean;
+  changes?: ConcertChanges;
+};
+
+export type ConcertChanges = {
+  songs: { songId: string; title: string; what: "added" | "removed" | "moved" | "content" }[];
+  setlist: boolean;
 };
 
 /** T96/T99 — a bake's live progress. `done` advances 1..total; `song` names the song

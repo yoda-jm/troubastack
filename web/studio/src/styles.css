@@ -1936,6 +1936,7 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .chip.brand { background: var(--brand-tint); color: var(--brand-ink); }
 .chip.ok { background: var(--ok-bg); color: var(--ok-fg); }
 .chip.warn { background: var(--warn-bg); color: var(--warn-fg); }
+.chip.edited { background: var(--warn-bg); color: var(--warn-fg); } /* T201 "Edited since last bake" tag */
 .chip.dot { display: inline-flex; align-items: center; gap: .35rem; }
 .chip.dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: .8; }
 

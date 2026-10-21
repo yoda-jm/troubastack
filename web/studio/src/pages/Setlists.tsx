@@ -56,6 +56,10 @@ export function Setlists() {
     null,
   );
 
+  // T201: concertId === setlistId → edited[setlistId] is true when a re-bake would change that concert.
+  // The /concerts endpoint carries editedSinceBake for admins only; a member's fetch simply yields no flags.
+  const [edited, setEdited] = useState<Record<string, boolean>>({});
+
   const load = useCallback(async () => {
     if (!bandId) return;
     try {
@@ -63,6 +67,15 @@ export function Setlists() {
       setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load setlists");
+    }
+    try {
+      const flags: Record<string, boolean> = {};
+      for (const c of await api.listConcerts(bandId)) {
+        if (c.editedSinceBake) flags[c.concertId] = true;
+      }
+      setEdited(flags);
+    } catch {
+      // The staleness tags are a nicety; a concerts fetch failure must not block the list.
     }
   }, [bandId]);
 
@@ -266,6 +279,15 @@ export function Setlists() {
                             title="Rehearsal live mode is on — edits to this concert's songs auto-bake"
                           >
                             Live
+                          </span>
+                        ) : null}
+                        {edited[sl.id] ? (
+                          <span
+                            className="chip edited"
+                            data-testid="setlist-edited-tag"
+                            title="Edited since its last bake — a re-bake would change it"
+                          >
+                            Edited since last bake
                           </span>
                         ) : null}
                       </Link>

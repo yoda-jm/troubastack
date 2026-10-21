@@ -11,6 +11,7 @@ import {
   ApiError,
   api,
   type Concert,
+  type ConcertChanges,
   type Role,
   type Setlist,
   type SetlistItem,
@@ -237,6 +238,16 @@ function liveNow(sl: Setlist): boolean {
   return !!sl.liveUntil && new Date(sl.liveUntil).getTime() > Date.now();
 }
 
+// editedSummary (T201) is the tooltip behind the "Edited since last bake" tag — what a re-bake would change.
+export function editedSummary(ch?: ConcertChanges): string {
+  if (!ch) return "A re-bake would change this concert.";
+  const parts: string[] = [];
+  const songs = (ch.songs ?? []).map((s) => `${s.title} (${s.what})`);
+  if (songs.length) parts.push(songs.join(", "));
+  if (ch.setlist) parts.push("the running order changed");
+  return parts.length ? `Changed since the last bake: ${parts.join("; ")}.` : "A re-bake would change this concert.";
+}
+
 // LiveModeCard (P201, admin-only): toggle rehearsal live mode. While on, edits to the
 // setlist's songs auto-bake — the banner up top says so. Bounded window server-side.
 function LiveModeCard({
@@ -384,6 +395,11 @@ function BakeCard({
             >
               Bake setlist
             </button>
+            {bandConcert?.editedSinceBake && (
+              <span className="chip edited" data-testid="setlist-edited-tag" title={editedSummary(bandConcert.changes)}>
+                Edited since last bake
+              </span>
+            )}
             <AudienceTag audience="band" />{/* T56: the shared band bundle */}
             {bandConcert && (
               <a
