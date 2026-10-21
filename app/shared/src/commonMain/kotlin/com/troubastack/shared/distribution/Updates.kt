@@ -150,6 +150,12 @@ class UpdatesManager(
         return out
     }
 
+    /** A90/A91 — an explicit Download of a concert that is not on this tablet (deleted here before or never had). Not an
+     *  update, so never suppressed: freeze and `finalLocked` only gate UPDATE offers for an installed concert. A
+     *  successful import records it as installed again, so its next revision is offered as usual. */
+    suspend fun download(concertId: String, onProgress: (UpdateProgress) -> Unit = {}): ImportResult =
+        apply(Availability.NewlyAvailable(concertId), onProgress)
+
     private fun offerSuppressed(c: AvailableConcert, rec: PolicyRecord?): Boolean =
         c.finalLocked || rec?.policy == UpdatePolicy.FROZEN || rec?.pinnedRev != null
 
@@ -219,6 +225,13 @@ class UpdatesManager(
         for (id in concertIds) book[id] = (book[id] ?: PolicyRecord()).copy(installedOnce = true)
         writePolicies(json.encodeToString(PolicyBook(book)))
     }
+
+    /** A91 — "Freeze this version": the FROZEN policy or a local pin, read as ONE concept (the jargon goes, the book stays). */
+    fun isFrozen(concertId: String): Boolean = loadBook()[concertId]?.let { it.policy == UpdatePolicy.FROZEN || it.pinnedRev != null } ?: false
+
+    /** A91 — Freeze this version / Unfreeze (Unfreeze clears both the policy and any old local pin). */
+    fun freeze(concertId: String) = setPolicy(concertId, UpdatePolicy.FROZEN)
+    fun unfreeze(concertId: String) = mutate(concertId) { it.copy(policy = UpdatePolicy.PROMPT, pinnedRev = null) }
 
     /** Set the per-concert update policy (PROMPT/FROZEN/AUTO). AUTO is inert in B03. */
     fun setPolicy(concertId: String, policy: UpdatePolicy) = mutate(concertId) { it.copy(policy = policy) }

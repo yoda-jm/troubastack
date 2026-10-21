@@ -206,12 +206,11 @@ private data class ConcertEntry(
     val bandId: String, // T143: grouping key for the by-band accordion
     val bandName: String, // T143: group label ("" for pre-T143 bundles → "Unknown band")
     val damaged: Boolean,
+    val songs: List<com.troubastack.shared.distribution.LocalSong> = emptyList(), // A91: "what changed" vs the server
 )
 
-/** A31: the concert list is ONE screen, two intents. Perform is reached via TroubaStage — lean rows,
- *  tap to perform, fully offline (no server affordances). Manage is reached via TroubaStudio — adds
- *  Import / download offers / Edit / freeze·pin·delete. */
-private enum class ConcertIntent { Perform, Manage }
+// A91: the Perform/Manage ConcertIntent split is retired — there is ONE concert list, in TroubaStage; admin items in a
+// row's ⋯ are gated by the band role, not by which tile you came from.
 
 @Composable
 private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
@@ -291,7 +290,6 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     // A31: the concert list is ONE screen with two intents — entered via TroubaStage (perform: lean,
     // offline, tap-to-perform) or via TroubaStudio (manage: import/update/edit affordances).
-    var manageIntent by rememberSaveable { mutableStateOf(false) }
     var connecting by remember { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
     // A65: the native Studio browse (Concerts | Bands launchers) is the TroubaStudio entry point; a row
@@ -440,17 +438,11 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         val entries = remember(refreshTick) { listConcerts(storage).filter { !it.damaged } }
         val lastDir = remember(entries) { storage.getSecret(LAST_CONCERT_KEY)?.takeIf { d -> entries.any { it.dir == d } } }
         val scope = rememberCoroutineScope()
-        // A39: the Home Update state, the offers to apply, and their names for the summary.
-        var homeUpdate by remember { mutableStateOf<UpdateStatus>(UpdateStatus.Hidden) }
-        var updateOffers by remember { mutableStateOf<List<Availability>>(emptyList()) }
-        var updateNames by remember { mutableStateOf<List<String>>(emptyList()) }
-        var updateJob by remember { mutableStateOf<Job?>(null) }
-        // A42②: the Home re-bake row. canReBake gates on the signed-in user being an ADMIN of the resume
-        // concert's band; homeBake is the live row; bakeJob is the running kick+poll (T103: the POST kicks
-        // and the progress poll is the source of truth for the outcome).
-        var canReBake by remember { mutableStateOf(false) }
-        var homeBake by remember { mutableStateOf<BakeStatus>(BakeStatus.Hidden) }
-        var bakeJob by remember { mutableStateOf<Job?>(null) }
+        // A91 (Fable, Q1): Home's A39 "Update / Nothing to update" row is retired — concert updates live in the ONE
+        // concert list (TroubaStage), written on each row; Home no longer announces them.
+        // A91 (Fable GO, binding): Home's A42② always-on "Re-bake «last opened»" row is removed — it showed "even when
+        // nothing seems to have changed" (VLL). Re-bake lives in each concert's ⋯ in the TroubaStage list; the honest
+        // replacement ("N concerts edited since their last bake →") is A92, after T201's server signal.
 
         // A31: LIVE connection status — never the cached cookie flag. Probe the server on entry AND on
         // every foreground resume (resumeTick); show "Checking…" while it's in flight, then resolve to
@@ -468,8 +460,6 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 } else {
                     Identity.NotSetUp
                 }
-                homeUpdate = UpdateStatus.Hidden // A39: no Update for Guest — Sign in is the next step
-                canReBake = false // A42②: no re-bake for Guest
                 return@LaunchedEffect
             }
             homeIdentity = Identity.Checking
@@ -477,41 +467,12 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 is Presence.Online -> {
                     me = CurrentIdentity(userId = p.userId, displayName = p.displayName, band = p.band)
                     homeIdentity = Identity.Connected(name = p.displayName, band = p.band)
-                    // A39: Recognized → is any INSTALLED concert out of date? (UpdateOffered only; a
-                    // manifest that won't load is not an error — just don't nag.) Skip while an update
-                    // is running OR after a failure, so a background resume doesn't stomp the in-flight
-                    // row or silently erase the "couldn't update" message before the user retries.
-                    if (homeUpdate !is UpdateStatus.InFlight && homeUpdate !is UpdateStatus.Failed) {
-                        // A43: the landing tells the truth — the honest state is a PURE decision
-                        // (landingUpdate, tested in shared). manifest == null ⇒ couldn't check ⇒ no
-                        // currency claim; zero of the band's set installed ⇒ offer the download; a stale
-                        // installed copy ⇒ Update (A39); otherwise the narrow "Nothing to update".
-                        val manifest = runCatching { updates.fetchManifest() }.getOrNull()
-                        val diffed = manifest?.let { updates.diff(it) }.orEmpty()
-                        val nameOf = manifest?.concerts?.associate { it.concertId to it.name }.orEmpty()
-                        val landing = landingUpdate(
-                            manifestSize = manifest?.concerts?.size,
-                            offered = diffed.filterIsInstance<Availability.UpdateOffered>(),
-                            newlyAvailable = diffed.filterIsInstance<Availability.NewlyAvailable>(),
-                        ) { id -> nameOf[id]?.takeIf { it.isNotEmpty() } ?: id }
-                        updateOffers = landing.offers
-                        updateNames = landing.names
-                        homeUpdate = landing.status
-                    }
-                    // A42②: offer Re-bake only to an ADMIN of the resume concert's band (the server also
-                    // 403s a non-admin — this just hides a control that would only fail). Skip while a bake
-                    // is running so a background probe doesn't flip the row out from under it.
-                    if (bakeJob == null) {
-                        val resumeCid = entries.firstOrNull { it.dir == lastDir }?.concertId ?: ""
-                        canReBake = resumeCid.isNotEmpty() &&
-                            runCatching { transport.isBandAdmin(resumeCid) }.getOrDefault(false)
-                    }
                 }
                 // Keep last-known `me` so offline auto-match still resolves the performer's own view (I12).
-                Presence.Unreachable -> { homeIdentity = Identity.Offline(band = me?.band ?: ""); homeUpdate = UpdateStatus.Hidden; canReBake = false }
+                Presence.Unreachable -> { homeIdentity = Identity.Offline(band = me?.band ?: "") }
                 // A38: expired session on a known server → Guest. KEEP the band (don't null `me`) so
                 // "Sign in" reads as resuming, not starting over — matching the Unreachable branch.
-                Presence.Unauthorized -> { homeIdentity = Identity.SignedOut(band = me?.band ?: ""); homeUpdate = UpdateStatus.Hidden; canReBake = false }
+                Presence.Unauthorized -> { homeIdentity = Identity.SignedOut(band = me?.band ?: "") }
             }
         }
 
@@ -521,9 +482,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 lastConcertName = entries.firstOrNull { it.dir == lastDir }?.label ?: "",
                 concertCount = entries.size,
                 identity = homeIdentity,
-                update = homeUpdate,
-                canReBake = canReBake, // A42②
-                bake = homeBake, // A42②
+                update = UpdateStatus.Hidden, // A91: retired (see above)
                 settingsReset = Storage.settingsWereReset, // A54: one-time recovery notice after a self-heal
             ),
             appUpdateText = appUpdate.bannerText, // A88
@@ -531,7 +490,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             onAppUpdate = { appUpdate.update() },
             onAppUpdateNotNow = { appUpdate.notNow() },
             onAppUpdateCancel = { appUpdate.cancel() },
-            onPerform = { manageIntent = false; atHome = false },
+            onPerform = { atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },
             onStudio = { studioBrowse = true; atHome = false },
             // A38: the primary action routes by the current status.
@@ -546,103 +505,6 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             onManage = { connecting = true },
             onScanToJoin = { scanning = true }, // A57: direct scan entry for a Guest holding an invite
             onSettings = { settings = true },
-            // A39: one tap → download+install the newer bake(s). apply() downloads to a temp then does
-            // the A05 ATOMIC import, so a failure/cancel leaves the installed bundle intact (I12). On
-            // completion, bump refreshTick to re-list + re-diff (→ UpToDate, or Available if any failed).
-            onUpdate = {
-                val offers = updateOffers
-                if (offers.isNotEmpty() && updateJob == null) {
-                    homeUpdate = UpdateStatus.InFlight()
-                    updateJob = scope.launch {
-                        // Apply each offer; COLLECT failures so we can say something (T30: never swallow
-                        // a gesture silently). apply() rethrows CancellationException, so Cancel stops the
-                        // loop here rather than being turned into a Failed and marching to the next offer.
-                        // A42 ①: forward apply's progress into the InFlight row (download bar → install tail).
-                        val failed = mutableListOf<String>()
-                        offers.forEachIndexed { i, offer ->
-                            if (updates.apply(offer) { p -> homeUpdate = inFlightStatus(p) } is ImportResult.Failed) {
-                                failed += updateNames.getOrNull(i) ?: "a concert"
-                            }
-                        }
-                        updateJob = null
-                        // A44: the terminal status is a PURE decision (updateOutcomeStatus, tested in
-                        // shared) — a success MUST be terminal, never InFlight, or the re-diff below (guarded
-                        // by `homeUpdate !is InFlight`) can't clear it and the row deadlocks on "Installing…"
-                        // (the A42① bug). Set it first, THEN bump refresh so the re-diff can refine UpToDate
-                        // → Available if a newer rev landed. On failure refreshTick is skipped so the
-                        // result-driven message survives until the user retries.
-                        homeUpdate = updateOutcomeStatus(failed)
-                        if (failed.isEmpty()) refreshTick++
-                    }
-                }
-            },
-            onCancelUpdate = {
-                val job = updateJob
-                scope.launch {
-                    job?.cancelAndJoin() // AWAIT completion before cleanup, so we don't race a mid-write download
-                    updateJob = null
-                    // Delete ONLY this run's temps (not every *.tstage — Stage's P201 autoUpdate uses the
-                    // same temp dir). The atomic importer never ran, so the installed bundle is intact.
-                    runCatching {
-                        val dir = storage.tempDir().trimEnd('/')
-                        updateOffers.forEach { o ->
-                            // A43: cover NewlyAvailable too (an empty-device download is cancellable now),
-                            // not just UpdateOffered — apply() writes both to $dir/$concertId.tstage.
-                            val cid = when (o) {
-                                is Availability.UpdateOffered -> o.concertId
-                                is Availability.NewlyAvailable -> o.concertId
-                                is Availability.SongChanged -> o.concertId
-                            }
-                            java.io.File("$dir/$cid.tstage").delete()
-                        }
-                    }
-                    // Restore the offer row we cancelled, matching its verb (A43: Download vs Update).
-                    homeUpdate = when {
-                        updateOffers.isEmpty() -> UpdateStatus.UpToDate
-                        updateOffers.any { it is Availability.NewlyAvailable } ->
-                            UpdateStatus.Available(downloadSummary(updateNames), action = "Download")
-                        else -> UpdateStatus.Available(updateSummary(updateNames))
-                    }
-                }
-            },
-            // A42②: one-tap re-bake of the resume concert (admin only — canReBake). T103: the POST is a
-            // KICK that returns 202; the PROGRESS POLL is the source of truth for the outcome. So we kick,
-            // then poll bakePollStep to a terminal state and drive the row from THAT — never from the POST
-            // (the old blocking shape cancelled the poller and, on T103's async server, would hide the row
-            // while the bake ran). A dropped socket no longer cancels the bake (server context), so a lost
-            // poll just degrades to "Baking…"; a hard backstop keeps a stuck 404 from looping forever.
-            onReBake = {
-                val cid = entries.firstOrNull { it.dir == lastDir }?.concertId ?: ""
-                if (cid.isNotEmpty() && bakeJob == null) {
-                    homeBake = BakeStatus.Baking(bakeLabel(null)) // "Baking…" until the first poll answers
-                    bakeJob = scope.launch {
-                        val bakeId = java.util.UUID.randomUUID().toString()
-                        val kickErr = runCatching { transport.reBake(cid, bakeId) }
-                            .getOrElse { "Couldn't reach the server" }
-                        if (kickErr != null) {
-                            homeBake = BakeStatus.Failed(kickErr)
-                            bakeJob = null
-                            return@launch
-                        }
-                        // Poll to a terminal state (bakePollStep decides on `state`, tested in shared).
-                        var step = bakePollStep(null)
-                        var polls = 0
-                        while (!step.done && isActive && polls < 600) { // ~10 min backstop; real bakes end far sooner
-                            delay(1000)
-                            polls++
-                            step = bakePollStep(runCatching { transport.bakeProgress(cid, bakeId) }.getOrNull())
-                            homeBake = step.status
-                        }
-                        bakeJob = null
-                        // Success (or the backstop after a kicked bake that ran server-side) ⇒ clear + re-list
-                        // so the new rev shows; a failure keeps its message until the user retries.
-                        if (step.status !is BakeStatus.Failed) {
-                            homeBake = BakeStatus.Hidden
-                            refreshTick++
-                        }
-                    }
-                }
-            },
         )
         if (showDisconnect) {
             // A38: Disconnect signs out but keeps the server address (CORE_URL_KEY survives signOut) and
@@ -661,9 +523,6 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                         // Reset the connection-derived rows immediately (matching the Guest early-return),
                         // so a signed-out Guest doesn't briefly keep an admin Re-bake / Update affordance
                         // until the next probe. Found via A45's device pass; A42②/A38 didn't clear these.
-                        homeUpdate = UpdateStatus.Hidden
-                        canReBake = false
-                        homeBake = BakeStatus.Hidden
                         showDisconnect = false
                     }) { Text("Disconnect") }
                 },
@@ -686,10 +545,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     if (dir == null) {
         ConcertsScreen(
             context, storage, transport, updates,
-            intent = if (manageIntent) ConcertIntent.Manage else ConcertIntent.Perform,
             onOpen = { selectedDir = it; storage.putSecret(LAST_CONCERT_KEY, it) },
-            onEdit = { editing = true },
-            onConnect = { connecting = true },
             onHome = { atHome = true }, // A31: visible Home affordance in the top bar
         )
         // A38: Connect modal also overlays the concert list (Manage → Connect).
@@ -897,21 +753,13 @@ private fun ConcertsScreen(
     storage: Storage,
     transport: HttpTransport,
     updates: UpdatesManager,
-    intent: ConcertIntent,
     onOpen: (String) -> Unit,
-    onEdit: () -> Unit,
-    onConnect: () -> Unit,
     onHome: () -> Unit,
 ) {
-    val manage = intent == ConcertIntent.Manage
-    val scope = rememberCoroutineScope()
     var refresh by remember { mutableStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
-    var connected by remember { mutableStateOf(transport.isConnected) }
-    var syncing by remember { mutableStateOf(false) }
-    var offers by remember { mutableStateOf<List<Availability>>(emptyList()) }
-    var names by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    // A70 §5.3 — the Stage section is two tabs: Bakes (today's list) | Notes (rehearsal-note management).
+    val connected = transport.isConnected
+    // A70 §5.3 — the Stage section is two tabs: Concerts (A91's one list) | Notes (rehearsal-note management).
     var stageTab by remember { mutableStateOf(0) }
     // A78 (Fable conditional GO): the Notes tab's "Send all (N)" lives in THIS title row's empty right side,
     // not on a row of its own (≈ 56 dp back for the list). NotesTab publishes it here; see NotesSendAllHandle.
@@ -931,187 +779,72 @@ private fun ConcertsScreen(
         }
     }
 
-    // Perform intent is lean + fully offline (I12): damaged concerts aren't performable, so they only
-    // appear in Manage (where you can delete them).
-    val entries = remember(refresh, manage) { listConcerts(storage).filter { manage || !it.damaged } }
-    // A70 §5.5 — note count per concert, for the library-row subtitle ("· notes on N pages").
-    val noteCounts = remember(refresh) { allNoteEntries(storage).groupingBy { it.first }.eachCount() }
-
-    // A42②-follow-up (VLL): re-bake ANY concert from its ⋮, not only the Home resume row. Only when
-    // connected AND admin of that concert's band — a control that could only 403 is not an affordance.
-    var adminCids by remember { mutableStateOf<Set<String>>(emptySet()) }
-    // Keyed on the SET of concert ids (not `entries`, whose identity changes on every refresh++): admin
-    // status only changes when concerts are added/removed or the connection flips — not on a rev bump from
-    // a bake, nor on a pin/freeze — so this doesn't re-query isBandAdmin for every concert on each action.
-    val cidKey = remember(entries) { entries.mapNotNull { it.concertId.takeIf(String::isNotEmpty) }.toSet() }
-    LaunchedEffect(connected, cidKey) {
-        adminCids = if (!connected) emptySet()
-        else cidKey.filter { runCatching { transport.isBandAdmin(it) }.getOrDefault(false) }.toSet()
-    }
-    // One bake at a time (like the Home row). bakeCid stays set on failure so THAT row shows the error +
-    // offers a retry; it clears on success, then a re-list surfaces the new rev.
-    var bakeCid by remember { mutableStateOf<String?>(null) }
-    var bakeStatus by remember { mutableStateOf<BakeStatus>(BakeStatus.Hidden) }
-    fun reBakeConcert(cid: String) {
-        if (bakeCid != null && bakeStatus is BakeStatus.Baking) return // a bake is already running
-        bakeCid = cid
-        bakeStatus = BakeStatus.Baking(bakeLabel(null))
-        scope.launch {
-            val bakeId = java.util.UUID.randomUUID().toString()
-            val kickErr = runCatching { transport.reBake(cid, bakeId) }.getOrElse { "Couldn't reach the server" }
-            if (kickErr != null) { bakeStatus = BakeStatus.Failed(kickErr); return@launch }
-            var step = bakePollStep(null); var polls = 0
-            while (!step.done && isActive && polls < 600) { // ~10 min backstop; real bakes end far sooner
-                delay(1000); polls++
-                step = bakePollStep(runCatching { transport.bakeProgress(cid, bakeId) }.getOrNull())
-                bakeStatus = step.status
-            }
-            if (step.status !is BakeStatus.Failed) { bakeCid = null; bakeStatus = BakeStatus.Hidden; refresh++ }
-        }
-    }
-
-    // Pull the manifest + recompute offers whenever connection or install state changes (I13). Manage
-    // intent only — the perform path makes NO network call (offline-first entering via TroubaStage).
-    LaunchedEffect(connected, refresh, manage) {
-        if (!manage || !connected) { offers = emptyList(); return@LaunchedEffect }
-        syncing = true
-        try {
-            val manifest = updates.fetchManifest()
-            names = manifest.concerts.associate { it.concertId to it.name.ifEmpty { it.concertId } }
-            offers = updates.diff(manifest)
-        } catch (e: Exception) {
-            message = "Couldn't reach the server"
-        }
-        syncing = false
-    }
-
-    fun applyOffer(offer: Availability) {
-        scope.launch {
-            syncing = true
-            message = when (val r = updates.apply(offer)) {
-                is ImportResult.Imported -> "Downloaded"
-                is ImportResult.Failed -> r.reason   // old bundle left untouched (importer guarantees)
-            }
-            syncing = false
-            refresh++
-        }
-    }
-
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // A31: a visible Home affordance on every sub-screen (placement consistent with the Edit
             // bar's "‹ Back"), so returning to the landing page never depends on the system-back gesture.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onHome) { Text("‹  Home") }
-                if (manage) {
-                    Text("Concerts", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-                } else {
-                    // A65 (VLL): the Stage native page wears the Stage brand — two-tone "TroubaStage", gold.
-                    Text(
-                        brandTitle("Stage", accent = LocalBrandAccents.current.stage, ink = MaterialTheme.colorScheme.onSurface),
-                        style = MaterialTheme.typography.headlineMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    // A78 ⟨D1⟩ — top-level "Send all (N)", only while the Notes tab is selected. Same states as
-                    // before: hidden at 0, disabled offline (the Connect hint stays inside the tab), busy text.
-                    val line = notesSendAll.line
-                    if (stageTab == 1 && line is SendAllLine.Shown) {
-                        Button(onClick = { notesSendAll.onClick() }, enabled = line.enabled) {
-                            Text(if (line.sending) "Sending…" else "Send all (${line.count})")
-                        }
-                    }
-                    // A81: A65 made the Manage screen unreachable (nothing sets manageIntent any more), and its
-                    // Import button went with it — this is the only door to a .tstage now, so it lives here,
-                    // on the Bakes tab (the Notes tab owns this slot for "Send all"). Works with no server.
-                    if (stageTab == 0) {
-                        TextButton(onClick = { picker.launch(TSTAGE_PICKER_TYPES) }) { Text("Import") }
-                    }
-                }
-                // Manage-only affordances (import / download offers / edit / sign-in). Perform stays lean.
-                if (manage) {
-                    if (connected) {
-                        TextButton(onClick = { transport.signOut(); connected = false; offers = emptyList() }) { Text("Sign out") }
-                    } else {
-                        TextButton(onClick = onConnect) { Text("Connect") }
-                    }
-                    TextButton(onClick = onEdit) { Text("Edit") }
-                    Button(onClick = { picker.launch(TSTAGE_PICKER_TYPES) }) {
-                        Text("Import")
-                    }
-                }
-            }
-            // A70 §5.3 — Bakes | Notes tabs, Stage accent (Stage section only, not Manage). The Notes tab
-            // label carries the whole nag: `Notes ⚠` in orange/red when any note is old.
-            val stageAccent = LocalBrandAccents.current.stage
-            if (!manage) {
-                val notesWarn = remember(refresh) { allNotesWarning(storage) }
-                TabRow(
-                    selectedTabIndex = stageTab, contentColor = stageAccent,
-                    indicator = { pos -> TabRowDefaults.SecondaryIndicator(Modifier.tabIndicatorOffset(pos[stageTab]), color = stageAccent) },
-                ) {
-                    Tab(selected = stageTab == 0, onClick = { stageTab = 0 }, text = { Text("Bakes") }, selectedContentColor = stageAccent, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Tab(
-                        selected = stageTab == 1, onClick = { stageTab = 1 },
-                        text = { Text(if (notesWarn == NotesWarning.NONE) "Notes" else "Notes ⚠") },
-                        selectedContentColor = when (notesWarn) { NotesWarning.RED -> Color(0xFFD32F2F); NotesWarning.ORANGE -> Color(0xFFF57C00); else -> stageAccent },
-                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            if (manage || stageTab == 0) {
-            if (manage && syncing) Text("Syncing…", style = MaterialTheme.typography.bodySmall)
-            message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-
-            // Offer chips (I13): download-available + update-offered, applied only on explicit tap. Manage only.
-            if (manage) offers.forEach { offer -> OfferChip(offer, names, onApply = { applyOffer(offer) }) }
-
-            if (entries.isEmpty()) {
+                // A65 (VLL): the Stage native page wears the Stage brand — two-tone "TroubaStage", gold.
                 Text(
-                    if (manage) "No concerts yet. Import a .tstage or Connect to download one."
-                    else "No concerts on device yet. Import a .tstage file, or open TroubaStudio to download one.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    brandTitle("Stage", accent = LocalBrandAccents.current.stage, ink = MaterialTheme.colorScheme.onSurface),
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                // A78 ⟨D1⟩ — top-level "Send all (N)", only while the Notes tab is selected.
+                val line = notesSendAll.line
+                if (stageTab == 1 && line is SendAllLine.Shown) {
+                    Button(onClick = { notesSendAll.onClick() }, enabled = line.enabled) {
+                        Text(if (line.sending) "Sending…" else "Send all (${line.count})")
+                    }
+                }
+                // A81/A91: Import lives once, in the list's top bar (works with no server).
+                if (stageTab == 0) {
+                    TextButton(onClick = { picker.launch(TSTAGE_PICKER_TYPES) }) { Text("Import a .tstage…") }
+                }
+            }
+            // A70 §5.3 — Concerts | Notes tabs, Stage accent. The Notes tab label carries the whole nag.
+            val stageAccent = LocalBrandAccents.current.stage
+            val notesWarn = remember(refresh) { allNotesWarning(storage) }
+            TabRow(
+                selectedTabIndex = stageTab, contentColor = stageAccent,
+                indicator = { pos -> TabRowDefaults.SecondaryIndicator(Modifier.tabIndicatorOffset(pos[stageTab]), color = stageAccent) },
+            ) {
+                Tab(selected = stageTab == 0, onClick = { stageTab = 0 }, text = { Text("Concerts") }, selectedContentColor = stageAccent, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                Tab(
+                    selected = stageTab == 1, onClick = { stageTab = 1 },
+                    text = { Text(if (notesWarn == NotesWarning.NONE) "Notes" else "Notes ⚠") },
+                    selectedContentColor = when (notesWarn) { NotesWarning.RED -> Color(0xFFD32F2F); NotesWarning.ORANGE -> Color(0xFFF57C00); else -> stageAccent },
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            // T143: group the library by band (collapsible) — the answer to "je ne sais pas … quel band".
-            val groups = remember(entries) { groupByBand(entries, { it.bandId }, { it.bandName }) }
-            // Expanded by default; a missing key reads as expanded, so grouping never hides a bundle silently.
-            val collapsed = remember { mutableStateMapOf<String, Boolean>() }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                groups.forEach { group ->
-                    val isCollapsed = collapsed[group.bandId] == true
-                    item(key = "band-${group.bandId}") {
-                        BandHeader(
-                            name = group.bandName,
-                            count = group.items.size,
-                            collapsed = isCollapsed,
-                            onToggle = { collapsed[group.bandId] = !isCollapsed },
-                        )
-                    }
-                    if (!isCollapsed) {
-                        items(group.items, key = { it.dir }) { entry ->
-                            ConcertRow(
-                                entry, // A31/T143: this is the PICKER (a library), so the ⋮ shows whichever door you came through
-                                notesCount = noteCounts[entry.concertId] ?: 0,
-                                canReBake = entry.concertId in adminCids,
-                                bakeStatus = if (bakeCid == entry.concertId) bakeStatus else BakeStatus.Hidden,
-                                onReBake = { reBakeConcert(entry.concertId) },
-                                onOpen = { if (!entry.damaged) onOpen(entry.dir) },
-                                // A70 §3.3: deleting a bundle removes its rehearsal notes too (they live beside it).
-                                onDelete = { File(entry.dir).deleteRecursively(); AndroidRehearsalNotes(storage.notesDir()).deleteAll(entry.concertId); refresh++ },
-                                onFreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.FROZEN); refresh++ },
-                                onUnfreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.PROMPT); refresh++ },
-                                onPin = { updates.setFreeze(entry.concertId, Freeze.LocalPin(entry.concertRev)); refresh++ },
-                                onUnpin = { updates.setFreeze(entry.concertId, null); refresh++ },
-                            )
-                        }
-                    }
-                }
+            message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            if (stageTab == 0) {
+                // A91 — the ONE concert list (server ∪ tablet), state + one action per row.
+                ConcertListPane(
+                    storage = storage, transport = transport, updates = updates, connected = connected, refreshKey = refresh,
+                    listLocal = { listConcerts(storage).map { e -> LocalCopy(e.toLocalBundle(), e.dir) } },
+                    onOpen = onOpen,
+                    // A70 §3.3: deleting a bundle removes its rehearsal notes too (they live beside it).
+                    onDeleted = { cid -> if (cid.isNotEmpty() && !cid.startsWith(DAMAGED_PREFIX)) AndroidRehearsalNotes(storage.notesDir()).deleteAll(cid) },
+                    onChanged = { refresh++ },
+                    message = { message = it },
+                )
+            } else {
+                NotesTab(storage, transport, connected, onChanged = { refresh++ }, sendAllHandle = notesSendAll)
             }
-            } // A70: close the Bakes-tab wrapper (manage || stageTab == 0)
-            if (!manage && stageTab == 1) NotesTab(storage, transport, connected, onChanged = { refresh++ }, sendAllHandle = notesSendAll)
         }
     }
 }
+
+/** A91 — a damaged bundle has no readable concert id; its row is keyed by its folder so Delete still finds it. */
+private const val DAMAGED_PREFIX = "damaged:"
+
+/** A91 — a listed bundle as the pure list model sees it. */
+private fun ConcertEntry.toLocalBundle() = com.troubastack.shared.distribution.LocalBundle(
+    id = if (damaged || concertId.isEmpty()) DAMAGED_PREFIX + dir else concertId,
+    rev = concertRev, bakedAt = bakedAt, name = label, bandId = bandId, bandName = bandName, damaged = damaged, songs = songs,
+)
 
 // A70 §5 — every stored rehearsal note across all installed concerts, paired with its concert id.
 private fun allNoteEntries(storage: Storage): List<Pair<String, com.troubastack.shared.stage.notes.NoteEntry>> {
@@ -1397,142 +1130,6 @@ private fun NoteLeaf(label: String, old: Boolean, indent: androidx.compose.ui.un
     }
 }
 
-@Composable
-private fun OfferChip(offer: Availability, names: Map<String, String>, onApply: () -> Unit) {
-    val (label, action) = when (offer) {
-        is Availability.NewlyAvailable -> "New: ${names[offer.concertId] ?: offer.concertId}" to "Download"
-        is Availability.UpdateOffered -> "${names[offer.concertId] ?: offer.concertId} — update to rev ${offer.serverRev}" to "Update"
-        is Availability.SongChanged -> return
-    }
-    ElevatedCard(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Button(onClick = onApply) { Text(action) }
-        }
-    }
-}
-
-/** T143 — a collapsible band section header in the on-device library ("regrouper par groupe"). */
-@Composable
-private fun BandHeader(name: String, count: Int, collapsed: Boolean, onToggle: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 4.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(if (collapsed) "▸" else "▾", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.width(8.dp))
-        Text(name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-        Text("$count", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun ConcertRow(
-    entry: ConcertEntry,
-    onOpen: () -> Unit,
-    onDelete: () -> Unit,
-    onFreeze: () -> Unit,
-    onUnfreeze: () -> Unit,
-    onPin: () -> Unit,
-    onUnpin: () -> Unit,
-    notesCount: Int = 0,
-    // A42②-follow-up (VLL): re-bake ANY concert from the picker, not only the Home resume row. Admin-gated
-    // by the caller (canReBake); progress shows inline on the row while baking.
-    canReBake: Boolean = false,
-    bakeStatus: BakeStatus = BakeStatus.Hidden,
-    onReBake: () -> Unit = {},
-) {
-    var menuOpen by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
-    val baking = bakeStatus is BakeStatus.Baking
-    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(entry.label, style = MaterialTheme.typography.titleMedium)
-                // T143 §1: rev + bake time, so two bakes with the SAME name are distinguishable on the row.
-                // T148: render the bake time in the device's local zone (offset AT the bake instant), not UTC.
-                if (!entry.damaged) {
-                    // A70 §5.5: append the note count (information, not a control).
-                    val notesSuffix = if (notesCount > 0) " · notes on $notesCount page${if (notesCount == 1) "" else "s"}" else ""
-                    Text(
-                        concertRowSubtitle(entry.concertRev, entry.bakedAt, localUtcOffsetSeconds(entry.bakedAt)) + notesSuffix,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                // The live bake line while THIS concert is re-baking (T99-style), or the failure + retry.
-                when (val s = bakeStatus) {
-                    is BakeStatus.Baking -> Text(s.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    is BakeStatus.Failed -> Text(s.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    BakeStatus.Hidden -> {}
-                }
-            }
-            // T143: this row is the PICKER (a library) — it offers the ⋮ (Delete + setlist id, plus
-            // freeze/pin) whichever door you came through; only the performing SHEET stays controls-free.
-            val actions = bundleMenuActions(isPerformingSheet = false, damaged = entry.damaged) // the picker
-            if (actions.isNotEmpty()) {
-                // Wrap in a Box so the DropdownMenu anchors to the ⋮ button (right edge) and opens under it,
-                // instead of anchoring to the row start and opening on the left (VLL).
-                Box {
-                TextButton(onClick = { menuOpen = true }) { Text("⋮") }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    // T143: the setlist id is a support detail — in the ⋮, not on the row (VLL: "dans les …
-                    // l'id de la playlist"). Absent for a damaged bundle whose concert id failed to load.
-                    if (!entry.damaged && entry.concertId.isNotEmpty()) {
-                        Text(
-                            "Setlist ${setlistIdOf(entry.concertId)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        )
-                        HorizontalDivider()
-                    }
-                    // A42②-follow-up: Re-bake this concert (admin + connected only, so it can't just 403).
-                    if (canReBake) {
-                        DropdownMenuItem(
-                            text = { Text(if (baking) "Re-baking…" else "Re-bake") },
-                            enabled = !baking,
-                            onClick = { menuOpen = false; onReBake() },
-                        )
-                        HorizontalDivider()
-                    }
-                    actions.forEach { a ->
-                        val label = when (a) {
-                            BundleAction.Freeze -> "Freeze (no updates)"
-                            BundleAction.Unfreeze -> "Unfreeze"
-                            BundleAction.Pin -> "Pin this version"
-                            BundleAction.Unpin -> "Unpin"
-                            BundleAction.Delete -> "Delete…"
-                        }
-                        DropdownMenuItem(text = { Text(label) }, onClick = {
-                            menuOpen = false
-                            when (a) {
-                                BundleAction.Freeze -> onFreeze()
-                                BundleAction.Unfreeze -> onUnfreeze()
-                                BundleAction.Pin -> onPin()
-                                BundleAction.Unpin -> onUnpin()
-                                BundleAction.Delete -> confirmDelete = true
-                            }
-                        })
-                    }
-                }
-                } // Box (anchors the menu to the ⋮)
-            }
-        }
-    }
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete this bundle?") },
-            // The caution the investigation turned up: a re-import destroys the server's bakes of the old
-            // setlist, so the device may hold the only copy — say so rather than treat it as a cache.
-            text = { Text("“${entry.label}” will be removed from this device. This device may be the only copy — a re-import deletes the server's bakes of the old setlist.") },
-            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
-        )
-    }
-}
-
 /** List installed bundles; a directory that fails to load is shown as damaged (with a delete action). */
 private fun listConcerts(storage: Storage): List<ConcertEntry> {
     val dirs = File(storage.bundlesDir()).listFiles()?.filter { it.isDirectory }?.sortedBy { it.name } ?: emptyList()
@@ -1542,6 +1139,9 @@ private fun listConcerts(storage: Storage): List<ConcertEntry> {
                 d.path, r.bundle.concertId, r.bundle.concertRev, r.bundle.bakedAt,
                 r.bundle.name.ifEmpty { r.bundle.concertId.ifEmpty { d.name } },
                 bandId = r.bundle.bandId, bandName = r.bundle.bandName, damaged = false,
+                // A91: compare like with like — the server's per-song `rev` is the song's SOURCE revision at bake
+                // (bakeapi viewOf: s.SourceRevision), so "what changed" reads the bundle's sourceRevision, not songRev.
+                songs = r.bundle.songs.map { com.troubastack.shared.distribution.LocalSong(it.songId, it.sourceRevision, it.title.ifBlank { it.label }) },
             )
             is LoadResult.Failed -> ConcertEntry(d.path, "", 0uL, 0L, "Damaged bundle (${d.name})", bandId = "", bandName = "", damaged = true)
         }
