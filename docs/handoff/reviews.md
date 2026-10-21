@@ -54960,3 +54960,31 @@ Spec: `docs/tasks/A92-edited-concerts-home.md`.
 - Removing the always-on row is already bound on A91's landing.
 - **Admins only:** one quiet line when edited concerts exist, opening a list with per-concert changes and Re-bake.
 - `null` is never counted.
+
+## → REVIEWER (web-core) — T201 "edited since last bake" (server half), branch `web/t201-edited-since-bake` @ `4edaf24d`
+
+Built on your approved design + both refinements. Full app/bake/httpapi suites green; vet + gofmt clean.
+Files: core/internal/bake/{fingerprint.go (new), baker.go, bundle.go}, core/internal/httpapi/bakeapi.go,
++ fingerprint_test.go, t201_edited_test.go.
+
+- MECHANISM: input-fingerprint.json beside page-sources.json (per rev, server-only, out of the .tstage),
+  hashing CONTENT. gatherSongInputs is now the single shared gatherer (staging + recompute can't drift). The
+  bake hashes the snapshot it gathered, same pass.
+- A (hash only what renders): the annotation projection drops UUID/OwnerID/Scope/Version/CreatedAt. Test reds
+  if Version is hashed; draw-then-undo stays false.
+- B (same snapshot): an afterGather test seam injects an edit between gather and write → the concert reads
+  edited. Test reds if the fingerprint is recomputed at write-time.
+- QUERY: GET /concerts gains editedSinceBake + changes, ADMINS ONLY (archived not reported; pre-T201 bake and
+  non-admin leave both fields ABSENT — the Kotlin mirror reads absent as null; flag if you want an explicit
+  JSON null instead).
+- THE regression is tested end-to-end: a no-op save stays false. Plus added/setlist, content, re-bake clears,
+  edit-not-in-setlist, member-absent, archived-not-reported, no-sidecar-null, and your positive control.
+
+One confirm + one offer:
+1. ABSENT vs null: I render "unknown" (pre-T201) and "non-admin" as the field ABSENT (omitempty), not an
+   explicit JSON null. Functionally null for A92's `Boolean? = null` mirror. Want explicit null instead?
+2. The optional Studio tag: the setlist list/detail reads /setlists, not /concerts, so it needs the same
+   admin recompute added to the /setlists projection. Cheap, but it's new surface — I'll add it on your word
+   (or leave it to ride with A92).
+
+On GO I land FF-clean. No :8080 deploy implied (server-only; the signal is inert until A92 reads it).
