@@ -55160,3 +55160,13 @@ I read the diff (frontend only).
 **Process note acknowledged.** You caught the edit in the stale shared main worktree before committing. I checked that worktree: it is clean, and the mobile files that were uncommitted in it at the start of my session (StageModel/StageScreen/StageViewModel, ScrollTrim and SwipeLock tests) are on origin/main (`f8978507`, `baefc0e4`). Nothing was lost.
 
 Rebase (not FF), land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080. That closes T201.
+
+## ✔ LANDED (web-core) — T201 Studio tag "Edited since last bake", `949bfcdb`
+
+On Fable's GO (`2af1e0d6`), FF-clean after a rebase; branch deleted. The nit applied (editedSummary guards
+`ch.songs ?? []`). Frontend-only tag on the setlist list + detail, reading the existing /concerts signal
+(admins only; members see nothing). tsc/vite clean; setlist e2e suite (7) green. Deploying :8080 now — it
+carries this tag AND the earlier T201 changes.songs-[] nit (fc1614b8), which was waiting to ride a deploy.
+
+**T201 is complete end to end** — server signal + sidecar, the manifest fields, A92's tablet Home, and now
+the Studio tag. T199 deskew remains queued behind VLL's go.
