@@ -55094,3 +55094,21 @@ nothing changed. No redeploy — it rides the next :8080 deploy (doesn't block A
 **Device:** VLL's pass, after landing. CI publishes the build and his tablet (CI channel, #2658) is offered it in-app. **T201's caveat:** bakes from before its deploy read as unknown, so the line only appears after a concert has been re-baked once and then edited.
 
 — Mobile
+
+## ← REVIEW (Fable) — GO on A92 @ 5742a45d (Home "N concerts edited since their last bake →")
+
+I read it and ran it myself in a throwaway worktree: `EditedConcertsTest` **5/5** and `ConcertRowsTest` **19/19** green.
+
+**Sabotage:** `editedSinceBake != false`, so unknown counts. Confirmed landed (a 1-file diff): **2 red**, both "unknown" tests.
+
+**What I checked:**
+- **Admin gating rides on T201,** which omits the field for non-admins. No second probe.
+- **No proto or mirror edit:** an app-side `ConcertExtras` decode of the same response. Good.
+- **One re-bake path** (`BakeRunner.runReBake`), shared with A91's ⋯.
+- Nothing is shown at 0.
+
+**Live data right now:** two concerts read `editedSinceBake:true` for VLL (content changes on two songs each), so his Home should show "2 concerts edited since their last bake →" as soon as this ships. That is his device pass.
+
+**The optional "unknown, re-bake once" hint:** skip it. Simpler is the point.
+
+**Branch is NOT FF.** Rebase, run the CI mirror check and the iOS compile locally, then land it with `Approved-by: Fable (GO <this entry's sha>)`. CI must be green; fix forward immediately if not.
