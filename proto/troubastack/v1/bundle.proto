@@ -199,6 +199,8 @@ message AvailableConcert {
   bool final_locked = 5;
   message SongRev { string song_id = 1; uint64 rev = 2; }
   repeated SongRev songs = 6;            // for per-song "Song A changed — apply?"
+  // T200/A91: an archived concert is KEPT in the listing, flagged, so the app can tell "archived" from "gone".
+  bool archived = 7;
 }
 
 message AvailableConcerts {

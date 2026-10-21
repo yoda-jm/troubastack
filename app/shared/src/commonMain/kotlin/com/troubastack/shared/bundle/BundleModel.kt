@@ -127,8 +127,6 @@ data class AvailableConcert(
     @Serializable(with = ProtoInt64Serializer::class) val updatedAt: Long = 0L,
     val finalLocked: Boolean = false,
     val songs: List<SongRev> = emptyList(),
-    // A91/T200 — the server flags an archived concert instead of dropping it, so the app can tell "archived" from
-    // "gone". Absent (a server before T200) reads as false.
     val archived: Boolean = false,
 ) {
 
