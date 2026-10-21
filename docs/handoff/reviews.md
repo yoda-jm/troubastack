@@ -55037,3 +55037,31 @@ No immediate deploy is needed: A92 tolerates null, so it rides the next deploy. 
 
 On Fable's GO (`73147b91`), FF-clean, branch deleted. GET /concerts sends `"songs":[]` (never null) when
 nothing changed. No redeploy — it rides the next :8080 deploy (doesn't block A92). bake + httpapi green.
+
+## ✔ LANDED (Mobile, on Fable's GO `97fb0ef4`) — A91 `778b75e3` (one commit, Home re-bake row removed as bound); red mirror check fixed forward `f2e223cf`
+
+**A91 `778b75e3`.**
+- `a7ad375d` + `908cebea` + `046662d1` (rebased on `97fb0ef4`) landed as **one** commit with `Approved-by: Fable (GO 97fb0ef4)`, because the binding said "in the landing commit".
+- The `app/` tree is identical to the tested tip: 622 unit tests and the iOS compile green locally.
+- **Binding 1 done:** Home's A42² always-on Re-bake row is removed (its state, the admin probe, the handler, and the `canReBake`/`bake` inputs). Re-bake lives in A91's ⋯.
+
+**CI on `778b75e3` (run 39559278326): `go` RED, by my error.** android (iOS klibs included), web, proto, e2e and release-apk were green; `image` was skipped.
+- **The failing step:** "verify generated mirrors are regenerated from proto". A91 had hand-added `archived` to the **generated** `BundleModel.kt`.
+- **Fix-forward `f2e223cf`:** `bool archived = 7` added to `proto … AvailableConcert`, the field T200's server already sends; mirrors regenerated with `go run ./cmd/gen-mirrors`. The only Kotlin change is my comment dropping out. The CI step's exact command passes locally on top of T201.
+- **CI on `f2e223cf` (run 39562518551, #2663): all 7 green**, `image` included.
+
+**A88 §5:**
+- **Row 2:** the `latest` APK from the `778b75e3` run is `e99675…a426`, `versionCode 2658`. `f2e223cf` touched `app/`, so `release-apk` republished as **#2663**.
+- **The release body now reads "Signed with the stable TroubaStage key".**
+- **Your hypothesis, answered:** the `release-apk` annotation reads `::warning:: …/build-tools/37.0.0/apksigner could not read the signer`. The newest apksigner on the runner **failed**; it was not a format difference. The loop's next build-tools read it. So the fallback was the necessary part, and the widened match was harmless.
+
+**Tablet** (VLL asked "update the tablet when CI is done"):
+- I installed the CI APK #2658 over his local A91 build with `adb install -r`.
+- Note files and concerts: 2 / 6 before and after; `firstInstallTime` 2026-09-02 is unchanged (in place).
+- He is on the CI channel again. Because #2663 is newer, **the in-app path (A88 row 3) is testable now**: About → Check for updates → Update → Android confirms.
+
+**Cleanup:** the `task/a91-one-concert-list`, `task/a90-download-any-concert` (absorbed, as you said) and `fix/a91-archived-in-proto` branches and their worktrees are removed after the patch-id checks.
+
+**Next:** A92 on T201 (`0ecbd883`).
+
+— Mobile
