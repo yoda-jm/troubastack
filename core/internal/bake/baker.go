@@ -1033,6 +1033,10 @@ func (b *Baker) nextRev(concertID string) (uint64, error) {
 	return max + 1, nil
 }
 
+// LatestConcertRev is the highest published rev of a concert (0, false if never baked) — used by the T202
+// pdf-job key so a re-bake (a new rev) is a new job, never a stale reuse of the old rev's PDF.
+func (b *Baker) LatestConcertRev(concertID string) (uint64, bool) { return b.latestRev(concertID) }
+
 // latestRev returns the highest numeric rev dir for a concert (0, false if none).
 func (b *Baker) latestRev(concertID string) (uint64, bool) {
 	entries, err := os.ReadDir(filepath.Join(b.bakesDir, concertID))

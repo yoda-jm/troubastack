@@ -29,10 +29,12 @@ type BakeAPI struct {
 	// ctx is the SERVER's lifetime context (T103). The async bake runs on it, NOT the request's, so a
 	// client that hangs up — a long bake over venue/power-saving wifi — no longer cancels its own bake.
 	ctx context.Context
+	// pdfJobs holds the T202 async concert-PDF jobs (member-scoped, with progress).
+	pdfJobs *pdfJobRegistry
 }
 
 func NewBakeAPI(ctx context.Context, svc *app.Service, baker *bake.Baker) *BakeAPI {
-	return &BakeAPI{svc: svc, baker: baker, ctx: ctx}
+	return &BakeAPI{svc: svc, baker: baker, ctx: ctx, pdfJobs: newPdfJobRegistry(nil)}
 }
 
 func (a *BakeAPI) Mount(mux *http.ServeMux, authed func(authedHandler) http.HandlerFunc) {
@@ -41,6 +43,10 @@ func (a *BakeAPI) Mount(mux *http.ServeMux, authed func(authedHandler) http.Hand
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts", authed(a.listConcerts))
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/bundle", authed(a.downloadBundle))
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/pdf", authed(a.concertPDF))
+	// T202: the async, member-scoped concert PDF (kick + poll + download).
+	mux.HandleFunc("POST /api/bands/{bandId}/concerts/{concertId}/pdf-jobs", authed(a.startPdfJob))
+	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/pdf-jobs/{jobId}", authed(a.pdfJobProgress))
+	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/pdf-jobs/{jobId}/file", authed(a.pdfJobFile))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files/{fileId}/pdf", authed(a.filePDF)) // FILEPDF
 }
 
@@ -425,6 +431,131 @@ func (a *BakeAPI) concertPDF(w http.ResponseWriter, r *http.Request, u app.User)
 	w.Header().Set("Content-Disposition", contentDisposition("attachment", concertID+".pdf", "concert.pdf"))
 	w.Header().Set("Content-Length", strconv.Itoa(len(pdf)))
 	_, _ = w.Write(pdf)
+}
+
+// startPdfJob (T202) kicks an async, member-scoped concert PDF and returns 202 {jobId}. The member/role gate
+// is identical to concertPDF (an admin may print for any member via the body's `member`; a non-admin only
+// themselves). A repeated request for the same (concert, member, role) reuses the running/finished job.
+func (a *BakeAPI) startPdfJob(w http.ResponseWriter, r *http.Request, u app.User) {
+	bandID := r.PathValue("bandId")
+	concertID := r.PathValue("concertId")
+	base, owner, isVariant := bake.ParseConcertID(concertID)
+	if _, err := a.svc.Setlist(u, bandID, base); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if isVariant && owner != u.ID {
+		writeErr(w, app.ErrForbidden)
+		return
+	}
+	if a.baker == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "bake not configured"})
+		return
+	}
+	var in struct {
+		Member string `json:"member"`
+		Role   string `json:"role"`
+	}
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&in) // body is optional (both fields default)
+	}
+	// Same gate as concertPDF: default to the caller; an admin may name another member.
+	viewerMemberID := u.ID
+	_, role, gerr := a.svc.GetBand(u, bandID)
+	isAdmin := gerr == nil && role == app.RoleAdmin
+	if in.Member != "" && in.Member != u.ID {
+		if !isAdmin {
+			writeErr(w, app.ErrForbidden)
+			return
+		}
+		viewerMemberID = in.Member
+	}
+	filename := a.pdfFilename(u, bandID, base, viewerMemberID)
+	rev, _ := a.baker.LatestConcertRev(concertID) // 0 if never baked — the job then fails with "not baked yet"
+	jobID, created := a.pdfJobs.startOrGet(bandID, concertID, rev, viewerMemberID, in.Role, u.ID, filename)
+	if created {
+		roleParam := in.Role
+		go a.runPdfJob(jobID, concertID, roleParam, viewerMemberID)
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID})
+}
+
+// runPdfJob composes the PDF on the server's context (detached from the request) and records progress +
+// result into the registry. Same ConcertPDF the sync endpoint calls, so the bytes match.
+func (a *BakeAPI) runPdfJob(jobID, concertID, role, memberID string) {
+	pdf, err := a.baker.ConcertPDFWithProgress(concertID, role, memberID, func(done, total int) {
+		a.pdfJobs.setRunning(jobID, done, total)
+	})
+	if err != nil {
+		msg := "Couldn't compose the concert PDF."
+		if errors.Is(err, os.ErrNotExist) {
+			msg = "This concert hasn't been baked yet."
+		}
+		a.pdfJobs.fail(jobID, msg)
+		return
+	}
+	a.pdfJobs.finish(jobID, pdf)
+}
+
+// pdfJobProgress reports a job's {state,done,total,error}. Visible only to the job's creator or a band admin.
+func (a *BakeAPI) pdfJobProgress(w http.ResponseWriter, r *http.Request, u app.User) {
+	bandID := r.PathValue("bandId")
+	jobID := r.PathValue("jobId")
+	_, role, _ := a.svc.GetBand(u, bandID)
+	j, ok := a.pdfJobs.view(jobID, bandID, u.ID, role == app.RoleAdmin)
+	if !ok {
+		writeErr(w, app.ErrNotFound) // unknown, expired, or not yours
+		return
+	}
+	out := map[string]any{"state": string(j.state), "done": j.done, "total": j.total}
+	if j.errMsg != "" {
+		out["error"] = j.errMsg
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// pdfJobFile streams a finished job's PDF, named "<concert> — <member>.pdf". Same visibility as the poll.
+func (a *BakeAPI) pdfJobFile(w http.ResponseWriter, r *http.Request, u app.User) {
+	bandID := r.PathValue("bandId")
+	jobID := r.PathValue("jobId")
+	_, role, _ := a.svc.GetBand(u, bandID)
+	j, ok := a.pdfJobs.view(jobID, bandID, u.ID, role == app.RoleAdmin)
+	if !ok {
+		writeErr(w, app.ErrNotFound)
+		return
+	}
+	if j.state != pdfDone {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "the PDF is not ready yet"})
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", contentDisposition("attachment", j.filename, "concert.pdf"))
+	w.Header().Set("Content-Length", strconv.Itoa(len(j.bytes)))
+	_, _ = w.Write(j.bytes)
+}
+
+// pdfFilename builds "<concert name> — <member display name>.pdf" for the download, from the setlist name +
+// the roster. Best-effort: a lookup miss just drops that part.
+func (a *BakeAPI) pdfFilename(u app.User, bandID, baseSetlistID, memberID string) string {
+	name := "concert"
+	if d, err := a.svc.Setlist(u, bandID, baseSetlistID); err == nil && d.Setlist.Name != "" {
+		name = d.Setlist.Name
+	}
+	who := ""
+	if members, err := a.svc.Members(u, bandID); err == nil {
+		for _, m := range members {
+			if m.User.ID == memberID {
+				if who = m.User.DisplayName; who == "" {
+					who = m.User.Username
+				}
+				break
+			}
+		}
+	}
+	if who != "" {
+		return fmt.Sprintf("%s — %s.pdf", name, who)
+	}
+	return name + ".pdf"
 }
 
 // filePDF prints ONE file of a song's pool as an A4 PDF with its annotations drawn on it (FILEPDF) — no

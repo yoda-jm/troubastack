@@ -7,7 +7,7 @@
  */
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { ApiError, api, pdfUrlFromBundle, type Setlist } from "../api";
+import { ApiError, api, type Setlist } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { NewItem } from "../components/NewItem";
 import { useBand } from "./BandLayout";
@@ -16,6 +16,7 @@ import { useDialogs } from "../components/Dialog";
 import { foldText } from "../foldText";
 import { partitionSetlists, todayLocal } from "../setlistOrder";
 import { BakeDialog } from "./BakeDialog";
+import { PdfDialog } from "./PdfDialog";
 import { bakeSetlistDisabled } from "./SetlistDetail";
 
 // T131: rehearsal live mode is on when liveUntil is set and still in the future (P201). Prefer the
@@ -59,6 +60,8 @@ export function Setlists() {
   // T201: concertId === setlistId → edited[setlistId] is true when a re-bake would change that concert.
   // The /concerts endpoint carries editedSinceBake for admins only; a member's fetch simply yields no flags.
   const [edited, setEdited] = useState<Record<string, boolean>>({});
+  // T202: the member-scoped PDF dialog opened from a row (concertId === the setlist id).
+  const [pdfTarget, setPdfTarget] = useState<{ concertId: string; name: string } | null>(null);
 
   const load = useCallback(async () => {
     if (!bandId) return;
@@ -343,10 +346,7 @@ export function Setlists() {
                                   testId="setlist-pdf"
                                   onClick={() => {
                                     closeMenu();
-                                    triggerDownload(
-                                      pdfUrlFromBundle(sl.downloadUrl!),
-                                      `${sl.name || "concert"}.pdf`,
-                                    );
+                                    setPdfTarget({ concertId: sl.id, name: sl.name });
                                   }}
                                 >
                                   Download PDF
@@ -449,6 +449,15 @@ export function Setlists() {
             void load();
           }}
           onCancel={() => setBakeTarget(null)}
+        />
+      )}
+      {pdfTarget && (
+        <PdfDialog
+          bandId={bandId}
+          concertId={pdfTarget.concertId}
+          concertName={pdfTarget.name}
+          isAdmin={myRole === "admin"}
+          onClose={() => setPdfTarget(null)}
         />
       )}
     </>

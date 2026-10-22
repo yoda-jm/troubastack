@@ -1937,6 +1937,16 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .chip.ok { background: var(--ok-bg); color: var(--ok-fg); }
 .chip.warn { background: var(--warn-bg); color: var(--warn-fg); }
 .chip.edited { background: var(--warn-bg); color: var(--warn-fg); } /* T201 "Edited since last bake" tag */
+
+/* T202 — a button that reads as a link (the bake card's "Download PDF" opens the PDF dialog). */
+.linklike {
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--brand); text-decoration: none;
+}
+.linklike:hover:not(:disabled) { text-decoration: underline; }
+.pdf-dialog-for { display: block; margin: .25rem 0 .5rem; }
+.pdf-dialog-for select, .pdf-dialog-for input { margin-left: .4rem; }
+.pdf-dialog-note { margin-top: 0; }
 .chip.dot { display: inline-flex; align-items: center; gap: .35rem; }
 .chip.dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: .8; }
 

@@ -31,6 +31,7 @@ import {
   type SortableRowProps,
 } from "../components/SortableList";
 import { BakeDialog } from "./BakeDialog";
+import { PdfDialog } from "./PdfDialog";
 
 export function SetlistDetail() {
   const { bandId, setlistId } = useParams<{ bandId: string; setlistId: string }>();
@@ -318,6 +319,7 @@ function BakeCard({
   // default-layer capture is never silent. (The personal "bake my parts" scope was
   // retired — the band-wide bake is THE bake.)
   const [dialog, setDialog] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false); // T202: the member-scoped PDF dialog
   const isAdmin = myRole === "admin";
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -411,14 +413,15 @@ function BakeCard({
               </a>
             )}
             {bandConcert && (
-              <a
+              <button
+                type="button"
+                className="linklike"
                 data-testid="bake-pdf-download"
-                href={api.concertPdfUrl(bandConcert)}
-                download={`${bandConcert.name || "concert"}.pdf`}
-                title="A printable paper backup of this concert — your view, composited to PDF (T57)"
+                onClick={() => setPdfOpen(true)}
+                title="A printable paper backup of this concert — your view (or a member's), composited to PDF (T57)"
               >
                 Download PDF
-              </a>
+              </button>
             )}
           </div>
         )}
@@ -458,6 +461,15 @@ function BakeCard({
           onBake={runBake}
           onDone={onBakeDone}
           onCancel={() => setDialog(false)}
+        />
+      )}
+      {pdfOpen && bandConcert && (
+        <PdfDialog
+          bandId={bandId}
+          concertId={bandConcert.concertId}
+          concertName={bandConcert.name}
+          isAdmin={isAdmin}
+          onClose={() => setPdfOpen(false)}
         />
       )}
     </section>

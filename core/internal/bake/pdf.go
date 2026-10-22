@@ -44,6 +44,20 @@ const (
 // The output is deterministic for a given bundle + viewer (pinned PDF dates, sorted
 // resource dicts), so a re-print of the same backup is byte-identical.
 func (b *Baker) ConcertPDF(concertID, viewerRole, viewerMemberID string) ([]byte, error) {
+	return b.concertPDF(concertID, viewerRole, viewerMemberID, nil)
+}
+
+// ConcertPDFWithProgress is ConcertPDF with a per-sheet progress callback for T202's async job: onSheet is
+// called once with (0, total) as soon as the sheet count is known, then (done, total) after each sheet
+// composes. It is a pure side-channel — the returned bytes are identical to ConcertPDF for the same viewer.
+func (b *Baker) ConcertPDFWithProgress(concertID, viewerRole, viewerMemberID string, onSheet func(done, total int)) ([]byte, error) {
+	return b.concertPDF(concertID, viewerRole, viewerMemberID, onSheet)
+}
+
+// concertPDF is the shared implementation. onSheet, if non-nil, is called once per composed sheet with
+// (done, total) for T202's async progress. The sync ConcertPDF passes nil, and onSheet affects nothing in the
+// output, so the async job and the sync endpoint produce BYTE-IDENTICAL PDFs for the same viewer.
+func (b *Baker) concertPDF(concertID, viewerRole, viewerMemberID string, onSheet func(done, total int)) ([]byte, error) {
 	rev, ok := b.latestRev(concertID)
 	if !ok {
 		return nil, os.ErrNotExist
@@ -64,36 +78,98 @@ func (b *Baker) ConcertPDF(concertID, viewerRole, viewerMemberID string) ([]byte
 	copy(songs, cb.Songs)
 	sort.SliceStable(songs, func(i, j int) bool { return !songs[i].OnCall && songs[j].OnCall })
 
-	// Flatten to one entry per printed sheet, in print order.
+	// T202: the member's display name for the footer ("<concert> · for <name> · i/total"), from the roster.
+	memberName := rosterName(cb.Roster, viewerMemberID)
+
+	// T202: flatten to THIS viewer's own page sequence per song — memberPages[member] else the default else
+	// all pages — so the paper matches their tablet (a "bass only" member gets only their pages). pos/seqLen
+	// number the page WITHIN the viewer's sequence, as the tablet does.
 	type sheet struct {
-		song BakedSong
-		pi   int
+		song        BakedSong
+		pi          int
+		pos, seqLen int
 	}
 	var sheets []sheet
 	for _, s := range songs {
-		for pi := range s.Pages {
-			sheets = append(sheets, sheet{song: s, pi: pi})
+		seq := resolvePageSequence(s, viewerMemberID)
+		for pos, pi := range seq {
+			sheets = append(sheets, sheet{song: s, pi: int(pi), pos: pos, seqLen: len(seq)})
 		}
 	}
 	total := len(sheets)
+	if onSheet != nil {
+		onSheet(0, total) // publish the sheet count up front, so a poller shows "0 of N" before the first compose
+	}
 
 	return writeA4PDF(cb.Name, cb.Name, total, func(i int) (image.Image, string, string, error) {
-		s, pi := sheets[i].song, sheets[i].pi
+		sh := sheets[i]
+		s := sh.song
 		title := s.Title
 		if title == "" {
 			title = "Song"
 		}
-		composed, cerr := b.composePage(revDir, s.Pages[pi], viewerRole, viewerMemberID)
+		composed, cerr := b.composePage(revDir, s.Pages[sh.pi], viewerRole, viewerMemberID)
 		if cerr != nil {
-			return nil, "", "", fmt.Errorf("compose song %s page %d: %w", s.SongID, pi, cerr)
+			return nil, "", "", fmt.Errorf("compose song %s page %d: %w", s.SongID, sh.pi, cerr)
 		}
-		hdr := fmt.Sprintf("%s — page %d/%d", title, pi+1, len(s.Pages))
+		hdr := fmt.Sprintf("%s — page %d/%d", title, sh.pos+1, sh.seqLen)
 		if s.OnCall {
 			hdr += " · On call"
 		}
 		ftr := fmt.Sprintf("%s · %d/%d", cb.Name, i+1, total)
+		if memberName != "" {
+			ftr = fmt.Sprintf("%s · for %s · %d/%d", cb.Name, memberName, i+1, total)
+		}
+		if onSheet != nil {
+			onSheet(i+1, total)
+		}
 		return composed, hdr, ftr, nil
 	})
+}
+
+// resolvePageSequence returns the page indices to print for a viewer, in order — matching the tablet
+// (StageModel.resolvePageSequence): the member's own selection if present, else the "" default entry, else
+// all of the song's pages. Out-of-range indices are dropped defensively.
+func resolvePageSequence(song BakedSong, memberID string) []int32 {
+	var seq []int32
+	foundMember, foundDefault := false, false
+	var memberSeq, defaultSeq []int32
+	for _, mp := range song.MemberPages {
+		switch mp.MemberID {
+		case memberID:
+			memberSeq, foundMember = mp.Page, true
+		case "":
+			defaultSeq, foundDefault = mp.Page, true
+		}
+	}
+	switch {
+	case foundMember:
+		seq = memberSeq
+	case foundDefault:
+		seq = defaultSeq
+	default:
+		seq = make([]int32, len(song.Pages))
+		for i := range song.Pages {
+			seq[i] = int32(i)
+		}
+	}
+	out := make([]int32, 0, len(seq))
+	for _, idx := range seq {
+		if idx >= 0 && int(idx) < len(song.Pages) {
+			out = append(out, idx)
+		}
+	}
+	return out
+}
+
+// rosterName is the display name for a member id in a bundle's roster, or "" when absent.
+func rosterName(roster []BundleMember, memberID string) string {
+	for _, m := range roster {
+		if m.MemberID == memberID {
+			return m.DisplayName
+		}
+	}
+	return ""
 }
 
 // a4Sheet supplies the i-th (0-based) sheet of an A4 print: the composed image and its header/footer text.

@@ -289,6 +289,14 @@ export type ConcertChanges = {
   setlist: boolean;
 };
 
+/** T202 — an async concert-PDF job's progress. done/total count composed sheets. */
+export type PdfJobProgress = {
+  state: "queued" | "running" | "done" | "failed";
+  done: number;
+  total: number;
+  error?: string;
+};
+
 /** T96/T99 — a bake's live progress. `done` advances 1..total; `song` names the song
  *  being baked (empty during the finishing tail); `error` names the failing song. */
 export type BakeProgress = {
@@ -1101,6 +1109,25 @@ export const api = {
   // composites the caller's view (mandatory + untagged shared + the caller's own
   // personal layers) via the shared P205 view-resolution rule, so print == screen.
   concertPdfUrl: (c: Concert) => pdfUrlFromBundle(c.downloadUrl),
+
+  // T202: the async, member-scoped concert PDF (kick → poll → download).
+  kickPdfJob: (bandId: string, concertId: string, opts: { member?: string; role?: string }) =>
+    request<{ jobId: string }>(
+      "POST",
+      `/api/bands/${bandId}/concerts/${concertId}/pdf-jobs`,
+      opts,
+    ).then((r) => r.jobId),
+
+  // Poll a PDF job. Any failure (404 expired/unknown, 5xx, network) resolves to null — the dialog keeps its
+  // last line and the caller decides (mirrors bakeProgress).
+  pdfJobProgress: (bandId: string, concertId: string, jobId: string): Promise<PdfJobProgress | null> =>
+    request<PdfJobProgress>(
+      "GET",
+      `/api/bands/${bandId}/concerts/${concertId}/pdf-jobs/${jobId}`,
+    ).catch(() => null),
+
+  pdfJobFileUrl: (bandId: string, concertId: string, jobId: string) =>
+    `/api/bands/${bandId}/concerts/${concertId}/pdf-jobs/${jobId}/file`,
 
   // ---- invites ----
   listInvites: () => request<{ invites: Invite[] }>("GET", "/api/invites").then((r) => r.invites),
