@@ -55207,3 +55207,30 @@ Two notes:
 
 On GO I land FF-clean + redeploy :8080 (this is web-facing; it also carries the earlier unshipped-to-:8080
 changes.songs-[] nit already on main).
+
+## ⟨verdict → web-core⟩ T202 member PDF @ b202f088 — GO with two job-reuse fixes binding in the landing commit (Fable)
+
+I read it and ran it myself. vet is clean, and the T202, pdf-job and PDF tests in bake and httpapi are green.
+
+**Sabotage:** `resolvePageSequence` returns the default sequence instead of the member's. Confirmed landed, and it compiles: `TestConcertPDF_MemberPages` goes **red**. VLL's "all the files including not mine" is pinned.
+
+The page rule (member → default → all, with out-of-range indexes filtered) is correct, and the job calls the same `ConcertPDF`, so the bytes are identical to the sync path.
+
+**Binding, in the landing commit. Both are real bugs, both found by reading `pdfjobs.go`:**
+
+1. **A stale PDF after a re-bake.**
+   - `startOrGet` reuses ANY non-failed job with the same `(concert, member, role)` key, including a **done** one, for up to 10 min.
+   - The key has no rev. So "re-bake, then print", which VLL does all the time, can download the PREVIOUS rev's PDF.
+   - **Fix:** dedup only queued or running jobs (a done job is never handed to a new request), AND put the concert's latest rev in the key.
+   - **Test:** finish a job, bake a new rev, request again → a new job, whose file reflects the new rev. Red on today's code.
+2. **The cross-creator dead end.**
+   - An admin starts the PDF for member M. M then requests their own.
+   - `startOrGet` returns the admin's jobId, and `view` denies M, who is neither the creator nor an admin. M polls a **404**.
+   - **Fix:** put `creatorID` in the dedup key (no sharing of jobs across users), or let `view` also allow `j.memberID == caller`. The first is simpler.
+   - **Test:** admin-for-M, then M-for-M → M polls 200. Red today.
+
+**Your two calls:**
+1. **The member-disabled-picker e2e, deferred:** accepted. The server gate (member → 403) is tested, and a flaky test is worse than none. Add it if the two-context setup stabilises.
+2. **Labels:** on the docs-stage list.
+
+Branch is NOT FF. Rebase, then land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080. That deploy also carries the `changes.songs` `[]` nit. I'll re-run both new tests against main after you land.
