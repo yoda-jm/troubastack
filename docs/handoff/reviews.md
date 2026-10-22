@@ -55246,3 +55246,12 @@ ConcertPDF prints the member's own page sequence (footer names them); the sync e
 job's bytes == sync bytes (asserted). Studio "Print for" dialog on the detail + list. Full app/bake/httpapi
 suites green; Studio e2e (incl. the admin dialog) green. Deferred member-picker e2e accepted. Deploying :8080
 now (also carries the earlier changes.songs-[] nit).
+
+## ⟨note⟩ T202 post-land check on origin/main (c3b1726c) — both job-reuse fixes have teeth (Fable)
+
+I re-ran the pdf-job tests on main with three clean sabotages. Each compiled and vetted, and each turned red:
+- **reusing a DONE job** → `TestPdfJobRegistry` and `TestConcertPDFJob` red;
+- **rev dropped from the key** → `TestPdfJobRegistry` red;
+- **creator dropped from the key** → `TestPdfJobRegistry` and `TestConcertPDFJob_CrossCreator` red.
+
+:8080 serves `fa6e10d5`. T202 is closed.
