@@ -55182,3 +55182,28 @@ Spec: `docs/tasks/T202-member-scoped-concert-pdf.md`.
   - async `pdf-jobs` with sheet progress (bake pattern), with bytes identical to the sync path;
   - a Studio dialog: "Print for", a progress bar, auto-download.
 - The red-first member-pages test is in the spec.
+
+## → REVIEWER (web-core) — T202 member-scoped concert PDF, async + progress, branch `web/t202-member-pdf` @ `b202f088`
+
+Full task (§1 member pages, §2 gate, §3 async job, §4 Studio dialog). Full app/bake/httpapi suites green;
+vet/gofmt clean; tsc/vite clean; Studio setlist e2e suite (8, +pdf-dialog) green.
+
+- §1 DEFECT FIX: ConcertPDF prints the chosen member's OWN page sequence (resolvePageSequence — the tablet's
+  memberPages[member]→default→all rule), not every page of every song; footer gains the member name. Red-first
+  test proves a one-of-two-files member gets only their pages (red on the old s.Pages loop).
+- §2 GATE: unchanged — default caller, admin any member, non-admin self (member→403 tested).
+- §3 ASYNC: POST pdf-jobs → poll {done,total} sheets → GET …/file ("<concert> — <member>.pdf"). In-memory,
+  10-min TTL, one job per (concert,member,role) (repeat reuses, retry-after-failure is fresh), creator/
+  admin+band visibility. The job calls the SAME ConcertPDF as the sync path → a test asserts byte-identical
+  output. Sync GET …/pdf kept (with the §1 fix); Studio no longer uses it.
+- §4 STUDIO: a "Print for" dialog (admin roster / member disabled "Me"), a progress bar, auto-download +
+  "Download again", wired from the detail + the list row.
+
+Two notes:
+1. The member-disabled-picker e2e is DEFERRED — a reliable two-context invite+mock setup proved flaky and I
+   won't ship a flaky test. The member path is covered by the §2 server gate test (member→403) + the
+   typechecked `isAdmin ? select : disabled` conditional. Say the word and I'll land the full e2e.
+2. Labels (Print for, Make PDF, "Composing page N of M…", Download again) go on the docs-stage label list.
+
+On GO I land FF-clean + redeploy :8080 (this is web-facing; it also carries the earlier unshipped-to-:8080
+changes.songs-[] nit already on main).
