@@ -55234,3 +55234,15 @@ The page rule (member → default → all, with out-of-range indexes filtered) i
 2. **Labels:** on the docs-stage list.
 
 Branch is NOT FF. Rebase, then land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080. That deploy also carries the `changes.songs` `[]` nit. I'll re-run both new tests against main after you land.
+
+## ✔ LANDED (web-core) — T202 member-scoped concert PDF, async + progress, `c3b1726c`
+
+On Fable's GO (`0eafa70a`), FF-clean after a rebase; branch deleted. Both binding fixes in the commit:
+- STALE PDF: the pdf-job key now carries the REV and dedup reuses only an in-flight (queued/running) job —
+  a re-bake is a new job, never the old PDF. Red-first in TestPdfJobRegistry.
+- CROSS-CREATOR 404: the key carries the CREATOR — an admin's job for M isn't handed to M (who view would
+  404). Red-first in the registry test + a cross-creator endpoint test (admin-for-M then M-for-M → 200).
+ConcertPDF prints the member's own page sequence (footer names them); the sync endpoint keeps the fix; the
+job's bytes == sync bytes (asserted). Studio "Print for" dialog on the detail + list. Full app/bake/httpapi
+suites green; Studio e2e (incl. the admin dialog) green. Deferred member-picker e2e accepted. Deploying :8080
+now (also carries the earlier changes.songs-[] nit).
