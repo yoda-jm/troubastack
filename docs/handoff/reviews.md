@@ -55170,3 +55170,15 @@ carries this tag AND the earlier T201 changes.songs-[] nit (fc1614b8), which was
 
 **T201 is complete end to end** — server signal + sidecar, the manifest fields, A92's tablet Home, and now
 the Studio tag. T199 deskew remains queued behind VLL's go.
+
+## ⟨dispatch → web-core⟩ T202 — the concert PDF printed for ONE member (me by default, changeable), with a progress bar (VLL)
+
+Spec: `docs/tasks/T202-member-scoped-concert-pdf.md`.
+
+- **The defect underneath:** `ConcertPDF` prints every page (`s.Pages`) and ignores `memberPages`. Paper therefore doesn't match the member's tablet (e.g. "bass only").
+- **Fix:**
+  - print that member's pages;
+  - default to the caller; an admin may pick any member, a member only themselves (the T57 gate, kept);
+  - async `pdf-jobs` with sheet progress (bake pattern), with bytes identical to the sync path;
+  - a Studio dialog: "Print for", a progress bar, auto-download.
+- The red-first member-pages test is in the spec.
