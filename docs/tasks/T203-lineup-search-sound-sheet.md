@@ -43,7 +43,7 @@ Musician { id, name, userId? }        // userId links to a band member's account
 What someone can do in a song.
 
 ```
-Part { name, kind: voice|instrument|other, short?, input?: mic|di|line|none }
+Part { name, kind: voice|instrument|other, short?, input?: mic|di|line|none, shared?: bool }
 ```
 
 - `short` is the sheet abbreviation ("LV", "BV", "Gtr", "AH"); if empty it is derived from the name.
@@ -80,11 +80,24 @@ Song.soundNote: string        // what the sound engineer needs for this song ("i
     column with a different letter, which is exactly what the engineer needs (a level change, not a repatch).
   - **One sub-column per instrument part that person plays anywhere in the shown songs** (one DI or instrument
     mic). The cell is filled or empty; "(…)" means optional.
-- **Bass moving between people** shows up in two people's columns. That is correct for the sound (two sources),
-  and the changes column states it ("Bass: C → A").
-- **Model consequence:** a part's `kind` decides the sub-column. Every `voice` part of a person shares one "Voice"
-  sub-column. Each `instrument` part gets its own. `input` is per part (a voice is mic; an instrument part says
-  mic, di or line).
+- **SHARED instruments** (VLL, 2026-10-24: "on risque de ne pas recâbler la basse (ou les bongos)… la colonne de la
+  basse pourrait être une 3e personne « R / V » à part"):
+  - one physical instrument on stage is passed between players and stays on the SAME channel;
+  - it gets **its own wide column, apart from the people**, headed with the instrument and its players
+    ("Bass — R / V");
+  - its cell says **WHO** plays it in that song (initials, or the short name), just as a Voice cell says L or B;
+  - the changes column distinguishes the two cases: "Bass: R → V (same channel)" means no repatch, while a
+    PERSONAL instrument changing hands means two sources, so a repatch.
+- **Model consequence:** the PART decides the column.
+  - Every `voice` part of a person shares one "Voice" sub-column under that person.
+  - A **personal** `instrument` part gets a sub-column under each person who plays it.
+  - A **shared** part (`Part.shared = true`: one physical source on stage) gets one column of its own, whoever plays
+    it.
+  - `shared` is set per band, in the parts vocabulary: bass is shared in one band and personal in another. Default
+    false.
+  - `input` is per part (a voice is mic; an instrument part says mic, di or line).
+  - **The per-song line-up is unchanged** ("R: Bass"). Only the grid projection routes a shared part into its own
+    column.
 
 **A second projection of the same data, for musicians: "by part".** One toggle, same rows.
 - Columns are parts: Lead vocal, Backing vocal, Bass, Autoharp…
@@ -94,7 +107,8 @@ Song.soundNote: string        // what the sound engineer needs for this song ("i
 **The grid IS the main editor** (a band-level "Line-ups" page), not only a report:
 - rows are all songs, and the existing chips filter them (tags, line-up chips, "in setlist X");
 - **click a Voice cell** to cycle empty → L → B → empty, with other voice parts from a small menu;
-- **click an instrument cell** to toggle it; long-press or the menu sets optional and the note;
+- **click an instrument cell** to toggle it; **click a shared-instrument cell** to pick who plays it, from a menu of
+  musicians, or empty; long-press or the menu sets optional and the note;
 - **"+ part" on a musician's header** adds a sub-column (an instrument part for them);
 - **"+ musician"** adds a wide column;
 - **keyboard:** arrows move between cells, Space toggles, L or B set the voice.
@@ -107,7 +121,10 @@ sub-columns used in that set, plus the changes and sound-note columns. The CSV h
 
 **Review will check:**
 - Lead↔Backing for one person: one column, the letter changes.
-- Bass moving between two people: two columns, and the changes line says so.
+- A shared bass moving between two people: ONE column, the cell's player changes, and the changes line says "same
+  channel".
+- A personal instrument moving between two people: two sub-columns, and the changes line says "repatch".
+- Toggling a part's `shared` re-routes the grid with no edit to any line-up.
 - One person with two instruments in one song: both cells filled.
 - A sub-column unused in a set does not appear on that set's sheet.
 
