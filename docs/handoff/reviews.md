@@ -55255,3 +55255,15 @@ I re-ran the pdf-job tests on main with three clean sabotages. Each compiled and
 - **creator dropped from the key** → `TestPdfJobRegistry` and `TestConcertPDFJob_CrossCreator` red.
 
 :8080 serves `fa6e10d5`. T202 is closed.
+
+## ⟨dispatch → web-core⟩ T203 — who does what per song: line-ups, line-up search, the sound engineer's sheet (VLL) — DESIGN FIRST
+
+Spec: `docs/tasks/T203-lineup-search-sound-sheet.md`. It is a new design, so **present the model, the editor sketch, the search grammar and a sound-sheet mock-up at the gate before building.**
+
+- **Musicians** (band roster, with or without an account).
+- **Parts** (a band vocabulary with a kind and an input type).
+- **`Song.lineup`:** explicit per song, with an `optional` flag and a note; plus `soundNote`.
+- **Studio:** chips "A · Lead vocal" / "A" / "Lead vocal" / "without B" (AND, like tags). There are copy and bulk-set tools.
+- **Sound sheet:** per setlist, an input list plus a song × musician matrix with a changes column; PDF (A4 landscape) and CSV.
+- **`.tband`** round-trip.
+- **Three [VLL] decisions**, defaults stated.
