@@ -88,19 +88,38 @@ func drawHeader(pdf *fpdf.Fpdf, tr func(string) string, m app.SheetModel, band [
 func drawBand(pdf *fpdf.Fpdf, tr func(string) string, m app.SheetModel, plan LayoutPlan, band []int, g Geom) {
 	drawHeader(pdf, tr, m, band, plan.ColW)
 	rh := g.RowH
+	fullW := titleW + plan.ColW*float64(len(band))
+	onCallHeaderDrawn := false
 	for _, row := range m.Rows {
 		// page break before a row that wouldn't fit whole (header repeats).
 		need := rh
-		if !plan.InlineChangesNote {
+		if row.Kind == app.SheetRowSong && !plan.InlineChangesNote {
 			need += g.SubRowH
 		}
 		if pdf.GetY()+need > 10+g.UsableH+g.HeaderH {
 			pdf.AddPage()
 			drawHeader(pdf, tr, m, band, plan.ColW)
+			onCallHeaderDrawn = false
+		}
+		// An intermission is a full-width separator row.
+		if row.Kind == app.SheetRowIntermission {
+			pdf.SetFont("Helvetica", "BI", 7)
+			pdf.CellFormat(fullW, rh, tr("— "+nz(row.Label, "Intermission")+" —"), "1", 1, "C", false, 0, "")
+			continue
+		}
+		// A heading before the first on-call song.
+		if row.Section == app.SheetSectionOnCall && !onCallHeaderDrawn {
+			pdf.SetFont("Helvetica", "B", 7)
+			pdf.CellFormat(fullW, rh, tr("On call"), "1", 1, "L", false, 0, "")
+			onCallHeaderDrawn = true
 		}
 		x0 := pdf.GetX()
 		pdf.SetFont("Helvetica", "", 7)
-		pdf.CellFormat(titleW, rh, tr(itoa(row.Position)+" · "+clip(row.Title, 28)), "1", 0, "L", false, 0, "")
+		num := ""
+		if row.Number > 0 {
+			num = itoa(row.Number) + " · "
+		}
+		pdf.CellFormat(titleW, rh, tr(num+clip(row.Title, 28)), "1", 0, "L", false, 0, "")
 		for _, ci := range band {
 			c := row.Cells[m.Subcols[ci].Key]
 			txt := c.Text

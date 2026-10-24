@@ -25,7 +25,7 @@ func sampleModel(nMus, nSongs int) app.SheetModel {
 				cells[sc.Key] = app.SheetCell{Text: "L"}
 			}
 		}
-		m.Rows = append(m.Rows, app.SheetRow{SongID: "s", Position: i + 1, Title: "Song", Cells: cells, SoundNote: "note", Changes: []string{"x in"}})
+		m.Rows = append(m.Rows, app.SheetRow{Kind: app.SheetRowSong, Section: app.SheetSectionMain, Number: i + 1, SongID: "s", Title: "Song", Cells: cells, SoundNote: "note", Changes: []string{"x in"}})
 	}
 	return m
 }

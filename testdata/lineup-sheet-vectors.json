@@ -68,6 +68,25 @@
       "expect": { "subcols": ["inst:A:gtr"], "cells": { "s1": { "inst:A:gtr": "Gtr" } } }
     },
     {
+      "name": "an on-call song's channels still project (the section is a sheet concern, not the projection)",
+      "musicians": [
+        { "id": "A", "name": "Ann", "order": 1 },
+        { "id": "B", "name": "Bo", "order": 2 }
+      ],
+      "parts": [
+        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" },
+        { "id": "gtr", "name": "Guitar", "kind": "instrument", "short": "Gtr" }
+      ],
+      "songs": [
+        { "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["lead"] }] },
+        { "id": "s2", "lineup": [{ "musicianId": "B", "partIds": ["gtr"] }] }
+      ],
+      "expect": {
+        "subcols": ["voice:A", "inst:B:gtr"],
+        "cells": { "s1": { "voice:A": "L" }, "s2": { "inst:B:gtr": "Gtr" } }
+      }
+    },
+    {
       "name": "a shared part played by two people in one song joins both",
       "musicians": [
         { "id": "A", "name": "Ann", "order": 1 },

@@ -30,8 +30,27 @@ func RenderCSV(m app.SheetModel) []byte {
 	head = append(head, "Changes", "Sound note")
 	_ = w.Write(head)
 
+	ncols := len(m.Subcols)
+	onCallHeaderWritten := false
+	blankRow := func(label string) {
+		rec := make([]string, 2+ncols+2)
+		rec[1] = label
+		_ = w.Write(rec)
+	}
 	for _, row := range m.Rows {
-		rec := []string{itoa(row.Position), row.Title}
+		if row.Kind == app.SheetRowIntermission {
+			blankRow("— " + nz(row.Label, "Intermission") + " —")
+			continue
+		}
+		if row.Section == app.SheetSectionOnCall && !onCallHeaderWritten {
+			blankRow("— On call —")
+			onCallHeaderWritten = true
+		}
+		num := ""
+		if row.Number > 0 {
+			num = itoa(row.Number) // on-call (0) stays blank, per the T158 rule
+		}
+		rec := []string{num, row.Title}
 		for _, sc := range m.Subcols {
 			c := row.Cells[sc.Key]
 			txt := c.Text

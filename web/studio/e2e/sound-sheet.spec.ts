@@ -63,3 +63,40 @@ test("sound sheet: duplicate inputs are flagged and block the save", async ({ pa
   await expect(page.getByText(/share input 3/)).toBeVisible(); // blocked with a message
   await expect(page.getByTestId("sheet-inputlist")).toHaveCount(0); // nothing saved
 });
+
+// T203-FIX: running numbers (not raw position), an intermission separator row, and an on-call section.
+test("sound sheet: numbering, intermission separator, on-call section", async ({ page }) => {
+  const u = `sheetn${stamp()}`;
+  await register(page, u);
+  const { id } = await createBandAndOpen(page, `Band ${stamp()}`);
+  const lead = await (await page.request.post(`/api/bands/${id}/parts`, { data: { name: "Lead vocal", kind: "voice", short: "L" } })).json();
+  const me = (await (await page.request.get(`/api/bands/${id}/musicians`)).json()).musicians[0].id;
+  const mkSong = async (title: string) => {
+    const s = await (await page.request.post(`/api/bands/${id}/songs`, { data: { title } })).json();
+    await page.request.patch(`/api/bands/${id}/songs/${s.song.id}`, { data: { lineup: [{ musicianId: me, partIds: [lead.part.id] }] } });
+    return s.song.id;
+  };
+  const s1 = await mkSong("First");
+  const s2 = await mkSong("Second");
+  const bench = await mkSong("Bench");
+  const sl = (await (await page.request.post(`/api/bands/${id}/setlists`, { data: { name: "Show" } })).json()).setlist;
+  await page.request.post(`/api/bands/${id}/setlists/${sl.id}/items`, { data: { songId: s1 } });
+  await page.request.post(`/api/bands/${id}/setlists/${sl.id}/items`, { data: { songId: s2 } });
+  await page.request.post(`/api/bands/${id}/setlists/${sl.id}/items`, { data: { kind: "intermission", label: "Interval" } });
+  const ocItem = await (await page.request.post(`/api/bands/${id}/setlists/${sl.id}/items`, { data: { songId: bench } })).json();
+  await page.request.patch(`/api/bands/${id}/setlists/${sl.id}/items/${ocItem.item.id}`, { data: { onCall: true } });
+
+  await page.goto(`/bands/${id}/setlists/${sl.id}/sheet`);
+  await expect(page.getByTestId("sheet-title")).toContainText("Show");
+  // main songs number 1, 2
+  const rows = page.getByTestId("sheet-row");
+  await expect(rows.nth(0)).toContainText("1 · First");
+  await expect(rows.nth(1)).toContainText("2 · Second");
+  // the intermission separator + its label
+  await expect(page.getByTestId("sheet-intermission")).toContainText("Interval");
+  // the on-call section heading, and its song carries no number
+  await expect(page.getByTestId("sheet-oncall-head")).toBeVisible();
+  const onCallRow = page.locator('[data-testid="sheet-row"][data-section="oncall"]');
+  await expect(onCallRow).toContainText("Bench");
+  await expect(onCallRow).not.toContainText("· Bench"); // unnumbered (no "N · ")
+});

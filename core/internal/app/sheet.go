@@ -3,6 +3,8 @@ package app
 import (
 	"sort"
 	"strings"
+
+	"troubastack/core/internal/runningorder"
 )
 
 // T203 stage 4 — the sound sheet MODEL. Go is AUTHORITATIVE (Fable, 2026-10-24): BuildSheet returns this model
@@ -55,12 +57,24 @@ type SheetCell struct {
 	Optional bool   `json:"optional,omitempty"`
 }
 
+// Row kinds + sections (T203-FIX). A song carries a running NUMBER only when it is a main-order song (not
+// on-call, not an intermission) — the T158 rule via runningorder.Numbers. An intermission is a separator row.
+const (
+	SheetRowSong         = "song"
+	SheetRowIntermission = "intermission"
+	SheetSectionMain     = "main"
+	SheetSectionOnCall   = "oncall"
+)
+
 type SheetRow struct {
-	SongID    string               `json:"songId"`
-	Position  int                  `json:"position"`
-	Title     string               `json:"title"`
-	Cells     map[string]SheetCell `json:"cells"` // keyed by subcol key
-	Changes   []string             `json:"changes,omitempty"`
+	Kind      string               `json:"kind"`              // "song" | "intermission"
+	Section   string               `json:"section"`           // "main" | "oncall" (songs); "main" for an intermission
+	Number    int                  `json:"number,omitempty"`  // 1-based running number; 0 = none (on-call / intermission)
+	SongID    string               `json:"songId,omitempty"`  // empty for an intermission
+	Title     string               `json:"title,omitempty"`   // the song title; an intermission uses Label
+	Label     string               `json:"label,omitempty"`   // an intermission's words
+	Cells     map[string]SheetCell `json:"cells,omitempty"`   // keyed by subcol key; empty for an intermission
+	Changes   []string             `json:"changes,omitempty"` // vs the previous main-order song (skips an intermission)
 	SoundNote string               `json:"soundNote,omitempty"`
 }
 
@@ -115,7 +129,8 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 	for _, sg := range allSongs {
 		byID[sg.ID] = sg
 	}
-	// Running order: the setlist items by position (bench/on-call items sort last, as elsewhere).
+	// Running order: main items (songs + intermissions) by position, then the on-call bench last — the same
+	// order setlistpdf uses. On-call applies only to songs; an intermission is always main-order.
 	items := append([]SetlistItemView(nil), detail.Items...)
 	sort.SliceStable(items, func(i, j int) bool {
 		if items[i].OnCall != items[j].OnCall {
@@ -123,8 +138,12 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 		}
 		return items[i].Position < items[j].Position
 	})
+	// The SONGS (main + on-call, excluding intermissions) drive the column projection.
 	songs := make([]Song, 0, len(items))
 	for _, it := range items {
+		if it.IsIntermission() {
+			continue
+		}
 		if sg, ok := byID[it.SongID]; ok {
 			songs = append(songs, sg)
 		}
@@ -168,22 +187,52 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 		})
 	}
 
-	// --- rows + cells ---
-	rows := make([]SheetRow, 0, len(songs))
-	for _, sg := range songs {
-		cells := map[string]SheetCell{}
+	// --- rows: one per item, numbered by the T158 rule (runningorder.Numbers), with intermission separators
+	// and an on-call section after the main set. ---
+	entries := make([]runningorder.Entry, len(items))
+	for i, it := range items {
+		kind := runningorder.KindSong
+		if it.IsIntermission() {
+			kind = runningorder.KindIntermission
+		}
+		entries[i] = runningorder.Entry{Kind: kind, OnCall: it.OnCall}
+	}
+	numbers := runningorder.Numbers(entries)
+
+	rows := make([]SheetRow, 0, len(items))
+	var prevSong *Song // the previous MAIN-ORDER song, for the changes column (skips intermissions)
+	for i, it := range items {
+		if it.IsIntermission() {
+			rows = append(rows, SheetRow{Kind: SheetRowIntermission, Section: SheetSectionMain, Label: it.Label})
+			continue
+		}
+		sg, ok := byID[it.SongID]
+		if !ok {
+			continue
+		}
 		byMus := map[string]LineupEntry{}
 		for _, e := range sg.Lineup {
 			byMus[e.MusicianID] = e
 		}
+		cells := map[string]SheetCell{}
 		for _, sc := range subcols {
 			cells[sc.Key] = sheetCell(sc, byMus, partByID, name)
 		}
-		rows = append(rows, SheetRow{SongID: sg.ID, Position: positionOf(items, sg.ID), Title: sg.Title, Cells: cells, SoundNote: sg.SoundNote})
-	}
-	// changes (per row vs the previous row)
-	for i := 1; i < len(rows); i++ {
-		rows[i].Changes = sheetChanges(songs[i-1], songs[i], partByID, name)
+		section := SheetSectionMain
+		var changes []string
+		if it.OnCall {
+			section = SheetSectionOnCall // on-call is a bench section — no running number, no "changes vs previous"
+		} else {
+			if prevSong != nil {
+				changes = sheetChanges(*prevSong, sg, partByID, name)
+			}
+			songCopy := sg
+			prevSong = &songCopy
+		}
+		rows = append(rows, SheetRow{
+			Kind: SheetRowSong, Section: section, Number: numbers[i],
+			SongID: sg.ID, Title: sg.Title, Cells: cells, Changes: changes, SoundNote: sg.SoundNote,
+		})
 	}
 
 	model := SheetModel{
@@ -194,7 +243,20 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 		OwnerSpans:  ownerSpans(subcols),
 		Rows:        rows,
 	}
+	// Nit (T203-FIX): emit [] not null for the top-level slices on the wire.
+	if model.Subcols == nil {
+		model.Subcols = []SheetSubcol{}
+	}
+	if model.OwnerSpans == nil {
+		model.OwnerSpans = []SheetOwnerSpan{}
+	}
+	if model.Rows == nil {
+		model.Rows = []SheetRow{}
+	}
 	model.InputList, model.NotPatched = inputList(subcols, patchByKey, partByID, name)
+	if model.InputList == nil {
+		model.InputList = []SheetPatchLine{}
+	}
 	return model, nil
 }
 
@@ -333,15 +395,6 @@ func sharedPlayerNames(songs []Song, partID string, name map[string]string) []st
 		}
 	}
 	return out
-}
-
-func positionOf(items []SetlistItemView, songID string) int {
-	for _, it := range items {
-		if it.SongID == songID {
-			return it.Position
-		}
-	}
-	return 0
 }
 
 func firstName(s string) string {

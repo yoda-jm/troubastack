@@ -156,7 +156,17 @@ export type SheetSubcol = {
 };
 export type SheetOwnerSpan = { ownerName: string; span: number };
 export type SheetCell = { text: string; optional?: boolean };
-export type SheetRow = { songId: string; position: number; title: string; cells: Record<string, SheetCell>; changes?: string[]; soundNote?: string };
+export type SheetRow = {
+  kind: "song" | "intermission";
+  section: "main" | "oncall";
+  number?: number; // 1-based running number; absent/0 = none (on-call / intermission)
+  songId?: string;
+  title?: string;
+  label?: string; // an intermission's words
+  cells?: Record<string, SheetCell>;
+  changes?: string[];
+  soundNote?: string;
+};
 export type SheetPatchLine = { input: number; strip: string; who: string; part: string; mic: string; key: string };
 export type SheetModel = {
   setlistId: string;
@@ -670,15 +680,8 @@ export const api = {
 
   // --- T203 stage 4: the sound sheet + the per-concert console patch ---
   getSheet: (bandId: string, setlistId: string, order: SheetOrder) =>
-    request<SheetModel>("GET", `/api/bands/${bandId}/setlists/${setlistId}/sheet?order=${order}`).then((m) => ({
-      // Go serializes empty slices as null; normalize so the view can map/length them safely.
-      ...m,
-      subcols: m.subcols ?? [],
-      ownerSpans: m.ownerSpans ?? [],
-      rows: (m.rows ?? []).map((r) => ({ ...r, cells: r.cells ?? {}, changes: r.changes ?? [] })),
-      inputList: m.inputList ?? [],
-      notPatched: m.notPatched ?? [],
-    })),
+    // The server emits [] (not null) for subcols/ownerSpans/rows/inputList (T203-FIX), so no client normalization.
+    request<SheetModel>("GET", `/api/bands/${bandId}/setlists/${setlistId}/sheet?order=${order}`),
   setPatch: (bandId: string, setlistId: string, patch: ChannelPatch[]) =>
     request<{ patch: ChannelPatch[] }>("PUT", `/api/bands/${bandId}/setlists/${setlistId}/patch`, { patch }).then((r) => r.patch),
   copyPatch: (bandId: string, setlistId: string, from: string) =>

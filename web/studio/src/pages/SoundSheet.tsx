@@ -3,7 +3,7 @@
  * same model the PDF and CSV render), with an inline per-concert patch editor (admin), a [Stage | Patch] order
  * toggle, "Copy patch from…", "Auto-number", and PDF/CSV download.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, api, type SheetModel, type SheetOrder, type ChannelPatch, type Setlist } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -201,18 +201,36 @@ export function SoundSheet() {
             </tr>
           </thead>
           <tbody>
-            {model.rows.map((r) => (
-              <tr key={r.songId} data-testid="sheet-row">
-                <td>{r.position} · {r.title}</td>
-                {model.subcols.map((sc) => {
-                  const c = r.cells[sc.key];
-                  const txt = c?.optional && c.text ? `(${c.text})` : c?.text ?? "";
-                  return <td key={sc.key} className="sheet-body-cell">{txt}</td>;
-                })}
-                <td className="muted" data-testid="sheet-changes">{(r.changes ?? []).join("; ")}</td>
-                <td className="muted">{r.soundNote}</td>
-              </tr>
-            ))}
+            {model.rows.map((r, i) => {
+              const fullSpan = 1 + model.subcols.length + 2;
+              if (r.kind === "intermission") {
+                return (
+                  <tr key={`int-${i}`} data-testid="sheet-intermission">
+                    <td colSpan={fullSpan} className="sheet-intermission">— {r.label || "Intermission"} —</td>
+                  </tr>
+                );
+              }
+              const firstOnCall = r.section === "oncall" && (i === 0 || model.rows[i - 1].section !== "oncall");
+              return (
+                <Fragment key={r.songId || `row-${i}`}>
+                  {firstOnCall && (
+                    <tr key={`oncall-${i}`} data-testid="sheet-oncall-head">
+                      <td colSpan={fullSpan} className="sheet-oncall-head">On call</td>
+                    </tr>
+                  )}
+                  <tr key={r.songId} data-testid="sheet-row" data-section={r.section}>
+                    <td>{r.number ? `${r.number} · ` : ""}{r.title}</td>
+                    {model.subcols.map((sc) => {
+                      const c = r.cells?.[sc.key];
+                      const txt = c?.optional && c.text ? `(${c.text})` : c?.text ?? "";
+                      return <td key={sc.key} className="sheet-body-cell">{txt}</td>;
+                    })}
+                    <td className="muted" data-testid="sheet-changes">{(r.changes ?? []).join("; ")}</td>
+                    <td className="muted">{r.soundNote}</td>
+                  </tr>
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       )}

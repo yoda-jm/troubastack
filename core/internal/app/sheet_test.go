@@ -132,6 +132,145 @@ func TestAutoNumber_ProposesStripsNeverOverwrites(t *testing.T) {
 	}
 }
 
+// T203-FIX: the sheet numbers by the T158 rule (runningorder), renders the intermission as a separator, and
+// puts on-call songs in their own unnumbered section. Changes across a break compare with the last song before.
+func TestBuildSheet_NumbersIntermissionOnCall(t *testing.T) {
+	st := newStack()
+	admin, _, bandID, song1, _, _ := buildSourceBand(t, st)
+	s2, _ := st.svc.CreateSong(admin, bandID, "Two", "")
+	s3, _ := st.svc.CreateSong(admin, bandID, "Three", "")
+	oc, _ := st.svc.CreateSong(admin, bandID, "Bench", "")
+	g1, _ := st.svc.AddMusician(admin, bandID, "Gee")
+	lead, _ := st.svc.CreatePart(admin, bandID, "Lead vocal", app.PartSpec{Kind: app.PartVoice, Short: "L"})
+	back, _ := st.svc.CreatePart(admin, bandID, "Backing vocal", app.PartSpec{Kind: app.PartVoice, Short: "B"})
+	gtr, _ := st.svc.CreatePart(admin, bandID, "Guitar", app.PartSpec{Kind: app.PartInstrument, Short: "Gtr"})
+	setLineup(t, st, admin, bandID, song1, []app.LineupEntry{{MusicianID: g1.ID, PartIDs: []string{lead.ID}}})
+	setLineup(t, st, admin, bandID, s2.ID, []app.LineupEntry{{MusicianID: g1.ID, PartIDs: []string{lead.ID}}})
+	setLineup(t, st, admin, bandID, s3.ID, []app.LineupEntry{{MusicianID: g1.ID, PartIDs: []string{back.ID}}}) // L→B vs s2
+	setLineup(t, st, admin, bandID, oc.ID, []app.LineupEntry{{MusicianID: g1.ID, PartIDs: []string{gtr.ID}}})
+
+	sl, _ := st.svc.CreateSetlist(admin, bandID, "Concert", "", "", "")
+	mustItem := func(id string) {
+		if _, err := st.svc.AddSetlistItem(admin, bandID, sl.ID, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustItem(song1)
+	mustItem(s2.ID)
+	if _, err := st.svc.AddSetlistIntermission(admin, bandID, sl.ID, "Break"); err != nil {
+		t.Fatal(err)
+	}
+	mustItem(s3.ID)
+	ocItem, _ := st.svc.AddSetlistItem(admin, bandID, sl.ID, oc.ID)
+	if _, err := st.svc.UpdateSetlistItem(admin, bandID, sl.ID, ocItem.ID, app.SetlistItemPatch{OnCall: boolPtr(true)}); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := st.svc.BuildSheet(admin, bandID, sl.ID, app.SheetOrderStage)
+	if err != nil {
+		t.Fatalf("BuildSheet: %v", err)
+	}
+	if len(m.Rows) != 5 {
+		t.Fatalf("want 5 rows (3 songs + break + on-call), got %d: %+v", len(m.Rows), m.Rows)
+	}
+	want := []struct {
+		kind, section string
+		number        int
+	}{
+		{"song", "main", 1},
+		{"song", "main", 2},
+		{"intermission", "main", 0},
+		{"song", "main", 3},
+		{"song", "oncall", 0},
+	}
+	for i, w := range want {
+		r := m.Rows[i]
+		if r.Kind != w.kind || r.Section != w.section || r.Number != w.number {
+			t.Errorf("row %d = {kind=%q section=%q number=%d}, want {%q %q %d}", i, r.Kind, r.Section, r.Number, w.kind, w.section, w.number)
+		}
+	}
+	if m.Rows[2].Label != "Break" {
+		t.Errorf("intermission label = %q, want Break", m.Rows[2].Label)
+	}
+	// changes on the song AFTER the break compare to the last song BEFORE it (s2), skipping the intermission.
+	if ch := strings.Join(m.Rows[3].Changes, " | "); !strings.Contains(ch, "Gee: L→B") {
+		t.Errorf("row after the break should show the voice change vs s2, got %q", ch)
+	}
+}
+
+func TestBuildSheet_26Items(t *testing.T) {
+	st := newStack()
+	admin, _, bandID, song1, _, _ := buildSourceBand(t, st)
+	g1, _ := st.svc.AddMusician(admin, bandID, "Gee")
+	lead, _ := st.svc.CreatePart(admin, bandID, "Lead vocal", app.PartSpec{Kind: app.PartVoice, Short: "L"})
+	sl, _ := st.svc.CreateSetlist(admin, bandID, "Big concert", "", "", "")
+	// 22 main songs + 1 intermission + 3 on-call = 26 items.
+	addSong := func(title string, oncall bool) {
+		var sid string
+		if title == "song1" {
+			sid = song1
+		} else {
+			sg, _ := st.svc.CreateSong(admin, bandID, title, "")
+			sid = sg.ID
+		}
+		setLineup(t, st, admin, bandID, sid, []app.LineupEntry{{MusicianID: g1.ID, PartIDs: []string{lead.ID}}})
+		it, _ := st.svc.AddSetlistItem(admin, bandID, sl.ID, sid)
+		if oncall {
+			_, _ = st.svc.UpdateSetlistItem(admin, bandID, sl.ID, it.ID, app.SetlistItemPatch{OnCall: boolPtr(true)})
+		}
+	}
+	addSong("song1", false)
+	for i := 2; i <= 11; i++ {
+		addSong("song"+itoaT(i), false)
+	}
+	if _, err := st.svc.AddSetlistIntermission(admin, bandID, sl.ID, "Interval"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 12; i <= 22; i++ {
+		addSong("song"+itoaT(i), false)
+	}
+	for i := 1; i <= 3; i++ {
+		addSong("bench"+itoaT(i), true)
+	}
+	m, err := st.svc.BuildSheet(admin, bandID, sl.ID, app.SheetOrderStage)
+	if err != nil {
+		t.Fatalf("BuildSheet: %v", err)
+	}
+	if len(m.Rows) != 26 {
+		t.Fatalf("want 26 rows, got %d", len(m.Rows))
+	}
+	numbered, oncalls, breaks, maxNum := 0, 0, 0, 0
+	for _, r := range m.Rows {
+		switch {
+		case r.Kind == app.SheetRowIntermission:
+			breaks++
+			if r.Number != 0 {
+				t.Errorf("intermission must have no number, got %d", r.Number)
+			}
+		case r.Section == app.SheetSectionOnCall:
+			oncalls++
+			if r.Number != 0 {
+				t.Errorf("on-call song must have no number, got %d", r.Number)
+			}
+		default:
+			numbered++
+			if r.Number > maxNum {
+				maxNum = r.Number
+			}
+		}
+	}
+	if numbered != 22 || maxNum != 22 || breaks != 1 || oncalls != 3 {
+		t.Fatalf("want 22 numbered (max 22), 1 break, 3 on-call; got numbered=%d max=%d breaks=%d oncall=%d", numbered, maxNum, breaks, oncalls)
+	}
+}
+
+func itoaT(n int) string {
+	if n < 10 {
+		return string(rune('0' + n))
+	}
+	return string(rune('0'+n/10)) + string(rune('0'+n%10))
+}
+
 func TestSetPatch_AdminOnly(t *testing.T) {
 	st := newStack()
 	admin, member, bandID, _, _, _ := buildSourceBand(t, st)
