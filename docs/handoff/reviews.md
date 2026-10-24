@@ -55525,3 +55525,44 @@ account musicians export their `username` (round-trip test asserts band.json car
 import remap is stage 1b). Flag 2 (409+count unless force) kept — the UI will say what force removes. Full app
 + httpapi suites green. NO :8080 deploy — backend only, inert until the UI stages. Branch kept for stages 2–4.
 Proceeding to stage 2 (the band-level grid editor: buildGrid projection + the chip-union refactor + search).
+
+## → REVIEWER (web-core) — T203 STAGE 2 (the band-level Line-ups grid editor)
+
+Branch `web/t203-lineup` @ `7c8a5b1f` (off main `7774e80b`). Stage 1's model, now with its editor. Design-first:
+presenting before landing. **313 unit tests + build + the new e2e green.**
+
+**What it is.** A new "Line-ups" band tab (SectionTabs + /bands/:id/lineups). The grid is a pure projection of
+the songs' line-ups + the band's musicians + parts, with sub-columns as CHANNELS:
+- `lineup-grid.ts` `buildGrid` — one **Voice** sub-column per musician (one mic; cell = joined voice shorts
+  L / B / "L+B"), one per **personal instrument** (filled/empty, optional ⇒ parens), and a **shared** instrument
+  its OWN column apart from the people (cell = who plays it). The SHEET projection (default) shows only what's
+  USED; `{editor:true}` shows every roster musician, a Voice column while the band has any voice part, and every
+  shared part's column — so an empty band can be filled. `buildGridByPart` is the "by part" re-projection.
+- `lineup-search.ts` — chip = tagged union (tag / musician / part / musician·part / "without musician"); chips
+  AND, same semantics as the tag filter. "without B" = B absent OR optional. `song-search.ts` is UNTOUCHED.
+- `Lineups.tsx` — click a Voice cell to cycle (none→L→B→none); click an instrument cell to toggle; a shared cell
+  is a who-plays-it `<select>`. Chips + free text filter the rows; a by-part toggle re-projects. Admin: a Parts
+  manager (name/kind/short/shared) seeds the vocabulary, "+ musician" (guest), per-musician "+ part" (assign an
+  instrument, which raises its sub-column). `api.ts` gains the musician/part methods + lineup/soundNote.
+
+**Checklist tests** (`test/lineup-grid.test.ts`): lead↔backing = ONE Voice column (letter changes); L+B join;
+a shared instrument moving C→A = ONE shared column, cell names who, and it is NOT a per-person sub-column; two
+instruments one song fills both; an unused sub-column is hidden; explicit order wins; editor-vs-sheet modes.
+`test/lineup-search.test.ts`: each chip kind, "without" (absent OR optional), the two-chip AND + a tag·word AND.
+`e2e/lineups.spec.ts`: seed parts, cycle a voice cell, assign+toggle a guitar, RELOAD to prove persistence,
+filter via a suggestion chip (→ 1 row), flip to by-part.
+
+**Three design points I want ruled on before I polish (I guessed a reasonable default for each):**
+1. **Instrument columns are usage-driven.** A personal-instrument sub-column exists only while the musician
+   plays it in some shown song; toggling off its LAST usage drops the column (you re-assign via "+ part" to get
+   it back). Clean for the sheet; a touch surprising in the editor. Alternative = a per-musician instrument
+   vocabulary ("Ann plays guitar") that persists the column — a model addition. I shipped usage-driven.
+2. **Bootstrap.** An empty band shows every roster musician as a column with a "—" placeholder; you seed the
+   Parts vocabulary (admin), then cycle Voice / assign instruments. No seed defaults are injected.
+3. **Short derivation.** The cell label is the part's `short`; absent, it's derived (1 word → first 3 chars,
+   multi-word → initials: "Guitar"→"Gui", "Lead vocal"→"LV"). The Parts manager has a `short` field to override.
+   The Go sheet (stage 4) must derive identically — I'll share a vector. OK to let derivation differ loosely
+   until then, or pin it now?
+
+Not yet: keyboard nav across cells, drag-reorder of musicians/parts, the sound-sheet (stages 3–4). Autonomous
+across all stages per VLL; this is the gate for stage 2.
