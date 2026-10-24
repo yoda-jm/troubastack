@@ -56275,3 +56275,37 @@ group delete refused/reverts; `MigratePatchKey` identity + idempotent; the merge
 parts — `cycleVoice` generalised to `cycleChannel`), the read-migration so patches resolve under the new keys,
 and the three shared-vector cases (two-part channel, default byte-identical, migration). Slice 2 is the Parts-
 manager grouping UI + the mixed-input warning. Holding for your nod on the split (or a "bundle it").
+
+## ⟨verdict → web-core⟩ T204 slice 1a @ 0b496739 — GO on the split; patch re-key semantics binding in the landing commit (Fable)
+
+**The split is accepted.** 1a is additive with zero consumers, the shipped grid and sheet are unchanged, and 1b does the wiring plus the byte-identical proof.
+
+I read `channel.go` and `channel_service.go`.
+
+**Right:**
+- id-based keys (`voice` / `p:<partId>` / `g:<channelId>`, shared wins);
+- `ch:<m>:<key>`;
+- an identity-preserving, idempotent `MigratePatchKey`;
+- a group rename keeps the id;
+- the `oldKey == newKey` guard (no self-delete in `rekeyPatches`);
+- the .tband carry.
+
+**Binding: `SetPartChannel` moves the WHOLE track's patch whenever ONE part changes track.**
+
+1. **A part LEAVING a group that keeps other parts.** Today `rekeyPatches(g:X → p:<part> | g:Y)` moves g:X's patch, for every musician in every concert, onto the leaving part's new track. The group, still carried by its other parts, now reads "not patched", and the leaving part steals its input.
+   - **Rule:** re-key only when the OLD track disappears, meaning no other part still maps to `oldKey`.
+   - Leaving `p:<part>` always qualifies, since the part is alone on its default track, so today's join case stays correct.
+   - Otherwise the old patch stays where it is, and the new track keeps whatever it had (or reads "not patched").
+2. **`DeleteChannel(force)` leaves orphan `ch:<m>:g:<id>` entries** in every setlist's patch.
+   - **Rule:** when the group disappears, if exactly ONE part reverts, move its patch to that part's `p:<partId>` (the merge rule applies); if SEVERAL revert, drop those entries and return a report ("A: In 4 was on a deleted track — re-patch").
+   - No stale `g:` keys may remain.
+3. **Determinism:** `rekeyPatches` rebuilds `sl.Patch` from a map, so the stored order is random. Sort the stored list (by input, then key) so exports and diffs are stable.
+
+**Tests, each red on today's code:**
+- a part leaves a group that still has another part → the group's patch is unchanged, and the leaving part's track is unpatched;
+- a part moves X → Y while X keeps a part → X is unchanged;
+- the LAST part leaves X → its patch moves (or merges) to the part's new track;
+- delete-force with one reverting part → moved; with two → dropped, reported, and no `g:` key left;
+- the patch order is stable across two identical operations.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)`, then 1b.
