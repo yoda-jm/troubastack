@@ -55598,3 +55598,45 @@ The projection's shape is right: channel sub-columns, a voice join, shared parts
 5. **Note for stages 3–4:** `GridPart` has no `input`. Unamplified parts (`input = none`, amendment 3) must route after the amplified channels and read "— acoustic". Carry `input` into the grid model when you reach the sheet. It doesn't block stage 2.
 
 Re-present stage 2 with 1–4. Keyboard navigation and drag-reorder (M4) must land before T203 closes; stage 2 or 3, your call.
+
+## → REVIEWER (web-core) — T203 STAGE 2 RE-PRESENT (rulings 1–4 folded in)
+
+Branch `web/t203-lineup` @ `fded94cf` (off main `df250a89`). All four rulings in; **315 TS unit + go vet/gofmt
++ the e2e green**. One coherent stage-2 commit (amended).
+
+**Ruling 1 — persisted instruments, no vanish.** `Musician.Instruments []string` (personal-instrument part
+ids), persisted + carried by `.tband` (by id, round-trip tested). The editor shows the UNION of a musician's
+listed instruments and the used ones — a column no longer vanishes when its last usage is toggled off. Add/
+remove is a line-up edit (any member); the roster stays admin. Removal is the header menu, **refused while
+used** (409 + the count) and offers "clear N" on confirm; `force` clears the N usages. The sheet projection is
+unchanged (used-only).
+
+**Ruling 2 — bootstrap + member creation.** `CreatePart` now takes kind/short/shared AT creation, so a MEMBER
+creates a voice or shared part inline (Go test `TestCreatePart_KindsAndShared`); no admin metadata edit needed.
+The empty state offers a one-click **"Add common parts"** (Lead/Backing vocal, Guitar, Bass, Keys, Percussion,
+Drums — generic roles only, idempotent, removable); the part inputs carry a datalist of those names.
+
+**Ruling 3 — one short, in Go.** `deriveShort` is rune-safe and folds Latin accents; `Parts()` fills the
+EFFECTIVE short into every served part; Studio's `partShort` is now a passthrough (reads `p.short`, never
+derives). Go-tested in `TestPartShort_EffectiveAndFolded` (multi-word "Lead vocal"→"LV", single "Guitar"→"Gui",
+accents "Électrique"→"Ele", override verbatim) and `TestParts_ServeEffectiveShort`. (I did NOT add x/text/norm:
+importing it forced a full module-graph re-resolve that fails on a VCS fetch in this sandbox, so the fold is an
+explicit Latin table mirroring the Studio foldText rule — flag if you'd rather pin the dep.)
+
+**Ruling 4 — shared, two players.** `cellFor` now joins EVERY player of a shared part in the song ("Ann+Bo"),
+optional only when all are. Test: "a shared part played by two musicians … joins both".
+
+**Ruling 5** (input → "— acoustic"): noted for the stage-4 sheet; `GridPart.input` is already carried. No
+stage-2 change.
+
+**Sabotage evidence** (vitest isn't in the shared tree — each flip reds the exact guard, restores green):
+- shared → per-person routing (disable the `p.shared` branch): `a shared instrument moving …` →
+  `AssertionError: expected [] to have a length of 1`.
+- voice cell takes the first part only (`shorts.slice(0,1)`): `… join on the single channel (L+B)` →
+  `AssertionError: expected 'L' to be 'L+B'`.
+- "without" ignores optional (`return !e`): `without C: C absent OR optional` →
+  `AssertionError: expected [ 's1' ] to deeply equal [ 's1', 's2' ]`.
+All three restored → `Tests 19 passed`.
+
+**M4 (keyboard nav + drag-reorder):** committed for before T203 closes; I'll land it as stage 3's first slice,
+ahead of the sound sheet. Re-presenting stage 2 for the GO.
