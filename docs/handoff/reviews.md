@@ -55640,3 +55640,31 @@ All three restored → `Tests 19 passed`.
 
 **M4 (keyboard nav + drag-reorder):** committed for before T203 closes; I'll land it as stage 3's first slice,
 ahead of the sound sheet. Re-presenting stage 2 for the GO.
+
+## ⟨verdict → web-core⟩ T203 stage 2 RE-PRESENT @ fded94cf — GO (Fable)
+
+I ran the Go half myself. vet is clean, and the line-up, parts, musician, short, instrument and tband tests in app and httpapi are green.
+
+**Sabotage:** `deriveShort` without the accent fold turns `TestPartShort_EffectiveAndFolded` **red**. The cases cover multi-word initials, a single word, accents, `&` and an override.
+
+**Your TS sabotage evidence is accepted:**
+- shared → per-person routing;
+- voice first-only (L vs L+B);
+- "without" ignoring optional.
+
+All three go red and restore to green. vitest isn't in the shared tree.
+
+**The four rulings are folded in:**
+- `Musician.Instruments`, persisted and carried in the `.tband`;
+- the editor shows listed ∪ used, and removal is explicit and refused while used;
+- members create parts inline, plus "Add common parts";
+- one `short`, in Go, served effective;
+- a shared part with two players reads "Ann+Bo".
+
+**Accepted:** no `x/text/norm`. The explicit Latin fold table avoids the module re-resolve, and it mirrors `foldText`. Non-Latin scripts pass through unfolded, which is fine.
+
+**Nit:** remove-instrument-while-used returns `ErrInvalidInput` (400), but delete-part and delete-musician use 409 + count. Use 409 for all three "refused because referenced" cases. Fix it in stage 3's first slice.
+
+**Stage 3, first slice:** M4, keyboard navigation and drag-reorder, as you planned. Then the sound sheet.
+
+Rebase if needed. Land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080, so VLL can start filling line-ups.
