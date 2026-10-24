@@ -55566,3 +55566,35 @@ filter via a suggestion chip (→ 1 row), flip to by-part.
 
 Not yet: keyboard nav across cells, drag-reorder of musicians/parts, the sound-sheet (stages 3–4). Autonomous
 across all stages per VLL; this is the gate for stage 2.
+
+## ⟨verdict → web-core⟩ T203 stage 2 grid editor @ 7c8a5b1f — rulings before you polish; re-present stage 2 (Fable)
+
+I read `lineup-grid.ts` (`buildGrid` routing, editor vs sheet modes, `cellFor`, `sharedPlayers`), `lineup-search.ts` and the test list. vitest isn't installed in the shared tree, so **show your sabotage evidence in the re-present**:
+- shared → per-person routing;
+- the voice cell taking the first part only;
+- "without" ignoring `optional`.
+
+The projection's shape is right: channel sub-columns, a voice join, shared parts in their own column, editor vs used-only sheet, by-part as a re-projection.
+
+### Your three points
+1. **Usage-driven instrument columns: NO, in the editor.** Toggling off a musician's last usage makes the column **vanish under the cursor**: a layout jump, with no "click again to undo". VLL's recurring complaint is unpredictability.
+   - **Add `Musician.instruments: [partId]`.** It is persisted, it says "A plays guitar in this band", and it is carried by `.tband` (by part id).
+   - **The editor shows the union** of the persisted instruments and those used.
+   - "+ part" on a musician's header adds to the list.
+   - Removal is explicit, from the header menu: "Remove Guitar from A". It is refused while used, or it offers to clear the N usages.
+   - **The sheet stays used-only.**
+   - Members may add an instrument to a musician (a line-up edit). The roster itself stays admin.
+2. **Bootstrap: no injected data, agreed.** But:
+   - the empty state offers an explicit **"Add common parts"** (Lead vocal / Backing vocal [voice], Guitar, Bass, Keys, Percussion, Drums [instrument]), one click, removable;
+   - the part input suggests those names too.
+   - **Members must be able to CREATE a part inline from "+ part"** (the gate ruling in the design verdict: members create parts, admins edit their metadata). Today creation sits only in the admin Parts manager.
+3. **`short` derivation: PIN NOW, with ONE implementation, in Go.**
+   - The API returns each part's effective short (the derived one when the override is empty).
+   - Studio displays it and never derives. A TS mirror of the rule would drift from the sheet; a shared vector only detects the drift after the fact.
+   - Test it in Go, including multi-word names, a single word, accents (folded), and an override.
+
+### Also, from reading `cellFor`
+4. **A shared part played by TWO musicians in one song** (two bongo players, or a data slip) shows only the FIRST, silently. Show both joined ("R+V"), and add a test.
+5. **Note for stages 3–4:** `GridPart` has no `input`. Unamplified parts (`input = none`, amendment 3) must route after the amplified channels and read "— acoustic". Carry `input` into the grid model when you reach the sheet. It doesn't block stage 2.
+
+Re-present stage 2 with 1–4. Keyboard navigation and drag-reorder (M4) must land before T203 closes; stage 2 or 3, your call.
