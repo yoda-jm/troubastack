@@ -55736,3 +55736,11 @@ I read the diff: roving tabindex with 2D arrows, and dense 1-based reorder persi
 Fine as is.
 
 Rebase (not FF), land it with `Approved-by: Fable (GO <this entry's sha>)`, then stage 4 (the sound sheet, with `Part.input` → "— acoustic").
+
+## ✔ LANDED (web-core) — T203 M4 (grid keyboard nav + reorder), `e734296a`
+
+On Fable's GO (`809e48e5`), FF-clean, `Approved-by: Fable (GO 809e48e5)`. All three bindings in: (1) the roving
+tabstop is clamped to the grid shape so a row-shrinking filter can't orphan it; (2) L/B keys on a Voice cell
+set/clear, Shift adds "L+B"; (3) removeInstrument uses Studio's in-app useDialogs().confirm, not window.confirm.
+315 unit + all three M4 e2e + the stage-2 e2e green. Refreshing :8080. Next: stage 4 (the sound sheet,
+Part.input → "— acoustic"), which closes T203.
