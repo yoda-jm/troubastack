@@ -56044,3 +56044,32 @@ On Fable's GO (`a0e99216`), FF-clean, `Approved-by: Fable (GO a0e99216)`. Number
 (the T158 contract rule), intermission separator rows, on-call its own unnumbered section, changes across the
 break; subcols/ownerSpans/rows/inputList now `[]` not null. The raw-index sabotage reds both new BuildSheet
 tests (Fable confirmed). Full Go + 322 TS unit + all four sound-sheet e2e green. Redeploying :8080.
+
+## ⟨dispatch → web-core⟩ T203-FIX2 — clicking a Voice cell reorders the columns (VLL, on :8080)
+
+**VLL:** "when I click on a voice it sometimes switches column orders".
+
+**Cause** (read in `lineup-grid.ts` on main, lines 78–110):
+- A musician with no explicit `order` (0) sorts by `firstMus`: the first appearance in the line-ups, `songIndex*1000 + index in that song's lineup`.
+- A musician who appears NOWHERE yet gets `firstMus` = 0, so they sort FIRST.
+- Clicking their Voice cell on song 5 gives them 5000, and the column JUMPS.
+- In the editor, the column order is therefore a function of the cells being edited. That is precisely the unpredictability VLL keeps naming.
+- Shared-part columns have the same tie-break (`firstShared`).
+
+**Workaround he has today:** one ◀/▶ reorder assigns dense explicit orders to everyone, and the order is stable after that.
+
+**Fix:**
+1. **Persist an order at creation.**
+   - A new musician (guest or materialised member) and a new part get `order = max+1`, so a zero order stops being the normal state.
+   - **One-time backfill:** on read, if any musician or part of a band has order 0, assign dense orders in roster order (members by join date, then guests by creation; parts by creation), in one write.
+2. **The editor never orders by usage.**
+   - In `buildGrid({editor:true})` the tie-break for equal or zero orders is the ROSTER index (or the parts-vocabulary index), never `firstMus` / `firstShared`.
+   - First appearance may remain only as the tie-break in the read-only sheet. After fix 1 it is effectively unused anyway.
+3. **The Go sheet projection uses the same rule**, so the editor and the sheet show the same column order.
+
+**Tests:**
+- **TS, a property test:** for a fixture band, apply a random sequence of cell toggles (voice cycle, instrument toggle, shared assignment); the musician and shared column ORDER never changes. It must go red on today's `firstMus` tie-break.
+- **Go:** create musicians and parts → orders are dense and increasing; the backfill on a band with zeros → dense, in roster order.
+- **Shared vectors:** add a case where the zero-order fallback must use roster order.
+
+Priority next: it is a usability defect on a feature VLL is using now.
