@@ -85,6 +85,17 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/bands/{bandId}/songs", a.auth(a.createSong))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}", a.auth(a.updateSong))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}", a.auth(a.deleteSong))
+	// T203 — line-up vocabulary (musicians + parts). Line-up edits ride the song PATCH above.
+	mux.HandleFunc("GET /api/bands/{bandId}/musicians", a.auth(a.listMusicians))
+	mux.HandleFunc("POST /api/bands/{bandId}/musicians", a.auth(a.addMusician))
+	mux.HandleFunc("PATCH /api/bands/{bandId}/musicians/{musicianId}", a.auth(a.updateMusician))
+	mux.HandleFunc("POST /api/bands/{bandId}/musicians/{musicianId}/link", a.auth(a.linkMusician))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/musicians/{musicianId}", a.auth(a.deleteMusician))
+	mux.HandleFunc("GET /api/bands/{bandId}/parts", a.auth(a.listParts))
+	mux.HandleFunc("POST /api/bands/{bandId}/parts", a.auth(a.createPart))
+	mux.HandleFunc("PATCH /api/bands/{bandId}/parts/{partId}", a.auth(a.updatePart))
+	mux.HandleFunc("POST /api/bands/{bandId}/parts/merge", a.auth(a.mergeParts))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/parts/{partId}", a.auth(a.deletePart))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/files", a.auth(a.uploadFile))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files", a.auth(a.listFiles))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.updateFile))
@@ -687,18 +698,23 @@ func (a *WebAPI) updateSong(w http.ResponseWriter, r *http.Request, u app.User) 
 		Meter  *string   `json:"meter"`
 		Tags   *[]string `json:"tags"`
 		Notes  *string   `json:"notes"`
+		// T203: line-up + sound note ride the song PATCH (member-level, like other song metadata).
+		Lineup    *[]app.LineupEntry `json:"lineup"`
+		SoundNote *string            `json:"soundNote"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
 	song, err := a.svc.UpdateSong(u, r.PathValue("bandId"), r.PathValue("songId"), app.SongPatch{
-		Title:  in.Title,
-		Artist: in.Artist,
-		Key:    in.Key,
-		Tempo:  in.Tempo,
-		Meter:  in.Meter,
-		Tags:   in.Tags,
-		Notes:  in.Notes,
+		Title:     in.Title,
+		Artist:    in.Artist,
+		Key:       in.Key,
+		Tempo:     in.Tempo,
+		Meter:     in.Meter,
+		Tags:      in.Tags,
+		Notes:     in.Notes,
+		Lineup:    in.Lineup,
+		SoundNote: in.SoundNote,
 	})
 	if err != nil {
 		writeErr(w, err)

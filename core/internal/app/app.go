@@ -175,6 +175,12 @@ type Band struct {
 	Shortname string `json:"shortname,omitempty"`
 	Kind      string `json:"kind,omitempty"`
 	Notes     string `json:"notes,omitempty"`
+
+	// Musicians + Parts (T203) are the band-level line-up vocabulary, stored on the band aggregate. Members
+	// auto-appear in the roster at read time (not stored until edited); stored entries hold overrides (a
+	// stage name, an order) and guests. Additive; round-trip in band.json.
+	Musicians []Musician `json:"musicians,omitempty"`
+	Parts     []Part     `json:"parts,omitempty"`
 }
 
 // Membership ties a user to a band with a role.
@@ -236,6 +242,69 @@ type Song struct {
 	Tags      []string  `json:"tags,omitempty"`
 	Notes     string    `json:"notes,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
+
+	// Lineup (T203) is who plays/sings what in THIS song — explicit, no inheritance: a musician absent from
+	// the list does not play the song. SoundNote is what the engineer needs for it. Both additive/omitempty.
+	Lineup    []LineupEntry `json:"lineup,omitempty"`
+	SoundNote string        `json:"soundNote,omitempty"`
+}
+
+// --- T203: line-ups — who plays/sings what, per song ---
+
+// Part kinds + input kinds (the band vocabulary's enums).
+const (
+	PartVoice      = "voice"
+	PartInstrument = "instrument"
+	PartOther      = "other"
+
+	InputMic  = "mic"
+	InputDI   = "di"
+	InputLine = "line"
+	InputNone = "none" // unamplified / acoustic: in the grid + sheet, no channel key, no patch line
+)
+
+// Musician is a band-level person who can appear in a song's line-up. An account musician is linked by UserID
+// (its id is uuidV5(bandID,"musician:"+userId), lazily materialized + idempotent); a guest has UserID "" and a
+// random stored id. Name is a guest's name, or a stage-name OVERRIDE for an account (empty ⇒ the account's
+// live display name, resolved at read). Order is the stage order (0 ⇒ by first appearance).
+type Musician struct {
+	ID     string `json:"id"`
+	UserID string `json:"userId,omitempty"`
+	Name   string `json:"name,omitempty"`
+	Order  int    `json:"order,omitempty"`
+}
+
+// Part is a band-level vocabulary entry. Kind routes the sound-sheet grid (voice parts share one channel per
+// person; instrument parts get their own). Short is the sheet abbreviation (derived from Name when empty).
+// Input feeds the patch list (none ⇒ unamplified). Shared ⇒ one physical source passed between players (its
+// own grid column). Order places a shared column. Line-ups reference a part by ID (M1), so a rename is
+// metadata-only and merge is the only band-wide rewrite.
+type Part struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Kind   string `json:"kind"`
+	Short  string `json:"short,omitempty"`
+	Input  string `json:"input,omitempty"`
+	Shared bool   `json:"shared,omitempty"`
+	Order  int    `json:"order,omitempty"`
+}
+
+// LineupEntry is one musician's role in a song: the parts they play (by Part.ID), whether the song works
+// without them (Optional), and a free note.
+type LineupEntry struct {
+	MusicianID string   `json:"musicianId"`
+	PartIDs    []string `json:"partIds"`
+	Optional   bool     `json:"optional,omitempty"`
+	Note       string   `json:"note,omitempty"`
+}
+
+// ChannelPatch (T203, RESERVED in stage 1) is one console channel for a concert — the channel key
+// (voice:<musicianId> | inst:<musicianId>:<partId> | shared:<partId>), the console input number, and an
+// optional label. Per-setlist, because the console changes with the venue. Additive; the editor comes later.
+type ChannelPatch struct {
+	Channel string `json:"channel"`
+	Input   int    `json:"input,omitempty"`
+	Name    string `json:"name,omitempty"`
 }
 
 // SongFile is metadata for a binary file (sheet music PDF / image) attached to a
@@ -388,6 +457,10 @@ type Setlist struct {
 	// carried in a .tband — only the flag is).
 	Archived   bool      `json:"archived,omitempty"`
 	ArchivedAt time.Time `json:"archivedAt,omitempty"`
+
+	// Patch (T203, RESERVED in stage 1) is this concert's console channel list — per-setlist because the
+	// console changes with the venue. Additive; the patch editor + sound sheet come in a later stage.
+	Patch []ChannelPatch `json:"patch,omitempty"`
 }
 
 // LiveModeWindow is how long a setlist stays in rehearsal live mode after an admin

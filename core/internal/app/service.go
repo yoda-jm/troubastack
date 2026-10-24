@@ -945,6 +945,9 @@ type SongPatch struct {
 	Meter  *string
 	Tags   *[]string
 	Notes  *string
+	// T203: line-up edits ride the song PATCH (member-level, like other song metadata).
+	Lineup    *[]LineupEntry
+	SoundNote *string
 }
 
 // UpdateSong patches a song's metadata (any band member). Only supplied fields
@@ -995,6 +998,17 @@ func (s *Service) UpdateSong(caller User, bandID, songID string, p SongPatch) (S
 	}
 	if p.Notes != nil {
 		song.Notes = *p.Notes
+	}
+	if p.SoundNote != nil {
+		song.SoundNote = strings.TrimSpace(*p.SoundNote)
+	}
+	if p.Lineup != nil {
+		song.Lineup = normalizeLineup(*p.Lineup)
+		// T203: materialize any referenced current-member musician as a stored roster record, so the
+		// reference survives the member later leaving the band (a departed member keeps their record).
+		if err := s.materializeMemberMusicians(caller, bandID, song.Lineup); err != nil {
+			return Song{}, err
+		}
 	}
 	if err := s.repo.UpdateSong(song); err != nil {
 		return Song{}, err

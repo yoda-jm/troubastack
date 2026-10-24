@@ -78,9 +78,11 @@ type manifestBand struct {
 	ID   string `json:"id,omitempty"`
 	Name string `json:"name"`
 	// T152: author-declared identity, carried through the manifest so it survives a round-trip.
-	Shortname string `json:"shortname,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	Notes     string `json:"notes,omitempty"`
+	Shortname string       `json:"shortname,omitempty"`
+	Kind      string       `json:"kind,omitempty"`
+	Notes     string       `json:"notes,omitempty"`
+	Musicians []v2Musician `json:"musicians,omitempty"`
+	Parts     []Part       `json:"parts,omitempty"`
 }
 
 // manifestMember carries the orig member id (the key for the OwnerID rewrite) plus the
@@ -95,16 +97,18 @@ type manifestMember struct {
 }
 
 type manifestSong struct {
-	ID     string         `json:"id"`             // original songID — the manifest-internal ref
-	Slug   string         `json:"slug,omitempty"` // T139 stored slug ("" for a v1 import or a pre-T139 song → export derives)
-	Title  string         `json:"title"`
-	Artist string         `json:"artist,omitempty"`
-	Key    string         `json:"key,omitempty"`
-	Tempo  int            `json:"tempo,omitempty"`
-	Meter  string         `json:"meter,omitempty"` // T86 — must ride here or a band export silently drops it
-	Tags   []string       `json:"tags,omitempty"`
-	Notes  string         `json:"notes,omitempty"`
-	Files  []manifestFile `json:"files"`
+	ID        string         `json:"id"`             // original songID — the manifest-internal ref
+	Slug      string         `json:"slug,omitempty"` // T139 stored slug ("" for a v1 import or a pre-T139 song → export derives)
+	Title     string         `json:"title"`
+	Artist    string         `json:"artist,omitempty"`
+	Key       string         `json:"key,omitempty"`
+	Tempo     int            `json:"tempo,omitempty"`
+	Meter     string         `json:"meter,omitempty"` // T86 — must ride here or a band export silently drops it
+	Tags      []string       `json:"tags,omitempty"`
+	Notes     string         `json:"notes,omitempty"`
+	Lineup    []LineupEntry  `json:"lineup,omitempty"`
+	SoundNote string         `json:"soundNote,omitempty"`
+	Files     []manifestFile `json:"files"`
 }
 
 type manifestFile struct {
@@ -136,6 +140,7 @@ type manifestSetlist struct {
 	// round-trip keeps it. The archive FLAG only — ArchivedAt is a local audit stamp,
 	// like live mode's runtime deadline, and is not carried.
 	Archived bool           `json:"archived,omitempty"`
+	Patch    []ChannelPatch `json:"patch,omitempty"` // T203: reserved per-concert channel patch
 	Items    []manifestItem `json:"items"`
 }
 
@@ -264,7 +269,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 	man := bandManifest{
 		FormatVersion: BandExportFormatVersion,
 		ExportedAt:    s.now().UTC().Format(time.RFC3339),
-		Band:          manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes},
+		Band:          manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes, Musicians: s.exportMusicians(band.Musicians), Parts: band.Parts},
 		Annotations:   map[string]manifestAnnots{},
 	}
 
@@ -289,6 +294,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 		ms := manifestSong{
 			ID: song.ID, Slug: song.Slug, Title: song.Title, Artist: song.Artist, Key: song.Key,
 			Tempo: song.Tempo, Meter: song.Meter, Tags: song.Tags, Notes: song.Notes,
+			Lineup: song.Lineup, SoundNote: song.SoundNote,
 		}
 		files, err := s.repo.FilesOfSong(song.ID)
 		if err != nil {
@@ -348,7 +354,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 		return nil, "", err
 	}
 	for _, sl := range setlists {
-		msl := manifestSetlist{ID: sl.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, Archived: sl.Archived}
+		msl := manifestSetlist{ID: sl.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, Archived: sl.Archived, Patch: sl.Patch}
 		items, err := s.repo.ItemsOfSetlist(sl.ID)
 		if err != nil {
 			return nil, "", err
@@ -682,6 +688,11 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 		ID: bandID, Name: strings.TrimSpace(man.Band.Name), OwnerID: caller.ID, CreatedAt: now,
 		// T152: store the folder's declared identity verbatim so a later export re-emits it.
 		Shortname: man.Band.Shortname, Kind: man.Band.Kind, Notes: man.Band.Notes,
+		// T203: the line-up vocabulary. Musicians + parts are carried verbatim (ids declared). NOTE: an
+		// account musician's UserID is carried as-is — a same-server re-import keeps it valid; a cross-server
+		// import's old UserID won't match a new account (resolveMusicianName then shows a guest). Re-linking
+		// account musicians across a cross-server import is a stage-1b follow-up (needs the member remap).
+		Musicians: importMusicians(man.Band.Musicians), Parts: man.Band.Parts,
 	}
 	if band.Name == "" {
 		band.Name = "Imported band"
@@ -801,6 +812,7 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 			// and export derives it lazily — NOT derived-and-stored here, which would be a title backfill.
 			ID: sid, BandID: band.ID, Slug: sg.Slug, Title: sg.Title, Artist: sg.Artist, Key: sg.Key,
 			Tempo: sg.Tempo, Meter: sg.Meter, Tags: sg.Tags, Notes: sg.Notes, CreatedAt: now,
+			Lineup: sg.Lineup, SoundNote: sg.SoundNote,
 		}
 		if err := s.repo.CreateSong(ns); err != nil {
 			return ImportReport{}, err
@@ -971,7 +983,7 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 		}
 		// Archived (T200) travels; ArchivedAt is a local stamp, left zero on import (the flag is what the
 		// tablet and Studio act on).
-		nsl := Setlist{ID: slid, BandID: band.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, Archived: sl.Archived, CreatedAt: now}
+		nsl := Setlist{ID: slid, BandID: band.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, Archived: sl.Archived, Patch: sl.Patch, CreatedAt: now}
 		if err := s.repo.CreateSetlist(nsl); err != nil {
 			return ImportReport{}, err
 		}

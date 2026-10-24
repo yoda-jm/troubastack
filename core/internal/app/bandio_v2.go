@@ -74,9 +74,22 @@ type v2Band struct {
 	// Shortname/Kind/Notes are the band's author-declared identity. T152: the app now STORES them (app.Band)
 	// and both import and export carry them, so `make band=<shortname>` keeps working across a round-trip
 	// (previously an export dropped them). Still omitempty: a pre-T152 export / an in-app band omits them.
-	Shortname string `json:"shortname,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	Notes     string `json:"notes,omitempty"`
+	Shortname string       `json:"shortname,omitempty"`
+	Kind      string       `json:"kind,omitempty"`
+	Notes     string       `json:"notes,omitempty"`
+	Musicians []v2Musician `json:"musicians,omitempty"`
+	Parts     []Part       `json:"parts,omitempty"`
+}
+
+// v2Musician is the folder shape for a line-up musician. Username is the account's username AT EXPORT, so a
+// future cross-server import can re-link an account musician by username (the remap itself is stage 1b). A
+// guest has no userId/username. The id is declared verbatim so same-server re-import keeps line-up refs.
+type v2Musician struct {
+	ID       string `json:"id"`
+	UserID   string `json:"userId,omitempty"`
+	Username string `json:"username,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Order    int    `json:"order,omitempty"`
 }
 
 type v2Member struct {
@@ -95,15 +108,17 @@ type v2Repertoire struct {
 }
 
 type v2Song struct {
-	Slug   string   `json:"slug"`
-	Title  string   `json:"title"`
-	Artist string   `json:"artist,omitempty"`
-	Key    string   `json:"key,omitempty"`
-	Tempo  int      `json:"tempo,omitempty"`
-	Meter  string   `json:"meter,omitempty"`
-	Notes  string   `json:"notes,omitempty"`
-	Tags   []string `json:"tags,omitempty"`
-	Files  []v2File `json:"files,omitempty"`
+	Slug      string        `json:"slug"`
+	Title     string        `json:"title"`
+	Artist    string        `json:"artist,omitempty"`
+	Key       string        `json:"key,omitempty"`
+	Tempo     int           `json:"tempo,omitempty"`
+	Meter     string        `json:"meter,omitempty"`
+	Notes     string        `json:"notes,omitempty"`
+	Tags      []string      `json:"tags,omitempty"`
+	Lineup    []LineupEntry `json:"lineup,omitempty"`
+	SoundNote string        `json:"soundNote,omitempty"`
+	Files     []v2File      `json:"files,omitempty"`
 }
 
 type v2File struct {
@@ -141,6 +156,7 @@ type v2Setlist struct {
 	// Archived (T200): the archive flag travels with the folder. omitempty — a pre-T200
 	// folder has none and reads as not archived. The timestamp is not carried.
 	Archived bool            `json:"archived,omitempty"`
+	Patch    []ChannelPatch  `json:"patch,omitempty"` // T203: reserved per-concert channel patch
 	Items    []v2SetlistItem `json:"items"`
 }
 
@@ -287,6 +303,8 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 		FormatVersion: BandExportFormatVersionV2, ExportedAt: man.ExportedAt, ID: man.Band.ID, Name: man.Band.Name,
 		// T150/T152: emit the declared id + author-declared identity so a folder round-trip preserves them.
 		Shortname: man.Band.Shortname, Kind: man.Band.Kind, Notes: man.Band.Notes,
+		// T203: the line-up vocabulary travels with the band.
+		Musicians: man.Band.Musicians, Parts: man.Band.Parts,
 	}
 	for _, m := range man.Members {
 		userByID[m.ID] = m.Username
@@ -313,6 +331,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 		vs := v2Song{
 			Slug: slug, Title: ms.Title, Artist: ms.Artist, Key: ms.Key,
 			Tempo: ms.Tempo, Meter: ms.Meter, Notes: ms.Notes, Tags: ms.Tags,
+			Lineup: ms.Lineup, SoundNote: ms.SoundNote,
 		}
 		usedNames := map[string]bool{}
 		for _, mf := range ms.Files {
@@ -404,7 +423,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 	// Setlists.
 	sls := v2SetlistsFile{}
 	for _, msl := range man.Setlists {
-		vsl := v2Setlist{ID: msl.ID, Name: msl.Name, EventDate: msl.EventDate, Venue: msl.Venue, Notes: msl.Notes, Archived: msl.Archived}
+		vsl := v2Setlist{ID: msl.ID, Name: msl.Name, EventDate: msl.EventDate, Venue: msl.Venue, Notes: msl.Notes, Archived: msl.Archived, Patch: msl.Patch}
 		for _, it := range msl.Items {
 			// T153: an intermission has no song, so it has no slug to resolve. Export it by kind+label;
 			// the unknown-song guard below still protects every entry that CLAIMS to be a song.
@@ -510,7 +529,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 		ExportedAt:    band.ExportedAt,
 		// T150/T152: carry the folder's declared identity (id + shortname/kind/notes) into the manifest so
 		// import resolves + stores it.
-		Band:        manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes},
+		Band:        manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes, Musicians: band.Musicians, Parts: band.Parts},
 		Annotations: map[string]manifestAnnots{},
 	}
 
@@ -552,6 +571,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 			// identifier survives the round-trip, and a later title edit will not rename it.
 			ID: sid, Slug: vs.Slug, Title: vs.Title, Artist: vs.Artist, Key: vs.Key,
 			Tempo: vs.Tempo, Meter: vs.Meter, Tags: vs.Tags, Notes: vs.Notes,
+			Lineup: vs.Lineup, SoundNote: vs.SoundNote,
 		}
 		for i, vf := range vs.Files {
 			if pathUnsafe(vf.Filename) {
@@ -659,7 +679,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 		}
 	}
 	for _, vsl := range sls.Setlists {
-		msl := manifestSetlist{ID: vsl.ID, Name: vsl.Name, EventDate: vsl.EventDate, Venue: vsl.Venue, Notes: vsl.Notes, Archived: vsl.Archived}
+		msl := manifestSetlist{ID: vsl.ID, Name: vsl.Name, EventDate: vsl.EventDate, Venue: vsl.Venue, Notes: vsl.Notes, Archived: vsl.Archived, Patch: vsl.Patch}
 		for idx, it := range vsl.Items {
 			// T153: an intermission occupies a position like any entry but references no song. Everything
 			// else in the loop (Position from array order, T140) applies to it unchanged.

@@ -242,6 +242,7 @@ var songNotCarried = map[string]string{
 	"ID":        "the importing server mints its own song ids; the folder keys songs by slug",
 	"BandID":    "the import creates a new band; asserted separately as the imported band's id",
 	"CreatedAt": "stamped by the importing server — a folder is a description, not a history",
+	"Lineup":    "T203: carried in v2Song both ways; round-trip asserted in TestLineup_TbandRoundTrip. The reflective filler's empty part id is normalized away, so a verbatim compare doesn't apply here",
 }
 
 func TestBandFolder_RoundTripsEverySongField(t *testing.T) {
@@ -257,7 +258,7 @@ func TestBandFolder_RoundTripsEverySongField(t *testing.T) {
 	want.Tags = []string{"britpop"}
 	patch := app.SongPatch{
 		Artist: &want.Artist, Key: &want.Key, Tempo: &want.Tempo, Meter: &want.Meter,
-		Tags: &want.Tags, Notes: &want.Notes,
+		Tags: &want.Tags, Notes: &want.Notes, SoundNote: &want.SoundNote, // T203
 	}
 	want.Meter = "6/8" // meter is canonicalised (T86), so a filler string would not round-trip as itself
 	if _, err := src.svc.UpdateSong(admin, bandID, songID, app.SongPatch{Title: &want.Title}); err != nil {
