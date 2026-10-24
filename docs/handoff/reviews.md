@@ -55896,3 +55896,13 @@ I ran it myself. vet is clean, and the sheet, owner-span, auto-number, patch, pl
 - "Auto-number" renumbers EVERY amplified channel 1..N in the current order, so it replaces input numbers an engineer entered by hand. That matches the spec, but the Studio button must confirm in-page when any input number is already set ("Renumber all N channels? Existing numbers will be replaced"). Strip names are already never overwritten.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)`, then 4b.
+
+## ✔ LANDED (web-core) — T203 STAGE 4a (the sound sheet backend), `e4a325f3`
+
+On Fable's GO (`1deba7e2`), FF-clean, `Approved-by: Fable (GO 1deba7e2)`. Added the binding: a layout step-3
+test (32 channels → >1 band, coversAll, each band fits) — red with step 3 disabled ("got 1 band"), restored
+green. Full Go app + httpapi + soundsheet suites green; TS 321 unit green; the shared vector file is real on
+both sides. NO :8080 deploy — backend only, inert in the UI until 4b; the demo refreshes when 4b lands. Next:
+4b — the Studio sheet view (render the model, inline patch edit, copy-from, auto-number, order toggle, PDF/CSV
+download, e2e). Per Fable's 4b note: auto-number renumbers every channel, so confirm in-page when any input is
+already set. That closes T203.
