@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   buildGrid,
   buildGridByPart,
+  inferPartKind,
   voiceKey,
   instKey,
   sharedKey,
@@ -158,6 +159,54 @@ function sharedKeyPart(g: ReturnType<typeof buildGridByPart>, partId: string): s
 
 // The ONE shared projection vector set (Fable, 2026-10-24): this TS editor projection (sheet mode) and the Go
 // sheet projection (core/internal/app TestSheetProjection_SharedVectors) both load this file and must agree.
+describe("T203-FIX2 — inferPartKind matches whole folded WORDS (FR + EN)", () => {
+  // Fable's cases — the old substring version is red on "Lead guitar" and "Harmonica".
+  const voice = ["Chant lead", "Backing vocals", "Chœurs", "Voix", "Lead", "Voice", "Harmonies", "choir", "Chant", "Choeurs"];
+  const inst = ["Lead guitar", "Harmonica", "Guitare", "Guitar", "Bass", "Basse", "Autoharp", "Keys", "Clavier", "Percussion", "Drums", "Batterie", "Shaker"];
+  for (const n of voice) it(`"${n}" → voice`, () => expect(inferPartKind(n)).toBe("voice"));
+  for (const n of inst) it(`"${n}" → instrument`, () => expect(inferPartKind(n)).toBe("instrument"));
+});
+
+describe("T203-FIX2 — the editor column order is stable under cell edits", () => {
+  // A zero-order roster + vocabulary (the case that broke): the tie-break must be the ROSTER/VOCAB index, not
+  // usage, so toggling cells never reorders the wide columns.
+  const M: GridMusician[] = [
+    { id: "A", displayName: "Ann" },
+    { id: "B", displayName: "Bo" },
+    { id: "C", displayName: "Cy" },
+  ];
+  const P: GridPart[] = [
+    { id: "lead", name: "Lead vocal", kind: "voice", short: "L" },
+    { id: "bass", name: "Bass", kind: "instrument", short: "Bs", shared: true },
+    { id: "bongo", name: "Bongos", kind: "instrument", short: "Bgo", shared: true },
+  ];
+  const colIDs = (songs: GridSong[]) => buildGrid(songs, M, P, { editor: true }).columns.map((c) => c.id);
+  const baseline = colIDs([]); // [A, B, C, bass, bongo] — roster then vocab order
+
+  it("a musician used only in a LATE song keeps its roster position (the exact bug)", () => {
+    // Ann (roster-first) sings only in song 5; under a usage tie-break she'd jump to the end.
+    const songs: GridSong[] = Array.from({ length: 6 }, (_, i) => ({ id: `s${i}`, title: `s${i}`, lineup: i === 5 ? [{ musicianId: "A", partIds: ["lead"] }] : [] }));
+    expect(colIDs(songs)).toEqual(baseline);
+  });
+
+  it("200 random cell toggles never change the column order", () => {
+    let seed = 12345;
+    const rnd = (n: number) => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) % n);
+    const songs: GridSong[] = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, title: `s${i}`, lineup: [] as GridSong["lineup"] }));
+    for (let it = 0; it < 200; it++) {
+      const s = songs[rnd(songs.length)];
+      const mid = M[rnd(M.length)].id;
+      const pid = P[rnd(P.length)].id;
+      const lineup = (s.lineup ?? []).map((e) => ({ ...e, partIds: [...e.partIds] }));
+      let e = lineup.find((x) => x.musicianId === mid);
+      if (!e) { e = { musicianId: mid, partIds: [] }; lineup.push(e); }
+      e.partIds = e.partIds.includes(pid) ? e.partIds.filter((p) => p !== pid) : [...e.partIds, pid];
+      s.lineup = lineup.filter((x) => x.partIds.length > 0);
+      expect(colIDs(songs)).toEqual(baseline);
+    }
+  });
+});
+
 describe("shared projection vectors (guards TS editor ↔ Go sheet)", () => {
   type Vec = {
     cases: {

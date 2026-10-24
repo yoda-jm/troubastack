@@ -2495,7 +2495,9 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .lineup-cell:hover { background: var(--brand-tint); }
 .lineup-cell.on { font-weight: 600; }
 .lineup-addpart { margin-left: .4rem; font-size: .8rem; }
-.lineup-assign { position: absolute; z-index: 5; background: var(--surface, #fff); border: 1px solid var(--border, #ccc); border-radius: 6px; padding: .3rem; display: flex; flex-direction: column; gap: .2rem; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+.lineup-addpart-wrap { position: relative; display: inline-block; }
+.lineup-assign-close { float: right; margin-left: .5rem; }
+.lineup-assign { position: absolute; top: 100%; left: 0; z-index: 5; background: var(--surface, #fff); border: 1px solid var(--border, #ccc); border-radius: 6px; padding: .3rem; display: flex; flex-direction: column; gap: .2rem; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
 
 /* T203 M4 — grid keyboard nav + reorder affordances */
 .lineup-grid th[draggable="true"] { cursor: grab; }

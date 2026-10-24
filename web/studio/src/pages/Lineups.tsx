@@ -14,6 +14,7 @@ import { queryWords } from "./song-search";
 import {
   buildGrid,
   buildGridByPart,
+  inferPartKind,
   type GridSong,
   type GridMusician,
 } from "./lineup-grid";
@@ -59,6 +60,8 @@ export function Lineups() {
   const [newPartShared, setNewPartShared] = useState(false);
   const [assignFor, setAssignFor] = useState<string | null>(null); // musicianId whose +part picker is open
   const [newInstName, setNewInstName] = useState(""); // the inline "create a new instrument" field
+  const assignPopupRef = useRef<HTMLDivElement | null>(null);
+  const assignTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [focusRC, setFocusRC] = useState<[number, number]>([0, 0]); // the grid cell holding the roving tabstop (M4)
   const gridRef = useRef<HTMLTableElement>(null);
 
@@ -81,6 +84,35 @@ export function Lineups() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The "+ part" popup must be closeable (T203-FIX2): ✕, Escape (focus returns to the trigger), and a click
+  // outside. closeAssign returns focus to the "+ part" button that opened it.
+  const closeAssign = useCallback(() => {
+    setAssignFor(null);
+    setNewInstName("");
+    assignTriggerRef.current?.focus();
+  }, []);
+  useEffect(() => {
+    if (!assignFor) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeAssign();
+      }
+    };
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (assignPopupRef.current?.contains(t) || assignTriggerRef.current?.contains(t)) return;
+      setAssignFor(null); // outside click: close without stealing focus
+      setNewInstName("");
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [assignFor, closeAssign]);
 
   const voiceParts = useMemo(
     () => parts.filter((p) => p.kind === "voice").sort((a, b) => (a.order || 1e9) - (b.order || 1e9) || a.name.localeCompare(b.name)),
@@ -256,13 +288,16 @@ export function Lineups() {
     const n = name.trim();
     if (!n) return;
     try {
-      const p = await api.createPart(bandId, n); // defaults to a personal instrument
-      await api.addMusicianInstrument(bandId, musicianId, p.id);
+      // Infer the kind from the name (T203-FIX2): "Voix"/"Chœurs"/… become a VOICE part (which the Voice
+      // column cycles), not an instrument. Only an instrument is attached to this musician's column.
+      const kind = inferPartKind(n);
+      const p = await api.createPart(bandId, n, { kind });
+      if (kind === "instrument") await api.addMusicianInstrument(bandId, musicianId, p.id);
       setAssignFor(null);
       setNewInstName("");
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Couldn't add the instrument.");
+      setError(err instanceof ApiError ? err.message : "Couldn't add the part.");
     }
   }
   // Explicit removal from the header menu: refused while used (409), then offer to clear the N usages.
@@ -411,6 +446,11 @@ export function Lineups() {
           (vocals, guitar, bass, keys, percussion, drums) — or add your own under “Parts”.
         </p>
       )}
+      {parts.length > 0 && !parts.some((p) => p.kind === "voice") && (
+        <p className="muted" data-testid="lineups-no-voice-hint">
+          No voice part yet — add one (e.g. “Lead” / “Backing”, or “Chant” / “Chœurs”) to sing in this grid.
+        </p>
+      )}
 
       <datalist id="common-part-names">
         {COMMON_PART_NAMES.map((n) => (
@@ -531,17 +571,21 @@ export function Lineups() {
                     </span>
                   )}
                   {col.kind === "musician" && (
-                    <>
-                      <button type="button" className="linklike lineup-addpart" data-testid="lineup-add-part" title="Manage this musician's instruments" onClick={() => { setAssignFor(assignFor === col.id ? null : col.id); setNewInstName(""); }}>+ part</button>
+                    <span className="lineup-addpart-wrap">
+                      <button type="button" className="linklike lineup-addpart" data-testid="lineup-add-part" title="Manage this musician's instruments" onClick={(e) => { assignTriggerRef.current = e.currentTarget; setAssignFor(assignFor === col.id ? null : col.id); setNewInstName(""); }}>+ part</button>
                       {assignFor === col.id && (
-                        <div className="lineup-assign" data-testid="lineup-assign">
+                        <div className="lineup-assign" data-testid="lineup-assign" ref={assignPopupRef}>
+                          <button type="button" className="linklike lineup-assign-close" data-testid="lineup-assign-close" aria-label="Close" onClick={closeAssign}>✕</button>
                           {/* Create a new instrument inline (members may) */}
                           <form
                             className="lineup-assign-new"
                             onSubmit={(e) => { e.preventDefault(); void createAndAddInstrument(col.id, newInstName); }}
                           >
-                            <input list="common-part-names" placeholder="new instrument…" value={newInstName} onChange={(e) => setNewInstName(e.target.value)} data-testid="lineup-newinst" aria-label="New instrument" />
+                            <input list="common-part-names" placeholder="new part…" value={newInstName} onChange={(e) => setNewInstName(e.target.value)} data-testid="lineup-newinst" aria-label="New part" />
                             <button type="submit" className="linklike" data-testid="lineup-newinst-add">add</button>
+                            {newInstName.trim() !== "" && (
+                              <span className="muted lineup-infer-kind" data-testid="lineup-infer-kind"> as {inferPartKind(newInstName)}</span>
+                            )}
                           </form>
                           {/* Add an existing personal instrument */}
                           {addableInstruments(col.id).map((p) => (
@@ -553,7 +597,7 @@ export function Lineups() {
                           ))}
                         </div>
                       )}
-                    </>
+                    </span>
                   )}
                 </th>
               ))}

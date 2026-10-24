@@ -18,23 +18,28 @@ type projMusician struct {
 // one Voice column per singing musician, one per personal instrument they play (amplified before unamplified),
 // and a shared instrument its OWN column after the people. Input text + shared-header players are filled by the
 // caller (they need the concert's patch); here OwnerName is the bare musician / part name.
-func projectColumns(songs []Song, mus []projMusician, partByID map[string]Part) []SheetSubcol {
+func projectColumns(songs []Song, mus []projMusician, parts []Part) []SheetSubcol {
+	// Stable tie-breaks (T203-FIX2): a musician's/part's index in the roster/vocabulary, NEVER usage. A
+	// usage tie-break (first appearance) made a cell edit reorder the columns.
+	partByID := make(map[string]Part, len(parts))
+	partIndex := make(map[string]int, len(parts))
+	for i, p := range parts {
+		partByID[p.ID] = p
+		partIndex[p.ID] = i
+	}
 	byID := make(map[string]projMusician, len(mus))
-	for _, m := range mus {
+	rosterIndex := make(map[string]int, len(mus))
+	for i, m := range mus {
 		byID[m.ID] = m
+		rosterIndex[m.ID] = i
 	}
 	musSings := map[string]bool{}
 	musInst := map[string]map[string]bool{}
 	sharedUsed := map[string]bool{}
-	firstMus := map[string]int{}
-	firstShared := map[string]int{}
-	for si, sg := range songs {
+	for _, sg := range songs {
 		for _, e := range sg.Lineup {
 			if len(e.PartIDs) == 0 {
 				continue
-			}
-			if _, ok := firstMus[e.MusicianID]; !ok {
-				firstMus[e.MusicianID] = si
 			}
 			for _, pid := range e.PartIDs {
 				p, ok := partByID[pid]
@@ -46,9 +51,6 @@ func projectColumns(songs []Song, mus []projMusician, partByID map[string]Part) 
 					musSings[e.MusicianID] = true
 				case p.Shared:
 					sharedUsed[pid] = true
-					if _, ok := firstShared[pid]; !ok {
-						firstShared[pid] = si
-					}
 				default:
 					if musInst[e.MusicianID] == nil {
 						musInst[e.MusicianID] = map[string]bool{}
@@ -71,7 +73,7 @@ func projectColumns(songs []Song, mus []projMusician, partByID map[string]Part) 
 		musIDs = append(musIDs, m)
 	}
 	sort.SliceStable(musIDs, func(i, j int) bool {
-		return orderThenFirst(byID[musIDs[i]].Order, byID[musIDs[j]].Order, firstMus[musIDs[i]], firstMus[musIDs[j]])
+		return orderThenFirst(byID[musIDs[i]].Order, byID[musIDs[j]].Order, rosterIndex[musIDs[i]], rosterIndex[musIDs[j]])
 	})
 
 	var subcols []SheetSubcol
@@ -112,7 +114,7 @@ func projectColumns(songs []Song, mus []projMusician, partByID map[string]Part) 
 		if pi.Order != pj.Order {
 			return partOrderLess(pi.Order, pj.Order)
 		}
-		return firstShared[sharedIDs[i]] < firstShared[sharedIDs[j]]
+		return partIndex[sharedIDs[i]] < partIndex[sharedIDs[j]]
 	})
 	for _, pid := range sharedIDs {
 		p := partByID[pid]

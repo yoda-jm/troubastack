@@ -163,7 +163,7 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 	for _, v := range views {
 		projMus = append(projMus, projMusician{ID: v.ID, Name: v.DisplayName, Order: v.Order})
 	}
-	subcols := projectColumns(songs, projMus, partByID)
+	subcols := projectColumns(songs, projMus, band.Parts)
 	// Fill the console-input row (row 3) from the concert's patch; set shared headers' players.
 	for i := range subcols {
 		subcols[i].Input = inputText(patchByKey, subcols[i].Key, subcols[i].Amplified)

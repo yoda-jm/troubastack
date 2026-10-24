@@ -53,7 +53,7 @@ func TestSheetProjection_SharedVectors(t *testing.T) {
 				mus = append(mus, projMusician{ID: m.ID, Name: m.Name, Order: m.Order})
 				name[m.ID] = m.Name
 			}
-			subcols := projectColumns(c.Songs, mus, partByID)
+			subcols := projectColumns(c.Songs, mus, c.Parts)
 			gotKeys := make([]string, len(subcols))
 			for i, sc := range subcols {
 				gotKeys[i] = sc.Key
@@ -108,6 +108,30 @@ func TestOwnerSpans_PatchSplit(t *testing.T) {
 	}
 	if ann != 2 {
 		t.Fatalf("Ann should appear as TWO separate spans, got %d", ann)
+	}
+}
+
+// T203-FIX2: backfillPartOrders gives dense, non-zero, unique orders in slice order, keeping explicit ones.
+func TestBackfillPartOrders(t *testing.T) {
+	ps := []Part{{ID: "a"}, {ID: "b", Order: 5}, {ID: "c"}}
+	if !backfillPartOrders(ps) {
+		t.Fatal("expected a change")
+	}
+	seen := map[int]bool{}
+	for _, p := range ps {
+		if p.Order == 0 {
+			t.Fatalf("a zero order remains: %+v", ps)
+		}
+		if seen[p.Order] {
+			t.Fatalf("duplicate order %d: %+v", p.Order, ps)
+		}
+		seen[p.Order] = true
+	}
+	if ps[1].Order != 5 {
+		t.Errorf("explicit order should be kept, got %d", ps[1].Order)
+	}
+	if backfillPartOrders(ps) {
+		t.Error("second backfill should be a no-op")
 	}
 }
 

@@ -271,6 +271,19 @@ func itoaT(n int) string {
 	return string(rune('0'+n/10)) + string(rune('0'+n%10))
 }
 
+// T203-FIX2: a created PART gets a non-zero, increasing order (max+1), so the grid never falls back to a usage
+// tie-break for the part vocabulary. (Musicians stay order-0 and sort by the stable roster index — see the note
+// in AddMusician on why guests are not stamped.)
+func TestCreatePart_DenseOrders(t *testing.T) {
+	st := newStack()
+	admin, _, bandID, _, _, _ := buildSourceBand(t, st)
+	p1, _ := st.svc.CreatePart(admin, bandID, "Gtr", app.PartSpec{})
+	p2, _ := st.svc.CreatePart(admin, bandID, "Bassoon", app.PartSpec{})
+	if p1.Order == 0 || p2.Order <= p1.Order {
+		t.Fatalf("part orders not increasing/non-zero: %d then %d", p1.Order, p2.Order)
+	}
+}
+
 func TestSetPatch_AdminOnly(t *testing.T) {
 	st := newStack()
 	admin, member, bandID, _, _, _ := buildSourceBand(t, st)

@@ -1,3 +1,5 @@
+import { foldText } from "../foldText";
+
 // T203 stage 2 — the person-major line-up grid, as a PURE projection of (songs' line-ups + the band's
 // musicians + parts). Sub-columns are CHANNELS (VLL's layout), decided by each part's kind + shared flag:
 //   - ONE "Voice" sub-column per musician (one mic): the cell is the joined shorts of their voice parts that
@@ -46,6 +48,21 @@ export const voiceKey = (mid: string) => `voice:${mid}`;
 export const instKey = (mid: string, pid: string) => `inst:${mid}:${pid}`;
 export const sharedKey = (pid: string) => `shared:${pid}`;
 
+// T203-FIX2: infer a part's kind from its name on inline create (the row defaulted everything to instrument, so
+// "Voix" toggled like a guitar and the L/B cycle had nothing). Matches whole FOLDED WORDS (accents stripped,
+// œ/æ expanded, lower-cased) so "Lead guitar" and "Harmonica" stay instruments. "lead" alone counts (it is the
+// whole name or sits beside a voice word). The user can still change the kind; the create row shows it first.
+const VOICE_WORDS = new Set(["voix", "voice", "vocal", "vocals", "chant", "choeur", "choeurs", "choir", "backing", "harmonie", "harmonies"]);
+function partNameWords(name: string): string[] {
+  return foldText(name).replace(/œ/g, "oe").replace(/æ/g, "ae").split(/[^a-z0-9]+/).filter(Boolean);
+}
+export function inferPartKind(name: string): "voice" | "instrument" {
+  const words = partNameWords(name);
+  if (words.some((w) => VOICE_WORDS.has(w))) return "voice"; // a voice word anywhere (also carries "Chant lead")
+  if (words.length === 1 && words[0] === "lead") return "voice"; // "Lead" alone — but not "Lead guitar"
+  return "instrument";
+}
+
 /** The short label for a part. The SERVER fills the effective short into every part it serves (T203 ruling 3:
  *  one derivation, in Go), so Studio never derives — it reads it. The `|| p.name` is only a defensive fallback
  *  for a locally-constructed part that skipped the server. */
@@ -74,18 +91,19 @@ export function buildGrid(songs: GridSong[], musicians: GridMusician[], parts: G
   const partById = new Map(parts.map((p) => [p.id, p]));
   const musById = new Map(musicians.map((m) => [m.id, m]));
 
-  // First-appearance index (running order) for musicians + shared parts, as the default ordering.
-  const firstMus = new Map<string, number>();
-  const firstShared = new Map<string, number>();
+  // The STABLE tie-break (T203-FIX2): a musician's/part's index in the roster/vocabulary — never usage. A
+  // usage-based tie-break (first appearance in the line-ups) made clicking a cell reorder the columns, because
+  // the click changed when that musician first appeared. The roster/vocab order never changes on a cell edit.
+  const rosterIndex = new Map(musicians.map((m, i) => [m.id, i]));
+  const partIndex = new Map(parts.map((p, i) => [p.id, i]));
   // Which sub-columns are USED: per musician, whether they sing (voice) + which personal-instrument parts;
   // and which shared parts occur.
   const musSings = new Set<string>();
   const musInst = new Map<string, Set<string>>(); // musicianId → set of personal instrument partIds
   const sharedUsed = new Set<string>();
 
-  songs.forEach((s, si) => {
+  songs.forEach((s) => {
     for (const e of s.lineup ?? []) {
-      if (!firstMus.has(e.musicianId)) firstMus.set(e.musicianId, si * 1000 + (s.lineup ?? []).indexOf(e));
       for (const pid of e.partIds) {
         const p = partById.get(pid);
         if (!p) continue;
@@ -93,7 +111,6 @@ export function buildGrid(songs: GridSong[], musicians: GridMusician[], parts: G
           musSings.add(e.musicianId);
         } else if (p.shared) {
           sharedUsed.add(pid);
-          if (!firstShared.has(pid)) firstShared.set(pid, si);
         } else {
           if (!musInst.has(e.musicianId)) musInst.set(e.musicianId, new Set());
           musInst.get(e.musicianId)!.add(pid);
@@ -107,7 +124,7 @@ export function buildGrid(songs: GridSong[], musicians: GridMusician[], parts: G
     ? musicians.map((m) => m.id)
     : [...new Set([...musSings, ...musInst.keys()])];
   usedMusicianIDs.sort((a, b) =>
-    cmpOrder(musById.get(a)?.order ?? 0, musById.get(b)?.order ?? 0, firstMus.get(a) ?? 0, firstMus.get(b) ?? 0),
+    cmpOrder(musById.get(a)?.order ?? 0, musById.get(b)?.order ?? 0, rosterIndex.get(a) ?? 1e9, rosterIndex.get(b) ?? 1e9),
   );
   const columns: WideColumn[] = [];
   for (const mid of usedMusicianIDs) {
@@ -134,7 +151,7 @@ export function buildGrid(songs: GridSong[], musicians: GridMusician[], parts: G
   // Shared part wide columns, ordered. The editor shows every shared part in the vocabulary (so one can be
   // assigned); the sheet only shared parts actually used. Header is "Name — P1/P2" (the players across songs).
   const sharedIDs = editor ? parts.filter((p) => p.shared && p.kind !== "voice").map((p) => p.id) : [...sharedUsed];
-  sharedIDs.sort((a, b) => cmpOrder(partById.get(a)?.order ?? 0, partById.get(b)?.order ?? 0, firstShared.get(a) ?? 0, firstShared.get(b) ?? 0));
+  sharedIDs.sort((a, b) => cmpOrder(partById.get(a)?.order ?? 0, partById.get(b)?.order ?? 0, partIndex.get(a) ?? 1e9, partIndex.get(b) ?? 1e9));
   for (const pid of sharedIDs) {
     const p = partById.get(pid)!;
     const players = sharedPlayers(songs, pid).map((mid) => shortName(musById.get(mid)?.displayName ?? "?"));

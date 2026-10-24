@@ -68,6 +68,23 @@
       "expect": { "subcols": ["inst:A:gtr"], "cells": { "s1": { "inst:A:gtr": "Gtr" } } }
     },
     {
+      "name": "zero-order roster sorts by ROSTER index, not usage (T203-FIX2)",
+      "musicians": [
+        { "id": "A", "name": "Ann" },
+        { "id": "B", "name": "Bo" },
+        { "id": "C", "name": "Cy" }
+      ],
+      "parts": [{ "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" }],
+      "songs": [
+        { "id": "s1", "lineup": [{ "musicianId": "C", "partIds": ["lead"] }] },
+        { "id": "s2", "lineup": [{ "musicianId": "A", "partIds": ["lead"] }] }
+      ],
+      "expect": {
+        "subcols": ["voice:A", "voice:C"],
+        "cells": { "s1": { "voice:C": "L", "voice:A": "" }, "s2": { "voice:A": "L", "voice:C": "" } }
+      }
+    },
+    {
       "name": "an on-call song's channels still project (the section is a sheet concern, not the projection)",
       "musicians": [
         { "id": "A", "name": "Ann", "order": 1 },

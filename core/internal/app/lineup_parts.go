@@ -155,6 +155,7 @@ func (s *Service) CreatePart(caller User, bandID, name string, spec PartSpec) (P
 	default:
 		return Part{}, fmt.Errorf("%w: unknown part kind %q", ErrInvalidInput, spec.Kind)
 	}
+	backfillPartOrders(band.Parts) // T203-FIX2: dense orders so max+1 is meaningful + the grid order is stable
 	p := Part{
 		ID:     s.newID(),
 		Name:   name,
@@ -162,12 +163,38 @@ func (s *Service) CreatePart(caller User, bandID, name string, spec PartSpec) (P
 		Short:  strings.TrimSpace(spec.Short),
 		Input:  strings.TrimSpace(spec.Input),
 		Shared: spec.Shared,
+		Order:  maxPartOrder(band.Parts) + 1,
 	}
 	band.Parts = append(band.Parts, p)
 	if err := s.repo.UpdateBand(band); err != nil {
 		return Part{}, err
 	}
 	return p, nil
+}
+
+func maxPartOrder(ps []Part) int {
+	max := 0
+	for _, p := range ps {
+		if p.Order > max {
+			max = p.Order
+		}
+	}
+	return max
+}
+
+// backfillPartOrders assigns a dense 1-based order to any part with none (0), in vocabulary (slice) order,
+// keeping existing explicit orders (T203-FIX2). Returns whether anything changed.
+func backfillPartOrders(ps []Part) bool {
+	max := maxPartOrder(ps)
+	changed := false
+	for i := range ps {
+		if ps[i].Order == 0 {
+			max++
+			ps[i].Order = max
+			changed = true
+		}
+	}
+	return changed
 }
 
 // PartPatch edits a part's metadata (admin): rename + kind/short/input/shared/order. Rename is metadata-only

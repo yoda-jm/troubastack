@@ -129,6 +129,12 @@ func (s *Service) AddMusician(caller User, bandID, name string) (Musician, error
 	if name == "" {
 		return Musician{}, fmt.Errorf("%w: a musician needs a name", ErrInvalidInput)
 	}
+	// T203-FIX2: a new guest gets NO explicit order. Members auto-appear with no stored order, so stamping a
+	// guest (and the materialisation that would need) sorts guests ahead of members and collides with
+	// LinkMusician's "account unused" branch. The editor's/sheet's ROSTER-INDEX tie-break instead keeps every
+	// order-0 musician stable in roster order (members first, then guests in add order) across any cell edit;
+	// an explicit order is written only when the user drag-reorders. Parts (all stored, no auto-appear) still
+	// get max+1 on create — see CreatePart.
 	m := Musician{ID: s.newID(), Name: name}
 	band.Musicians = append(band.Musicians, m)
 	if err := s.repo.UpdateBand(band); err != nil {
