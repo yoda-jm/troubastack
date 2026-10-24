@@ -55378,3 +55378,27 @@ by stable id (§1), lineup entries by musicianId, parts by name. Added to the ro
 5. Bulk set/remove-a-part as one server endpoint (atomic) rather than N client PATCHes.
 
 On GO I build stage 1 (model + API + .tband) and present it, then the editor+search, then the sheet.
+
+### T203 design ADDENDUM — shared instruments (folds in amendment 70675a45)
+
+My design above predates the shared-instruments amendment; folding it in. It touches only the model's Part and
+the grid projection — the per-song line-up stays unchanged ("R: Bass").
+
+- Model: Part gains `Shared bool` (band vocabulary attribute, default false) — one physical source on stage (a
+  bass/bongos passed between players: same DI/mic). It is a vocabulary edit (ADMIN), not a line-up edit.
+- Grid projection routing, by (Part.kind, Part.shared):
+  - voice → the per-person "Voice" sub-column (unchanged).
+  - instrument, shared=false (personal) → a per-person sub-column (unchanged).
+  - instrument, shared=TRUE → ONE band-level WIDE column, apart from the people, headed "Bass — R / V" (the
+    players who touch it across the shown set); the cell shows WHO plays it that song (picked from a menu), empty
+    = nobody.
+- Changes column: a shared part handoff reads "Bass: R → V (same channel)"; a PERSONAL instrument changing hands
+  reads "repatch" (a new source for the engineer).
+- Toggling Part.shared re-routes the grid with NO line-up edit (lineups are untouched; only the projection
+  changes) — a review check, and a clean unit test on buildGrid.
+- Sound sheet + CSV + "by part" view inherit this (a shared part is one column / one CSV sub-column "Bass" rather
+  than per person).
+
+So the model additions are: Musician{id,name,userId?}, Part{name,kind,short?,input?,shared}, Song.lineup[],
+Song.soundNote. buildGrid(songs, musicians, parts) stays the single pure projection; `shared` is just another
+routing input. Decision 6 for your ruling: shared is a per-part band flag (admin), re-routing only — confirm.
