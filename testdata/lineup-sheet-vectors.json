@@ -3,115 +3,533 @@
   "cases": [
     {
       "name": "lead-backing is one Voice column, the letter changes",
-      "musicians": [{ "id": "A", "name": "Ann", "order": 1 }],
+      "musicians": [
+        {
+          "id": "A",
+          "name": "Ann",
+          "order": 1
+        }
+      ],
       "parts": [
-        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" },
-        { "id": "back", "name": "Backing vocal", "kind": "voice", "short": "B" }
+        {
+          "id": "lead",
+          "name": "Lead vocal",
+          "kind": "voice",
+          "short": "L"
+        },
+        {
+          "id": "back",
+          "name": "Backing vocal",
+          "kind": "voice",
+          "short": "B"
+        }
       ],
       "songs": [
-        { "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["lead"] }] },
-        { "id": "s2", "lineup": [{ "musicianId": "A", "partIds": ["back"] }] }
+        {
+          "id": "s1",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "lead"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s2",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "back"
+              ]
+            }
+          ]
+        }
       ],
       "expect": {
-        "subcols": ["voice:A"],
-        "cells": { "s1": { "voice:A": "L" }, "s2": { "voice:A": "B" } }
+        "subcols": [
+          "ch:A:voice"
+        ],
+        "cells": {
+          "s1": {
+            "ch:A:voice": "L"
+          },
+          "s2": {
+            "ch:A:voice": "B"
+          }
+        }
       }
     },
     {
       "name": "several voice parts join on the one channel",
-      "musicians": [{ "id": "A", "name": "Ann", "order": 1 }],
-      "parts": [
-        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" },
-        { "id": "back", "name": "Backing vocal", "kind": "voice", "short": "B" }
+      "musicians": [
+        {
+          "id": "A",
+          "name": "Ann",
+          "order": 1
+        }
       ],
-      "songs": [{ "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["lead", "back"] }] }],
-      "expect": { "subcols": ["voice:A"], "cells": { "s1": { "voice:A": "L+B" } } }
+      "parts": [
+        {
+          "id": "lead",
+          "name": "Lead vocal",
+          "kind": "voice",
+          "short": "L"
+        },
+        {
+          "id": "back",
+          "name": "Backing vocal",
+          "kind": "voice",
+          "short": "B"
+        }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "lead",
+                "back"
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "subcols": [
+          "ch:A:voice"
+        ],
+        "cells": {
+          "s1": {
+            "ch:A:voice": "L+B"
+          }
+        }
+      }
     },
     {
       "name": "a shared instrument moving between people is one shared column; the cell names who",
       "musicians": [
-        { "id": "A", "name": "Ann", "order": 1 },
-        { "id": "C", "name": "Cy", "order": 3 }
+        {
+          "id": "A",
+          "name": "Ann",
+          "order": 1
+        },
+        {
+          "id": "C",
+          "name": "Cy",
+          "order": 3
+        }
       ],
-      "parts": [{ "id": "bass", "name": "Bass", "kind": "instrument", "short": "Bs", "shared": true }],
+      "parts": [
+        {
+          "id": "bass",
+          "name": "Bass",
+          "kind": "instrument",
+          "short": "Bs",
+          "shared": true
+        }
+      ],
       "songs": [
-        { "id": "s1", "lineup": [{ "musicianId": "C", "partIds": ["bass"] }] },
-        { "id": "s2", "lineup": [{ "musicianId": "A", "partIds": ["bass"] }] }
+        {
+          "id": "s1",
+          "lineup": [
+            {
+              "musicianId": "C",
+              "partIds": [
+                "bass"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s2",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "bass"
+              ]
+            }
+          ]
+        }
       ],
       "expect": {
-        "subcols": ["shared:bass"],
-        "cells": { "s1": { "shared:bass": "Cy" }, "s2": { "shared:bass": "Ann" } }
+        "subcols": [
+          "shared:bass"
+        ],
+        "cells": {
+          "s1": {
+            "shared:bass": "Cy"
+          },
+          "s2": {
+            "shared:bass": "Ann"
+          }
+        }
       }
     },
     {
       "name": "one person with two instruments in a song fills both cells (order by part order)",
-      "musicians": [{ "id": "A", "name": "Ann", "order": 1 }],
-      "parts": [
-        { "id": "gtr", "name": "Guitar", "kind": "instrument", "short": "Gtr", "order": 1 },
-        { "id": "ah", "name": "Autoharp", "kind": "instrument", "short": "AH", "order": 2 }
+      "musicians": [
+        {
+          "id": "A",
+          "name": "Ann",
+          "order": 1
+        }
       ],
-      "songs": [{ "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["gtr", "ah"] }] }],
+      "parts": [
+        {
+          "id": "gtr",
+          "name": "Guitar",
+          "kind": "instrument",
+          "short": "Gtr",
+          "order": 1
+        },
+        {
+          "id": "ah",
+          "name": "Autoharp",
+          "kind": "instrument",
+          "short": "AH",
+          "order": 2
+        }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "gtr",
+                "ah"
+              ]
+            }
+          ]
+        }
+      ],
       "expect": {
-        "subcols": ["inst:A:gtr", "inst:A:ah"],
-        "cells": { "s1": { "inst:A:gtr": "Gtr", "inst:A:ah": "AH" } }
+        "subcols": [
+          "ch:A:p:gtr",
+          "ch:A:p:ah"
+        ],
+        "cells": {
+          "s1": {
+            "ch:A:p:gtr": "Gtr",
+            "ch:A:p:ah": "AH"
+          }
+        }
       }
     },
     {
       "name": "a channel unused across the songs does not appear",
       "musicians": [
-        { "id": "A", "name": "Ann", "order": 1 },
-        { "id": "B", "name": "Bo", "order": 2 },
-        { "id": "C", "name": "Cy", "order": 3 }
+        {
+          "id": "A",
+          "name": "Ann",
+          "order": 1
+        },
+        {
+          "id": "B",
+          "name": "Bo",
+          "order": 2
+        },
+        {
+          "id": "C",
+          "name": "Cy",
+          "order": 3
+        }
       ],
-      "parts": [{ "id": "gtr", "name": "Guitar", "kind": "instrument", "short": "Gtr" }],
-      "songs": [{ "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["gtr"] }] }],
-      "expect": { "subcols": ["inst:A:gtr"], "cells": { "s1": { "inst:A:gtr": "Gtr" } } }
+      "parts": [
+        {
+          "id": "gtr",
+          "name": "Guitar",
+          "kind": "instrument",
+          "short": "Gtr"
+        }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "gtr"
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "subcols": [
+          "ch:A:p:gtr"
+        ],
+        "cells": {
+          "s1": {
+            "ch:A:p:gtr": "Gtr"
+          }
+        }
+      }
     },
     {
       "name": "zero-order roster sorts by ROSTER index, not usage (T203-FIX2)",
       "musicians": [
-        { "id": "A", "name": "Ann" },
-        { "id": "B", "name": "Bo" },
-        { "id": "C", "name": "Cy" }
+        {
+          "id": "A",
+          "name": "Ann"
+        },
+        {
+          "id": "B",
+          "name": "Bo"
+        },
+        {
+          "id": "C",
+          "name": "Cy"
+        }
       ],
-      "parts": [{ "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" }],
+      "parts": [
+        {
+          "id": "lead",
+          "name": "Lead vocal",
+          "kind": "voice",
+          "short": "L"
+        }
+      ],
       "songs": [
-        { "id": "s1", "lineup": [{ "musicianId": "C", "partIds": ["lead"] }] },
-        { "id": "s2", "lineup": [{ "musicianId": "A", "partIds": ["lead"] }] }
+        {
+          "id": "s1",
+          "lineup": [
+            {
+              "musicianId": "C",
+              "partIds": [
+                "lead"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s2",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "lead"
+              ]
+            }
+          ]
+        }
       ],
       "expect": {
-        "subcols": ["voice:A", "voice:C"],
-        "cells": { "s1": { "voice:C": "L", "voice:A": "" }, "s2": { "voice:A": "L", "voice:C": "" } }
+        "subcols": [
+          "ch:A:voice",
+          "ch:C:voice"
+        ],
+        "cells": {
+          "s1": {
+            "ch:C:voice": "L",
+            "ch:A:voice": ""
+          },
+          "s2": {
+            "ch:A:voice": "L",
+            "ch:C:voice": ""
+          }
+        }
       }
     },
     {
       "name": "an on-call song's channels still project (the section is a sheet concern, not the projection)",
       "musicians": [
-        { "id": "A", "name": "Ann", "order": 1 },
-        { "id": "B", "name": "Bo", "order": 2 }
+        {
+          "id": "A",
+          "name": "Ann",
+          "order": 1
+        },
+        {
+          "id": "B",
+          "name": "Bo",
+          "order": 2
+        }
       ],
       "parts": [
-        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" },
-        { "id": "gtr", "name": "Guitar", "kind": "instrument", "short": "Gtr" }
+        {
+          "id": "lead",
+          "name": "Lead vocal",
+          "kind": "voice",
+          "short": "L"
+        },
+        {
+          "id": "gtr",
+          "name": "Guitar",
+          "kind": "instrument",
+          "short": "Gtr"
+        }
       ],
       "songs": [
-        { "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["lead"] }] },
-        { "id": "s2", "lineup": [{ "musicianId": "B", "partIds": ["gtr"] }] }
+        {
+          "id": "s1",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "lead"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s2",
+          "lineup": [
+            {
+              "musicianId": "B",
+              "partIds": [
+                "gtr"
+              ]
+            }
+          ]
+        }
       ],
       "expect": {
-        "subcols": ["voice:A", "inst:B:gtr"],
-        "cells": { "s1": { "voice:A": "L" }, "s2": { "inst:B:gtr": "Gtr" } }
+        "subcols": [
+          "ch:A:voice",
+          "ch:B:p:gtr"
+        ],
+        "cells": {
+          "s1": {
+            "ch:A:voice": "L"
+          },
+          "s2": {
+            "ch:B:p:gtr": "Gtr"
+          }
+        }
       }
     },
     {
       "name": "a shared part played by two people in one song joins both",
       "musicians": [
-        { "id": "A", "name": "Ann", "order": 1 },
-        { "id": "B", "name": "Bo", "order": 2 }
+        {
+          "id": "A",
+          "name": "Ann",
+          "order": 1
+        },
+        {
+          "id": "B",
+          "name": "Bo",
+          "order": 2
+        }
       ],
-      "parts": [{ "id": "bongo", "name": "Bongos", "kind": "instrument", "short": "Bgo", "shared": true }],
-      "songs": [{ "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["bongo"] }, { "musicianId": "B", "partIds": ["bongo"] }] }],
-      "expect": { "subcols": ["shared:bongo"], "cells": { "s1": { "shared:bongo": "Ann+Bo" } } }
+      "parts": [
+        {
+          "id": "bongo",
+          "name": "Bongos",
+          "kind": "instrument",
+          "short": "Bgo",
+          "shared": true
+        }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "bongo"
+              ]
+            },
+            {
+              "musicianId": "B",
+              "partIds": [
+                "bongo"
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "subcols": [
+          "shared:bongo"
+        ],
+        "cells": {
+          "s1": {
+            "shared:bongo": "Ann+Bo"
+          }
+        }
+      }
+    },
+    {
+      "name": "T204: two instruments in one channel = one column, the cell carries the played part",
+      "musicians": [
+        {
+          "id": "A",
+          "name": "Ann",
+          "order": 1
+        }
+      ],
+      "parts": [
+        {
+          "id": "gtr",
+          "name": "Guitar",
+          "kind": "instrument",
+          "short": "Gtr",
+          "channelId": "chDI",
+          "order": 1
+        },
+        {
+          "id": "ah",
+          "name": "Autoharp",
+          "kind": "instrument",
+          "short": "AH",
+          "channelId": "chDI",
+          "order": 2
+        }
+      ],
+      "channels": [
+        {
+          "id": "chDI",
+          "name": "DI acoustique",
+          "order": 1
+        }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "gtr"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s2",
+          "lineup": [
+            {
+              "musicianId": "A",
+              "partIds": [
+                "ah"
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "subcols": [
+          "ch:A:g:chDI"
+        ],
+        "cells": {
+          "s1": {
+            "ch:A:g:chDI": "Gtr"
+          },
+          "s2": {
+            "ch:A:g:chDI": "AH"
+          }
+        }
+      }
     }
   ]
 }

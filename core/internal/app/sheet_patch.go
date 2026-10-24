@@ -130,17 +130,15 @@ func cleanPatch(in []ChannelPatch) []ChannelPatch {
 	return out
 }
 
-// proposeStrip is the auto-named console strip: "A V" (voice), "A GTR" (instrument), "BASS" (shared).
+// proposeStrip is the auto-named console strip: "A V" (voice), "A GTR" (a channel), "BASS" (shared).
 func proposeStrip(sc SheetSubcol, name map[string]string, partByID map[string]Part) string {
-	switch sc.Kind {
-	case "voice":
-		return initial(name[sc.OwnerID]) + " V"
-	case "inst":
-		p := partByID[instPartID(sc.Key)]
-		return strings.TrimSpace(initial(name[sc.OwnerID]) + " " + strings.ToUpper(PartShort(p)))
-	default:
+	if sc.Kind == "shared" {
 		return strings.ToUpper(partByID[sharedPartID(sc.Key)].Name)
 	}
+	if sc.ChannelKey == "voice" {
+		return initial(name[sc.OwnerID]) + " V"
+	}
+	return strings.TrimSpace(initial(name[sc.OwnerID]) + " " + strings.ToUpper(sc.Channel)) // "A GTR" / "A DI"
 }
 
 func initial(displayName string) string {

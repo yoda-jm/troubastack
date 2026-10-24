@@ -34,7 +34,7 @@ describe("buildGrid — the review checklist", () => {
     ];
     const g = buildGrid(songs, musicians, parts);
     const aCol = g.columns.find((c) => c.id === "A")!;
-    const voiceSubs = aCol.subs.filter((s) => s.kind === "voice");
+    const voiceSubs = aCol.subs.filter((s) => s.kind === "channel" && s.channelKey === "voice");
     expect(voiceSubs).toHaveLength(1); // one mic, one column
     expect(g.rows[0].cells[voiceKey("A")].text).toBe("L");
     expect(g.rows[1].cells[voiceKey("A")].text).toBe("B");
@@ -59,7 +59,7 @@ describe("buildGrid — the review checklist", () => {
     expect(g.rows[1].cells[sharedKey("bass")].text).toBe("Ann");
     // bass is NOT a per-person sub-column (it's shared).
     const aCol = g.columns.find((c) => c.id === "A");
-    expect(aCol?.subs.some((s) => s.kind === "inst" && s.partId === "bass")).toBeFalsy();
+    expect(aCol?.subs.some((s) => s.kind === "channel" && s.partIds.includes("bass"))).toBeFalsy();
   });
 
   it("one person with two instruments in a song fills both cells", () => {
@@ -112,11 +112,11 @@ describe("buildGrid editor mode", () => {
     // A sings, plays guitar in NO song, but lists it as an instrument.
     const g = buildGrid(songs, withGtr, parts, { editor: true });
     const aCol = g.columns.find((c) => c.id === "A")!;
-    expect(aCol.subs.some((s) => s.kind === "inst" && s.partId === "gtr")).toBe(true);
+    expect(aCol.subs.some((s) => s.kind === "channel" && s.channelKey === "p:gtr")).toBe(true);
     // The sheet projection ignores the persisted list (used-only).
     const sheet = buildGrid(songs, withGtr, parts);
     const aSheet = sheet.columns.find((c) => c.id === "A")!;
-    expect(aSheet.subs.some((s) => s.kind === "inst" && s.partId === "gtr")).toBe(false);
+    expect(aSheet.subs.some((s) => s.kind === "channel" && s.channelKey === "p:gtr")).toBe(false);
   });
   it("shows every roster musician (even one who plays nothing) so the band can be filled", () => {
     const songs: GridSong[] = [{ id: "s1", title: "One", lineup: [{ musicianId: "A", partIds: ["gtr"] }] }];
@@ -212,7 +212,8 @@ describe("shared projection vectors (guards TS editor ↔ Go sheet)", () => {
     cases: {
       name: string;
       musicians: { id: string; name: string; order?: number }[];
-      parts: { id: string; name: string; kind: string; short?: string; shared?: boolean; order?: number }[];
+      parts: { id: string; name: string; kind: string; short?: string; shared?: boolean; order?: number; channelId?: string }[];
+      channels?: { id: string; name: string; order?: number }[];
       songs: { id: string; lineup: { musicianId: string; partIds: string[] }[] }[];
       expect: { subcols: string[]; cells: Record<string, Record<string, string>> };
     }[];
@@ -222,9 +223,9 @@ describe("shared projection vectors (guards TS editor ↔ Go sheet)", () => {
   for (const c of vec.cases) {
     it(c.name, () => {
       const musicians: GridMusician[] = c.musicians.map((m) => ({ id: m.id, displayName: m.name, order: m.order }));
-      const parts: GridPart[] = c.parts.map((p) => ({ id: p.id, name: p.name, kind: p.kind as GridPart["kind"], short: p.short, shared: p.shared, order: p.order }));
+      const parts: GridPart[] = c.parts.map((p) => ({ id: p.id, name: p.name, kind: p.kind as GridPart["kind"], short: p.short, shared: p.shared, order: p.order, channelId: p.channelId }));
       const songs: GridSong[] = c.songs.map((s) => ({ id: s.id, title: s.id, lineup: s.lineup }));
-      const g = buildGrid(songs, musicians, parts); // SHEET mode (used-only), to match the Go projection
+      const g = buildGrid(songs, musicians, parts, { channels: c.channels }); // SHEET mode (used-only), to match the Go projection
       const keys = g.columns.flatMap((col) => col.subs.map((s) => s.key));
       expect(keys).toEqual(c.expect.subcols);
       for (const row of g.rows) {

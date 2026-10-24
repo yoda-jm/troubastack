@@ -5,7 +5,7 @@
  * Click a Voice cell to cycle its part; click an instrument cell to toggle it; a shared cell picks the player.
  * A "by part" toggle re-projects the same data. The chips filter the rows (tags + line-up chips, AND).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, type Song, type MusicianView, type Part, type LineupEntry } from "../api";
 import { useBand } from "./BandLayout";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -114,10 +114,6 @@ export function Lineups() {
     };
   }, [assignFor, closeAssign]);
 
-  const voiceParts = useMemo(
-    () => parts.filter((p) => p.kind === "voice").sort((a, b) => (a.order || 1e9) - (b.order || 1e9) || a.name.localeCompare(b.name)),
-    [parts],
-  );
   const words = queryWords(query);
   const shown = filterLineupSongs(songs as LineupSong[], chips, words);
   const gridMus: GridMusician[] = musicians.map((m) => ({ id: m.id, displayName: m.displayName, order: m.order, instruments: m.instruments }));
@@ -168,61 +164,60 @@ export function Lineups() {
     return lineup.filter((e) => e.partIds.length > 0 || (e.note ?? "") !== "");
   }
 
-  function cycleVoice(songId: string, musicianId: string) {
+  // T204: one cell = one CHANNEL, carrying the channel's member parts (memberIds, ordered). Clicking cycles
+  // none → p0 → p1 → … → none within the channel. This generalises the old per-kind handlers: the Voice channel
+  // (all voice parts) reproduces cycleVoice, a single-instrument channel reproduces the on/off toggle, and a
+  // custom group steps through its parts.
+  function cycleChannel(songId: string, musicianId: string, memberIds: string[]) {
     const lineup = songLineup(songId);
     const { i } = withEntry(lineup, musicianId);
     const e = lineup[i];
-    const nonVoice = e.partIds.filter((pid) => !voiceParts.some((v) => v.id === pid));
-    const curVoice = e.partIds.filter((pid) => voiceParts.some((v) => v.id === pid));
-    // cycle: none → v0 → v1 → … → none (any multi-selection resets to none)
+    const member = new Set(memberIds);
+    const other = e.partIds.filter((pid) => !member.has(pid));
+    const cur = e.partIds.filter((pid) => member.has(pid));
+    // cycle: none → p0 → p1 → … → none (any multi-selection resets to none)
     let next: string[] = [];
-    if (curVoice.length === 1) {
-      const idx = voiceParts.findIndex((v) => v.id === curVoice[0]);
-      next = idx + 1 < voiceParts.length ? [voiceParts[idx + 1].id] : [];
-    } else if (curVoice.length === 0) {
-      next = voiceParts.length ? [voiceParts[0].id] : [];
+    if (cur.length === 1) {
+      const idx = memberIds.indexOf(cur[0]);
+      next = idx + 1 < memberIds.length ? [memberIds[idx + 1]] : [];
+    } else if (cur.length === 0) {
+      next = memberIds.length ? [memberIds[0]] : [];
     }
-    e.partIds = [...nonVoice, ...next];
+    e.partIds = [...other, ...next];
     void patchLineup(songId, prune(lineup));
   }
 
-  // Replace a musician's VOICE parts in a song with the given set (keeping their instruments).
-  function setVoice(songId: string, musicianId: string, voiceIds: string[]) {
+  // Replace a musician's parts WITHIN this channel with the given set (keeping their other channels).
+  function setChannel(songId: string, musicianId: string, memberIds: string[], picked: string[]) {
+    const member = new Set(memberIds);
     const lineup = songLineup(songId);
     const { i } = withEntry(lineup, musicianId);
     const e = lineup[i];
-    const nonVoice = e.partIds.filter((pid) => !voiceParts.some((v) => v.id === pid));
-    e.partIds = [...nonVoice, ...voiceIds];
+    const other = e.partIds.filter((pid) => !member.has(pid));
+    e.partIds = [...other, ...picked];
     void patchLineup(songId, prune(lineup));
   }
 
-  // M4 binding 2: typing a letter on a focused Voice cell sets that voice part by its short's first letter —
-  // L → lead, B → backing; the same key again clears; Shift toggles membership (so Shift-L then Shift-B → L+B).
-  // Non-letter keys (arrows) are left to bubble to the grid's navigation handler.
-  function voiceKeyDown(e: React.KeyboardEvent, songId: string, musicianId: string) {
+  // M4 binding 2: typing a letter on a focused channel cell sets that channel's part by its short's first
+  // letter (L → lead, B → backing); the same key again clears; Shift toggles membership (Shift-L then Shift-B →
+  // L+B). Non-letter keys (arrows) bubble to the grid's navigation handler.
+  function channelKeyDown(e: React.KeyboardEvent, songId: string, musicianId: string, memberIds: string[]) {
     const k = e.key;
     if (k.length !== 1 || !/[a-z]/i.test(k)) return;
-    const part = voiceParts.find((p) => (p.short ?? p.name).toLowerCase().startsWith(k.toLowerCase()));
+    const members = memberIds.map((id) => parts.find((p) => p.id === id)).filter((p): p is Part => !!p);
+    const part = members.find((p) => (p.short ?? p.name).toLowerCase().startsWith(k.toLowerCase()));
     if (!part) return;
     e.preventDefault();
     e.stopPropagation();
     const entry = songLineup(songId).find((x) => x.musicianId === musicianId);
-    const cur = (entry?.partIds ?? []).filter((pid) => voiceParts.some((v) => v.id === pid));
+    const cur = (entry?.partIds ?? []).filter((pid) => memberIds.includes(pid));
     let next: string[];
     if (e.shiftKey) {
       next = cur.includes(part.id) ? cur.filter((id) => id !== part.id) : [...cur, part.id];
     } else {
       next = cur.length === 1 && cur[0] === part.id ? [] : [part.id];
     }
-    setVoice(songId, musicianId, next);
-  }
-
-  function toggleInst(songId: string, musicianId: string, partId: string) {
-    const lineup = songLineup(songId);
-    const { i } = withEntry(lineup, musicianId);
-    const e = lineup[i];
-    e.partIds = e.partIds.includes(partId) ? e.partIds.filter((p) => p !== partId) : [...e.partIds, partId];
-    void patchLineup(songId, prune(lineup));
+    setChannel(songId, musicianId, memberIds, next);
   }
 
   function setShared(songId: string, partId: string, musicianId: string) {
@@ -624,19 +619,19 @@ export function Lineups() {
                     const cell = r.cells[sub.key];
                     const txt = cell.optional && cell.text ? `(${cell.text})` : cell.text;
                     const ci = subColIndex.get(sub.key)!;
-                    if (sub.kind === "voice") {
+                    if (sub.kind === "channel") {
+                      // One cell per channel: click cycles its parts, a letter picks by short. The testid keeps
+                      // the voice/inst split so the M4 + line-up e2e selectors still resolve on a default band.
                       return (
                         <td key={sub.key}>
-                          <button type="button" className="lineup-cell" data-testid="lineup-cell-voice" {...rc(ri, ci)} onKeyDown={(e) => voiceKeyDown(e, r.songId, sub.musicianId)} onClick={() => cycleVoice(r.songId, sub.musicianId)}>
-                            {txt || "·"}
-                          </button>
-                        </td>
-                      );
-                    }
-                    if (sub.kind === "inst") {
-                      return (
-                        <td key={sub.key}>
-                          <button type="button" className={"lineup-cell" + (cell.text ? " on" : "")} data-testid="lineup-cell-inst" {...rc(ri, ci)} onClick={() => toggleInst(r.songId, sub.musicianId, sub.partId)}>
+                          <button
+                            type="button"
+                            className={"lineup-cell" + (cell.text ? " on" : "")}
+                            data-testid={sub.channelKey === "voice" ? "lineup-cell-voice" : "lineup-cell-inst"}
+                            {...rc(ri, ci)}
+                            onKeyDown={(e) => channelKeyDown(e, r.songId, sub.musicianId, sub.partIds)}
+                            onClick={() => cycleChannel(r.songId, sub.musicianId, sub.partIds)}
+                          >
                             {txt || "·"}
                           </button>
                         </td>

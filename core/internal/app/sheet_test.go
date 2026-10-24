@@ -51,9 +51,9 @@ func TestBuildSheet_ProjectionChangesInput(t *testing.T) {
 	for _, sc := range m.Subcols {
 		sub[sc.Key] = sc
 	}
-	voiceKey := app.VoiceChannelKey(g1.ID)
+	voiceKey := app.PatchKey(g1.ID, "voice")
 	bassKey := app.SharedChannelKey(bassID)
-	shakerKey := app.InstChannelKey(g2.ID, shakerID)
+	shakerKey := app.PatchKey(g2.ID, "p:"+shakerID)
 	for _, k := range []string{voiceKey, bassKey, shakerKey} {
 		if _, ok := sub[k]; !ok {
 			t.Fatalf("missing subcol %q in %v", k, subcolKeys(m.Subcols))
@@ -100,8 +100,8 @@ func TestBuildSheet_ProjectionChangesInput(t *testing.T) {
 
 func TestAutoNumber_ProposesStripsNeverOverwrites(t *testing.T) {
 	st := newStack()
-	admin, bandID, setlistID, g1, _, _, _, bassID, _ := buildConcert(t, st)
-	voiceKey := app.VoiceChannelKey(g1.ID)
+	admin, bandID, setlistID, g1, g2, _, _, bassID, shakerID := buildConcert(t, st)
+	voiceKey := app.PatchKey(g1.ID, "voice")
 	bassKey := app.SharedChannelKey(bassID)
 
 	// Pre-set one strip name; auto-number must keep it and propose the rest.
@@ -127,7 +127,7 @@ func TestAutoNumber_ProposesStripsNeverOverwrites(t *testing.T) {
 		t.Errorf("auto-number left an input unset: %+v", sl.Patch)
 	}
 	// the unamplified shaker never gets a patch entry
-	if _, ok := byKey[app.InstChannelKey(g1.ID, "shaker")]; ok {
+	if _, ok := byKey[app.PatchKey(g2.ID, "p:"+shakerID)]; ok {
 		t.Errorf("an unamplified channel must not be patched: %+v", sl.Patch)
 	}
 }

@@ -15,6 +15,7 @@ type sheetVectors struct {
 		Musicians []projMusJSON `json:"musicians"`
 		Parts     []Part        `json:"parts"`
 		Songs     []Song        `json:"songs"`
+		Channels  []Channel     `json:"channels"`
 		Expect    struct {
 			Subcols []string                     `json:"subcols"`
 			Cells   map[string]map[string]string `json:"cells"`
@@ -53,7 +54,7 @@ func TestSheetProjection_SharedVectors(t *testing.T) {
 				mus = append(mus, projMusician{ID: m.ID, Name: m.Name, Order: m.Order})
 				name[m.ID] = m.Name
 			}
-			subcols := projectColumns(c.Songs, mus, c.Parts)
+			subcols := projectColumns(c.Songs, mus, c.Parts, c.Channels)
 			gotKeys := make([]string, len(subcols))
 			for i, sc := range subcols {
 				gotKeys[i] = sc.Key

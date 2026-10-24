@@ -138,7 +138,7 @@ export type Song = {
 export type Musician = { id: string; userId?: string; name?: string; order?: number; instruments?: string[] };
 export type MusicianView = Musician & { displayName: string; isMember: boolean; former?: boolean };
 export type PartKind = "voice" | "instrument" | "other";
-export type Part = { id: string; name: string; kind: PartKind; short?: string; input?: string; shared?: boolean; order?: number };
+export type Part = { id: string; name: string; kind: PartKind; short?: string; input?: string; shared?: boolean; order?: number; channelId?: string };
 export type LineupEntry = { musicianId: string; partIds: string[]; optional?: boolean; note?: string };
 
 // T203 stage 4 — the sound sheet model (Go-authoritative; Studio renders it).
@@ -146,7 +146,8 @@ export type SheetOrder = "stage" | "patch";
 export type ChannelPatch = { channel: string; input?: number; name?: string };
 export type SheetSubcol = {
   key: string;
-  kind: "voice" | "inst" | "shared";
+  kind: "channel" | "shared"; // T204: a personal channel column, or a shared part's column
+  channelKey?: string; // voice | p:<partId> | g:<channelId> (for a channel subcol)
   ownerId: string;
   ownerName: string;
   channel: string;

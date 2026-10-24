@@ -21,14 +21,18 @@ export type GridPart = {
   shared?: boolean;
   input?: string;
   order?: number;
+  channelId?: string; // T204: a custom console-track group this part belongs to (overrides voice/per-part keying)
 };
+export type GridChannel = { id: string; name: string; order?: number };
 export type GridMusician = { id: string; displayName: string; order?: number; instruments?: string[] };
 export type GridLineupEntry = { musicianId: string; partIds: string[]; optional?: boolean; note?: string };
 export type GridSong = { id: string; title: string; key?: string; tempo?: number; lineup?: GridLineupEntry[] };
 
+// T204: a personal sub-column is a CHANNEL (track) that groups the parts sharing its key; the cell cycles those
+// parts. A shared part keeps its own wide column. `partIds` is the channel's member parts (ordered) — the cycle
+// set the editor steps through; `channelKey` is voice | p:<partId> | g:<channelId>.
 export type SubColumn =
-  | { kind: "voice"; key: string; musicianId: string; header: string }
-  | { kind: "inst"; key: string; musicianId: string; partId: string; header: string }
+  | { kind: "channel"; key: string; musicianId: string; channelKey: string; partIds: string[]; header: string }
   | { kind: "shared"; key: string; partId: string; header: string };
 
 /** A wide column: a musician (its voice + personal-instrument sub-columns) or a shared part (one sub-column). */
@@ -43,9 +47,17 @@ export type Cell = { text: string; optional?: boolean };
 export type GridRow = { songId: string; title: string; key?: string; tempo?: number; cells: Record<string, Cell> };
 export type Grid = { columns: WideColumn[]; rows: GridRow[] };
 
-// --- channel keys (match the Go VoiceChannelKey/InstChannelKey/SharedChannelKey) ---
-export const voiceKey = (mid: string) => `voice:${mid}`;
-export const instKey = (mid: string, pid: string) => `inst:${mid}:${pid}`;
+// --- channel keys (match the Go PartChannelKey/PatchKey/SharedChannelKey) ---
+/** A part's channel key: a custom group wins, else "voice" for voice parts, else its own "p:<id>" (T204). For a
+ *  band with no custom groups this reduces to one voice channel + one channel per instrument — byte-identical
+ *  to T203. */
+export const partChannelKey = (p: GridPart): string =>
+  p.channelId ? `g:${p.channelId}` : p.kind === "voice" ? "voice" : `p:${p.id}`;
+/** The patch/sub-column key for a musician's channel: ch:<musicianId>:<channelKey> (matches Go PatchKey). */
+export const channelKey = (mid: string, ck: string) => `ch:${mid}:${ck}`;
+// Convenience wrappers for the default-band keys (voice channel; a single-instrument channel).
+export const voiceKey = (mid: string) => channelKey(mid, "voice");
+export const instKey = (mid: string, pid: string) => channelKey(mid, `p:${pid}`);
 export const sharedKey = (pid: string) => `shared:${pid}`;
 
 // T203-FIX2: infer a part's kind from its name on inline create (the row defaulted everything to instrument, so
@@ -77,11 +89,28 @@ function cmpOrder(oa: number, ob: number, ia: number, ib: number): number {
   return a !== b ? a - b : ia - ib;
 }
 
+// orderLess mirrors Go partOrderLess: an explicit order (≠0) sorts before an unset one, else by value.
+function orderLess(oa: number, ob: number): boolean {
+  if ((oa === 0) !== (ob === 0)) return oa !== 0;
+  return oa < ob;
+}
+
+// channelHeader is the sub-column header text: "Voice", a group's name (T204), or a single instrument's short.
+function channelHeader(ck: string, channelParts: Map<string, GridPart[]>, chanById: Map<string, GridChannel>): string {
+  if (ck === "voice") return "Voice";
+  if (ck.startsWith("g:")) {
+    const c = chanById.get(ck.slice(2));
+    return c?.name ?? (channelParts.get(ck) ?? []).map((p) => partShort(p)).join("/");
+  }
+  const list = channelParts.get(ck) ?? [];
+  return list.length ? partShort(list[0]) : ck;
+}
+
 /** In editor mode every roster musician gets a column (so an empty band can be filled: you can assign a part
  *  to anyone), each gains a Voice sub-column while the band has any voice part, and every shared part in the
  *  vocabulary shows its column. The sound sheet (default, no options) omits all of that — it shows only what
  *  is actually used. */
-export type GridOptions = { editor?: boolean };
+export type GridOptions = { editor?: boolean; channels?: GridChannel[] };
 
 /** buildGrid projects the person-major channel grid. musicians/parts are the band vocabulary; by default only
  *  columns USED across the given songs appear (an unused sub-column is omitted) — `editor` relaxes that. */
@@ -90,61 +119,100 @@ export function buildGrid(songs: GridSong[], musicians: GridMusician[], parts: G
   const bandHasVoice = parts.some((p) => p.kind === "voice");
   const partById = new Map(parts.map((p) => [p.id, p]));
   const musById = new Map(musicians.map((m) => [m.id, m]));
+  const chanById = new Map((opts.channels ?? []).map((c) => [c.id, c]));
 
   // The STABLE tie-break (T203-FIX2): a musician's/part's index in the roster/vocabulary — never usage. A
   // usage-based tie-break (first appearance in the line-ups) made clicking a cell reorder the columns, because
   // the click changed when that musician first appeared. The roster/vocab order never changes on a cell edit.
   const rosterIndex = new Map(musicians.map((m, i) => [m.id, i]));
   const partIndex = new Map(parts.map((p, i) => [p.id, i]));
-  // Which sub-columns are USED: per musician, whether they sing (voice) + which personal-instrument parts;
-  // and which shared parts occur.
-  const musSings = new Set<string>();
-  const musInst = new Map<string, Set<string>>(); // musicianId → set of personal instrument partIds
-  const sharedUsed = new Set<string>();
+  // T204: band-wide non-shared parts grouped by channel key (ordered by part order then vocab index) — a
+  // channel's member set (the editor's cycle list) + its order/amplified. Mirrors Go projectColumns' channelParts.
+  const channelParts = new Map<string, GridPart[]>();
+  for (const p of parts) {
+    if (p.shared) continue;
+    const k = partChannelKey(p);
+    if (!channelParts.has(k)) channelParts.set(k, []);
+    channelParts.get(k)!.push(p);
+  }
+  for (const list of channelParts.values())
+    list.sort((a, b) => cmpOrder(a.order ?? 0, b.order ?? 0, partIndex.get(a.id) ?? 1e9, partIndex.get(b.id) ?? 1e9));
 
+  // Channel ordering (mirror Go channelLess): the voice channel first, then (amplified, order, short) so a
+  // default band — one "p:<id>" channel per instrument — matches T203's instrument order exactly.
+  const isAmplified = (inp?: string) => !!inp && inp !== "none";
+  const chanAmplified = (ck: string) => (channelParts.get(ck) ?? []).some((p) => isAmplified(p.input));
+  const chanOrder = (ck: string): number => {
+    if (ck.startsWith("g:")) {
+      const c = chanById.get(ck.slice(2));
+      if (c && (c.order ?? 0) !== 0) return c.order!;
+    }
+    let min = 0;
+    (channelParts.get(ck) ?? []).forEach((p, i) => { if (i === 0 || orderLess(p.order ?? 0, min)) min = p.order ?? 0; });
+    return min;
+  };
+  const chanShort = (ck: string): string => {
+    let min = "";
+    (channelParts.get(ck) ?? []).forEach((p, i) => { const s = partShort(p); if (i === 0 || s < min) min = s; });
+    return min;
+  };
+  const channelLess = (a: string, b: string): number => {
+    if ((a === "voice") !== (b === "voice")) return a === "voice" ? -1 : 1;
+    const aa = chanAmplified(a), ba = chanAmplified(b);
+    if (aa !== ba) return aa ? -1 : 1;
+    const ao = chanOrder(a), bo = chanOrder(b);
+    if (ao !== bo) return orderLess(ao, bo) ? -1 : 1;
+    const sa = chanShort(a), sb = chanShort(b);
+    return sa < sb ? -1 : sa > sb ? 1 : 0;
+  };
+
+  // Which CHANNELS are used: per musician, the set of channel keys they play across the songs; plus shared parts.
+  const musChan = new Map<string, Set<string>>();
+  const sharedUsed = new Set<string>();
+  const addChan = (mid: string, ck: string) => {
+    if (!musChan.has(mid)) musChan.set(mid, new Set());
+    musChan.get(mid)!.add(ck);
+  };
   songs.forEach((s) => {
     for (const e of s.lineup ?? []) {
       for (const pid of e.partIds) {
         const p = partById.get(pid);
         if (!p) continue;
-        if (p.kind === "voice") {
-          musSings.add(e.musicianId);
-        } else if (p.shared) {
-          sharedUsed.add(pid);
-        } else {
-          if (!musInst.has(e.musicianId)) musInst.set(e.musicianId, new Set());
-          musInst.get(e.musicianId)!.add(pid);
-        }
+        if (p.shared) sharedUsed.add(pid);
+        else addChan(e.musicianId, partChannelKey(p));
       }
     }
   });
+  // Editor relaxation (ruling 1): every roster musician present; a Voice channel when the band has voice; and a
+  // channel for each PERSISTED instrument, so a column never vanishes when its last usage is toggled off.
+  if (editor) {
+    for (const m of musicians) {
+      if (!musChan.has(m.id)) musChan.set(m.id, new Set());
+      if (bandHasVoice) musChan.get(m.id)!.add("voice");
+      for (const pid of m.instruments ?? []) {
+        const p = partById.get(pid);
+        if (p && p.kind === "instrument" && !p.shared) musChan.get(m.id)!.add(partChannelKey(p));
+      }
+    }
+  }
 
-  // Musician wide columns, ordered. The editor shows every roster musician; the sheet only the used ones.
-  const usedMusicianIDs = editor
-    ? musicians.map((m) => m.id)
-    : [...new Set([...musSings, ...musInst.keys()])];
+  // Musician wide columns, ordered (explicit order, then roster index). Each carries its channel sub-columns.
+  const usedMusicianIDs = [...musChan.keys()];
   usedMusicianIDs.sort((a, b) =>
     cmpOrder(musById.get(a)?.order ?? 0, musById.get(b)?.order ?? 0, rosterIndex.get(a) ?? 1e9, rosterIndex.get(b) ?? 1e9),
   );
   const columns: WideColumn[] = [];
   for (const mid of usedMusicianIDs) {
     const label = musById.get(mid)?.displayName ?? "?";
-    const subs: SubColumn[] = [];
-    if (musSings.has(mid) || (editor && bandHasVoice)) subs.push({ kind: "voice", key: voiceKey(mid), musicianId: mid, header: "Voice" });
-    // Instrument sub-columns: the ones USED, plus (editor only) the musician's PERSISTED instruments (ruling 1),
-    // so a column never vanishes when its last usage is toggled off. Only valid personal (non-shared) instruments.
-    const instSet = new Set<string>(musInst.get(mid) ?? []);
-    if (editor) {
-      for (const pid of musById.get(mid)?.instruments ?? []) {
-        const p = partById.get(pid);
-        if (p && p.kind === "instrument" && !p.shared) instSet.add(pid);
-      }
-    }
-    const instIDs = [...instSet];
-    instIDs.sort((a, b) => cmpOrder(partById.get(a)?.order ?? 0, partById.get(b)?.order ?? 0, 0, 0) || partShort(partById.get(a)!).localeCompare(partShort(partById.get(b)!)));
-    for (const pid of instIDs) {
-      subs.push({ kind: "inst", key: instKey(mid, pid), musicianId: mid, partId: pid, header: partShort(partById.get(pid)!) });
-    }
+    const cks = [...musChan.get(mid)!].sort(channelLess);
+    const subs: SubColumn[] = cks.map((ck) => ({
+      kind: "channel",
+      key: channelKey(mid, ck),
+      musicianId: mid,
+      channelKey: ck,
+      partIds: (channelParts.get(ck) ?? []).map((p) => p.id),
+      header: channelHeader(ck, channelParts, chanById),
+    }));
     columns.push({ kind: "musician", id: mid, label, subs });
   }
 
@@ -181,19 +249,16 @@ function cellFor(
   partById: Map<string, GridPart>,
   musById: Map<string, GridMusician>,
 ): Cell {
-  if (sub.kind === "voice") {
+  if (sub.kind === "channel") {
+    // The shorts of the channel's member parts this musician plays in the song (in their line-up order), joined
+    // "+". A voice channel reads "L"/"B"/"L+B"; a single-instrument channel reads its short or empty; a group
+    // channel reads whichever of its parts is carried.
     const e = byMus.get(sub.musicianId);
     if (!e) return { text: "" };
-    const shorts = e.partIds
-      .map((pid) => partById.get(pid))
-      .filter((p): p is GridPart => !!p && p.kind === "voice")
-      .map((p) => partShort(p));
+    const members = new Set(sub.partIds);
+    const shorts = e.partIds.filter((pid) => members.has(pid)).map((pid) => partShort(partById.get(pid)!));
+    if (shorts.length === 0) return { text: "" };
     return { text: shorts.join("+"), optional: e.optional };
-  }
-  if (sub.kind === "inst") {
-    const e = byMus.get(sub.musicianId);
-    const plays = !!e && e.partIds.includes(sub.partId);
-    return { text: plays ? partShort(partById.get(sub.partId)!) : "", optional: plays ? e!.optional : undefined };
   }
   // shared: EVERY musician who plays this part in the song, joined (ruling 4 — two bongo players read "R+V",
   // never a silent first-only). Optional when every player of it is optional.
