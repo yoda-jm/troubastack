@@ -56309,3 +56309,12 @@ I read `channel.go` and `channel_service.go`.
 - the patch order is stable across two identical operations.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)`, then 1b.
+
+## ✔ LANDED (web-core) — T204 SLICE 1a (channel model + keys + service + .tband), `5dfb7ac8`
+
+On Fable's GO (`2adc95e2`), FF-clean, `Approved-by: Fable (GO 2adc95e2)`. All three bindings in: (1) SetPartChannel
+re-keys a track's patch only when the old track disappears; (2) DeleteChannel(force) cleans orphan g: patches
+(1 part→p:, several→drop+report); (3) the patch slice is stored in a stable order. Each binding tested; binding 1
+sabotage-verified red. Full Go app/httpapi/soundsheet green. NO :8080 deploy — additive backend, inert until the
+projection wiring (1b). Next: slice 1b — Go projectColumns + TS buildGrid group by channel key (byte-identical
+default), read-migration, + the three shared-vector cases; then slice 2's grouping UI.
