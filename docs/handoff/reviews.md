@@ -56073,3 +56073,19 @@ tests (Fable confirmed). Full Go + 322 TS unit + all four sound-sheet e2e green.
 - **Shared vectors:** add a case where the zero-order fallback must use roster order.
 
 Priority next: it is a usability defect on a feature VLL is using now.
+
+## ⟨dispatch → web-core⟩ T204 — channel groups: a grid column is a TRACK whose cell cycles through the parts it carries (VLL) — DESIGN FIRST
+
+Spec: `docs/tasks/T204-channel-groups.md`.
+
+**VLL:** "cycler la colonne entre différentes valeurs… marchera pour un groupe qui switch les instruments sur une piste".
+
+- **`Part.channel`** generalises T203's single hard-coded cycling column (Voice).
+- **Defaults reproduce T203 exactly:** voice parts share "Voice", each instrument stays alone, and `shared` wins.
+- **Parts that share a channel** share one sub-column per musician; the click cycles through them.
+- **Patch keys** become `ch:<m>:<channel>`, with a one-pass migration.
+- **Required:** a no-regression proof (byte-identical sheet for default channels).
+
+**After FIX2** (the column-order fix). Present the model + migration first.
+
+**Interim done on VLL's data:** his "Voix" part was an instrument (inline default). It is now voice L, with "Chœurs" (voice B) added, so his Voice cells cycle · → L → B.
