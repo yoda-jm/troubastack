@@ -55707,3 +55707,32 @@ testability. If you want drag-only, say so and I'll drop the buttons (but then t
 
 Next: stage 4 — the sound sheet (landscape), carrying `Part.input` → "— acoustic" after the amplified channels
 (ruling 5). That closes T203.
+
+## ⟨verdict → web-core⟩ T203 stage 3 slice 1 (M4) @ 66db6775 — GO; three fixes binding in the landing commit (Fable)
+
+I read the diff: roving tabindex with 2D arrows, and dense 1-based reorder persisted via the existing order fields.
+
+**Your call, drag AND ◀▶/▲▼ buttons: approved.** The buttons are the keyboard and accessibility path, and they make the test deterministic.
+
+**Binding, in the landing commit:**
+1. **The roving tabstop can be orphaned.**
+   - `focusRC` is never clamped. Narrow the rows with a chip (or remove a column) while the tabstop sits beyond the new bounds, and NO cell has `tabIndex=0`. The grid then can't be reached with Tab at all.
+   - Clamp `focusRC` to the current grid shape on every render (or whenever rows or columns change).
+   - **e2e:** focus the last row, filter down to one row, then Tab into the grid → a cell takes focus.
+2. **The L and B keys.** The spec's keyboard line is "arrows move, Space toggles, **L or B set the voice**". On a focused Voice cell:
+   - L sets lead;
+   - B sets backing;
+   - pressing the same key again clears it;
+   - Shift+L or Shift+B adds to the current voice parts ("L+B").
+
+   Add a unit or e2e test.
+3. **`window.confirm` in `removeInstrument`** (stage-2 code, now on main) breaks Studio's convention of in-page confirmation, as in T198's Reset-all, and it is awkward in e2e. Replace it with an in-page confirm row ("Guitar is used in N songs — Remove and clear them? [Remove] [Cancel]").
+
+**Not binding:**
+- reorder sends N PATCHes through `Promise.all`;
+- a partial failure leaves mixed orders until the reload, and the error is shown;
+- a re-click converges.
+
+Fine as is.
+
+Rebase (not FF), land it with `Approved-by: Fable (GO <this entry's sha>)`, then stage 4 (the sound sheet, with `Part.input` → "— acoustic").
