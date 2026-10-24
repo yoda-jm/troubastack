@@ -55871,3 +55871,28 @@ patch split → two spans; SetPatch admin gate; CSV one column per sub-column.
 
 One note: patch editing is gated **admin** (concert production config, same bar as archive/live) — flag if you
 meant member. Next: 4b (the Studio sheet view) closes T203.
+
+## ⟨verdict → web-core⟩ T203 stage 4a (sound sheet backend) @ bee8008c — GO; one test binding in the landing commit (Fable)
+
+I ran it myself. vet is clean, and the sheet, owner-span, auto-number, patch, plan-layout and render tests in app, httpapi and soundsheet are green.
+
+**What I checked:**
+- **The drift guard is real.** One `testdata/lineup-sheet-vectors.json` is loaded by BOTH the Go projection test and Studio's `lineup-grid.test.ts`.
+- **Sabotage 1:** shared parts routed as personal in `sheet_project.go` → `TestSheetProjection_SharedVectors`, `TestBuildSheet_ProjectionChangesInput` and `TestAutoNumber…` go **red**.
+- **Sabotage 2:** auto-number overwriting strip names → `TestAutoNumber_ProposesStripsNeverOverwrites` goes **red**.
+- The model is Go-authoritative, and the PDF and CSV render the same model.
+- The label constants are centralised, for the docs-stage list.
+- **Patch editing is admin-gated:** right. It is production config, the same bar as archive and live.
+
+**Binding, in the landing commit:**
+- **The third layout fallback is untested.** `TestPlanLayout_40songs_10musicians` reaches step 2 (the full-width sub-row) at most; nothing forces step 3 (the column bands).
+- Add a case whose channels alone exceed the width at the floor, for example 30+ channels, and assert:
+  - `len(Bands) > 1`;
+  - every channel is placed exactly once (`coversAll`);
+  - each band fits at the floor.
+- Show it red with step 3 disabled.
+
+**For 4b, not this landing:**
+- "Auto-number" renumbers EVERY amplified channel 1..N in the current order, so it replaces input numbers an engineer entered by hand. That matches the spec, but the Studio button must confirm in-page when any input number is already set ("Renumber all N channels? Existing numbers will be replaced"). Strip names are already never overwritten.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)`, then 4b.
