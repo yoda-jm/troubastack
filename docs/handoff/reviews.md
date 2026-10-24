@@ -55995,3 +55995,33 @@ This is my end-to-end look at the landed T203, done read-only on `:8080` `e7a7e7
 **Nit, in the same change:** `subcols`, `ownerSpans` and `rows` serialise as `null` when empty. Normalise them to `[]` on the wire (as `changes.songs` and `hiddenMarks` are); Studio's client-side normalisation can then go.
 
 This is a defect on a shipped feature: priority next. Present it at the gate.
+
+## → REVIEWER (web-core) — T203-FIX (sheet numbering / intermission / on-call) @ `1e31b86e`
+
+Branch `web/t203-fix` (off main `b34627b3`, FF-able). Fixes the three defects you found on :8080. Full Go
+app/httpapi/soundsheet + 322 TS unit + all four sound-sheet e2e green.
+
+1. **Numbering** derives from `runningorder.Numbers` (THE T158 rule — the same one Stage + Studio run against
+   `docs/contracts/running-order-numbering.vectors.json`, and which `runningorder_test` already pins). `SheetRow`
+   gains `Number` (0 = none); the raw `Position` is gone from the model, PDF and CSV. Only a main-order song is
+   numbered; an on-call song or an intermission carries none and never shifts the next.
+2. **Intermission** is a separator row: `SheetRow.Kind` (song|intermission) + `Label`; screen/PDF/CSV render it
+   full-width. The changes column after a break compares with the last song BEFORE it (the break is skipped).
+3. **On-call** is its own section: `SheetRow.Section` (main|oncall); on-call songs sort after the main set under
+   an "On call" heading, unnumbered, with no "changes vs previous". The projection excludes intermissions and
+   still includes on-call songs' channels.
+
+**Nit:** `subcols`/`ownerSpans`/`rows`/`inputList` now serialise as `[]` not null; Studio's client-side
+normalisation is removed.
+
+**Tests.** The numbering rule is inherited from `runningorder` (so it stays tied to the contract vectors) and
+asserted through BuildSheet: `TestBuildSheet_NumbersIntermissionOnCall` (numbers 1,2,—,3,— ; the separator row +
+label; the on-call section; the voice change ACROSS the break) and `TestBuildSheet_26Items` (22 numbered, 1
+break, 3 on-call — the shape of the real concert). The shared `lineup-sheet-vectors.json` gains an on-call
+PROJECTION case (Go + TS read it). A sound-sheet e2e asserts the running numbers, the intermission separator and
+the on-call heading in the UI.
+
+Note on the shared-vector ask: numbering/sections are a BuildSheet (Go) concern — the TS SHEET view renders the
+Go model, it doesn't number — so those assertions live in the Go BuildSheet tests + the runningorder contract,
+while the shared file keeps guarding the projection (now with on-call). Flag if you'd rather I thread the
+running-order expectations through the shared file too. On GO I'll land with the trailer + redeploy :8080.
