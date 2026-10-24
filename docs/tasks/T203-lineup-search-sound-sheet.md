@@ -128,6 +128,52 @@ sub-columns used in that set, plus the changes and sound-note columns. The CSV h
 - One person with two instruments in one song: both cells filled.
 - A sub-column unused in a set does not appear on that set's sheet.
 
+## Headers, patch order, unamplified parts (VLL, 2026-10-24, third amendment)
+
+> "je mettrais des colspan… la possibilité de le mettre dans l'ordre de la patchlist du concert… et il y a aussi les
+> instruments non sonorisés, peut-être une ligne sous la première avec l'entrée de la table (avec un nom propre)"
+
+**Multi-row header** (grid, sheet and PDF):
+- **Row 1, owner:** the musician name, or the shared instrument's header ("Bass — R / V"). It is **colspanned over
+  runs of adjacent columns with the same owner**, in the CURRENT column order. In stage order that is one span per
+  musician. In patch order a musician's columns may not be adjacent, so their name spans each run separately, never
+  across someone else's column.
+- **Row 2, channel:** "Voice", "Guitar", "Autoharp", "Shaker", …
+- **Row 3, console input** (sound sheet, and the grid when a setlist is selected): the input number and the strip
+  name from the concert's patch, e.g. "In 4 · A GTR". It reads "— acoustic" for an unamplified part and "not
+  patched" for a channel with no patch entry.
+
+**Patch list: per CONCERT (setlist), because the console changes with the venue.**
+- **Model:** `Setlist.patch: [{ channel, input: int, name: string }]`. It is additive, and **reserve the field in
+  stage 1**.
+  - `channel` is a stable channel key: `voice:<musicianId>` | `inst:<musicianId>:<partId>` | `shared:<partId>`.
+  - `name` is the console strip name (short, free text).
+- Studio, on the sound sheet:
+  - edit input numbers and strip names inline;
+  - **"Copy patch from…"** another concert, with matching by channel key;
+  - "Auto-number" fills 1..N in the current order.
+- **Column order: [Stage order | Patch order]** (a toggle on the sheet).
+  - Stage order is the band's `Musician.order` (M4).
+  - Patch order sorts patched channels by input number, then unpatched channels, then unamplified ones.
+- The **input list** section of the sheet IS the patch list, sorted by input:
+  - one line per patched channel: in, strip name, musician or shared instrument, part, mic/DI/line;
+  - then "Not patched yet: …" if any;
+  - unamplified parts never appear there.
+
+**Unamplified parts** are `Part.input = none` (shaker, triangle, an unmiked acoustic):
+- they **stay in the grid and the sheet**, because musicians need to know who plays them;
+- they show as a sub-column whose input row reads "— acoustic";
+- they are never given a patch entry or a channel key, and are excluded from the input list;
+- in both orders they sit after the amplified channels of the same owner (stage order) or at the end (patch order).
+
+**Review checks:**
+- colspans over adjacent runs only, in both orders;
+- patch order with a musician split across non-adjacent inputs → two spans;
+- an unamplified part has no input and no patch line;
+- "Copy patch from…" matches by channel key, and a new channel reads "not patched";
+- a part toggled to `shared` changes its channel key from `inst:` to `shared:`, so the patch shows it as not patched
+  (an honest signal, not a silent mismatch).
+
 ## Studio
 
 ### Editing
