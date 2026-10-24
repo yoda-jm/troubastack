@@ -55267,3 +55267,114 @@ Spec: `docs/tasks/T203-lineup-search-sound-sheet.md`. It is a new design, so **p
 - **Sound sheet:** per setlist, an input list plus a song × musician matrix with a changes column; PDF (A4 landscape) and CSV.
 - **`.tband`** round-trip.
 - **Three [VLL] decisions**, defaults stated.
+
+## → REVIEWER (web-core) — T203 DESIGN (line-ups / search / sound sheet), before building
+
+Per the spec's "design at the gate first" + VLL's amended person-major grid (9c1d25d4). No code yet. Placeholder
+names (A/B/C) only. Seeking a GO on the model + the four surfaces, then I build in the spec's stages, presenting each.
+
+### 1. Model (Go)
+
+Musicians + Parts are FIRST-CLASS band-level collections (NOT derived like tags): a Part carries kind/short/input
+and a seed vocabulary must exist before any song uses it, and a guest Musician has no song yet. Tags give the
+rename/merge PATTERN, not the storage.
+
+    // band-level
+    type Musician struct { ID string; Name string; UserID string `json:",omitempty"` } // UserID"" = guest
+    type Part struct { Name string; Kind string; Short string `,omitempty`; Input string `,omitempty` }
+      // Kind: voice|instrument|other ; Input: mic|di|line|none ; Short derived from Name when empty
+    // additive on Song (same pattern as Tags — omitempty, no migration):
+    Song.Lineup    []LineupEntry   // LineupEntry{ MusicianID string; Parts []string; Optional bool; Note string }
+    Song.SoundNote string
+      // Parts referenced by NAME (folded, like tags) so a rename/merge rewrites every lineup band-wide.
+      // Musicians referenced by stable ID so a rename / account-link never breaks a lineup.
+
+Stable musician id: uuidV5(bandID, "musician:"+key), key = UserID for an account musician, else foldText(name)
+for a guest. Linking a guest to an account later sets UserID but KEEPS the id → lineups survive (a required test).
+Per-gig override (deferred): the model already allows a future SetlistItem.Lineup []LineupEntry — the grid/sheet
+would prefer the item override when present. Additive, no migration. Not built now.
+
+### 2. Storage + API
+
+- Repo (added to the interface + filerepo + memrepo): MusiciansOfBand/SaveMusician/DeleteMusician;
+  PartsOfBand/SavePart/DeletePart; and band-wide RenamePart / MergePart that ALSO rewrite Song.Lineup[].Parts in
+  one lock+flush (mirroring editBandTags).
+- REST:
+  - Musicians (ADMIN): GET/POST /bands/{b}/musicians; PATCH /musicians/{id} (rename / link userId); DELETE.
+  - Parts vocabulary (ADMIN): GET /bands/{b}/parts; POST (add w/ kind/short/input); PATCH (edit metadata);
+    POST /parts/rename {from,to} (merges if `to` exists); POST /parts/delete.
+  - Line-up (MEMBER, like song metadata): PATCH /bands/{b}/songs/{id} gains {lineup?, soundNote?}.
+  - Bulk: POST /bands/{b}/songs/lineup:bulk {songIds[], op:add|remove, musicianId, part} — one atomic pass.
+  - "Copy line-up from…": client reads the source song's lineup → PATCHes the target (no new endpoint).
+  - Sound sheet: GET /bands/{b}/setlists/{s}/sound-sheet?format=pdf|csv; the screen view reuses the setlist
+    detail, whose SetlistItemView I extend to carry Lineup + SoundNote.
+  Gate: roster + vocabulary = admin (requireRole); line-up edits = membership (like tags).
+
+### 3. The grid = a pure PROJECTION of (songs' lineups + Part vocab). Columns are CHANNELS, not parts.
+
+Per musician, across the shown songs: ONE "Voice" sub-column if they sing any voice-kind part; one sub-column per
+distinct instrument-kind part they play. Cell rules — Voice: the short of the voice part they sing that song
+(L/B/…) or empty; instrument: filled, "(x)" if optional, or empty. buildGrid(songs,musicians,parts) is pure +
+unit-tested. The review cases it must satisfy:
+- lead↔backing for one person → ONE Voice column, the letter changes row to row;
+- bass moving C→A → TWO Bass sub-columns (C's and A's), each filled on its rows; changes column "Bass: C → A";
+- one person two instruments in a song → both their instrument cells filled that row;
+- a sub-column unused in the shown set is omitted.
+
+Editor sketch (band-level "Line-ups" page; chips filter the rows):
+
+      Line-ups            [by musician ▾ | by part]      [A · Lead vocal] [B · Autoharp] [+chip]
+                         │     A (you)      │    B     │   C (guest)  │
+       #  Song     Key   │ Voice  Gtr  Bass │ Voice AH │ Voice  Bass  │
+       1  One      C     │   L    Gtr   ·   │   B   ·  │   ·    Bass  │
+       2  Two      G     │   L    ·   Bass  │   B   AH │   ·     ·    │
+       3  Three    Am    │   B    Gtr   ·   │   L   ·  │   ·    Bass  │
+                          [+ part on A]            [+ musician]
+   click a Voice cell → cycle ·→L→B→· (menu for other voice parts); click an instrument cell → toggle;
+   long-press/menu → optional + note; keyboard arrows move, Space toggles, L/B set the voice.
+
+"By part" toggle — same rows, columns are parts, cells are names:
+       #  Song  │ Lead vocal │ Backing vocal │ Bass │ Autoharp │ Guitar
+       1  One   │     A      │      B        │  C   │    ·     │   A
+
+The per-song "Line-up" panel on the song page stays — the same data for one row (musician rows + part chips +
+optional + note + the Sound note field).
+
+### 4. Search grammar (chips) — refactor chips string[] → a tagged union
+
+    type Chip = {kind:"tag", value} | {kind:"musician", id} | {kind:"part", name}
+              | {kind:"musicianPart", id, name} | {kind:"withoutMusician", id}
+    | chip                 | matches (AND with tag chips + loose text, as today)                 |
+    | A · Lead vocal       | A's lineup includes that part                                       |
+    | A                    | A appears in the lineup                                              |
+    | Lead vocal           | anyone's lineup includes that part                                  |
+    | without B            | B absent, OR present but optional                                   |
+  suggestForWord also offers musicians, parts, and the musician·part pairs that actually occur; SearchSong gains
+  `lineup`. All pure, in song-search.ts. VLL's example `A · Lead vocal` + `B · Autoharp` is a two-chip AND.
+
+### 5. Sound sheet (per setlist) — the SAME person-major grid, filtered to the set
+
+Landscape A4. writeA4PDF is portrait raster-only, and setlistpdf is portrait text — so I extend a setlistpdf-style
+text builder with orientation "L" + swapped page W/H (no existing landscape helper). Sections:
+1. Header: band · setlist · date · venue.
+2. Input list: per musician in the set, their parts across the set with input — "A — Lead vocal (mic), Guitar (DI)".
+3. Matrix: the grid above, rows = running order (#, title, key, tempo), only sub-columns used in THIS set.
+4. Changes column: diff vs the previous song ("Bass: C→A", "C out", "D in"), compared across an intermission to the
+   last song before it, empty for song 1; plus the song's sound note. On-call songs in their own section after the set.
+CSV: one column per sub-column ("A · Voice", "A · Guitar", …). PDF deterministic (pinned dates, as setlistpdf).
+
+### 6. .tband round-trip
+
+musicians[] + parts[] added to band.json (additive, v2 stays v2); lineups ride the existing Song export. Musicians
+by stable id (§1), lineup entries by musicianId, parts by name. Added to the round-trip test.
+
+### Decisions I want your GO / ruling on
+
+1. Parts (and Musicians) as first-class band collections, not derived. (The metadata + pre-song vocabulary force it.)
+2. Admin for the roster + vocabulary; membership for line-up edits. OK?
+3. Musician id = uuidV5(bandID,"musician:"+(userId||slug)), stable across account-linking.
+4. The Voice cell is single-valued per song (one voice part), even though LineupEntry.Parts can hold more — the
+   grid/editor treat voice as one channel. OK, or should two simultaneous voice parts be representable?
+5. Bulk set/remove-a-part as one server endpoint (atomic) rather than N client PATCHes.
+
+On GO I build stage 1 (model + API + .tband) and present it, then the editor+search, then the sheet.
