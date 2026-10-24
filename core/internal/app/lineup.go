@@ -403,7 +403,7 @@ func (s *Service) materializeMemberMusicians(caller User, bandID string, l []Lin
 func (s *Service) exportMusicians(ms []Musician) []v2Musician {
 	out := make([]v2Musician, 0, len(ms))
 	for _, m := range ms {
-		v := v2Musician{ID: m.ID, UserID: m.UserID, Name: m.Name, Order: m.Order}
+		v := v2Musician{ID: m.ID, UserID: m.UserID, Name: m.Name, Order: m.Order, Instruments: m.Instruments}
 		if m.UserID != "" {
 			if u, err := s.repo.GetUser(m.UserID); err == nil {
 				v.Username = u.Username
@@ -419,7 +419,7 @@ func (s *Service) exportMusicians(ms []Musician) []v2Musician {
 func importMusicians(vs []v2Musician) []Musician {
 	out := make([]Musician, 0, len(vs))
 	for _, v := range vs {
-		out = append(out, Musician{ID: v.ID, UserID: v.UserID, Name: v.Name, Order: v.Order})
+		out = append(out, Musician{ID: v.ID, UserID: v.UserID, Name: v.Name, Order: v.Order, Instruments: v.Instruments})
 	}
 	return out
 }

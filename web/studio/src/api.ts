@@ -128,7 +128,17 @@ export type Song = {
   /** The CALLER's own personal cues for this song (T50), as served on listSongs
    *  rows. Absent/[] = none. Per-member — never another member's. */
   myCues?: SongCue[];
+  // T203: who plays/sings what in this song (by musician id + part ids), and the sound-engineer note.
+  lineup?: LineupEntry[];
+  soundNote?: string;
 };
+
+// T203 line-up vocabulary (mirrors the Go app types).
+export type Musician = { id: string; userId?: string; name?: string; order?: number; instruments?: string[] };
+export type MusicianView = Musician & { displayName: string; isMember: boolean; former?: boolean };
+export type PartKind = "voice" | "instrument" | "other";
+export type Part = { id: string; name: string; kind: PartKind; short?: string; input?: string; shared?: boolean; order?: number };
+export type LineupEntry = { musicianId: string; partIds: string[]; optional?: boolean; note?: string };
 
 export type SongFile = {
   id: string;
@@ -194,6 +204,8 @@ export type SongPatch = {
   meter?: string;
   tags?: string[];
   notes?: string;
+  lineup?: LineupEntry[]; // T203
+  soundNote?: string;
 };
 
 export type Setlist = {
@@ -396,9 +408,11 @@ export type AnnotationDoc = {
 /** ApiError carries the HTTP status and the server's {error} message. */
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  body?: Record<string, unknown>; // the parsed error payload, e.g. { error, songs } on a 409
+  constructor(status: number, message: string, body?: Record<string, unknown>) {
     super(message);
     this.status = status;
+    this.body = body;
     this.name = "ApiError";
   }
 }
@@ -458,7 +472,7 @@ async function decode<T>(res: Response): Promise<T> {
       payload && typeof payload === "object" && "error" in payload
         ? String((payload as { error: unknown }).error)
         : `Request failed (${res.status})`;
-    throw new ApiError(res.status, msg);
+    throw new ApiError(res.status, msg, payload && typeof payload === "object" ? (payload as Record<string, unknown>) : undefined);
   }
 
   return payload as T;
@@ -600,6 +614,32 @@ export const api = {
     request<{ songs: Song[] }>("GET", `/api/bands/${bandId}/songs`).then(
       (r) => r.songs.find((s) => s.id === songId) ?? null,
     ),
+
+  // --- T203 line-up vocabulary ---
+  listMusicians: (bandId: string) =>
+    request<{ musicians: MusicianView[] }>("GET", `/api/bands/${bandId}/musicians`).then((r) => r.musicians ?? []),
+  addMusician: (bandId: string, name: string) =>
+    request<{ musician: Musician }>("POST", `/api/bands/${bandId}/musicians`, { name }).then((r) => r.musician),
+  updateMusician: (bandId: string, id: string, patch: { name?: string; order?: number }) =>
+    request<{ musician: Musician }>("PATCH", `/api/bands/${bandId}/musicians/${id}`, patch).then((r) => r.musician),
+  linkMusician: (bandId: string, id: string, userId: string) =>
+    request<{ musician: Musician }>("POST", `/api/bands/${bandId}/musicians/${id}/link`, { userId }).then((r) => r.musician),
+  deleteMusician: (bandId: string, id: string, force = false) =>
+    request<void>("DELETE", `/api/bands/${bandId}/musicians/${id}${force ? "?force=1" : ""}`),
+  addMusicianInstrument: (bandId: string, musicianId: string, partId: string) =>
+    request<{ musician: Musician }>("POST", `/api/bands/${bandId}/musicians/${musicianId}/instruments`, { partId }).then((r) => r.musician),
+  removeMusicianInstrument: (bandId: string, musicianId: string, partId: string, force = false) =>
+    request<void>("DELETE", `/api/bands/${bandId}/musicians/${musicianId}/instruments/${partId}${force ? "?force=1" : ""}`),
+  listParts: (bandId: string) =>
+    request<{ parts: Part[] }>("GET", `/api/bands/${bandId}/parts`).then((r) => r.parts ?? []),
+  createPart: (bandId: string, name: string, spec: { kind?: PartKind; short?: string; input?: string; shared?: boolean } = {}) =>
+    request<{ part: Part }>("POST", `/api/bands/${bandId}/parts`, { name, ...spec }).then((r) => r.part),
+  updatePart: (bandId: string, id: string, patch: Partial<Pick<Part, "name" | "kind" | "short" | "input" | "shared" | "order">>) =>
+    request<{ part: Part }>("PATCH", `/api/bands/${bandId}/parts/${id}`, patch).then((r) => r.part),
+  mergeParts: (bandId: string, from: string, to: string) =>
+    request<void>("POST", `/api/bands/${bandId}/parts/merge`, { from, to }),
+  deletePart: (bandId: string, id: string, force = false) =>
+    request<void>("DELETE", `/api/bands/${bandId}/parts/${id}${force ? "?force=1" : ""}`),
 
   updateSong: (bandId: string, songId: string, patch: SongPatch) =>
     request<{ song: Song }>("PATCH", `/api/bands/${bandId}/songs/${songId}`, patch).then(

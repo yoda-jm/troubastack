@@ -272,6 +272,11 @@ type Musician struct {
 	UserID string `json:"userId,omitempty"`
 	Name   string `json:"name,omitempty"`
 	Order  int    `json:"order,omitempty"`
+	// Instruments is the musician's personal-instrument vocabulary — the part ids they play in THIS band
+	// ("A plays guitar"), independent of any one song. The editor shows a column for each (union with the
+	// instruments actually used), so a column never vanishes when its last usage is toggled off (T203 stage 2,
+	// Fable ruling 1). Carried by .tband. Voice/shared parts are NOT listed here (they route differently).
+	Instruments []string `json:"instruments,omitempty"`
 }
 
 // Part is a band-level vocabulary entry. Kind routes the sound-sheet grid (voice parts share one channel per

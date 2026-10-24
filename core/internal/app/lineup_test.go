@@ -48,7 +48,7 @@ func TestLineup_CRUDAndGates(t *testing.T) {
 	}
 
 	// A member MAY create a part (defaults to a personal instrument).
-	part, err := st.svc.CreatePart(member, bandID, "Autoharp")
+	part, err := st.svc.CreatePart(member, bandID, "Autoharp", app.PartSpec{})
 	if err != nil {
 		t.Fatalf("member CreatePart: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestParts_RenameIsMetadataOnly(t *testing.T) {
 	st := newStack()
 	admin, _, bandID, songID, _, _ := buildSourceBand(t, st)
 	guest, _ := st.svc.AddMusician(admin, bandID, "G")
-	part, _ := st.svc.CreatePart(admin, bandID, "Gtr")
+	part, _ := st.svc.CreatePart(admin, bandID, "Gtr", app.PartSpec{})
 	setLineup(t, st, admin, bandID, songID, []app.LineupEntry{{MusicianID: guest.ID, PartIDs: []string{part.ID}}})
 
 	if _, err := st.svc.UpdatePart(admin, bandID, part.ID, app.PartPatch{Name: sp("Guitar")}); err != nil {
@@ -98,8 +98,8 @@ func TestParts_MergeUnions(t *testing.T) {
 	st := newStack()
 	admin, _, bandID, songID, _, _ := buildSourceBand(t, st)
 	guest, _ := st.svc.AddMusician(admin, bandID, "G")
-	a, _ := st.svc.CreatePart(admin, bandID, "Acoustic guitar")
-	b, _ := st.svc.CreatePart(admin, bandID, "Guitar")
+	a, _ := st.svc.CreatePart(admin, bandID, "Acoustic guitar", app.PartSpec{})
+	b, _ := st.svc.CreatePart(admin, bandID, "Guitar", app.PartSpec{})
 	// One entry already holds both — the merge must dedupe to one id.
 	setLineup(t, st, admin, bandID, songID, []app.LineupEntry{{MusicianID: guest.ID, PartIDs: []string{a.ID, b.ID}}})
 
@@ -132,7 +132,7 @@ func TestLinkMusician_BothBranches(t *testing.T) {
 	// (a) account unused → the guest keeps its id and takes the userId.
 	st := newStack()
 	admin, member, bandID, songID, _, _ := buildSourceBand(t, st)
-	part, _ := st.svc.CreatePart(admin, bandID, "Bass")
+	part, _ := st.svc.CreatePart(admin, bandID, "Bass", app.PartSpec{})
 	guest, _ := st.svc.AddMusician(admin, bandID, "Dep")
 	setLineup(t, st, admin, bandID, songID, []app.LineupEntry{{MusicianID: guest.ID, PartIDs: []string{part.ID}}})
 	linked, err := st.svc.LinkMusician(admin, bandID, guest.ID, member.ID)
@@ -151,8 +151,8 @@ func TestLinkMusician_BothBranches(t *testing.T) {
 	admin2, member2, bandID2, songID2, _, _ := buildSourceBand(t, st2)
 	// Same song, DIFFERENT parts + notes: the account sings backing (BV), the guest plays guitar (Gtr). The
 	// merge must UNION the parts into one account entry and keep both notes — red if the union is dropped.
-	bv, _ := st2.svc.CreatePart(admin2, bandID2, "Backing vocal")
-	gtr, _ := st2.svc.CreatePart(admin2, bandID2, "Gtr")
+	bv, _ := st2.svc.CreatePart(admin2, bandID2, "Backing vocal", app.PartSpec{})
+	gtr, _ := st2.svc.CreatePart(admin2, bandID2, "Gtr", app.PartSpec{})
 	acctID := app.AccountMusicianID(bandID2, member2.ID)
 	g2, _ := st2.svc.AddMusician(admin2, bandID2, "Dep2")
 	setLineup(t, st2, admin2, bandID2, songID2, []app.LineupEntry{
@@ -203,7 +203,7 @@ func containsID(ids []string, id string) bool {
 func TestDepartedMemberLineupSurvives(t *testing.T) {
 	st := newStack()
 	admin, member, bandID, songID, _, _ := buildSourceBand(t, st)
-	part, _ := st.svc.CreatePart(admin, bandID, "Bass")
+	part, _ := st.svc.CreatePart(admin, bandID, "Bass", app.PartSpec{})
 	acctID := app.AccountMusicianID(bandID, member.ID)
 	setLineup(t, st, admin, bandID, songID, []app.LineupEntry{{MusicianID: acctID, PartIDs: []string{part.ID}}})
 
@@ -235,9 +235,14 @@ func TestLineup_TbandRoundTrip(t *testing.T) {
 	src := newStack()
 	admin, member, bandID, songID, _, _ := buildSourceBand(t, src)
 	guest, _ := src.svc.AddMusician(admin, bandID, "Percussionist")
-	part, _ := src.svc.CreatePart(admin, bandID, "Bongos")
+	part, _ := src.svc.CreatePart(admin, bandID, "Bongos", app.PartSpec{})
 	if _, err := src.svc.UpdatePart(admin, bandID, part.ID, app.PartPatch{Short: sp("Bgo"), Input: sp(app.InputMic), Shared: boolPtr(true)}); err != nil {
 		t.Fatalf("part meta: %v", err)
+	}
+	// A personal instrument on the guest's roster record (ruling 1) must survive the round-trip (by id).
+	gtr, _ := src.svc.CreatePart(member, bandID, "Guitar", app.PartSpec{})
+	if _, err := src.svc.AddMusicianInstrument(member, bandID, guest.ID, gtr.ID); err != nil {
+		t.Fatalf("add instrument: %v", err)
 	}
 	acctID := app.AccountMusicianID(bandID, member.ID) // materialize the member so the export carries them
 	if _, err := src.svc.UpdateSong(admin, bandID, songID, app.SongPatch{
@@ -280,6 +285,9 @@ func TestLineup_TbandRoundTrip(t *testing.T) {
 	for _, m := range ms {
 		if m.ID == guest.ID && m.DisplayName == "Percussionist" {
 			foundGuest = true
+			if len(m.Instruments) != 1 || m.Instruments[0] != gtr.ID {
+				t.Fatalf("the guest's instruments did not round-trip: %+v", m.Instruments)
+			}
 		}
 	}
 	if !foundGuest {

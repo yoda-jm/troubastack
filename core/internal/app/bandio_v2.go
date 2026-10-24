@@ -85,11 +85,12 @@ type v2Band struct {
 // future cross-server import can re-link an account musician by username (the remap itself is stage 1b). A
 // guest has no userId/username. The id is declared verbatim so same-server re-import keeps line-up refs.
 type v2Musician struct {
-	ID       string `json:"id"`
-	UserID   string `json:"userId,omitempty"`
-	Username string `json:"username,omitempty"`
-	Name     string `json:"name,omitempty"`
-	Order    int    `json:"order,omitempty"`
+	ID          string   `json:"id"`
+	UserID      string   `json:"userId,omitempty"`
+	Username    string   `json:"username,omitempty"`
+	Name        string   `json:"name,omitempty"`
+	Order       int      `json:"order,omitempty"`
+	Instruments []string `json:"instruments,omitempty"` // the musician's personal-instrument part ids (by id)
 }
 
 type v2Member struct {

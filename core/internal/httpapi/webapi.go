@@ -91,6 +91,8 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/bands/{bandId}/musicians/{musicianId}", a.auth(a.updateMusician))
 	mux.HandleFunc("POST /api/bands/{bandId}/musicians/{musicianId}/link", a.auth(a.linkMusician))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/musicians/{musicianId}", a.auth(a.deleteMusician))
+	mux.HandleFunc("POST /api/bands/{bandId}/musicians/{musicianId}/instruments", a.auth(a.addMusicianInstrument))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/musicians/{musicianId}/instruments/{partId}", a.auth(a.removeMusicianInstrument))
 	mux.HandleFunc("GET /api/bands/{bandId}/parts", a.auth(a.listParts))
 	mux.HandleFunc("POST /api/bands/{bandId}/parts", a.auth(a.createPart))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/parts/{partId}", a.auth(a.updatePart))

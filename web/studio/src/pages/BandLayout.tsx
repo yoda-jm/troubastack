@@ -26,6 +26,7 @@ export function useBand(): BandContext {
 function activeSection(pathname: string): BandSection {
   if (pathname.endsWith("/settings")) return "settings";
   if (pathname.endsWith("/setlists")) return "setlists";
+  if (pathname.endsWith("/lineups")) return "lineups";
   return "overview";
 }
 

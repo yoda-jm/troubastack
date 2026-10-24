@@ -89,12 +89,16 @@ func (a *WebAPI) listParts(w http.ResponseWriter, r *http.Request, u app.User) {
 
 func (a *WebAPI) createPart(w http.ResponseWriter, r *http.Request, u app.User) {
 	var in struct {
-		Name string `json:"name"`
+		Name   string `json:"name"`
+		Kind   string `json:"kind"`
+		Short  string `json:"short"`
+		Input  string `json:"input"`
+		Shared bool   `json:"shared"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
-	p, err := a.svc.CreatePart(u, r.PathValue("bandId"), in.Name)
+	p, err := a.svc.CreatePart(u, r.PathValue("bandId"), in.Name, app.PartSpec{Kind: in.Kind, Short: in.Short, Input: in.Input, Shared: in.Shared})
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -133,6 +137,37 @@ func (a *WebAPI) mergeParts(w http.ResponseWriter, r *http.Request, u app.User) 
 		return
 	}
 	if err := a.svc.MergeParts(u, r.PathValue("bandId"), in.From, in.To); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// addMusicianInstrument records that a musician plays a personal-instrument part (ruling 1) — a line-up edit.
+func (a *WebAPI) addMusicianInstrument(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		PartID string `json:"partId"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	m, err := a.svc.AddMusicianInstrument(u, r.PathValue("bandId"), r.PathValue("musicianId"), in.PartID)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"musician": m})
+}
+
+// removeMusicianInstrument drops a part from a musician's instrument list. 409 + the usage count unless ?force=1.
+func (a *WebAPI) removeMusicianInstrument(w http.ResponseWriter, r *http.Request, u app.User) {
+	force := r.URL.Query().Get("force") == "1"
+	uses, err := a.svc.RemoveMusicianInstrument(u, r.PathValue("bandId"), r.PathValue("musicianId"), r.PathValue("partId"), force)
+	if err != nil {
+		if uses > 0 {
+			writeJSON(w, http.StatusConflict, map[string]any{"error": err.Error(), "songs": uses})
+			return
+		}
 		writeErr(w, err)
 		return
 	}

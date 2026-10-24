@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-export type BandSection = "overview" | "setlists" | "settings";
+export type BandSection = "overview" | "setlists" | "lineups" | "settings";
 
 /**
  * Band section navigation as a tab strip (T04) — replaces the bare Setlists/Settings
@@ -31,6 +31,7 @@ export function SectionTabs({
     <nav className="section-tabs" aria-label="Band sections">
       {tab(`/bands/${bandId}`, "overview", "Overview", "nav-overview")}
       {tab(`/bands/${bandId}/setlists`, "setlists", "Setlists", "nav-setlists")}
+      {tab(`/bands/${bandId}/lineups`, "lineups", "Line-ups", "nav-lineups")}
       {showSettings && tab(`/bands/${bandId}/settings`, "settings", "Settings", "nav-settings")}
     </nav>
   );

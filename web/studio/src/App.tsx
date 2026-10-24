@@ -13,6 +13,7 @@ import { BandLayout } from "./pages/BandLayout";
 import { BandDetail } from "./pages/BandDetail";
 import { BandSettings } from "./pages/BandSettings";
 import { Setlists } from "./pages/Setlists";
+import { Lineups } from "./pages/Lineups";
 import { SetlistDetail } from "./pages/SetlistDetail";
 import { Invites } from "./pages/Invites";
 import { Profile } from "./pages/Profile";
@@ -41,6 +42,7 @@ export function App() {
         <Route path="/bands/:bandId" element={<BandLayout />}>
           <Route index element={<BandDetail />} />
           <Route path="setlists" element={<Setlists />} />
+          <Route path="lineups" element={<Lineups />} />
           <Route path="settings" element={<BandSettings />} />
         </Route>
         <Route path="/bands/:bandId/setlists/:setlistId" element={<SetlistDetail />} />

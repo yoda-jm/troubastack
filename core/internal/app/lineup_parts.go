@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // T203 — the band's Part vocabulary. Line-ups reference a part by ID (M1), so a rename is metadata-only and
@@ -11,25 +12,82 @@ import (
 
 func foldName(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
 
-// deriveShort is the fallback sheet abbreviation when a Part has no explicit Short: initials for a multi-word
-// name ("Lead vocal" → "LV"), else the first three letters ("Guitar" → "Gui"). Admins set the nice ones.
+// latinFold maps a precomposed Latin letter to its base, so a short derived from an accented name is plain
+// ASCII (the Studio foldText folds the same accents in search). Stdlib has no NFD, so this is an explicit table
+// of the Latin-1 Supplement + the common Latin Extended-A letters — a FIXED standard set, not a growing domain
+// enumeration. A rune not in the table is left as-is.
+var latinFold = map[rune]rune{
+	'À': 'A', 'Á': 'A', 'Â': 'A', 'Ã': 'A', 'Ä': 'A', 'Å': 'A', 'Ā': 'A', 'Ă': 'A', 'Ą': 'A',
+	'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a', 'ā': 'a', 'ă': 'a', 'ą': 'a',
+	'Ç': 'C', 'Ć': 'C', 'Č': 'C', 'ç': 'c', 'ć': 'c', 'č': 'c',
+	'Ď': 'D', 'ď': 'd', 'Đ': 'D', 'đ': 'd',
+	'È': 'E', 'É': 'E', 'Ê': 'E', 'Ë': 'E', 'Ē': 'E', 'Ė': 'E', 'Ę': 'E', 'Ě': 'E',
+	'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e', 'ē': 'e', 'ė': 'e', 'ę': 'e', 'ě': 'e',
+	'Ì': 'I', 'Í': 'I', 'Î': 'I', 'Ï': 'I', 'Ī': 'I', 'Į': 'I',
+	'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i', 'ī': 'i', 'į': 'i',
+	'Ñ': 'N', 'Ń': 'N', 'Ň': 'N', 'ñ': 'n', 'ń': 'n', 'ň': 'n',
+	'Ò': 'O', 'Ó': 'O', 'Ô': 'O', 'Õ': 'O', 'Ö': 'O', 'Ø': 'O', 'Ō': 'O', 'Ő': 'O',
+	'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o', 'ø': 'o', 'ō': 'o', 'ő': 'o',
+	'Ř': 'R', 'ř': 'r',
+	'Ś': 'S', 'Š': 'S', 'Ş': 'S', 'ś': 's', 'š': 's', 'ş': 's', 'ß': 's',
+	'Ť': 'T', 'ť': 't',
+	'Ù': 'U', 'Ú': 'U', 'Û': 'U', 'Ü': 'U', 'Ū': 'U', 'Ů': 'U', 'Ű': 'U',
+	'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u', 'ū': 'u', 'ů': 'u', 'ű': 'u',
+	'Ý': 'Y', 'Ÿ': 'Y', 'ý': 'y', 'ÿ': 'y',
+	'Ź': 'Z', 'Ž': 'Z', 'Ż': 'Z', 'ź': 'z', 'ž': 'z', 'ż': 'z',
+}
+
+// foldAccents replaces precomposed Latin letters with their base form; other runes pass through unchanged. It
+// does NOT change case (that is deriveShort's job).
+func foldAccents(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if base, ok := latinFold[r]; ok {
+			b.WriteRune(base)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// firstRune returns the first rune of s (upper-cased), or "" when empty — rune-safe, so a multi-byte accented
+// first letter is not sliced mid-codepoint.
+func firstRune(s string) string {
+	for _, r := range s {
+		return string(unicode.ToUpper(r))
+	}
+	return ""
+}
+
+// deriveShort is the SINGLE source of a part's fallback abbreviation (T203 stage 2, Fable ruling 3): Studio
+// shows the server's effective short and never re-derives, so the grid and the sound sheet can never disagree.
+// Accents are folded (NFD) first. A multi-word name → the upper-cased initials ("Lead vocal" → "LV"); a short
+// single word (≤3 runes) → title-cased as-is ("Bg" → "Bg"); a longer single word → first rune upper + the next
+// two ("Guitar" → "Gui").
 func deriveShort(name string) string {
+	name = strings.TrimSpace(foldAccents(name))
 	fields := strings.Fields(name)
 	if len(fields) > 1 {
 		var b strings.Builder
 		for _, f := range fields {
-			b.WriteString(strings.ToUpper(f[:1]))
+			b.WriteString(firstRune(f))
 		}
 		return b.String()
 	}
-	name = strings.TrimSpace(name)
-	if len(name) <= 3 {
+	rs := []rune(name)
+	if len(rs) == 0 {
+		return ""
+	}
+	if len(rs) <= 3 {
 		return strings.Title(name)
 	}
-	return strings.ToUpper(name[:1]) + name[1:3]
+	return string(unicode.ToUpper(rs[0])) + string(rs[1:3])
 }
 
-// PartShort returns a part's sheet abbreviation (explicit or derived).
+// PartShort returns a part's sheet abbreviation (explicit override, else derived). The HTTP layer fills this
+// into every served Part so Studio need not derive.
 func PartShort(p Part) string {
 	if strings.TrimSpace(p.Short) != "" {
 		return p.Short
@@ -44,6 +102,11 @@ func (s *Service) Parts(caller User, bandID string) ([]Part, error) {
 		return nil, err
 	}
 	parts := append([]Part(nil), band.Parts...)
+	// Fill the EFFECTIVE short into every served part (ruling 3): Studio displays it and never derives, so the
+	// grid and the sound sheet can never drift.
+	for i := range parts {
+		parts[i].Short = PartShort(parts[i])
+	}
 	sort.SliceStable(parts, func(i, j int) bool {
 		oi, oj := parts[i].Order, parts[j].Order
 		if (oi == 0) != (oj == 0) {
@@ -57,10 +120,20 @@ func (s *Service) Parts(caller User, bandID string) ([]Part, error) {
 	return parts, nil
 }
 
-// CreatePart adds a vocabulary entry. ANY member may create one (while filling a line-up) — it defaults to a
-// personal instrument, as members create tags (gate ruling). An existing part with the same folded name is
-// returned as-is (no duplicate). Metadata edits beyond creation are admin-only (UpdatePart).
-func (s *Service) CreatePart(caller User, bandID, name string) (Part, error) {
+// PartSpec is the creation-time shape of a part: kind + short + input + shared may all be set AT creation (so
+// a member can make a voice or a shared part in one call, and "Add common parts" works for members). An empty
+// Kind defaults to a personal instrument. Later metadata EDITS (rename/kind/short/merge) stay admin (UpdatePart).
+type PartSpec struct {
+	Kind   string
+	Short  string
+	Input  string
+	Shared bool
+}
+
+// CreatePart adds a vocabulary entry. ANY member may create one (while filling a line-up), as members create
+// tags (gate ruling, reaffirmed T203 stage 2 ruling 2). An existing part with the same folded name is returned
+// as-is (no duplicate).
+func (s *Service) CreatePart(caller User, bandID, name string, spec PartSpec) (Part, error) {
 	band, _, err := s.GetBand(caller, bandID) // membership is enough to create
 	if err != nil {
 		return Part{}, err
@@ -74,7 +147,22 @@ func (s *Service) CreatePart(caller User, bandID, name string) (Part, error) {
 			return p, nil // idempotent: reuse the existing vocabulary entry
 		}
 	}
-	p := Part{ID: s.newID(), Name: name, Kind: PartInstrument} // personal instrument by default
+	kind := strings.TrimSpace(spec.Kind)
+	switch kind {
+	case PartVoice, PartInstrument, PartOther:
+	case "":
+		kind = PartInstrument // personal instrument by default
+	default:
+		return Part{}, fmt.Errorf("%w: unknown part kind %q", ErrInvalidInput, spec.Kind)
+	}
+	p := Part{
+		ID:     s.newID(),
+		Name:   name,
+		Kind:   kind,
+		Short:  strings.TrimSpace(spec.Short),
+		Input:  strings.TrimSpace(spec.Input),
+		Shared: spec.Shared,
+	}
 	band.Parts = append(band.Parts, p)
 	if err := s.repo.UpdateBand(band); err != nil {
 		return Part{}, err

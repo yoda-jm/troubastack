@@ -2476,3 +2476,23 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
   color: var(--muted-fg, var(--fg)); font-size: .9rem;
 }
 .archives-section > summary:hover { color: var(--fg); }
+
+/* T203 — the band-level Line-ups grid */
+.lineups-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .5rem 0; }
+.lineups-parts { margin: .5rem 0; padding: .5rem .75rem; border: 1px solid var(--border, #ddd); border-radius: 8px; background: var(--surface, #fff); }
+.lineups-addpart-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.lineups-addpart-form .newpart-short { width: 4.5rem; }
+.lineups-partlist { list-style: none; padding: 0; margin: .5rem 0 0; display: flex; flex-wrap: wrap; gap: .5rem; }
+.lineups-partlist li { font-size: .9rem; }
+.lineups-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .4rem 0; }
+.lineups-suggest { list-style: none; padding: 0; margin: .25rem 0; display: flex; flex-wrap: wrap; gap: .4rem; }
+.lineups-suggest button { border: 1px solid var(--border, #ddd); border-radius: 6px; background: var(--surface, #fff); padding: .15rem .5rem; cursor: pointer; }
+.lineup-grid { border-collapse: collapse; width: 100%; margin-top: .5rem; font-size: .9rem; }
+.lineup-grid th, .lineup-grid td { border: 1px solid var(--border, #e3e3e3); padding: .25rem .4rem; text-align: center; white-space: nowrap; }
+.lineup-grid thead th { background: var(--brand-tint); position: relative; }
+.lineup-grid tbody td:first-child, .lineup-grid thead th:first-child { text-align: left; }
+.lineup-cell { min-width: 2.2rem; border: 0; background: transparent; cursor: pointer; font: inherit; color: var(--fg); padding: .1rem .3rem; border-radius: 4px; }
+.lineup-cell:hover { background: var(--brand-tint); }
+.lineup-cell.on { font-weight: 600; }
+.lineup-addpart { margin-left: .4rem; font-size: .8rem; }
+.lineup-assign { position: absolute; z-index: 5; background: var(--surface, #fff); border: 1px solid var(--border, #ccc); border-radius: 6px; padding: .3rem; display: flex; flex-direction: column; gap: .2rem; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
