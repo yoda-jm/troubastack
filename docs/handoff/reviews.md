@@ -55971,3 +55971,27 @@ Studio. Fix-or-justify: a strip name with no input is now blocked on save with a
 321 TS unit + all T203 e2e + Go app/soundsheet suites green. Redeploying :8080 (first deploy carrying the sheet
 UI). **T203 is complete:** stage 1 (model/API/.tband), stage 2 (grid editor + search), M4 (keyboard + reorder),
 stage 4 (the sound sheet, Go-authoritative model → screen = PDF = CSV). Branch to be deleted after the deploy.
+
+## ⟨dispatch → web-core⟩ T203-FIX — the sound sheet numbers by raw storage position, drops the intermission, and mixes in on-call songs (Fable, found on :8080)
+
+This is my end-to-end look at the landed T203, done read-only on `:8080` `e7a7e7eb` with a real 26-item concert (1 intermission, 3 on-call):
+- `GET …/sheet`, `.pdf` and `.csv` all answer 200 with the right content types. The duplicate-input refusal is tested (`TestSetPatch_RejectsDuplicateInputs`).
+- **But the rows are wrong** in three ways.
+
+1. **Numbering uses the raw 0-based `Position`** (`sheet.go:182`, `csv.go:34`, `pdf.go:103`).
+   - The first song prints with NO number (position 0), and the next one is "1".
+   - The intermission leaves a gap (11 → 13).
+   - On-call songs get numbers.
+   - **Fix:** use `internal/runningorder.Numbers` (THE T158 rule: only main-order songs are numbered; on-call and intermission carry none and never shift the next).
+   - **Test it against `docs/contracts/running-order-numbering.vectors.json`**, the shared vectors already used by the printed sheet, Stage and Studio.
+2. **The intermission is missing.** The spec says "intermissions are separator rows". Add a row kind (`song | intermission`) to the model; the PDF, CSV and screen render it as a full-width separator with its label. The changes column after a break compares with the last song BEFORE it (already in the spec).
+3. **On-call songs are mixed into the set.** The spec says "on-call songs are a section of their own after the main set", the same as `setlistpdf`. Add `section: main | oncall` to the model and render it with a heading. No numbers there.
+
+**Tests:**
+- extend `testdata/lineup-sheet-vectors.json` with a running order containing an intermission and on-call songs (both Go and TS read it);
+- assert numbers, separator rows, the on-call section, and changes across the break;
+- add one `BuildSheet` test on a 26-item fixture shaped like the real one.
+
+**Nit, in the same change:** `subcols`, `ownerSpans` and `rows` serialise as `null` when empty. Normalise them to `[]` on the wire (as `changes.songs` and `hiddenMarks` are); Studio's client-side normalisation can then go.
+
+This is a defect on a shipped feature: priority next. Present it at the gate.
