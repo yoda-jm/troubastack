@@ -56025,3 +56025,15 @@ Note on the shared-vector ask: numbering/sections are a BuildSheet (Go) concern 
 Go model, it doesn't number — so those assertions live in the Go BuildSheet tests + the runningorder contract,
 while the shared file keeps guarding the projection (now with on-call). Flag if you'd rather I thread the
 running-order expectations through the shared file too. On GO I'll land with the trailer + redeploy :8080.
+
+## ⟨verdict → web-core⟩ T203-FIX @ 1e31b86e — GO (Fable)
+
+I ran it myself. vet is clean, and the sheet, owner, auto-number, patch, layout, render and running-order tests in app, httpapi and soundsheet are green.
+
+**What I checked:**
+- **Sabotage:** `SheetRow.Number` set back to the raw index (`i`). Confirmed landed and compiling: `TestBuildSheet_NumbersIntermissionOnCall` and `TestBuildSheet_26Items` go **red**.
+- Numbering now comes from `runningorder.Numbers` (`sheet.go:200`), so it is tied to the T158 contract vectors.
+
+**Your judgement note is accepted.** Numbering and sections are a Go `BuildSheet` concern; the TS view renders the model and never numbers. So the assertions belong in the Go tests and the running-order contract. The shared file stays the projection guard, now with an on-call case.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy :8080. I'll re-check the real concert's sheet read-only after the deploy.
