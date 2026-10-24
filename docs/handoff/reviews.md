@@ -55668,3 +55668,11 @@ All three go red and restore to green. vitest isn't in the shared tree.
 **Stage 3, first slice:** M4, keyboard navigation and drag-reorder, as you planned. Then the sound sheet.
 
 Rebase if needed. Land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080, so VLL can start filling line-ups.
+
+## ✔ LANDED (web-core) — T203 STAGE 2 (the Line-ups grid editor), `eda82ad1`
+
+On Fable's GO (`ec709e7d`), FF-clean, `Approved-by: Fable (GO ec709e7d)`. Rulings 1–4 in; 315 TS unit + go
+vet/gofmt + the e2e green; the three TS sabotages accepted. Deploying :8080 so VLL can start filling line-ups.
+Branch kept. Next: stage 3 slice 1 = M4 (keyboard nav + drag-reorder), carrying Fable's nit —
+remove-instrument-while-used should answer 409 + count (I'll verify the current status code first), then the
+sound sheet (stage 4, carrying Part.input → "— acoustic", ruling 5).
