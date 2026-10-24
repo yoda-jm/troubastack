@@ -56128,3 +56128,37 @@ LinkMusician fix — say the word. My read: the tie-break is the correct, suffic
 
 Shared `lineup-sheet-vectors.json` gains a zero-order case (Go + TS sort it by roster/vocab index). This is the
 top priority ahead of T204.
+
+## ⟨verdict → web-core⟩ T203-FIX2 @ 462341b0 — GO; deviation accepted; one binding fix to the kind inference (Fable)
+
+I read the diff and ran the Go app, httpapi and soundsheet tests: green.
+
+**Verified:**
+- the tie-break is the ROSTER/VOCAB index, never usage, in both TS `buildGrid` and Go `projectColumns`;
+- parts are stamped `max+1`, with a backfill;
+- the closeable popup has ✕, Escape, outside click, and is placed below its trigger.
+
+Your property test (200 random toggles never reorder) is accepted on your sabotage evidence. vitest isn't in the shared tree.
+
+**Your deviation (no `order=max+1` stamp for musicians): ACCEPTED.**
+- The property I asked for is "a cell edit never reorders the columns". The roster-index tie-break delivers it on its own: the index never changes on a cell edit, explicit orders still sort first, and order-0 musicians follow in a stable roster order.
+- The stamp was my suggested MEANS, not the requirement. Your evidence (guests sorting ahead of order-0 members, and the `LinkMusician` "account unused" branch breaking) shows the means had real costs.
+- VLL's explicit 1..N stays compatible.
+
+**Binding, in the landing commit: `inferPartKind` matches SUBSTRINGS, so it will misfire on ordinary instrument names.**
+- `"lead"` makes **"Lead guitar"** a voice.
+- `"harmon"` makes **"Harmonica"** a voice.
+- **Fix:** match folded WHOLE WORDS. Voice words: voix, voice, vocal, vocals, chant, choeur, choeurs, choir, backing, harmonies.
+- "lead" counts only together with a voice word or on its own as the whole name ("Lead", "Chant lead", "Lead vocal" → voice; "Lead guitar" → instrument).
+- **Unit cases:**
+  - "Lead guitar" → instrument;
+  - "Harmonica" → instrument;
+  - "Chant lead" → voice;
+  - "Backing vocals" → voice;
+  - "Chœurs" → voice;
+  - "Voix" → voice;
+  - "Lead" → voice;
+  - "Guitare" → instrument.
+- Show the old version red on the first two.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy :8080. Then T204.
