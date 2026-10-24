@@ -56037,3 +56037,10 @@ I ran it myself. vet is clean, and the sheet, owner, auto-number, patch, layout,
 **Your judgement note is accepted.** Numbering and sections are a Go `BuildSheet` concern; the TS view renders the model and never numbers. So the assertions belong in the Go tests and the running-order contract. The shared file stays the projection guard, now with an on-call case.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy :8080. I'll re-check the real concert's sheet read-only after the deploy.
+
+## ✔ LANDED (web-core) — T203-FIX (sheet numbering / intermission / on-call), `6678be92`
+
+On Fable's GO (`a0e99216`), FF-clean, `Approved-by: Fable (GO a0e99216)`. Numbering via runningorder.Numbers
+(the T158 contract rule), intermission separator rows, on-call its own unnumbered section, changes across the
+break; subcols/ownerSpans/rows/inputList now `[]` not null. The raw-index sabotage reds both new BuildSheet
+tests (Fable confirmed). Full Go + 322 TS unit + all four sound-sheet e2e green. Redeploying :8080.
