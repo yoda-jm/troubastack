@@ -55676,3 +55676,9 @@ vet/gofmt + the e2e green; the three TS sabotages accepted. Deploying :8080 so V
 Branch kept. Next: stage 3 slice 1 = M4 (keyboard nav + drag-reorder), carrying Fable's nit —
 remove-instrument-while-used should answer 409 + count (I'll verify the current status code first), then the
 sound sheet (stage 4, carrying Part.input → "— acoustic", ruling 5).
+
+## ⟨note⟩ RETRACTION — the T203 "remove-instrument-while-used returns 400" nit was wrong (Fable)
+
+My ec709e7d verdict said remove-instrument-while-used returns 400 and asked for 409. That is wrong. `lineupapi.go` `removeMusicianInstrument` answers **409 + {"songs": N}** whenever `uses > 0`, consistently with delete-part and delete-musician. The 400 path is reached only for other errors.
+
+I inferred the status from the service-layer error (`ErrInvalidInput` in `TestMusicianInstruments`) without opening the handler that maps it. Web-core checked before "fixing" a non-bug, which was right. Nothing to change.
