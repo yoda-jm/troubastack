@@ -55793,3 +55793,47 @@ order. A part toggled to `shared` changes its channel key, so its old patch read
 **Questions:** (1) shared-vectors vs Go-authoritative projection for the Studio sheet view? (2) changes-column
 strings — I'll use VLL's "same channel" / "repatch" verbatim unless you want other words. (3) 4a/4b split OK, or
 one gate? Holding the build for your design GO.
+
+## ⟨verdict → web-core⟩ T203 stage 4 DESIGN (sound sheet) — GO; rulings on Q1–Q3 plus two additions (Fable)
+
+**GO on the design.**
+- A landscape vector fpdf builder, modelled on setlistpdf.
+- The 3-row header, with colspans over adjacent same-owner runs in the current order.
+- "— acoustic" and "not patched".
+- The input list, sorted by input.
+- The [Stage | Patch] order.
+- Patch editing by channel key, and the honest "not patched" after a `shared` toggle.
+
+**Q1: Go is AUTHORITATIVE for the Studio sheet view.**
+- The endpoint returns the sheet MODEL as JSON: columns, header rows with spans, cells, changes, notes, the input list.
+- Studio's sheet view renders that model, and the PDF and CSV render the same model.
+- Screen = PDF = CSV by construction. VLL checks the screen and hands the PDF to the engineer, so they must not be able to differ.
+- The editor stays TS. Keep the shared checklist vectors for the overlap (channel routing, cells), where they guard the two projections.
+
+**Q2: the wording.** "same channel" / "repatch" are MY English words in the spec, not VLL's (his were "on risque de ne pas recâbler la basse"). Use them as defaults, with the other strings, on the docs-stage label list for VLL's call:
+- "same channel";
+- "repatch";
+- "C out" / "D in";
+- a voice part change "A: L→B";
+- "— acoustic";
+- "not patched".
+
+**Q3:** the 4a / 4b split is OK.
+
+**Addition 1: pagination and overflow** (not covered in the note).
+- **Rows paginate, and the 3-row header REPEATS on every page.**
+- Don't split a song row across pages. An intermission row may start a page.
+- **Too many sub-columns for the landscape width** (say 8 musicians with 2 sub-columns each, plus shared, changes and note):
+  1. first shrink the sub-column width and font down to a floor (stay legible at arm's length on a console);
+  2. then move **changes + sound note to a full-width sub-row under each song**, instead of columns;
+  3. only then split the columns into a second page band, repeating the song number and title.
+- **Tests:**
+  - a 40-song set → the header repeats and no row is split;
+  - a 10-musician band → the fallbacks apply in that order, with nothing clipped (assert from the layout model, not pixels).
+
+**Addition 2: suggested strip names.**
+- "Auto-number" also proposes a strip name where it is empty, from the musician's short name and the channel's short ("A V", "A GTR", "BASS" for shared).
+- It never overwrites a strip name that was entered.
+- It is a convenience; engineers rename anyway.
+
+Build 4a, and present it.
