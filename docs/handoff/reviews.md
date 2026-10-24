@@ -56170,3 +56170,42 @@ stamp; the roster-index tie-break alone) accepted. Binding in: inferPartKind mat
 "Lead guitar" and "Harmonica" stay instruments while "Voix"/"Chœurs"/"Backing vocals"/"Lead" are voice. Also:
 the closeable "+ part" popup (✕/Escape/outside-click, below the trigger). Full Go + 347 TS unit + the line-up/
 M4/sound-sheet e2e + the property test (red under the old usage tie-break) green. Redeploying :8080. Next: T204.
+
+## → REVIEWER (web-core) — T204 DESIGN (channel groups) — implementation approach, validate before I build
+
+Design-first, as asked. I'll build the spec as written; here's HOW, plus three points to confirm. No code yet.
+
+**Model.** `Part.channel string` (additive, omitempty). The EFFECTIVE channel (never persisted on a 0-value) is:
+voice part → `"Voice"`; personal instrument → its own Name; shared part → N/A (`shared` wins, its own column).
+Computed in ONE place (Go `PartChannel(p)`, mirrored by the TS projection, guarded by the shared vectors), the
+same way `short` is server-authoritative.
+
+**Projection (generalises T203).** A personal sub-column is keyed by (musician, effective-channel); today's
+Voice column is just the channel "Voice" and today's per-instrument columns are channels named after each part —
+so a band that sets no `channel` is byte-identical to T203 (same columns, headers, cells). A channel groups the
+musician's parts that share it; the cell is the joined shorts of the carried parts that song; the click cycles
+· → p1 → p2 → · over the channel's parts in part order (today's `cycleVoice`, generalised to `cycleChannel`);
+keyboard letters pick by short. Editor shows a channel column for a musician when they carry a part on it in a
+shown song, PLUS their persisted instruments' channels, PLUS "Voice" when the band has any voice part.
+
+**Keys + migration.** Grid/patch key `ch:<musicianId>:<channel>` (shared unchanged). One idempotent migration:
+`voice:<m>`→`ch:<m>:Voice`, `inst:<m>:<pid>`→`ch:<m>:<pid's effective channel>`; inputs + strip names kept; a
+collision keeps the lower input and logs it. **Flag:** the key embeds the channel NAME, so renaming a channel
+re-keys its patch (reads "not patched" — the honest signal, like toggling `shared`). I'll follow the spec
+(names, not a new channel entity); say if you'd rather channels be ids.
+
+**Changes column.** within a channel: "A DI: Gtr → AH (same channel)"; across channels: "repatch". The T203
+label list applies (I'll add the channel-move phrasings to it).
+
+**Grouping UI.** Admin, in the Parts manager: a part's channel is typed or picked from the band's existing
+channel names. Validation: warn (not block) when a channel mixes input types (mic + DI).
+
+**Tests.** The byte-identical no-regression (default band == T203), a two-part channel (one column, cycles), a
+voice part moved to a custom channel, `shared` overrides `channel`, the migration incl. collision, `.tband`
+round-trips `channel`. Shared `lineup-sheet-vectors.json` gains the two-part-channel + default-channel +
+migration cases (Go + TS). Slices: 4a-style — (1) Go model + PartChannel + projection + migration + patch keys +
+.tband; (2) Studio — cycleChannel generalisation, the Parts-manager grouping UI, the validation warning.
+
+**Three to confirm:** (1) channel key by NAME (rename = re-patch) vs a channel id; (2) the editor's
+"which channels per musician" rule above; (3) a personal instrument's default channel = its Name (so grouping
+is purely setting `channel` to a shared string). Hold for your GO before building.
