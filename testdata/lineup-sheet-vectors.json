@@ -1,0 +1,81 @@
+{
+  "_comment": "T203 — the ONE shared set of grid/sheet projection vectors (Fable, 2026-10-24). The Go sheet projection (core/internal/app) AND the TS editor projection (web/studio buildGrid, sheet mode) both load this file and must agree, so the screen, the PDF and the CSV can never drift on the channel layout. Placeholder names only (A/B/C), never band data.",
+  "cases": [
+    {
+      "name": "lead-backing is one Voice column, the letter changes",
+      "musicians": [{ "id": "A", "name": "Ann", "order": 1 }],
+      "parts": [
+        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" },
+        { "id": "back", "name": "Backing vocal", "kind": "voice", "short": "B" }
+      ],
+      "songs": [
+        { "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["lead"] }] },
+        { "id": "s2", "lineup": [{ "musicianId": "A", "partIds": ["back"] }] }
+      ],
+      "expect": {
+        "subcols": ["voice:A"],
+        "cells": { "s1": { "voice:A": "L" }, "s2": { "voice:A": "B" } }
+      }
+    },
+    {
+      "name": "several voice parts join on the one channel",
+      "musicians": [{ "id": "A", "name": "Ann", "order": 1 }],
+      "parts": [
+        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" },
+        { "id": "back", "name": "Backing vocal", "kind": "voice", "short": "B" }
+      ],
+      "songs": [{ "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["lead", "back"] }] }],
+      "expect": { "subcols": ["voice:A"], "cells": { "s1": { "voice:A": "L+B" } } }
+    },
+    {
+      "name": "a shared instrument moving between people is one shared column; the cell names who",
+      "musicians": [
+        { "id": "A", "name": "Ann", "order": 1 },
+        { "id": "C", "name": "Cy", "order": 3 }
+      ],
+      "parts": [{ "id": "bass", "name": "Bass", "kind": "instrument", "short": "Bs", "shared": true }],
+      "songs": [
+        { "id": "s1", "lineup": [{ "musicianId": "C", "partIds": ["bass"] }] },
+        { "id": "s2", "lineup": [{ "musicianId": "A", "partIds": ["bass"] }] }
+      ],
+      "expect": {
+        "subcols": ["shared:bass"],
+        "cells": { "s1": { "shared:bass": "Cy" }, "s2": { "shared:bass": "Ann" } }
+      }
+    },
+    {
+      "name": "one person with two instruments in a song fills both cells (order by part order)",
+      "musicians": [{ "id": "A", "name": "Ann", "order": 1 }],
+      "parts": [
+        { "id": "gtr", "name": "Guitar", "kind": "instrument", "short": "Gtr", "order": 1 },
+        { "id": "ah", "name": "Autoharp", "kind": "instrument", "short": "AH", "order": 2 }
+      ],
+      "songs": [{ "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["gtr", "ah"] }] }],
+      "expect": {
+        "subcols": ["inst:A:gtr", "inst:A:ah"],
+        "cells": { "s1": { "inst:A:gtr": "Gtr", "inst:A:ah": "AH" } }
+      }
+    },
+    {
+      "name": "a channel unused across the songs does not appear",
+      "musicians": [
+        { "id": "A", "name": "Ann", "order": 1 },
+        { "id": "B", "name": "Bo", "order": 2 },
+        { "id": "C", "name": "Cy", "order": 3 }
+      ],
+      "parts": [{ "id": "gtr", "name": "Guitar", "kind": "instrument", "short": "Gtr" }],
+      "songs": [{ "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["gtr"] }] }],
+      "expect": { "subcols": ["inst:A:gtr"], "cells": { "s1": { "inst:A:gtr": "Gtr" } } }
+    },
+    {
+      "name": "a shared part played by two people in one song joins both",
+      "musicians": [
+        { "id": "A", "name": "Ann", "order": 1 },
+        { "id": "B", "name": "Bo", "order": 2 }
+      ],
+      "parts": [{ "id": "bongo", "name": "Bongos", "kind": "instrument", "short": "Bgo", "shared": true }],
+      "songs": [{ "id": "s1", "lineup": [{ "musicianId": "A", "partIds": ["bongo"] }, { "musicianId": "B", "partIds": ["bongo"] }] }],
+      "expect": { "subcols": ["shared:bongo"], "cells": { "s1": { "shared:bongo": "Ann+Bo" } } }
+    }
+  ]
+}

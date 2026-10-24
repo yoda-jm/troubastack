@@ -126,6 +126,13 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/bands/{bandId}/setlists/{setlistId}/items/{itemId}", a.auth(a.removeSetlistItem))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/reorder", a.auth(a.reorderSetlist))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/duplicate", a.auth(a.duplicateSetlist))
+	// T203 stage 4 — the sound sheet (Go-authoritative model + PDF + CSV) and the per-concert console patch.
+	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}/sheet", a.auth(a.soundSheet))
+	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}/sheet.pdf", a.auth(a.soundSheetPDF))
+	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}/sheet.csv", a.auth(a.soundSheetCSV))
+	mux.HandleFunc("PUT /api/bands/{bandId}/setlists/{setlistId}/patch", a.auth(a.setPatch))
+	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/patch/copy", a.auth(a.copyPatch))
+	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/patch/autonumber", a.auth(a.autoNumberPatch))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/live", a.auth(a.setSetlistLive))
 	mux.HandleFunc("GET /api/invites", a.auth(a.listInvites))
 	mux.HandleFunc("POST /api/invites/{inviteId}/accept", a.auth(a.acceptInvite))

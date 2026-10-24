@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   buildGrid,
   buildGridByPart,
@@ -154,3 +155,36 @@ describe("buildGridByPart", () => {
 function sharedKeyPart(g: ReturnType<typeof buildGridByPart>, partId: string): string {
   return g.columns.find((c) => c.partId === partId)!.partId;
 }
+
+// The ONE shared projection vector set (Fable, 2026-10-24): this TS editor projection (sheet mode) and the Go
+// sheet projection (core/internal/app TestSheetProjection_SharedVectors) both load this file and must agree.
+describe("shared projection vectors (guards TS editor ↔ Go sheet)", () => {
+  type Vec = {
+    cases: {
+      name: string;
+      musicians: { id: string; name: string; order?: number }[];
+      parts: { id: string; name: string; kind: string; short?: string; shared?: boolean; order?: number }[];
+      songs: { id: string; lineup: { musicianId: string; partIds: string[] }[] }[];
+      expect: { subcols: string[]; cells: Record<string, Record<string, string>> };
+    }[];
+  };
+  const vec: Vec = JSON.parse(readFileSync(new URL("../../../testdata/lineup-sheet-vectors.json", import.meta.url), "utf8"));
+
+  for (const c of vec.cases) {
+    it(c.name, () => {
+      const musicians: GridMusician[] = c.musicians.map((m) => ({ id: m.id, displayName: m.name, order: m.order }));
+      const parts: GridPart[] = c.parts.map((p) => ({ id: p.id, name: p.name, kind: p.kind as GridPart["kind"], short: p.short, shared: p.shared, order: p.order }));
+      const songs: GridSong[] = c.songs.map((s) => ({ id: s.id, title: s.id, lineup: s.lineup }));
+      const g = buildGrid(songs, musicians, parts); // SHEET mode (used-only), to match the Go projection
+      const keys = g.columns.flatMap((col) => col.subs.map((s) => s.key));
+      expect(keys).toEqual(c.expect.subcols);
+      for (const row of g.rows) {
+        const want = c.expect.cells[row.songId];
+        if (!want) continue;
+        for (const [key, text] of Object.entries(want)) {
+          expect(row.cells[key]?.text ?? "").toBe(text);
+        }
+      }
+    });
+  }
+});
