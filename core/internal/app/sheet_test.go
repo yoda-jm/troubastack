@@ -144,6 +144,29 @@ func TestSetPatch_AdminOnly(t *testing.T) {
 	}
 }
 
+func TestSetPatch_RejectsDuplicateInputs(t *testing.T) {
+	st := newStack()
+	admin, _, bandID, _, _, _ := buildSourceBand(t, st)
+	sl, _ := st.svc.CreateSetlist(admin, bandID, "Gig", "", "", "")
+	// two channels on input 4 — a console can't do that
+	_, err := st.svc.SetPatch(admin, bandID, sl.ID, []app.ChannelPatch{
+		{Channel: "voice:a", Input: 4, Name: "A V"},
+		{Channel: "inst:b:g", Input: 4, Name: "B GTR"},
+	})
+	if !errors.Is(err, app.ErrInvalidInput) {
+		t.Fatalf("duplicate input: got %v, want ErrInvalidInput", err)
+	}
+	if !strings.Contains(err.Error(), "voice:a") || !strings.Contains(err.Error(), "inst:b:g") {
+		t.Errorf("error should name BOTH channels, got %q", err.Error())
+	}
+	// distinct inputs are fine
+	if _, err := st.svc.SetPatch(admin, bandID, sl.ID, []app.ChannelPatch{
+		{Channel: "voice:a", Input: 4}, {Channel: "inst:b:g", Input: 5},
+	}); err != nil {
+		t.Fatalf("distinct inputs: %v", err)
+	}
+}
+
 func subcolKeys(scs []app.SheetSubcol) []string {
 	out := make([]string, len(scs))
 	for i, sc := range scs {

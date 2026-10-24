@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 )
@@ -18,11 +19,28 @@ func (s *Service) SetPatch(caller User, bandID, setlistID string, patch []Channe
 	if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
 		return Setlist{}, err
 	}
-	sl.Patch = cleanPatch(patch)
+	clean := cleanPatch(patch)
+	if a, b, dup := duplicateInput(clean); dup {
+		return Setlist{}, fmt.Errorf("%w: two channels share input %d (%s and %s)", ErrInvalidInput, clean[a].Input, clean[a].Channel, clean[b].Channel)
+	}
+	sl.Patch = clean
 	if err := s.repo.UpdateSetlist(sl); err != nil {
 		return Setlist{}, err
 	}
 	return sl, nil
+}
+
+// duplicateInput reports the first pair of entries that share an input number (a console can't patch two
+// sources to one input). Returns their indices.
+func duplicateInput(patch []ChannelPatch) (int, int, bool) {
+	byInput := map[int]int{}
+	for i, c := range patch {
+		if j, ok := byInput[c.Input]; ok {
+			return j, i, true
+		}
+		byInput[c.Input] = i
+	}
+	return 0, 0, false
 }
 
 // CopyPatchFrom copies another concert's patch into this one, matching by channel key (the keys are band-global).

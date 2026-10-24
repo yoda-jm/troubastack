@@ -2503,3 +2503,15 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .lineup-col-move button, .lineup-part-move button { font-size: .75rem; padding: 0 .2rem; line-height: 1; }
 .lineups-partlist li[draggable="true"] { cursor: grab; }
 .lineup-cell:focus { outline: 2px solid var(--brand-mark); outline-offset: -2px; }
+
+/* T203 stage 4b — the sound-sheet view */
+.sheet-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .5rem 0; }
+.sheet-grid { font-size: .82rem; }
+.sheet-grid .sheet-patch-cell { padding: .1rem; }
+.sheet-in { width: 2.6rem; }
+.sheet-strip { width: 4.5rem; }
+.sheet-body-cell { text-align: center; }
+.sheet-inputlist { margin-top: 1rem; }
+.sheet-inputlist ol { margin: .25rem 0; padding-left: 1.4rem; }
+a.btn-sm { display: inline-flex; align-items: center; text-decoration: none; }
+.sheet-in.dup { outline: 2px solid var(--danger, #c0392b); background: color-mix(in srgb, var(--danger, #c0392b) 12%, transparent); }

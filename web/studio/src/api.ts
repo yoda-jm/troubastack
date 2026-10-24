@@ -140,6 +140,35 @@ export type PartKind = "voice" | "instrument" | "other";
 export type Part = { id: string; name: string; kind: PartKind; short?: string; input?: string; shared?: boolean; order?: number };
 export type LineupEntry = { musicianId: string; partIds: string[]; optional?: boolean; note?: string };
 
+// T203 stage 4 — the sound sheet model (Go-authoritative; Studio renders it).
+export type SheetOrder = "stage" | "patch";
+export type ChannelPatch = { channel: string; input?: number; name?: string };
+export type SheetSubcol = {
+  key: string;
+  kind: "voice" | "inst" | "shared";
+  ownerId: string;
+  ownerName: string;
+  channel: string;
+  input: string;
+  amplified: boolean;
+  patchInput?: number;
+  patchStrip?: string;
+};
+export type SheetOwnerSpan = { ownerName: string; span: number };
+export type SheetCell = { text: string; optional?: boolean };
+export type SheetRow = { songId: string; position: number; title: string; cells: Record<string, SheetCell>; changes?: string[]; soundNote?: string };
+export type SheetPatchLine = { input: number; strip: string; who: string; part: string; mic: string; key: string };
+export type SheetModel = {
+  setlistId: string;
+  setlistName: string;
+  order: SheetOrder;
+  subcols: SheetSubcol[];
+  ownerSpans: SheetOwnerSpan[];
+  rows: SheetRow[];
+  inputList: SheetPatchLine[];
+  notPatched?: string[];
+};
+
 export type SongFile = {
   id: string;
   songId?: string;
@@ -638,6 +667,28 @@ export const api = {
     request<{ part: Part }>("PATCH", `/api/bands/${bandId}/parts/${id}`, patch).then((r) => r.part),
   mergeParts: (bandId: string, from: string, to: string) =>
     request<void>("POST", `/api/bands/${bandId}/parts/merge`, { from, to }),
+
+  // --- T203 stage 4: the sound sheet + the per-concert console patch ---
+  getSheet: (bandId: string, setlistId: string, order: SheetOrder) =>
+    request<SheetModel>("GET", `/api/bands/${bandId}/setlists/${setlistId}/sheet?order=${order}`).then((m) => ({
+      // Go serializes empty slices as null; normalize so the view can map/length them safely.
+      ...m,
+      subcols: m.subcols ?? [],
+      ownerSpans: m.ownerSpans ?? [],
+      rows: (m.rows ?? []).map((r) => ({ ...r, cells: r.cells ?? {}, changes: r.changes ?? [] })),
+      inputList: m.inputList ?? [],
+      notPatched: m.notPatched ?? [],
+    })),
+  setPatch: (bandId: string, setlistId: string, patch: ChannelPatch[]) =>
+    request<{ patch: ChannelPatch[] }>("PUT", `/api/bands/${bandId}/setlists/${setlistId}/patch`, { patch }).then((r) => r.patch),
+  copyPatch: (bandId: string, setlistId: string, from: string) =>
+    request<{ patch: ChannelPatch[] }>("POST", `/api/bands/${bandId}/setlists/${setlistId}/patch/copy`, { from }).then((r) => r.patch),
+  autoNumberPatch: (bandId: string, setlistId: string, order: SheetOrder) =>
+    request<{ patch: ChannelPatch[] }>("POST", `/api/bands/${bandId}/setlists/${setlistId}/patch/autonumber?order=${order}`).then((r) => r.patch),
+  sheetPdfUrl: (bandId: string, setlistId: string, order: SheetOrder) =>
+    `/api/bands/${bandId}/setlists/${setlistId}/sheet.pdf?order=${order}`,
+  sheetCsvUrl: (bandId: string, setlistId: string, order: SheetOrder) =>
+    `/api/bands/${bandId}/setlists/${setlistId}/sheet.csv?order=${order}`,
   deletePart: (bandId: string, id: string, force = false) =>
     request<void>("DELETE", `/api/bands/${bandId}/parts/${id}${force ? "?force=1" : ""}`),
 

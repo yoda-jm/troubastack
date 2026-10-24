@@ -38,6 +38,10 @@ type SheetSubcol struct {
 	Channel   string `json:"channel"`   // row 2 text: "Voice" | "Guitar" | …
 	Input     string `json:"input"`     // row 3 text: "In 4 · A GTR" | "— acoustic" | "not patched"
 	Amplified bool   `json:"amplified"` // false when the part's input is "none"
+	// The RAW patch for this channel (0/"" when unpatched), so the Studio editor can bind to it — the formatted
+	// Input above is for display/PDF/CSV. Omitted for an unamplified channel (never patched).
+	PatchInput int    `json:"patchInput,omitempty"`
+	PatchStrip string `json:"patchStrip,omitempty"`
 }
 
 // SheetOwnerSpan is a run of adjacent same-owner subcols for the row-1 colspan, in the CURRENT column order.
@@ -144,6 +148,12 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 	// Fill the console-input row (row 3) from the concert's patch; set shared headers' players.
 	for i := range subcols {
 		subcols[i].Input = inputText(patchByKey, subcols[i].Key, subcols[i].Amplified)
+		if subcols[i].Amplified {
+			if c, ok := patchByKey[subcols[i].Key]; ok {
+				subcols[i].PatchInput = c.Input
+				subcols[i].PatchStrip = c.Name
+			}
+		}
 		if subcols[i].Kind == "shared" {
 			p := partByID[sharedPartID(subcols[i].Key)]
 			if players := sharedPlayerNames(songs, p.ID, name); len(players) > 0 {

@@ -184,6 +184,9 @@ export function SetlistDetail() {
           >
             Export PDF
           </button>
+          <Link className="secondary" data-testid="sound-sheet-link" to={`/bands/${bandId}/setlists/${setlistId}/sheet`}>
+            Sound sheet
+          </Link>
         </div>
       </header>
       <div className="staff sig" aria-hidden="true" />
