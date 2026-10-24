@@ -181,6 +181,7 @@ type Band struct {
 	// stage name, an order) and guests. Additive; round-trip in band.json.
 	Musicians []Musician `json:"musicians,omitempty"`
 	Parts     []Part     `json:"parts,omitempty"`
+	Channels  []Channel  `json:"channels,omitempty"` // T204: custom console-track groups (parts reference by id)
 }
 
 // Membership ties a user to a band with a role.
@@ -292,6 +293,19 @@ type Part struct {
 	Input  string `json:"input,omitempty"`
 	Shared bool   `json:"shared,omitempty"`
 	Order  int    `json:"order,omitempty"`
+	// ChannelID (T204) groups this part onto a custom console track (a Channel). Absent = the part's DEFAULT
+	// channel: "voice" for a voice part, its own "p:<id>" track for a personal instrument. A shared part keeps
+	// its own column regardless (shared wins). Carried by .tband.
+	ChannelID string `json:"channelId,omitempty"`
+}
+
+// Channel (T204) is a band-level console TRACK: several parts a musician carries on one input (e.g. an acoustic
+// guitar and an autoharp on one DI), cycled in the grid. First-class so a rename never re-keys the patch — the
+// key is the id (g:<id>), the Name is only a label. Additive; round-trips in band.json.
+type Channel struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Order int    `json:"order,omitempty"`
 }
 
 // LineupEntry is one musician's role in a song: the parts they play (by Part.ID), whether the song works

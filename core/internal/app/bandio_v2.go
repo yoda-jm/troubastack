@@ -79,6 +79,7 @@ type v2Band struct {
 	Notes     string       `json:"notes,omitempty"`
 	Musicians []v2Musician `json:"musicians,omitempty"`
 	Parts     []Part       `json:"parts,omitempty"`
+	Channels  []Channel    `json:"channels,omitempty"`
 }
 
 // v2Musician is the folder shape for a line-up musician. Username is the account's username AT EXPORT, so a
@@ -305,7 +306,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 		// T150/T152: emit the declared id + author-declared identity so a folder round-trip preserves them.
 		Shortname: man.Band.Shortname, Kind: man.Band.Kind, Notes: man.Band.Notes,
 		// T203: the line-up vocabulary travels with the band.
-		Musicians: man.Band.Musicians, Parts: man.Band.Parts,
+		Musicians: man.Band.Musicians, Parts: man.Band.Parts, Channels: man.Band.Channels,
 	}
 	for _, m := range man.Members {
 		userByID[m.ID] = m.Username
@@ -530,7 +531,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 		ExportedAt:    band.ExportedAt,
 		// T150/T152: carry the folder's declared identity (id + shortname/kind/notes) into the manifest so
 		// import resolves + stores it.
-		Band:        manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes, Musicians: band.Musicians, Parts: band.Parts},
+		Band:        manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes, Musicians: band.Musicians, Parts: band.Parts, Channels: band.Channels},
 		Annotations: map[string]manifestAnnots{},
 	}
 

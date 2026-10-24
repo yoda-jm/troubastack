@@ -98,6 +98,12 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/bands/{bandId}/parts/{partId}", a.auth(a.updatePart))
 	mux.HandleFunc("POST /api/bands/{bandId}/parts/merge", a.auth(a.mergeParts))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/parts/{partId}", a.auth(a.deletePart))
+	// T204 — custom channel (console-track) groups.
+	mux.HandleFunc("GET /api/bands/{bandId}/channels", a.auth(a.listChannels))
+	mux.HandleFunc("POST /api/bands/{bandId}/channels", a.auth(a.createChannel))
+	mux.HandleFunc("PATCH /api/bands/{bandId}/channels/{channelId}", a.auth(a.renameChannel))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/channels/{channelId}", a.auth(a.deleteChannel))
+	mux.HandleFunc("PATCH /api/bands/{bandId}/parts/{partId}/channel", a.auth(a.setPartChannel))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/files", a.auth(a.uploadFile))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files", a.auth(a.listFiles))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.updateFile))

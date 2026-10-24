@@ -244,6 +244,11 @@ func TestLineup_TbandRoundTrip(t *testing.T) {
 	if _, err := src.svc.AddMusicianInstrument(member, bandID, guest.ID, gtr.ID); err != nil {
 		t.Fatalf("add instrument: %v", err)
 	}
+	// T204: a channel group + a part assigned to it must round-trip (by id).
+	chDI, _ := src.svc.CreateChannel(admin, bandID, "DI acoustique")
+	if _, err := src.svc.SetPartChannel(admin, bandID, gtr.ID, chDI.ID); err != nil {
+		t.Fatalf("group guitar: %v", err)
+	}
 	acctID := app.AccountMusicianID(bandID, member.ID) // materialize the member so the export carries them
 	if _, err := src.svc.UpdateSong(admin, bandID, songID, app.SongPatch{
 		Lineup: &[]app.LineupEntry{
@@ -279,6 +284,16 @@ func TestLineup_TbandRoundTrip(t *testing.T) {
 	}
 	if bongos == nil || bongos.Short != "Bgo" || !bongos.Shared || bongos.Input != app.InputMic {
 		t.Fatalf("part did not round-trip: %+v", parts)
+	}
+	// T204: the channel + the guitar's channelId survive the round-trip (by id).
+	chans, _ := tgt.svc.Channels(importer, rep.Band.ID)
+	if len(chans) != 1 || chans[0].ID != chDI.ID || chans[0].Name != "DI acoustique" {
+		t.Fatalf("channel did not round-trip: %+v", chans)
+	}
+	for i := range parts {
+		if parts[i].ID == gtr.ID && parts[i].ChannelID != chDI.ID {
+			t.Fatalf("guitar's channelId did not round-trip: %q want %q", parts[i].ChannelID, chDI.ID)
+		}
 	}
 	ms, _ := tgt.svc.Musicians(importer, rep.Band.ID)
 	foundGuest := false

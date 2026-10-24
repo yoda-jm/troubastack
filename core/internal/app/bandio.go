@@ -83,6 +83,7 @@ type manifestBand struct {
 	Notes     string       `json:"notes,omitempty"`
 	Musicians []v2Musician `json:"musicians,omitempty"`
 	Parts     []Part       `json:"parts,omitempty"`
+	Channels  []Channel    `json:"channels,omitempty"`
 }
 
 // manifestMember carries the orig member id (the key for the OwnerID rewrite) plus the
@@ -269,7 +270,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 	man := bandManifest{
 		FormatVersion: BandExportFormatVersion,
 		ExportedAt:    s.now().UTC().Format(time.RFC3339),
-		Band:          manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes, Musicians: s.exportMusicians(band.Musicians), Parts: band.Parts},
+		Band:          manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes, Musicians: s.exportMusicians(band.Musicians), Parts: band.Parts, Channels: band.Channels},
 		Annotations:   map[string]manifestAnnots{},
 	}
 
@@ -692,7 +693,7 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 		// account musician's UserID is carried as-is — a same-server re-import keeps it valid; a cross-server
 		// import's old UserID won't match a new account (resolveMusicianName then shows a guest). Re-linking
 		// account musicians across a cross-server import is a stage-1b follow-up (needs the member remap).
-		Musicians: importMusicians(man.Band.Musicians), Parts: man.Band.Parts,
+		Musicians: importMusicians(man.Band.Musicians), Parts: man.Band.Parts, Channels: man.Band.Channels,
 	}
 	if band.Name == "" {
 		band.Name = "Imported band"
