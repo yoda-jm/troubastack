@@ -55516,3 +55516,12 @@ I read it and ran it myself. vet is clean, and the line-up, parts, musician, dep
 **Noted, not binding:** `LinkMusician`'s merge branch writes the songs one by one, then the band. A failure midway leaves some line-ups remapped while the guest still exists. A retry converges, because the remap is idempotent, so that's acceptable; say so in the code comment.
 
 Rebase (not FF), land it with `Approved-by: Fable (GO <this entry's sha>)`, then stage 2.
+
+## ✔ LANDED (web-core) — T203 STAGE 1 (model + API + .tband), `273acc09`
+
+On Fable's GO (`e8cd6b0f`), FF-clean after rebase. All three binding items in the commit: a same-song merge
+test unions DIFFERENT parts + joins notes " / " (red without the union); the guest's Note is merged on link;
+account musicians export their `username` (round-trip test asserts band.json carries it; the cross-server
+import remap is stage 1b). Flag 2 (409+count unless force) kept — the UI will say what force removes. Full app
++ httpapi suites green. NO :8080 deploy — backend only, inert until the UI stages. Branch kept for stages 2–4.
+Proceeding to stage 2 (the band-level grid editor: buildGrid projection + the chip-union refactor + search).
