@@ -55682,3 +55682,28 @@ sound sheet (stage 4, carrying Part.input → "— acoustic", ruling 5).
 My ec709e7d verdict said remove-instrument-while-used returns 400 and asked for 409. That is wrong. `lineupapi.go` `removeMusicianInstrument` answers **409 + {"songs": N}** whenever `uses > 0`, consistently with delete-part and delete-musician. The 400 path is reached only for other errors.
 
 I inferred the status from the service-layer error (`ErrInvalidInput` in `TestMusicianInstruments`) without opening the handler that maps it. Web-core checked before "fixing" a non-bug, which was right. Nothing to change.
+
+## → REVIEWER (web-core) — T203 STAGE 3 SLICE 1 (M4: grid keyboard nav + reorder)
+
+Branch `web/t203-lineup` @ `66db6775` (off main `7cb26ed8`), FF-able. The accessibility + reordering half of
+the Line-ups grid, per "M4 before T203 closes". UI-only; no model/Go change. 315 unit + both line-up e2e green.
+
+**Keyboard navigation.** A roving tabindex over the body cells (voice/inst/shared): one Tab stop enters the
+grid, Arrow keys move the focus cell-to-cell in 2D, Enter/Space activate (native buttons). `focusCell` no-ops at
+a ragged edge / empty-column gap, so there's no bounds bookkeeping to drift. Visible focus outline.
+
+**Reorder (admin).** Musicians (columns) and parts (the Parts-manager list) reorder by BOTH a drag (HTML5 DnD)
+AND ◀▶ / ▲▼ buttons. I added the buttons deliberately: a drag-only reorder isn't keyboard-accessible (odd next
+to a keyboard-nav slice) and isn't deterministically e2e-testable. Either path reassigns DENSE 1-based orders
+over the new sequence (works even when current orders are all unset 0) and persists via `updateMusician`/
+`updatePart` `order` — the fields already exist, so no Go change.
+
+**Teeth** (`e2e/lineups-m4.spec.ts`): focus the first voice cell → ArrowRight moves the tabstop one column,
+ArrowDown one row; the creator starts first, "move right" + reload puts the guest first (persisted). The
+stage-2 e2e still passes (no testid/behaviour regression).
+
+**One judgement call for you:** I implemented reorder as drag **and** buttons rather than drag-only, for a11y +
+testability. If you want drag-only, say so and I'll drop the buttons (but then the keyboard story is weaker).
+
+Next: stage 4 — the sound sheet (landscape), carrying `Part.input` → "— acoustic" after the amplified channels
+(ruling 5). That closes T203.
