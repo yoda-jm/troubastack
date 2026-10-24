@@ -55402,3 +55402,60 @@ the grid projection — the per-song line-up stays unchanged ("R: Bass").
 So the model additions are: Musician{id,name,userId?}, Part{name,kind,short?,input?,shared}, Song.lineup[],
 Song.soundNote. buildGrid(songs, musicians, parts) stays the single pure projection; `shared` is just another
 routing input. Decision 6 for your ruling: shared is a per-part band flag (admin), re-routing only — confirm.
+
+## ⟨verdict → web-core⟩ T203 DESIGN + shared addendum — GO, with model changes to make BEFORE stage 1 (Fable)
+
+**GO on the design.**
+- `buildGrid` as the single pure projection, with channel sub-columns and shared parts routed to their own column.
+- The checklist cases are all addressed.
+- The by-part toggle, the chip tagged union, the landscape sheet builder, the bulk endpoint and the deferred per-gig override.
+
+You asked for model changes before you start, so here they are. Each one is cheaper now than as a migration.
+
+**M1. Parts get stable IDs. Line-ups reference part IDs, not folded names.**
+- With names, a rename rewrites every song band-wide.
+- **The race:** a client editing a line-up during a rename PATCHes the OLD name back. That either creates a stray part, or a 400 on an edit the user did nothing wrong in.
+- **With IDs:**
+  - rename and metadata edits touch only the Part;
+  - **merge** is the only band-wide rewrite (ids → id, a union per entry, in one lock+flush as you planned);
+  - delete is refused while the part is referenced, or offers "remove from N songs".
+- Chips carry part ids too. `.tband` exports parts with their id, and line-ups by part id; an import without ids (hand-written) resolves by folded name.
+
+**M2. Musician ids.**
+- **Account musicians:** the derived `uuidV5(bandID, "musician:"+userId)` is fine. It makes lazy materialisation idempotent.
+- **Guests:** a RANDOM id, stored. A name-derived id collides for two guests with the same name, and when a guest is renamed and a new guest takes the old name.
+- **Linking a guest to an account:**
+  - the guest keeps its id and takes the userId when that account has no line-up yet;
+  - if the account already has a musician with line-ups → **merge** (rewrite the guest's entries to the account musician, with a union per song) and delete the guest record;
+  - test both.
+- **Departure.** A member who leaves keeps their musician record (shown as "former member"), so history and line-ups survive. A deleted account turns it into a guest (userId cleared).
+- **Name.** An account musician's display name follows the user's display name live. An optional `Name` override covers a stage name, so names are not copied and left to go stale.
+
+**M3. More than one voice part per song for one person is allowed** (your decision 4, answered "representable").
+- Lead in the verses and backing in the choruses is ordinary.
+- The model already allows several parts. The grid's Voice cell shows the shorts joined, "L+B", on the same single channel.
+- Editor: the click cycles ·→L→B→· for the common case; the menu sets several.
+
+**M4. Column order.**
+- Add `Musician.order`, plus an order for shared-part columns.
+- The grid and the sheet use it. Admins drag-reorder in the roster, which in practice means stage order, left to right, the way an engineer reads a stage.
+- Default order: by first appearance in the running order.
+
+**Your decisions:**
+1. **First-class collections:** yes.
+2. **Gate:** admin for the roster and for part METADATA (kind, short, input, shared, rename, merge, delete). **Members may CREATE a part while editing a line-up**, with kind instrument, personal, and short derived, just as members create tags. Otherwise the person filling in line-ups is blocked on an admin for every new instrument.
+3. **Musician ids:** per M2.
+4. Per M3.
+5. **Bulk as one atomic endpoint:** yes.
+6. **`shared`:** a per-part band flag, admin-edited, re-routing only: yes.
+
+**Tests to add for these:**
+- a rename racing a line-up PATCH leaves the line-up valid (ids);
+- merge unions;
+- two guests with the same name → two musicians;
+- link guest → account, both branches;
+- a departed member's line-ups survive;
+- an "L+B" cell;
+- order respected in the grid and the sheet.
+
+Build stage 1 (model + API + `.tband`) with M1–M4, and present it.
