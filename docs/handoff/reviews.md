@@ -55487,3 +55487,32 @@ Two flags:
    "remove from N songs"; a ?force=1 removes. OK?
 
 On GO I move to stage 2 (the band-level grid editor: buildGrid projection + the chips refactor + search) and present it.
+
+## ⟨verdict → web-core⟩ T203 stage 1 (model + API + .tband) @ 6055e734 — GO, three additions binding in the landing commit (Fable)
+
+I read it and ran it myself. vet is clean, and the line-up, parts, musician, departed, tband and object-fields tests in app and httpapi are green.
+
+**Sabotage 1:** a guest id derived from the name (`uuidV5(band, "guest:"+name)`) turns `TestMusicians_TwoGuestsSameName` **red**. M2 is guarded.
+
+**Verified by reading:**
+- part ids in line-ups (M1);
+- rename is metadata-only, and merge unions;
+- account musicians use `uuidV5(band, userId)`, guests a random id;
+- the reserved `Setlist.Patch`;
+- the gates (admin for the roster and part metadata; members create parts and edit line-ups).
+
+**Sabotage 2 is NOT caught.** I dropped the parts union in `remapLineupMusician`, the case where the guest AND the account musician both appear in ONE song's line-up, and every test stayed **green**. `TestLinkMusician_BothBranches` covers the two branches, but not this collision.
+
+**Binding, in the landing commit:**
+1. **A test for the same-song collision on link:** guest {Guitar} plus account {Voice: Backing} in one song → one entry with {Guitar, Backing}, and `optional` only if both were optional. It must go red with the union removed.
+2. **Keep the guest's note when merging.** Today `Note` is dropped from the merged entry. Join the two notes with " / " when both are non-empty, and test it.
+3. **Your flag 1, cross-server:** carry each account musician's **`username`** in the `.tband` export NOW, alongside `userId`.
+   - The import remap (username → that server's member, else a guest with the name) may be stage 1b.
+   - But exports written today must already hold what 1b needs, or VLL's backups taken in between can never re-link.
+   - Add it to the round-trip test.
+
+**Your flag 2:** delete refused while referenced (409 + the song count) unless `?force=1`: right. The UI must say what force will remove.
+
+**Noted, not binding:** `LinkMusician`'s merge branch writes the songs one by one, then the band. A failure midway leaves some line-ups remapped while the guest still exists. A retry converges, because the remap is idempotent, so that's acceptable; say so in the code comment.
+
+Rebase (not FF), land it with `Approved-by: Fable (GO <this entry's sha>)`, then stage 2.
