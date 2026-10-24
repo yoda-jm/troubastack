@@ -65,11 +65,57 @@ Song.soundNote: string        // what the sound engineer needs for this song ("i
   complaint about the app.
 - **Alternative:** a band default line-up plus per-song exceptions. Faster to type, harder to predict.
 
+## The grid: VLL's layout (2026-10-24). Read this before the Studio and sheet sections; it shapes both.
+
+> "un tableau avec chaque ligne un morceau et ensuite des larges colonnes avec les noms et en sous-colonnes des
+> instruments ou voix — ça marche moins bien si la basse passe d'une personne à l'autre, mais d'un autre côté le même
+> instrument (chant lead) peut changer aussi, ou une même personne peut passer de chant lead à backing"
+
+**Resolution: sub-columns are CHANNELS (what gets patched), not parts.**
+
+- **Rows** are songs.
+- **Wide columns** are musicians. **Sub-columns:**
+  - **ONE "Voice" sub-column per person**, whatever voice part they sing. It is one mic. The cell shows the voice
+    part's short form: **L** (lead), **B** (backing), or empty. A person going from lead to backing is the same
+    column with a different letter, which is exactly what the engineer needs (a level change, not a repatch).
+  - **One sub-column per instrument part that person plays anywhere in the shown songs** (one DI or instrument
+    mic). The cell is filled or empty; "(…)" means optional.
+- **Bass moving between people** shows up in two people's columns. That is correct for the sound (two sources),
+  and the changes column states it ("Bass: C → A").
+- **Model consequence:** a part's `kind` decides the sub-column. Every `voice` part of a person shares one "Voice"
+  sub-column. Each `instrument` part gets its own. `input` is per part (a voice is mic; an instrument part says
+  mic, di or line).
+
+**A second projection of the same data, for musicians: "by part".** One toggle, same rows.
+- Columns are parts: Lead vocal, Backing vocal, Bass, Autoharp…
+- Cells are names: "who sings lead here?", "who has the bass?".
+- The same data, no second source.
+
+**The grid IS the main editor** (a band-level "Line-ups" page), not only a report:
+- rows are all songs, and the existing chips filter them (tags, line-up chips, "in setlist X");
+- **click a Voice cell** to cycle empty → L → B → empty, with other voice parts from a small menu;
+- **click an instrument cell** to toggle it; long-press or the menu sets optional and the note;
+- **"+ part" on a musician's header** adds a sub-column (an instrument part for them);
+- **"+ musician"** adds a wide column;
+- **keyboard:** arrows move between cells, Space toggles, L or B set the voice.
+
+The per-song panel on the song page stays, as the same data seen for one row.
+
+**The sound sheet uses this exact person-major layout**, filtered to the setlist's running order, with only the
+sub-columns used in that set, plus the changes and sound-note columns. The CSV has one column per sub-column
+("A · Voice", "A · Guitar", …).
+
+**Review will check:**
+- Lead↔Backing for one person: one column, the letter changes.
+- Bass moving between two people: two columns, and the changes line says so.
+- One person with two instruments in one song: both cells filled.
+- A sub-column unused in a set does not appear on that set's sheet.
+
 ## Studio
 
 ### Editing
 
-On the song page there is a **"Line-up"** panel, a compact grid:
+The band-level grid above is the main editor. On the song page there is also a **"Line-up"** panel, a compact grid:
 - one row per musician, with the parts as chips (with suggestions), an "optional" toggle and a note;
 - an "add a musician to this song" control;
 - a "Sound note" field.
@@ -102,7 +148,7 @@ On the setlist page: **"Sound sheet"**, shown on screen, with **PDF** (A4 landsc
 1. **Header:** band, setlist name, date, venue.
 2. **Input list:** for each musician in the running order, all their parts across the set, with `input` (mic / DI /
    line). For example "A — Lead vocal (mic), Guitar (DI)". This is what the engineer patches.
-3. **Matrix:**
+3. **Matrix** (the person-major channel grid above, filtered to the set):
    - rows are songs in running order: number, title, key, tempo;
    - columns are musicians;
    - a cell holds that musician's part abbreviations for the song ("LV+Gtr", "BV", "AH"), and an empty cell means
