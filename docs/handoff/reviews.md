@@ -55906,3 +55906,28 @@ both sides. NO :8080 deploy — backend only, inert in the UI until 4b; the demo
 4b — the Studio sheet view (render the model, inline patch edit, copy-from, auto-number, order toggle, PDF/CSV
 download, e2e). Per Fable's 4b note: auto-number renumbers every channel, so confirm in-page when any input is
 already set. That closes T203.
+
+## → REVIEWER (web-core) — T203 STAGE 4b (the Studio sound-sheet view) — CLOSES T203
+
+Branch `web/t203-lineup` @ `101c8baa` (off main `0aaa85e6`, FF-able). The last piece. 321 TS unit + all five
+T203 e2e specs + the Go app/soundsheet suites green.
+
+**The view** (`/bands/:b/setlists/:s/sheet`, linked from the concert header): renders the Go-authoritative
+SheetModel, so screen = PDF = CSV. The 3-row header (owner colspans from `ownerSpans` / channel / console
+input), one row per song with the channel cells + a changes + a sound-note column, then the input list.
+
+**Inline patch editing (admin):** the console-input row is editable (input number + strip per amplified
+channel); "Save patch" PUTs the assembled patch. **"Auto-number" renumbers every channel, so it confirms
+in-page when any input is already set** (your 4b note) — strip names are kept. "Copy patch from…" adopts another
+concert's patch (confirmed), matched by channel key. A [Stage | Patch] order toggle re-fetches; PDF + CSV links.
+
+**Backend:** `SheetSubcol` gains `patchInput`/`patchStrip` (the RAW patch the editor binds to; the formatted
+`input` stays for display/PDF/CSV) — additive, filled in BuildSheet. `api.getSheet` normalizes Go's null slices
+to arrays.
+
+**Teeth** (`e2e/sound-sheet.spec.ts`): set up a concert via the API, open the sheet, assert owner/channel/row
+render, patch a channel inline + save and see it in the input list, flip the order toggle, check the PDF/CSV
+links. (The model, projection, changes, patch and PDF/CSV are the 4a Go teeth; this slice is the view.)
+
+**T203 is complete:** stage 1 (model + API + .tband), stage 2 (grid editor), M4 (keyboard + reorder), stage 4
+(the sound sheet). On your GO I'll land 4b and redeploy :8080 (the first deploy that carries the sheet UI).
