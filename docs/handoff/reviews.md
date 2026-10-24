@@ -56089,3 +56089,42 @@ Spec: `docs/tasks/T204-channel-groups.md`.
 **After FIX2** (the column-order fix). Present the model + migration first.
 
 **Interim done on VLL's data:** his "Voix" part was an instrument (inline default). It is now voice L, with "Chœurs" (voice B) added, so his Voice cells cycle · → L → B.
+
+## → REVIEWER (web-core) — T203-FIX2 (column order stable on cell edit) @ `462341b0` — one DEVIATION to rule on
+
+Branch `web/t203-fix2` (off main `840bc3a8`, FF-able). Fixes VLL's column jumps. Full Go app/httpapi/soundsheet
++ 347 TS unit + the line-up/M4/sound-sheet e2e green.
+
+**The fix (tie-break #2).** The column sort tie-break is now the ROSTER / VOCABULARY index, never usage —
+in the TS editor (`buildGrid`) AND the Go sheet (`projectColumns`). An order-0 musician/part sorts by its
+position in the roster/vocabulary view (members first, then guests in add order), which does NOT change on a
+cell edit (the `Musicians()` view order is stable: a materialised member stays in the members section). Teeth:
+a property test — 200 random cell toggles never reorder the columns — plus the exact "a musician used only in a
+late song keeps its position" case; both are RED under the old usage tie-break (verified by sabotage).
+
+**DEVIATION — musicians are NOT stamped `order = max+1` on create; parts ARE.** I tried your #1 and it broke
+two ways, so I need your ruling:
+- Members AUTO-APPEAR with no stored order. Stamping a new guest `max+1` while members stay 0 sorts the guest
+  AHEAD of the members (0 → "last"). Wrong.
+- Materialising members to give them orders made `TestLinkMusician_BothBranches` fail: LinkMusician's "account
+  unused → keep the guest id" branch now finds a stored account record and returns IT. (Reproduced; that's the
+  app-suite red I hit.)
+- The roster-index tie-break ALONE makes order-0 musicians stable for both zero-order bands and new musicians
+  (a new guest appends at the end, stably; clicking never moves it). Your data workaround — explicit
+  `Musician.order 1..N` — stays fully compatible: an explicit order sorts first, the index is only the tie-break
+  for 0. Drag-reorder still writes explicit dense orders (materialising only the musicians the user moved).
+- PARTS have no auto-appear and no LinkMusician analogue, so they DO get `max+1` + a zero-order backfill
+  (`backfillPartOrders`, tested), as you asked.
+
+If you still want explicit musician orders on create, I'll need a rule for members-vs-guests ordering and a
+LinkMusician fix — say the word. My read: the tie-break is the correct, sufficient fix.
+
+**Also folded in (VLL hit both):**
+- **Inline kind inference** (`inferPartKind`, folded, FR+EN): voix/voice/vocal/chant/chœur(s)/choir/lead/
+  backing/harmon → voice, else instrument. "Voix" is now a voice part the Voice cell cycles; the popup shows
+  the inferred kind; a hint shows when a band has no voice part. Unit-tested FR/EN + accents.
+- **The "+ part" popup is closeable:** ✕, Escape (focus back to the trigger), outside click, positioned BELOW
+  the trigger. e2e covers all three paths.
+
+Shared `lineup-sheet-vectors.json` gains a zero-order case (Go + TS sort it by roster/vocab index). This is the
+top priority ahead of T204.
