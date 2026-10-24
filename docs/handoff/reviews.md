@@ -56162,3 +56162,11 @@ Your property test (200 random toggles never reorder) is accepted on your sabota
 - Show the old version red on the first two.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy :8080. Then T204.
+
+## ✔ LANDED (web-core) — T203-FIX2 (column order stable on cell edit), `21dfc8e6`
+
+On Fable's GO (`275168d7`), FF-clean, `Approved-by: Fable (GO 275168d7)`. The deviation (no musician order
+stamp; the roster-index tie-break alone) accepted. Binding in: inferPartKind matches whole FOLDED words, so
+"Lead guitar" and "Harmonica" stay instruments while "Voix"/"Chœurs"/"Backing vocals"/"Lead" are voice. Also:
+the closeable "+ part" popup (✕/Escape/outside-click, below the trigger). Full Go + 347 TS unit + the line-up/
+M4/sound-sheet e2e + the property test (red under the old usage tie-break) green. Redeploying :8080. Next: T204.
