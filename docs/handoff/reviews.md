@@ -55744,3 +55744,52 @@ tabstop is clamped to the grid shape so a row-shrinking filter can't orphan it; 
 set/clear, Shift adds "L+B"; (3) removeInstrument uses Studio's in-app useDialogs().confirm, not window.confirm.
 315 unit + all three M4 e2e + the stage-2 e2e green. Refreshing :8080. Next: stage 4 (the sound sheet,
 Part.input → "— acoustic"), which closes T203.
+
+## → REVIEWER (web-core) — T203 STAGE 4 DESIGN (the sound sheet) — validate before I build
+
+Design-first, as for the rest of T203. No code yet. The sheet is the last piece; it closes T203.
+
+**Base.** `internal/setlistpdf` is vector fpdf (portrait A4) — the spec's "natural base". The sound sheet is a new
+landscape fpdf builder modelled on it (not the raster writeA4PDF). `Setlist.patch` + `ChannelPatch` are already
+reserved (stage 1).
+
+**The projection.** The sheet needs the person-major grid SERVER-side (Go) — the PDF/CSV can't call the TS
+`buildGrid`. So I'll port the sheet projection to Go (`internal/app`, used-only mode): the same channel rules
+(one Voice column per musician, personal instruments their own sub-column, a shared instrument its own column),
+filtered to the setlist's running order, with only the sub-columns used in that set. **Two implementations (TS
+editor, Go sheet)** — I'll keep them honest with ONE shared set of test vectors (the review checklist: lead↔
+backing = one column, shared-moves = one column + "same channel", personal-move = two columns + "repatch", two
+instruments one song, unused-hidden). That's the same drift risk as `short`; I solved short by making Go
+authoritative, but the EDITOR is inherently client-side, so here I propose shared vectors instead. **Flag if
+you'd rather the Studio sheet view also consume the Go projection (one source) and only the editor stay TS.**
+
+**Layout** (landscape):
+- Multi-row header: row 1 owner, colspanned over adjacent same-owner runs IN THE CURRENT COLUMN ORDER (one span
+  per musician in stage order; split spans in patch order); row 2 channel ("Voice"/"Guitar"); row 3 console
+  input ("In 4 · A GTR", or "— acoustic" for unamplified, "not patched" for a channel with no patch entry).
+- Body: one row per song in running order; the channel cells; then a **changes** column (per-song diff vs the
+  previous song: "same channel" when a shared instrument changes player, "repatch" when a personal instrument
+  moves between people) and a **sound-note** column.
+- Then the **input list** section: the patch sorted by input (in · strip · musician/shared · part · mic/DI/line),
+  then "Not patched yet: …"; unamplified parts never appear there.
+- **Order toggle [Stage | Patch]**: stage = Musician.order (M4); patch = patched channels by input number, then
+  unpatched, then unamplified.
+- Unamplified parts (`input = none`): stay as a sub-column reading "— acoustic", after the amplified channels of
+  the same owner (stage) / at the end (patch); never patched, never in the input list.
+
+**Patch editing (Studio):** inline input number + strip name per channel; "Copy patch from…" another concert
+(match by channel key `voice:<m>` / `inst:<m>:<p>` / `shared:<p>`); "Auto-number" fills 1..N in the current
+order. A part toggled to `shared` changes its channel key, so its old patch reads "not patched" (honest signal).
+
+**CSV:** one column per sub-column ("A · Voice", "A · Guitar", …) + changes + sound-note.
+
+**Proposed slices (two gates):**
+- **4a (backend):** the Go sheet projection + changes + channel-key/input resolution + "— acoustic"; the patch
+  service (set, copy-from, auto-number); the landscape PDF + CSV; the endpoint. Teeth: Go projection/changes/
+  colspan/patch tests sharing the checklist vectors + a PDF/CSV smoke.
+- **4b (Studio):** the sheet view (render, inline patch edit, copy-from, auto-number, order toggle, download
+  PDF/CSV) + e2e.
+
+**Questions:** (1) shared-vectors vs Go-authoritative projection for the Studio sheet view? (2) changes-column
+strings — I'll use VLL's "same channel" / "repatch" verbatim unless you want other words. (3) 4a/4b split OK, or
+one gate? Holding the build for your design GO.
