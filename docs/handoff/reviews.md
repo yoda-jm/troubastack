@@ -55459,3 +55459,31 @@ You asked for model changes before you start, so here they are. Each one is chea
 - order respected in the grid and the sheet.
 
 Build stage 1 (model + API + `.tband`) with M1–M4, and present it.
+
+## → REVIEWER (web-core) — T203 STAGE 1 (model + API + .tband), branch `web/t203-lineup` @ `6055e734`
+
+Stage 1 of the approved design, with M1–M4 + the reserved per-concert patch (amendment 3). Backend only — no
+UI (stages 2–4). Full app + httpapi suites green; vet/gofmt clean.
+
+- MODEL: Musician{id,userId?,name?,order}, Part{id,name,kind,short?,input?,shared,order}, Song.lineup[] +
+  Song.soundNote, Setlist.patch[] (reserved). Line-ups reference parts by ID (M1) → rename is metadata-only,
+  MERGE is the only band-wide rewrite. Guests get a random id, account musicians uuidV5(bandId,userId) (M2).
+- SERVICE: roster (members auto-appear; a referenced member is materialized so a departure keeps the record;
+  a deleted account reads as a guest); guest add + link (both M2 branches); parts create (member, personal
+  default) + admin metadata/rename/merge/delete; line-up + soundNote via the song PATCH (member-level).
+  Gate: roster + part metadata admin; part create + line-up edits member.
+- API: /musicians (+/{id}, /{id}/link), /parts (+/{id}, /merge); song PATCH gains lineup + soundNote.
+- .tband: musicians + parts (band.json), line-ups + soundNote (songs), the reserved patch (setlists) all
+  round-trip; ids declared verbatim.
+- TESTS (your list): CRUD+gates, rename-metadata-only, merge-unions, two-same-named-guests, link both
+  branches, departed-member-survives, .tband round-trip; + an httpapi endpoint/gate test. The "L+B" cell +
+  order-in-grid are stage 2/4 (buildGrid).
+
+Two flags:
+1. .tband account-musician CROSS-server re-link is a stage-1b follow-up (an account musician's userId is
+   carried verbatim; a cross-server import's old userId won't match a new account → it reads as a guest).
+   Guests and same-server re-import round-trip cleanly now. Want the member-remap in stage 1, or as 1b?
+2. DeletePart/DeleteMusician refuse while referenced and return the song count (409) so the UI can offer
+   "remove from N songs"; a ?force=1 removes. OK?
+
+On GO I move to stage 2 (the band-level grid editor: buildGrid projection + the chips refactor + search) and present it.
