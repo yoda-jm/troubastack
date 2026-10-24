@@ -2496,3 +2496,10 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .lineup-cell.on { font-weight: 600; }
 .lineup-addpart { margin-left: .4rem; font-size: .8rem; }
 .lineup-assign { position: absolute; z-index: 5; background: var(--surface, #fff); border: 1px solid var(--border, #ccc); border-radius: 6px; padding: .3rem; display: flex; flex-direction: column; gap: .2rem; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+
+/* T203 M4 — grid keyboard nav + reorder affordances */
+.lineup-grid th[draggable="true"] { cursor: grab; }
+.lineup-col-move, .lineup-part-move { display: inline-flex; gap: .15rem; margin-left: .3rem; }
+.lineup-col-move button, .lineup-part-move button { font-size: .75rem; padding: 0 .2rem; line-height: 1; }
+.lineups-partlist li[draggable="true"] { cursor: grab; }
+.lineup-cell:focus { outline: 2px solid var(--brand-mark); outline-offset: -2px; }

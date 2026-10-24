@@ -5,10 +5,11 @@
  * Click a Voice cell to cycle its part; click an instrument cell to toggle it; a shared cell picks the player.
  * A "by part" toggle re-projects the same data. The chips filter the rows (tags + line-up chips, AND).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api, type Song, type MusicianView, type Part, type LineupEntry } from "../api";
 import { useBand } from "./BandLayout";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { useDialogs } from "../components/Dialog";
 import { queryWords } from "./song-search";
 import {
   buildGrid,
@@ -42,6 +43,7 @@ export function Lineups() {
   const { band, myRole } = useBand();
   const bandId = band.id;
   const isAdmin = myRole === "admin";
+  const { confirm } = useDialogs();
 
   const [songs, setSongs] = useState<Song[]>([]);
   const [musicians, setMusicians] = useState<MusicianView[]>([]);
@@ -57,6 +59,8 @@ export function Lineups() {
   const [newPartShared, setNewPartShared] = useState(false);
   const [assignFor, setAssignFor] = useState<string | null>(null); // musicianId whose +part picker is open
   const [newInstName, setNewInstName] = useState(""); // the inline "create a new instrument" field
+  const [focusRC, setFocusRC] = useState<[number, number]>([0, 0]); // the grid cell holding the roving tabstop (M4)
+  const gridRef = useRef<HTMLTableElement>(null);
 
   const load = useCallback(async () => {
     if (!bandId) return;
@@ -87,6 +91,19 @@ export function Lineups() {
   const gridMus: GridMusician[] = musicians.map((m) => ({ id: m.id, displayName: m.displayName, order: m.order, instruments: m.instruments }));
   const grid = buildGrid(shown as GridSong[], gridMus, parts, { editor: true });
   const byPartGrid = buildGridByPart(shown as GridSong[], gridMus, parts);
+  // Flat interactive-column index (voice/inst/shared), stable per render — the x-coordinate for arrow nav (M4).
+  const subColIndex = new Map<string, number>();
+  {
+    let i = 0;
+    for (const col of grid.columns) for (const sub of col.subs) subColIndex.set(sub.key, i++);
+  }
+  // CLAMP the roving tabstop to the current grid shape (M4 binding 1): a chip filter that shrinks the rows must
+  // not orphan it, or no cell has tabIndex 0 and the grid becomes unreachable by Tab. The clamp is applied at
+  // render; focusCell/onFocus still record the raw position.
+  const gridRows = grid.rows.length;
+  const gridCols = subColIndex.size;
+  const fr = Math.min(Math.max(0, focusRC[0]), Math.max(0, gridRows - 1));
+  const fc = Math.min(Math.max(0, focusRC[1]), Math.max(0, gridCols - 1));
 
   const suggestions = suggestLineupChips(
     songs as LineupSong[],
@@ -135,6 +152,37 @@ export function Lineups() {
     }
     e.partIds = [...nonVoice, ...next];
     void patchLineup(songId, prune(lineup));
+  }
+
+  // Replace a musician's VOICE parts in a song with the given set (keeping their instruments).
+  function setVoice(songId: string, musicianId: string, voiceIds: string[]) {
+    const lineup = songLineup(songId);
+    const { i } = withEntry(lineup, musicianId);
+    const e = lineup[i];
+    const nonVoice = e.partIds.filter((pid) => !voiceParts.some((v) => v.id === pid));
+    e.partIds = [...nonVoice, ...voiceIds];
+    void patchLineup(songId, prune(lineup));
+  }
+
+  // M4 binding 2: typing a letter on a focused Voice cell sets that voice part by its short's first letter —
+  // L → lead, B → backing; the same key again clears; Shift toggles membership (so Shift-L then Shift-B → L+B).
+  // Non-letter keys (arrows) are left to bubble to the grid's navigation handler.
+  function voiceKeyDown(e: React.KeyboardEvent, songId: string, musicianId: string) {
+    const k = e.key;
+    if (k.length !== 1 || !/[a-z]/i.test(k)) return;
+    const part = voiceParts.find((p) => (p.short ?? p.name).toLowerCase().startsWith(k.toLowerCase()));
+    if (!part) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const entry = songLineup(songId).find((x) => x.musicianId === musicianId);
+    const cur = (entry?.partIds ?? []).filter((pid) => voiceParts.some((v) => v.id === pid));
+    let next: string[];
+    if (e.shiftKey) {
+      next = cur.includes(part.id) ? cur.filter((id) => id !== part.id) : [...cur, part.id];
+    } else {
+      next = cur.length === 1 && cur[0] === part.id ? [] : [part.id];
+    }
+    setVoice(songId, musicianId, next);
   }
 
   function toggleInst(songId: string, musicianId: string, partId: string) {
@@ -225,7 +273,13 @@ export function Lineups() {
     } catch (err) {
       const uses = err instanceof ApiError && typeof err.body?.songs === "number" ? err.body.songs : 0;
       if (uses > 0) {
-        if (window.confirm(`${partName} is used in ${uses} song(s). Remove it and clear those ${uses} usage(s)?`)) {
+        const ok = await confirm({
+          title: `Remove ${partName}?`,
+          body: `It's played in ${uses} song(s). Removing it clears those ${uses} usage(s) from the line-ups.`,
+          danger: true,
+          confirmLabel: "Remove & clear",
+        });
+        if (ok) {
           try {
             await api.removeMusicianInstrument(bandId, musicianId, partId, true);
             await load();
@@ -250,6 +304,75 @@ export function Lineups() {
     const ids = new Set(m?.instruments ?? []);
     return parts.filter((p) => ids.has(p.id));
   }
+
+  // --- M4: reorder (admin). Reassign dense 1-based orders over the NEW sequence, so it works even when the
+  // current orders are all unset (0). Both a drag (mouse) and the ◀▶/▲▼ buttons (keyboard + a11y) land here. ---
+  async function persistOrder<T extends { id: string }>(seq: T[], patch: (id: string, order: number) => Promise<unknown>) {
+    try {
+      await Promise.all(seq.map((x, i) => patch(x.id, i + 1)));
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't save the order.");
+    }
+  }
+  function moveInSeq<T>(seq: T[], from: number, to: number): T[] {
+    if (to < 0 || to >= seq.length || from === to) return seq;
+    const next = seq.slice();
+    const [x] = next.splice(from, 1);
+    next.splice(to, 0, x);
+    return next;
+  }
+  // The musician columns in current display order (the grid already sorts by order then first appearance).
+  const musicianOrder = grid.columns.filter((c) => c.kind === "musician").map((c) => ({ id: c.id }));
+  function moveMusician(musicianId: string, dir: -1 | 1) {
+    const from = musicianOrder.findIndex((m) => m.id === musicianId);
+    void persistOrder(moveInSeq(musicianOrder, from, from + dir), (id, order) => api.updateMusician(bandId, id, { order }));
+  }
+  function moveMusicianTo(dragId: string, dropId: string) {
+    const from = musicianOrder.findIndex((m) => m.id === dragId);
+    const to = musicianOrder.findIndex((m) => m.id === dropId);
+    if (from < 0 || to < 0) return;
+    void persistOrder(moveInSeq(musicianOrder, from, to), (id, order) => api.updateMusician(bandId, id, { order }));
+  }
+  function movePart(partId: string, dir: -1 | 1) {
+    const seq = parts.map((p) => ({ id: p.id }));
+    const from = seq.findIndex((p) => p.id === partId);
+    void persistOrder(moveInSeq(seq, from, from + dir), (id, order) => api.updatePart(bandId, id, { order }));
+  }
+
+  // --- M4: 2D arrow-key navigation across the body cells (roving tabindex). focusCell no-ops when the target
+  // cell doesn't exist (a ragged edge or an empty-column gap), so no explicit bounds are needed. ---
+  function focusCell(r: number, c: number) {
+    const el = gridRef.current?.querySelector<HTMLElement>(`[data-row="${r}"][data-col="${c}"]`);
+    if (el) {
+      setFocusRC([r, c]);
+      el.focus();
+    }
+  }
+  function onGridKey(e: React.KeyboardEvent) {
+    const t = e.target as HTMLElement;
+    if (t.getAttribute("data-row") === null) return;
+    const r = Number(t.getAttribute("data-row"));
+    const c = Number(t.getAttribute("data-col"));
+    let nr = r;
+    let nc = c;
+    switch (e.key) {
+      case "ArrowRight": nc = c + 1; break;
+      case "ArrowLeft": nc = c - 1; break;
+      case "ArrowDown": nr = r + 1; break;
+      case "ArrowUp": nr = r - 1; break;
+      default: return;
+    }
+    if (nr < 0 || nc < 0) return;
+    e.preventDefault();
+    focusCell(nr, nc);
+  }
+  const rc = (r: number, c: number) => ({
+    "data-row": r,
+    "data-col": c,
+    tabIndex: fr === r && fc === c ? 0 : -1, // the CLAMPED tabstop, so a shrunk grid always keeps one reachable cell
+    onFocus: () => setFocusRC([r, c]),
+  });
 
   return (
     <>
@@ -318,8 +441,29 @@ export function Lineups() {
           </form>
           <ul className="lineups-partlist">
             {parts.map((p) => (
-              <li key={p.id} data-testid="partlist-item">
+              <li
+                key={p.id}
+                data-testid="partlist-item"
+                draggable={isAdmin}
+                onDragStart={(e) => { if (isAdmin) e.dataTransfer.setData("text/part", p.id); }}
+                onDragOver={(e) => { if (isAdmin) e.preventDefault(); }}
+                onDrop={(e) => {
+                  const id = e.dataTransfer.getData("text/part");
+                  if (!id || id === p.id) return;
+                  e.preventDefault();
+                  const seq = parts.map((x) => ({ id: x.id }));
+                  const from = seq.findIndex((x) => x.id === id);
+                  const to = seq.findIndex((x) => x.id === p.id);
+                  void persistOrder(moveInSeq(seq, from, to), (pid, order) => api.updatePart(bandId, pid, { order }));
+                }}
+              >
                 {p.name} <span className="muted">· {p.kind}{p.shared ? " · shared" : ""}</span>
+                {isAdmin && (
+                  <span className="lineup-part-move">
+                    <button type="button" className="linklike" data-testid="partlist-up" title="Move up" aria-label={`Move ${p.name} up`} onClick={() => movePart(p.id, -1)}>▲</button>
+                    <button type="button" className="linklike" data-testid="partlist-down" title="Move down" aria-label={`Move ${p.name} down`} onClick={() => movePart(p.id, 1)}>▼</button>
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -365,13 +509,27 @@ export function Lineups() {
           </tbody>
         </table>
       ) : (
-        <table className="lineup-grid" data-testid="lineup-grid">
+        <table className="lineup-grid" data-testid="lineup-grid" ref={gridRef} onKeyDown={onGridKey}>
           <thead>
             <tr>
               <th rowSpan={2}>Song</th>
               {grid.columns.map((col) => (
-                <th key={col.id} colSpan={Math.max(1, col.subs.length)} data-testid="lineup-col-owner">
+                <th
+                  key={col.id}
+                  colSpan={Math.max(1, col.subs.length)}
+                  data-testid="lineup-col-owner"
+                  draggable={isAdmin && col.kind === "musician"}
+                  onDragStart={(e) => { if (isAdmin && col.kind === "musician") e.dataTransfer.setData("text/musician", col.id); }}
+                  onDragOver={(e) => { if (isAdmin && col.kind === "musician") e.preventDefault(); }}
+                  onDrop={(e) => { const id = e.dataTransfer.getData("text/musician"); if (id && col.kind === "musician") { e.preventDefault(); moveMusicianTo(id, col.id); } }}
+                >
                   {col.label}
+                  {isAdmin && col.kind === "musician" && (
+                    <span className="lineup-col-move">
+                      <button type="button" className="linklike" data-testid="lineup-musician-left" title="Move left" aria-label={`Move ${col.label} left`} onClick={() => moveMusician(col.id, -1)}>◀</button>
+                      <button type="button" className="linklike" data-testid="lineup-musician-right" title="Move right" aria-label={`Move ${col.label} right`} onClick={() => moveMusician(col.id, 1)}>▶</button>
+                    </span>
+                  )}
                   {col.kind === "musician" && (
                     <>
                       <button type="button" className="linklike lineup-addpart" data-testid="lineup-add-part" title="Manage this musician's instruments" onClick={() => { setAssignFor(assignFor === col.id ? null : col.id); setNewInstName(""); }}>+ part</button>
@@ -409,7 +567,7 @@ export function Lineups() {
             </tr>
           </thead>
           <tbody>
-            {grid.rows.map((r) => (
+            {grid.rows.map((r, ri) => (
               <tr key={r.songId} data-testid="lineup-row">
                 <td>
                   {r.title}
@@ -421,10 +579,11 @@ export function Lineups() {
                     : col.subs.map((sub) => {
                     const cell = r.cells[sub.key];
                     const txt = cell.optional && cell.text ? `(${cell.text})` : cell.text;
+                    const ci = subColIndex.get(sub.key)!;
                     if (sub.kind === "voice") {
                       return (
                         <td key={sub.key}>
-                          <button type="button" className="lineup-cell" data-testid="lineup-cell-voice" onClick={() => cycleVoice(r.songId, sub.musicianId)}>
+                          <button type="button" className="lineup-cell" data-testid="lineup-cell-voice" {...rc(ri, ci)} onKeyDown={(e) => voiceKeyDown(e, r.songId, sub.musicianId)} onClick={() => cycleVoice(r.songId, sub.musicianId)}>
                             {txt || "·"}
                           </button>
                         </td>
@@ -433,7 +592,7 @@ export function Lineups() {
                     if (sub.kind === "inst") {
                       return (
                         <td key={sub.key}>
-                          <button type="button" className={"lineup-cell" + (cell.text ? " on" : "")} data-testid="lineup-cell-inst" onClick={() => toggleInst(r.songId, sub.musicianId, sub.partId)}>
+                          <button type="button" className={"lineup-cell" + (cell.text ? " on" : "")} data-testid="lineup-cell-inst" {...rc(ri, ci)} onClick={() => toggleInst(r.songId, sub.musicianId, sub.partId)}>
                             {txt || "·"}
                           </button>
                         </td>
@@ -443,7 +602,7 @@ export function Lineups() {
                     const playerId = musicians.find((m) => cell.text && m.displayName.startsWith(cell.text))?.id ?? "";
                     return (
                       <td key={sub.key}>
-                        <select className="lineup-cell" data-testid="lineup-cell-shared" value={playerId} onChange={(e) => setShared(r.songId, sub.partId, e.target.value)}>
+                        <select className="lineup-cell" data-testid="lineup-cell-shared" {...rc(ri, ci)} value={playerId} onChange={(e) => setShared(r.songId, sub.partId, e.target.value)}>
                           <option value="">·</option>
                           {musicians.map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
                         </select>
