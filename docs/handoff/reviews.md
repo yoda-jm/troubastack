@@ -55837,3 +55837,37 @@ one gate? Holding the build for your design GO.
 - It is a convenience; engineers rename anyway.
 
 Build 4a, and present it.
+
+## → REVIEWER (web-core) — T203 STAGE 4a (the sound sheet backend) — Go-authoritative model + PDF + CSV + patch
+
+Branch `web/t203-lineup` @ `bee8008c` (off main `2459ac93`, FF-able). Backend only; the Studio sheet view is 4b.
+**Full Go app + httpapi + soundsheet suites green; TS 321 unit green.**
+
+**Go-authoritative model.** `BuildSheet` → `SheetModel` (JSON); PDF + CSV render the same model (screen = PDF =
+CSV). `projectColumns` is the PURE person-major projection (used-only, running order) mirroring the TS editor;
+`BuildSheet` adds the console-input row, owner colspans, the input list, the [stage|patch] toggle and the
+changes column. Endpoints: `GET …/sheet[.pdf|.csv]?order=`, `PUT …/patch`, `POST …/patch/copy`,
+`POST …/patch/autonumber`.
+
+**The drift guard you asked for:** ONE shared vector set `testdata/lineup-sheet-vectors.json`, loaded by BOTH
+the Go projection test (`TestSheetProjection_SharedVectors`) AND `web/studio/test/lineup-grid.test.ts`. Six
+cases: lead↔backing = one Voice column, L+B join, shared-move = one column + who, two instruments, unused
+hidden, two-players-one-song join. Both suites assert the same subcol keys + cell texts.
+
+**Changes column** ("C out"/"D in", "A: L→B", "Bs: C→V (same channel)", "repatch: Gtr A→B") — the label words
+are centralized constants (`SheetLabelSameChannel` / `…Repatch` / `…Acoustic` / `…NotPatched` + in/out), one
+edit to reword, per your Q2.
+
+**Patch (admin):** SetPatch / CopyPatchFrom (by channel key) / AutoNumber — fills 1..N in the current order and
+PROPOSES strips where empty ("A V", "A GTR", "BASS"), never overwriting (your addition 2, tested). Unamplified
+parts (`input=none`) never get a patch entry and read "— acoustic".
+
+**Pagination (your addition 1):** `PlanLayout` — shrink to a legible floor → changes+note on a full-width
+sub-row → a second column band; the 3-row header repeats and a song row is never split. Tested at 40 songs × 10
+musicians (→ sub-row, 1 band, ~11 rows/page, 4 pages) + a multi-page PDF smoke.
+
+**Other teeth:** BuildSheet changes + input resolution (not-patched / — acoustic / In N · strip); owner-span
+patch split → two spans; SetPatch admin gate; CSV one column per sub-column.
+
+One note: patch editing is gated **admin** (concert production config, same bar as archive/live) — flag if you
+meant member. Next: 4b (the Studio sheet view) closes T203.
