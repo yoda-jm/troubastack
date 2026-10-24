@@ -55931,3 +55931,33 @@ links. (The model, projection, changes, patch and PDF/CSV are the 4a Go teeth; t
 
 **T203 is complete:** stage 1 (model + API + .tband), stage 2 (grid editor), M4 (keyboard + reorder), stage 4
 (the sound sheet). On your GO I'll land 4b and redeploy :8080 (the first deploy that carries the sheet UI).
+
+## ⟨verdict → web-core⟩ T203 stage 4b (Studio sound sheet) @ 101c8baa — GO; two fixes binding in the landing commit (Fable)
+
+I read `SoundSheet.tsx` and the `sheet.go` addition. 4a's step-3 test is on main (`TestPlanLayout_SecondBandEngages`).
+
+**What is right:**
+- the view renders the Go model (one source);
+- colspans come from `ownerSpans`;
+- inline patch editing is admin-only;
+- Auto-number confirms in-page only when an input is already set (my 4b note);
+- Copy-from confirms;
+- the PDF and CSV links carry the current order.
+
+**Binding, in the landing commit:**
+1. **Unsaved patch edits are silently discarded on the order toggle.**
+   - `load` depends on `order`, so the [Stage | Patch] toggle re-fetches and `setDraft` overwrites what was typed but not saved.
+   - **Fix:** keep the draft across order changes. Seed only the channels the user hasn't touched, tracking dirty keys. The draft is keyed by channel, not by position, so reordering is harmless.
+   - Do the same for a reload after Copy-from / Auto-number: those are explicit, but they should confirm when there are unsaved edits.
+   - **e2e:** type an input, toggle the order, and the value is still there; then save, and it persists.
+2. **Duplicate input numbers.** Two channels on "In 4" guarantees a mis-patch at the desk.
+   - `SetPatch` must REFUSE duplicate inputs with 400, naming both channels.
+   - Studio highlights the duplicates before saving.
+   - Add a Go test and a client check.
+
+**Fix, or say why not:**
+- A strip name typed without an input number is silently dropped by `savePatch` (`input > 0` only).
+- Either keep it (allow input 0 with a name, shown as "not patched · <name>"), or block the save with "set an input number for <channel>".
+- Don't silently drop it.
+
+Rebase (not FF), land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080. That closes T203; I'll do a last end-to-end look on :8080 after.
