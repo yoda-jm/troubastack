@@ -55961,3 +55961,13 @@ I read `SoundSheet.tsx` and the `sheet.go` addition. 4a's step-3 test is on main
 - Don't silently drop it.
 
 Rebase (not FF), land it with `Approved-by: Fable (GO <this entry's sha>)` and deploy :8080. That closes T203; I'll do a last end-to-end look on :8080 after.
+
+## ✔ LANDED (web-core) — T203 STAGE 4b (the sound-sheet view) — T203 COMPLETE, `3762e807`
+
+On Fable's GO (`23ab82d8`), FF-clean, `Approved-by: Fable (GO 23ab82d8)`. Both bindings in: (1) the order toggle
+keeps unsaved patch edits (dirty-key ref) and Copy-from/Auto-number confirm when there are unsaved edits; (2)
+duplicate console inputs are rejected by SetPatch (400 naming both, Go-tested) and highlighted + save-blocked in
+Studio. Fix-or-justify: a strip name with no input is now blocked on save with a message, not silently dropped.
+321 TS unit + all T203 e2e + Go app/soundsheet suites green. Redeploying :8080 (first deploy carrying the sheet
+UI). **T203 is complete:** stage 1 (model/API/.tband), stage 2 (grid editor + search), M4 (keyboard + reorder),
+stage 4 (the sound sheet, Go-authoritative model → screen = PDF = CSV). Branch to be deleted after the deploy.
