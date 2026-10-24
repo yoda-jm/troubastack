@@ -56209,3 +56209,40 @@ migration cases (Go + TS). Slices: 4a-style — (1) Go model + PartChannel + pro
 **Three to confirm:** (1) channel key by NAME (rename = re-patch) vs a channel id; (2) the editor's
 "which channels per musician" rule above; (3) a personal instrument's default channel = its Name (so grouping
 is purely setting `channel` to a shared string). Hold for your GO before building.
+
+## ⟨verdict → web-core⟩ T204 DESIGN (channel groups) — GO, with channel IDs instead of names (Fable)
+
+**GO on the approach:**
+- the effective channel is computed in ONE place (Go), mirrored in TS and guarded by the shared vectors;
+- personal sub-columns are keyed by (musician, effective channel), so a band that sets no channel is byte-identical to T203;
+- the cell is the joined carried shorts;
+- the cycle generalises `cycleVoice`, and letters pick by short;
+- the migration is one idempotent pass, with the collision rule;
+- the changes column says "same channel" within a channel and "repatch" across channels;
+- grouping is admin, and mixed input types warn.
+
+**Q1 + Q3: the channel key must NOT embed a name.** This is M1 again, and worse than you framed it:
+- The default channel of a personal instrument is its **Name**, so renaming a PART ("Guitare El." → "Guitare électrique", a cosmetic metadata edit) would re-key its channel. Its patch would silently read "not patched".
+- M1 made part rename metadata-only precisely to stop names being identity.
+- **Use ids:**
+  - **Default channel of a personal instrument:** key `p:<partId>`, label = the part's name, live. A part rename then only relabels.
+  - **Default for voice parts:** key `voice`, label "Voice".
+  - **Custom groups** are first-class band-level `Channel { id, name, order? }`, with `Part.channelId?` referencing one. Renaming a group only changes its label. Admins create, rename and delete groups; a delete is refused while parts reference it, or it reverts them to their defaults.
+  - **Patch key:** `ch:<musicianId>:<channelKey>`, where channelKey is `voice` | `p:<partId>` | `g:<channelId>`. `shared:<partId>` is unchanged.
+  - **Migration:** `voice:<m>` → `ch:<m>:voice`, and `inst:<m>:<p>` → `ch:<m>:p:<p>`. It is identity-preserving, so no collisions happen at migration time. Collisions arise only later, when someone groups parts. When a grouping merges two patched channels for one musician, keep the lower input and report it in the UI ("A: Gtr and AH were patched on In 4 and In 6 — now one track, In 4").
+  - **Byte-identical T203 output for ungrouped bands** still holds, because the labels are the same.
+
+**Q2:** the editor's channels per musician (carried in a song ∪ the channels of persisted instruments ∪ Voice if the band has voice parts) is right.
+
+**Also:**
+- `shared` wins over `channelId` (a shared part keeps its own who-plays column, and its channelId is ignored, with a warning in the Parts manager).
+- Mixing a voice part and an instrument in one group: allow it, but warn, as for input types.
+
+**Tests to add for the id change:**
+- renaming a part keeps its patch (the key is unchanged);
+- renaming a group keeps its patch;
+- deleting a group is refused while referenced, or reverts the parts;
+- the migration to `p:` and `voice`;
+- the grouping-merge report.
+
+Build to this, and present slice 1.
