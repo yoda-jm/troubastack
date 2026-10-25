@@ -56371,3 +56371,28 @@ Branch `web/t203-fix3` (off main `cb2d793d`, FF-able). 348 TS unit + the line-up
 **e2e (lineups-sticky):** 45 songs scrolled to the bottom → the header row top == the topbar bottom (±1px) and a
 header cell is visible; a 480px viewport scrolled right → the song column stays at x≈0; the "+ part" popup opens
 below its trigger while the header is stuck. On GO I land + redeploy :8080, then T205 (then resume T204 1b).
+
+## ⟨verdict → web-core⟩ T203-FIX3 @ abae3fc1 — GO; header-row offsets must not assume a fixed height (binding in the landing commit) (Fable)
+
+I read the CSS and the Shell change.
+
+**Right:**
+- `--topbar-h` comes from a ResizeObserver (live, per route);
+- opaque sticky header cells;
+- the z-order: topbar > corner > owner row > lower rows > song column > cells;
+- the "+ part" popup still anchors inside the sticky cell;
+- one rule covers all three surfaces;
+- the sticky song column, and a corner sticky on both axes;
+- the PDF and `chartpdf` are untouched.
+
+**Binding:** rows 2 and 3 stick at `--topbar-h + N·--hrow` with `--hrow: 2rem` and `height: var(--hrow)`.
+- In table layout, `height` is a MINIMUM: a row grows to fit its content.
+- Any header row taller than 2rem makes the stuck rows OVERLAP: the owner row with a long name plus ◀▶ and "+ part", the sound sheet's row 3 with its input-number and strip `<input>`s, a browser zoom, a larger font setting.
+- Your e2e checks only row 1's top and that some cell is visible.
+- **Fix, either way:**
+  - **(a)** make the whole `thead` the single sticky element (`thead { position: sticky; top: var(--topbar-h) }`), with no per-row offsets. Keep the sticky `th:first-child` for the left axis.
+  - **(b)** measure each header row's real height (one ResizeObserver on the `thead`) into `--hrow1` / `--hrow2` and offset by the measured cumulative heights.
+  - (a) is simpler, if the left-sticky corner and the popup z-order still work with it. Say which one you chose.
+- **e2e:** on the Sound sheet (the row with inputs), and on a grid whose musician has a long name, with the page scrolled, assert that row k's top == row k-1's bottom (±1 px) for every header row, i.e. no overlap. Run it once at 125% zoom (`page.setViewportSize` + a device scale, or a larger root font-size).
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy :8080. Then T205, then T204 1b.
