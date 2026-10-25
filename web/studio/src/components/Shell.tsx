@@ -4,7 +4,7 @@
  * as the auth guard — if there is no user once loading finishes, redirect to
  * /login (the GET /api/me 401 path).
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { isFullbleedPath } from "../routes";
@@ -38,6 +38,26 @@ export function Shell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState<number | null>(null);
+
+  // T203-FIX3: expose the (sticky, undeclared-height) topbar's height as --topbar-h so the Line-ups grid and
+  // the sound sheet can stick their header rows just under it. A CALLBACK ref (not useRef+effect) so it wires
+  // up exactly when the <header> mounts — the topbar mounts only after auth resolves and is absent on
+  // editor/embedded routes, and a pathname-keyed effect would miss that first mount on a direct page load.
+  // A ResizeObserver tracks the height live (the topbar can wrap); it is 0 when there is no topbar.
+  const topbarRO = useRef<ResizeObserver | null>(null);
+  const topbarRef = useCallback((el: HTMLElement | null) => {
+    topbarRO.current?.disconnect();
+    topbarRO.current = null;
+    if (!el) {
+      document.documentElement.style.setProperty("--topbar-h", "0px");
+      return;
+    }
+    const set = () => document.documentElement.style.setProperty("--topbar-h", `${Math.round(el.getBoundingClientRect().height)}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    topbarRO.current = ro;
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -95,7 +115,7 @@ export function Shell() {
       {/* Global backstop: any uncaught error / rejection anywhere becomes visible (T32). */}
       <GlobalError />
       {!fullbleed && !embedded && (
-      <header className="topbar">
+      <header className="topbar" ref={topbarRef}>
         <Link to="/bands" className="brand">
           {/* BRAND08: the compact mark BESIDE the name (not instead of it) — the text stays the
               accessible, selectable, translatable name; the mark is decorative here. Ground-independent

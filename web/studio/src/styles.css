@@ -2489,7 +2489,16 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .lineups-suggest button { border: 1px solid var(--border, #ddd); border-radius: 6px; background: var(--surface, #fff); padding: .15rem .5rem; cursor: pointer; }
 .lineup-grid { border-collapse: collapse; width: 100%; margin-top: .5rem; font-size: .9rem; }
 .lineup-grid th, .lineup-grid td { border: 1px solid var(--border, #e3e3e3); padding: .25rem .4rem; text-align: center; white-space: nowrap; }
-.lineup-grid thead th { background: var(--brand-tint); position: relative; }
+/* T203-FIX3 — sticky header + sticky song column on the Line-ups grid, the by-part view and the Sound sheet
+   (all share .lineup-grid). The page scrolls (no overflow wrapper), so sticky works against the page. The WHOLE
+   thead is one sticky block (not per-row offsets): row heights are only a minimum, so a taller header row (the
+   owner row's ◀▶/+part, the sound sheet's input row, zoom) can't make stuck rows overlap. Opaque background so
+   cells scroll under; z-index below the topbar (10) + the "+ part" popup, above the cells. */
+.lineup-grid thead { position: sticky; top: var(--topbar-h, 0px); z-index: 3; }
+.lineup-grid thead th { background: var(--brand-tint); }
+.lineup-grid thead th:first-child, .lineup-grid tbody td:first-child { position: sticky; left: 0; background: var(--surface, #fff); }
+.lineup-grid thead th:first-child { z-index: 4; } /* the corner — sticky on both axes (thead sticks top, this sticks left) */
+.lineup-grid tbody td:first-child { z-index: 2; }
 .lineup-grid tbody td:first-child, .lineup-grid thead th:first-child { text-align: left; }
 .lineup-cell { min-width: 2.2rem; border: 0; background: transparent; cursor: pointer; font: inherit; color: var(--fg); padding: .1rem .3rem; border-radius: 4px; }
 .lineup-cell:hover { background: var(--brand-tint); }
