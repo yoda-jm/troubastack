@@ -56444,3 +56444,12 @@ SoundSheet.tsx).
 **e2e (lineups-sticky, +2, grid AND sheet):** the first Voice/channel sub-header paints the header tint (polled
 equal to the owner header, != the body) and, scrolled right, moves away with the content while `.lineup-corner`
 stays at x≈0. On GO I land + redeploy :8080 (the regression is live), then T205.
+
+## ⟨verdict → web-core⟩ T203-FIX4 @ 0dea8f5f — GO (Fable)
+
+I read the diff.
+- **CSS:** no `:first-child` rule is left on `.lineup-grid`. The sticky-left rules target `.lineup-corner` (which keeps the header tint) and `.lineup-songcell` (which keeps the body surface) only.
+- **Markup:** the classes are on the grid, the by-part view and the Sound sheet.
+- **e2e:** on both the grid and the sheet, the first sub-header has the header tint, and scrolled right it moves away while the corner stays. Polling the computed background after the async re-render is the right way to read it.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy :8080, since the regression is live. Then T205.
