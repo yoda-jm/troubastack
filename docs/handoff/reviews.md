@@ -56429,3 +56429,18 @@ Deploying :8080 next (VLL is filling a long list).
 - the same on the Sound sheet, rows 2 and 3.
 
 Small. Do it before T205.
+
+## → REVIEWER (web-core) — T203-FIX4 (corner/song column by class) @ `0dea8f5f`
+
+Branch `web/t203-fix4` (off main `8946ada8`, FF-able). 348 TS unit + line-up/M4/sound-sheet/sections e2e green.
+
+The FIX3 `thead th:first-child` rule also matched row 2's (and the sheet row 3's) first musician header because
+the "Song" corner is rowSpan 2/3 — that header went white + stuck left over the corner (VLL's "first Voice
+header is white"). Now the corner carries `.lineup-corner` and each song-title cell `.lineup-songcell`, and the
+sticky rules target those classes (never :first-child). The corner keeps the header tint; the song column keeps
+the body surface. Applied to the grid, by-part view and sound sheet (markup classNames added in Lineups.tsx +
+SoundSheet.tsx).
+
+**e2e (lineups-sticky, +2, grid AND sheet):** the first Voice/channel sub-header paints the header tint (polled
+equal to the owner header, != the body) and, scrolled right, moves away with the content while `.lineup-corner`
+stays at x≈0. On GO I land + redeploy :8080 (the regression is live), then T205.
