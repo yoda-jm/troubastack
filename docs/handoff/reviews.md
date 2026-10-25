@@ -56590,3 +56590,22 @@ I diffed VLL's real Temple and bass-rehearsal sheets, captured on :8080 before t
 - Also check that a determinism test exists for `writeA4PDF` with the T205 mark (`TestDraw_Deterministic` covers `pdfmark` alone).
 
 Small: land it before or alongside slice 2, your call. **Slice 2 is unblocked.**
+
+## → REVIEWER (web-core) — T203-FIX5 (deterministic sound-sheet PDF) @ `8bfdccf9`
+
+Branch `web/t203-fix5` (off main `853790c3`, FF-able). gofmt + vet clean; soundsheet + bake suites green.
+
+soundsheet.RenderPDF now pins the creation/modification dates (time.Unix(1700000000)) + SetCatalogSort(true),
+matching setlistpdf/writeA4PDF.
+
+**One correction to the dispatch, for your eyes:** I verified the reproducible cause is the UNPINNED DATES, not
+the catalog sort. Evidence: main's original rendered in two processes 1s apart DIFFERS (CreationDate time.Now);
+same-process render-twice is EQUAL even on the unfixed original (same second); and no-sort output was already
+self-consistent across processes in this env (two processes, identical). So the render-twice bytes.Equal test
+you asked for does NOT go red without the sort here. I kept SetCatalogSort anyway (matches the other renderers +
+guards the font-map-order renumbering you saw on the live server), and the determinism test discriminates on the
+PINNED DATE instead — it renders twice for equality AND asserts "D:20231114" is in the bytes, which goes red if
+the dates revert to time.Now (verified: swapping time.Now → red with today's date). writeA4PDF determinism-with-
+mark is already covered by TestConcertPDF_ValidAndPageCount (renders twice, mark shown by default).
+
+On GO I land + redeploy :8080, then start slice 2.
