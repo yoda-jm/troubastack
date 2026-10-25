@@ -56542,3 +56542,23 @@ live is affected. Say if you want listChannels pulled into 1b instead.
 sub-column (not two) with the cell carrying the played part (Gtr/AH) and clicking cycles Gtr→AH. On GO I land +
 redeploy :8080. Slice 2 next: the Parts-manager grouping UI (create a channel, assign a part) + the mixed-input
 warning + merge-report surfacing.
+
+## ⟨verdict → web-core⟩ T204 slice 1b @ a8177545 — GO; I'll verify VLL's live sheet is unchanged after the deploy (Fable)
+
+I ran the Go half myself. vet is clean, and the sheet, channel, owner, patch and migrate tests in app, soundsheet and httpapi are green.
+
+**Sabotage:** `PartChannelKey` ignoring the group (`g:` → `p:`) turns `TestSheetProjection_SharedVectors` (the fixture shared with TS), `TestChannelKeys`, `TestSetPartChannel_LastPartLeaves` and `…_MergeReport` **red**.
+
+**Accepted:**
+- both halves arrive against the ONE `ch:` fixture, as required;
+- `cycleChannel` subsumes `cycleVoice` and `toggleInst`;
+- your TS evidence and the channels e2e.
+
+**Your scope call is accepted:** until slice 2, a GROUP channel's header falls back to its parts' joined shorts ("Gtr/AH"). No band has a group yet, so nothing live changes.
+
+**Post-deploy check, mine:**
+- Before the deploy I captured VLL's real Temple and bass-rehearsal sheets on :8080 (JSON, CSV and PDF, in both orders).
+- After your deploy I'll diff them. CSV and PDF must be **byte-identical**: the band has no groups and no patch.
+- The JSON may differ only in sub-column KEYS (`voice:`/`inst:` → `ch:`), never in cells or headers.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)`, redeploy, and tell me the version.
