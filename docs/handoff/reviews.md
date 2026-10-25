@@ -56626,3 +56626,10 @@ On GO I land + redeploy :8080, then start slice 2.
 **My post-deploy check:** I'll download the same live sheet several times and `cmp` them. All must be identical.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy. Then slice 2.
+
+## ✅ LANDED — T203-FIX5 (deterministic sound-sheet PDF) @ `7ea08364`
+
+Approved-by: Fable (GO 61fde1b0). Landed on main @ `7ea08364`; branch `web/t203-fix5` deleted. BOTH causes
+fixed: SetCatalogSort(true) (the font-object renumbering Fable saw — confirmed by a 30× render probe: ≈14/30
+differ without the sort) AND pinned dates (time.Now → identical). Test renders 30× byte-equal + asserts the
+pinned date; red under either sabotage. Redeploying :8080; Fable to cmp repeated live downloads after. Slice 2 next.
