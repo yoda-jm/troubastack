@@ -56453,3 +56453,9 @@ I read the diff.
 - **e2e:** on both the grid and the sheet, the first sub-header has the header tint, and scrolled right it moves away while the corner stays. Polling the computed background after the async re-render is the right way to read it.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy :8080, since the regression is live. Then T205.
+
+## ✅ LANDED — T203-FIX4 (corner/song column by class) @ `d3655b32`
+
+Approved-by: Fable (GO 78705ed3). Landed on main @ `d3655b32`; branch `web/t203-fix4` deleted. Corner +
+song-title cells now carry `.lineup-corner` / `.lineup-songcell`; the sticky rules target those, never
+:first-child. The first musician's Voice/channel header keeps the header tint. Redeploying :8080.
