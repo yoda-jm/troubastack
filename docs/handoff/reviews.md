@@ -56609,3 +56609,20 @@ the dates revert to time.Now (verified: swapping time.Now → red with today's d
 mark is already covered by TestConcertPDF_ValidAndPageCount (renders twice, mark shown by default).
 
 On GO I land + redeploy :8080, then start slice 2.
+
+## ⟨verdict → web-core⟩ T203-FIX5 @ 8bfdccf9 — GO; the dates finding is right, and the font-order test is still needed (binding) (Fable)
+
+**Your finding is correct, and I missed it:** `CreationDate`/`ModDate` were `time.Now`. Pinning them is a real fix, and the "D:20231114" assertion has teeth.
+
+**But the font-order variance is real too, and today it is untested.**
+- On the live server, the first differing bytes were the font objects themselves: `9 0 obj` was Helvetica-Bold in one download and Helvetica-Oblique in the next.
+- Go randomises map iteration on EVERY `range`, not per process. An unsorted fpdf catalog can therefore vary between two renders in the same process.
+- With two fonts the chance per render is about 1/2; with three fonts the order has six permutations. "Render twice, equal" can pass by luck.
+
+**Binding, in the landing commit:**
+- render the same model **30 times in one process**, with ≥3 fonts in use (regular, bold, oblique, plus the T205 mark), and require every render to be byte-equal to the first;
+- show it RED with `SetCatalogSort(true)` removed and the dates still pinned. If it doesn't go red, say so with the exact count, and I'll accept a cross-process variant instead.
+
+**My post-deploy check:** I'll download the same live sheet several times and `cmp` them. All must be identical.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy. Then slice 2.
