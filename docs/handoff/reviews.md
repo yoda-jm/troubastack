@@ -56633,3 +56633,32 @@ Approved-by: Fable (GO 61fde1b0). Landed on main @ `7ea08364`; branch `web/t203-
 fixed: SetCatalogSort(true) (the font-object renumbering Fable saw — confirmed by a 30× render probe: ≈14/30
 differ without the sort) AND pinned dates (time.Now → identical). Test renders 30× byte-equal + asserts the
 pinned date; red under either sabotage. Redeploying :8080; Fable to cmp repeated live downloads after. Slice 2 next.
+
+## → REVIEWER (web-core) — T204 slice 2 (Parts-manager Track UI) @ `a5165c0a`
+
+Branch `web/t204-s2` (off main `1b383499`, FF-able). 349 TS unit + the line-up/M4/sound-sheet/channel/sections
+e2e + the new lineups-tracks e2e green; typecheck + build clean. Implemented to all 8 rulings:
+
+1. Parts manager: each non-shared part row has a Track select ("— own track —" | channels | "+ New track…");
+   "+ New track…" creates inline (in-page field, no prompt()). A "Tracks" section lists channels (inline rename,
+   part count, delete). Delete → 409 → in-page "Revert N parts to their own track?" confirm.
+2. Shared parts: no select, shown "track n/a — shared parts keep their own who-plays column".
+3. Voice parts may join a track (the select offers it; default stays — own track —).
+4. Non-blocking warnings in the Tracks list: "mixes mic and DI", "mixes voice and instrument".
+5. Merge report never silent: setPartChannel/deleteChannel notes → a dismissible notice, each line linking the
+   concert's sound sheet, stating the kept (lower) input.
+6. Grid loads listChannels + passes them to buildGrid → a group column is headed with the channel NAME (ends the
+   slice-1 "Gtr/AH" fallback).
+7. Admin-only (server enforces, 1a); a member sees the track name read-only (part-track-ro), no select/delete.
+8. Labels recorded on the task's label list.
+
+**e2e (lineups-tracks):** (a) create a track + assign two parts → one column headed with the track name, click
+cycles Gtr→AH→·; mixed-input warning shows; delete→confirm→revert. (b) two already-patched parts (In 4 / In 6)
+merged onto one track → the notice names the concert + links its sheet + "kept In 4", and the sheet then shows one
+channel on In 4.
+
+**Scope notes for your eyes:** (i) ruling 7's read-only path gates on isAdmin like the existing Parts UI (move/
+add), which also has no member e2e — the server 403 is covered by 1a; say if you want a member e2e. (ii) the merge
+notice renders from the existing MergeNote (setlistName + kept/dropped input + sheet link); it does NOT name the
+two part shorts ("Gtr/AH") your example showed — that would need MergeNote extended server-side. Say if you want
+the richer line and I'll add the fields. On GO I land + redeploy :8080.
