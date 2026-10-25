@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"troubastack/core/internal/pdfmark"
+
 	"github.com/go-pdf/fpdf"
 )
 
@@ -39,12 +41,14 @@ type Doc struct {
 	EventDate   string
 	Main        []Row
 	OnCall      []Row
+	HidePdfMark bool // T205: when true, omit the "Made with TroubaStack" mark (caller passes band.HidePdfMark)
 }
 
 // newSheet builds the deterministic A4 document (fixed dates + catalog sort → byte-stable) with the page
 // margins set and the first page added, ready to draw onto.
-func newSheet() (*fpdf.Fpdf, func(string) string) {
+func newSheet(showMark bool) (*fpdf.Fpdf, func(string) string) {
 	pdf := fpdf.New("P", "mm", "A4", "")
+	pdf.SetFooterFunc(func() { pdfmark.Draw(pdf, showMark) }) // T205: mark on every page, set before AddPage
 	// Deterministic bytes (mirrors chartpdf): a fixed creation/modification date + catalog sort so the same
 	// setlist always renders to the same PDF — friendly to caching and to any future golden.
 	fixed := time.Unix(1700000000, 0).UTC()
@@ -91,7 +95,7 @@ func drawHeader(pdf *fpdf.Fpdf, tr func(string) string, d Doc) {
 // Render draws the sheet and returns the PDF bytes. Auto page-break carries a long running order onto
 // further A4 pages.
 func Render(d Doc) ([]byte, error) {
-	pdf, tr := newSheet()
+	pdf, tr := newSheet(!d.HidePdfMark)
 	body := pageW - 2*margin
 	drawHeader(pdf, tr, d)
 

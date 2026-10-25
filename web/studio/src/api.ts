@@ -45,6 +45,7 @@ export type Band = {
   name: string;
   ownerId: string;
   createdAt: string;
+  hidePdfMark?: boolean; // T205: when true, omit the "Made with TroubaStack" mark on exported PDFs
 };
 
 export type MemberView = {
@@ -986,8 +987,8 @@ export const api = {
     ).then((r) => r.setlists),
 
   // ---- bands (admin) ----
-  updateBand: (bandId: string, name: string) =>
-    request<{ band: Band }>("PATCH", `/api/bands/${bandId}`, { name }).then((r) => r.band),
+  updateBand: (bandId: string, patch: { name?: string; hidePdfMark?: boolean }) =>
+    request<{ band: Band }>("PATCH", `/api/bands/${bandId}`, patch).then((r) => r.band),
 
   deleteBand: (bandId: string) => request<void>("DELETE", `/api/bands/${bandId}`),
 

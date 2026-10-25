@@ -26,7 +26,7 @@ func TestBuildSetlistDoc_IntermissionUnnumbered_T153(t *testing.T) {
 		},
 	}
 
-	doc := buildSetlistDoc("The Band", det)
+	doc := buildSetlistDoc("The Band", false, det)
 
 	if len(doc.Main) != 4 {
 		t.Fatalf("main rows = %d, want 4 (three songs + the break)", len(doc.Main))

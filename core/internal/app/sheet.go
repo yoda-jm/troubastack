@@ -97,7 +97,8 @@ type SheetModel struct {
 	OwnerSpans  []SheetOwnerSpan `json:"ownerSpans"`
 	Rows        []SheetRow       `json:"rows"`
 	InputList   []SheetPatchLine `json:"inputList"`
-	NotPatched  []string         `json:"notPatched,omitempty"` // descriptions of channels with no patch entry
+	NotPatched  []string         `json:"notPatched,omitempty"`  // descriptions of channels with no patch entry
+	HidePdfMark bool             `json:"hidePdfMark,omitempty"` // T205: omit the "Made with TroubaStack" mark on the PDF
 }
 
 // BuildSheet projects the sound sheet for one setlist. order ∈ {stage, patch}; empty defaults to stage.
@@ -242,6 +243,7 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 		Subcols:     subcols,
 		OwnerSpans:  ownerSpans(subcols),
 		Rows:        rows,
+		HidePdfMark: band.HidePdfMark, // T205
 	}
 	// Nit (T203-FIX): emit [] not null for the top-level slices on the wire.
 	if model.Subcols == nil {

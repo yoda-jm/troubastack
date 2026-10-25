@@ -2529,3 +2529,7 @@ a.btn-sm { display: inline-flex; align-items: center; text-decoration: none; }
 .sheet-in.dup { outline: 2px solid var(--danger, #c0392b); background: color-mix(in srgb, var(--danger, #c0392b) 12%, transparent); }
 .sheet-intermission { text-align: center; font-style: italic; background: var(--brand-tint); font-weight: 600; }
 .sheet-oncall-head { font-weight: 700; background: color-mix(in srgb, var(--fg) 6%, transparent); }
+
+/* T205: a label+checkbox row in band settings */
+.checkbox-row { display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; }
+.checkbox-row input { width: auto; margin: 0; }

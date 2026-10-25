@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"time"
 
+	"troubastack/core/internal/pdfmark"
+
 	"github.com/go-pdf/fpdf"
 )
 
@@ -101,7 +103,8 @@ func (b *Baker) concertPDF(concertID, viewerRole, viewerMemberID string, onSheet
 		onSheet(0, total) // publish the sheet count up front, so a poller shows "0 of N" before the first compose
 	}
 
-	return writeA4PDF(cb.Name, cb.Name, total, func(i int) (image.Image, string, string, error) {
+	showMark := !b.svc.BandPdfMarkHidden(cb.BandID) // T205: the band's live setting (bundle carries the id)
+	return writeA4PDF(cb.Name, cb.Name, total, showMark, func(i int) (image.Image, string, string, error) {
 		sh := sheets[i]
 		s := sh.song
 		title := s.Title
@@ -180,9 +183,10 @@ type a4Sheet func(i int) (img image.Image, header, footer string, err error)
 // dates and a sorted catalog so the bytes are deterministic. Sheets are composed lazily, one at a time, so a
 // long concert never holds every page in memory. n == 0 still yields a valid one-page PDF headed
 // emptyHeading with "(no pages to print)".
-func writeA4PDF(docTitle, emptyHeading string, n int, sheet a4Sheet) ([]byte, error) {
+func writeA4PDF(docTitle, emptyHeading string, n int, showMark bool, sheet a4Sheet) ([]byte, error) {
 	pdf := fpdf.New("P", "mm", "A4", "")
-	fixed := time.Unix(1700000000, 0).UTC() // pinned → deterministic bytes (T19/chartpdf pattern)
+	pdf.SetFooterFunc(func() { pdfmark.Draw(pdf, showMark) }) // T205: mark on every page (concert/file print)
+	fixed := time.Unix(1700000000, 0).UTC()                   // pinned → deterministic bytes (T19/chartpdf pattern)
 	pdf.SetCreationDate(fixed)
 	pdf.SetModificationDate(fixed)
 	pdf.SetCatalogSort(true)

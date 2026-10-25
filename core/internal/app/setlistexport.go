@@ -20,7 +20,7 @@ func (s *Service) ExportSetlistPDF(caller User, bandID, setlistID string) ([]byt
 		return nil, "", err
 	}
 
-	pdf, err := setlistpdf.Render(buildSetlistDoc(band.Name, det))
+	pdf, err := setlistpdf.Render(buildSetlistDoc(band.Name, band.HidePdfMark, det))
 	if err != nil {
 		return nil, "", err
 	}
@@ -33,7 +33,7 @@ func (s *Service) ExportSetlistPDF(caller User, bandID, setlistID string) ([]byt
 // Numbers(), but nothing exercised this mapping, which is where an intermission was
 // silently numbered as a song (T153). det.Items is already main-then-bench in
 // Position order.
-func buildSetlistDoc(bandName string, det SetlistDetail) setlistpdf.Doc {
+func buildSetlistDoc(bandName string, hidePdfMark bool, det SetlistDetail) setlistpdf.Doc {
 	entries := make([]runningorder.Entry, len(det.Items))
 	for i, it := range det.Items {
 		entries[i] = runningorder.Entry{Kind: entryKind(it), OnCall: it.OnCall}
@@ -57,6 +57,7 @@ func buildSetlistDoc(bandName string, det SetlistDetail) setlistpdf.Doc {
 		EventDate:   det.Setlist.EventDate,
 		Main:        main,
 		OnCall:      bench,
+		HidePdfMark: hidePdfMark,
 	}
 }
 

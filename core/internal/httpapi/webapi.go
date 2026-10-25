@@ -374,12 +374,13 @@ func (a *WebAPI) listMembers(w http.ResponseWriter, r *http.Request, u app.User)
 
 func (a *WebAPI) updateBand(w http.ResponseWriter, r *http.Request, u app.User) {
 	var in struct {
-		Name string `json:"name"`
+		Name        *string `json:"name"`
+		HidePdfMark *bool   `json:"hidePdfMark"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
-	b, err := a.svc.UpdateBand(u, r.PathValue("bandId"), in.Name)
+	b, err := a.svc.UpdateBand(u, r.PathValue("bandId"), in.Name, in.HidePdfMark)
 	if err != nil {
 		writeErr(w, err)
 		return

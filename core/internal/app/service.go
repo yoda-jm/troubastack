@@ -443,7 +443,9 @@ func (s *Service) requireRole(bandID, userID string, allowed ...Role) (Membershi
 }
 
 // UpdateBand renames a band (admin-only).
-func (s *Service) UpdateBand(caller User, bandID, name string) (Band, error) {
+// UpdateBand edits the band's admin-settable fields. name and hidePdfMark are optional (nil = leave unchanged),
+// so the one PATCH endpoint serves both the rename form and the T205 "Made with TroubaStack" checkbox. Admin-only.
+func (s *Service) UpdateBand(caller User, bandID string, name *string, hidePdfMark *bool) (Band, error) {
 	b, err := s.repo.GetBand(bandID)
 	if err != nil {
 		return Band{}, ErrNotFound
@@ -451,15 +453,31 @@ func (s *Service) UpdateBand(caller User, bandID, name string) (Band, error) {
 	if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
 		return Band{}, err
 	}
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return Band{}, fmt.Errorf("%w: band name is required", ErrInvalidInput)
+	if name != nil {
+		n := strings.TrimSpace(*name)
+		if n == "" {
+			return Band{}, fmt.Errorf("%w: band name is required", ErrInvalidInput)
+		}
+		b.Name = n
 	}
-	b.Name = name
+	if hidePdfMark != nil {
+		b.HidePdfMark = *hidePdfMark
+	}
 	if err := s.repo.UpdateBand(b); err != nil {
 		return Band{}, err
 	}
 	return b, nil
+}
+
+// BandPdfMarkHidden reports whether the band suppresses the "Made with TroubaStack" PDF mark (T205). It is a
+// cosmetic, non-sensitive flag read by the PDF renderers' callers — the bake path (concert/file print) has no
+// caller User to authorize with — so it takes no authorization; an unknown band reports false (shown, the default).
+func (s *Service) BandPdfMarkHidden(bandID string) bool {
+	b, err := s.repo.GetBand(bandID)
+	if err != nil {
+		return false
+	}
+	return b.HidePdfMark
 }
 
 // DeleteBand removes a band and cascades its songs (+ their files/blobs) and

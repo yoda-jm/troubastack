@@ -74,12 +74,13 @@ type v2Band struct {
 	// Shortname/Kind/Notes are the band's author-declared identity. T152: the app now STORES them (app.Band)
 	// and both import and export carry them, so `make band=<shortname>` keeps working across a round-trip
 	// (previously an export dropped them). Still omitempty: a pre-T152 export / an in-app band omits them.
-	Shortname string       `json:"shortname,omitempty"`
-	Kind      string       `json:"kind,omitempty"`
-	Notes     string       `json:"notes,omitempty"`
-	Musicians []v2Musician `json:"musicians,omitempty"`
-	Parts     []Part       `json:"parts,omitempty"`
-	Channels  []Channel    `json:"channels,omitempty"`
+	Shortname   string       `json:"shortname,omitempty"`
+	Kind        string       `json:"kind,omitempty"`
+	Notes       string       `json:"notes,omitempty"`
+	Musicians   []v2Musician `json:"musicians,omitempty"`
+	Parts       []Part       `json:"parts,omitempty"`
+	Channels    []Channel    `json:"channels,omitempty"`
+	HidePdfMark bool         `json:"hidePdfMark,omitempty"` // T205
 }
 
 // v2Musician is the folder shape for a line-up musician. Username is the account's username AT EXPORT, so a
@@ -306,7 +307,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 		// T150/T152: emit the declared id + author-declared identity so a folder round-trip preserves them.
 		Shortname: man.Band.Shortname, Kind: man.Band.Kind, Notes: man.Band.Notes,
 		// T203: the line-up vocabulary travels with the band.
-		Musicians: man.Band.Musicians, Parts: man.Band.Parts, Channels: man.Band.Channels,
+		Musicians: man.Band.Musicians, Parts: man.Band.Parts, Channels: man.Band.Channels, HidePdfMark: man.Band.HidePdfMark,
 	}
 	for _, m := range man.Members {
 		userByID[m.ID] = m.Username
@@ -531,7 +532,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 		ExportedAt:    band.ExportedAt,
 		// T150/T152: carry the folder's declared identity (id + shortname/kind/notes) into the manifest so
 		// import resolves + stores it.
-		Band:        manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes, Musicians: band.Musicians, Parts: band.Parts, Channels: band.Channels},
+		Band:        manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes, Musicians: band.Musicians, Parts: band.Parts, Channels: band.Channels, HidePdfMark: band.HidePdfMark},
 		Annotations: map[string]manifestAnnots{},
 	}
 

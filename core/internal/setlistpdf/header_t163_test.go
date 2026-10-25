@@ -8,7 +8,7 @@ import (
 // firstRowY renders the header alone and returns the Y (mm) at which the running order would start —
 // the exact quantity T163 is about. Render draws the same drawHeader, so this measures the real sheet.
 func firstRowY(d Doc) float64 {
-	pdf, tr := newSheet()
+	pdf, tr := newSheet(true)
 	drawHeader(pdf, tr, d)
 	return pdf.GetY()
 }

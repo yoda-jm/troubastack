@@ -182,6 +182,11 @@ type Band struct {
 	Musicians []Musician `json:"musicians,omitempty"`
 	Parts     []Part     `json:"parts,omitempty"`
 	Channels  []Channel  `json:"channels,omitempty"` // T204: custom console-track groups (parts reference by id)
+
+	// T205: when true, the "Made with TroubaStack" mark is NOT printed on exported PDFs (concert print, file
+	// print, running order, sound sheet). Zero value = false = shown, so every existing band keeps the default
+	// with no migration. Admin-edited; carried in band.json. Never affects generated charts (chartpdf).
+	HidePdfMark bool `json:"hidePdfMark,omitempty"`
 }
 
 // Membership ties a user to a band with a role.

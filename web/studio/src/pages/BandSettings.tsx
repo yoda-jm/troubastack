@@ -2,7 +2,7 @@
  * Band settings — rename, member roles & removal, leave, pending invites, and
  * delete. Most controls are admin-only; "Leave band" is available to everyone.
  */
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ApiError,
@@ -40,12 +40,63 @@ export function BandSettings() {
       </header>
 
       {myRole === "admin" && <Rename bandId={bandId} band={band} onRenamed={setBand} />}
+      {myRole === "admin" && <PdfMarkSetting bandId={bandId} band={band} onChanged={setBand} />}
       <MembersAdmin bandId={bandId} myRole={myRole} />
       {myRole === "admin" && <PendingInvites bandId={bandId} />}
       {myRole === "admin" && <InviteLinks bandId={bandId} />}
       {myRole === "admin" && <ExportBand bandId={bandId} bandName={band.name} />}
       {myRole === "admin" && <DeleteBand bandId={bandId} />}
     </>
+  );
+}
+
+// T205: the one admin checkbox that controls the "Made with TroubaStack" mark on exported PDFs (concert print,
+// file print, running order, sound sheet). The stored flag is HidePdfMark (zero = shown), so the checkbox shows
+// the POSITIVE sense ("Show …") and writes its negation.
+function PdfMarkSetting({
+  bandId,
+  band,
+  onChanged,
+}: {
+  bandId: string;
+  band: Band;
+  onChanged: (b: Band) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onToggle(e: ChangeEvent<HTMLInputElement>) {
+    const show = e.target.checked;
+    setError(null);
+    setBusy(true);
+    try {
+      onChanged(await api.updateBand(bandId, { hidePdfMark: !show }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Printed PDFs</h2>
+      </div>
+      <div className="panel-body">
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            data-testid="pdfmark-toggle"
+            checked={!band.hidePdfMark}
+            disabled={busy}
+            onChange={onToggle}
+          />
+          Show “Made with TroubaStack” at the bottom of exported PDFs
+        </label>
+        <ErrorBanner message={error} />
+      </div>
+    </section>
   );
 }
 
@@ -69,7 +120,7 @@ function Rename({
     setNotice(null);
     setBusy(true);
     try {
-      const updated = await api.updateBand(bandId, name);
+      const updated = await api.updateBand(bandId, { name });
       onRenamed(updated);
       setNotice("Saved.");
     } catch (err) {

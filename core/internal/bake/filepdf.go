@@ -88,7 +88,8 @@ func (b *Baker) FilePDF(ctx context.Context, bandID, songID, fileID string, acto
 	}
 	docTitle := title + " — " + fileName
 	n := len(sf.rasters)
-	return writeA4PDF(docTitle, docTitle, n, func(i int) (image.Image, string, string, error) {
+	showMark := !b.svc.BandPdfMarkHidden(bandID) // T205
+	return writeA4PDF(docTitle, docTitle, n, showMark, func(i int) (image.Image, string, string, error) {
 		raster, _, derr := image.Decode(bytes.NewReader(sf.rasters[i]))
 		if derr != nil {
 			return nil, "", "", fmt.Errorf("decode page %d raster: %w", i, derr)

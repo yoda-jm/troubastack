@@ -78,12 +78,13 @@ type manifestBand struct {
 	ID   string `json:"id,omitempty"`
 	Name string `json:"name"`
 	// T152: author-declared identity, carried through the manifest so it survives a round-trip.
-	Shortname string       `json:"shortname,omitempty"`
-	Kind      string       `json:"kind,omitempty"`
-	Notes     string       `json:"notes,omitempty"`
-	Musicians []v2Musician `json:"musicians,omitempty"`
-	Parts     []Part       `json:"parts,omitempty"`
-	Channels  []Channel    `json:"channels,omitempty"`
+	Shortname   string       `json:"shortname,omitempty"`
+	Kind        string       `json:"kind,omitempty"`
+	Notes       string       `json:"notes,omitempty"`
+	Musicians   []v2Musician `json:"musicians,omitempty"`
+	Parts       []Part       `json:"parts,omitempty"`
+	Channels    []Channel    `json:"channels,omitempty"`
+	HidePdfMark bool         `json:"hidePdfMark,omitempty"` // T205
 }
 
 // manifestMember carries the orig member id (the key for the OwnerID rewrite) plus the
@@ -270,7 +271,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 	man := bandManifest{
 		FormatVersion: BandExportFormatVersion,
 		ExportedAt:    s.now().UTC().Format(time.RFC3339),
-		Band:          manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes, Musicians: s.exportMusicians(band.Musicians), Parts: band.Parts, Channels: band.Channels},
+		Band:          manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes, Musicians: s.exportMusicians(band.Musicians), Parts: band.Parts, Channels: band.Channels, HidePdfMark: band.HidePdfMark},
 		Annotations:   map[string]manifestAnnots{},
 	}
 
@@ -693,7 +694,7 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 		// account musician's UserID is carried as-is — a same-server re-import keeps it valid; a cross-server
 		// import's old UserID won't match a new account (resolveMusicianName then shows a guest). Re-linking
 		// account musicians across a cross-server import is a stage-1b follow-up (needs the member remap).
-		Musicians: importMusicians(man.Band.Musicians), Parts: man.Band.Parts, Channels: man.Band.Channels,
+		Musicians: importMusicians(man.Band.Musicians), Parts: man.Band.Parts, Channels: man.Band.Channels, HidePdfMark: man.Band.HidePdfMark,
 	}
 	if band.Name == "" {
 		band.Name = "Imported band"

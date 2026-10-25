@@ -6,6 +6,7 @@ import (
 	"github.com/go-pdf/fpdf"
 
 	"troubastack/core/internal/app"
+	"troubastack/core/internal/pdfmark"
 )
 
 // RenderPDF renders the sheet model to a landscape A4 PDF. The 3-row column header repeats on every page and a
@@ -17,6 +18,7 @@ func RenderPDF(m app.SheetModel) ([]byte, error) {
 	plan := PlanLayout(len(m.Subcols), len(m.Rows), g)
 
 	pdf := fpdf.New("L", "mm", "A4", "")
+	pdf.SetFooterFunc(func() { pdfmark.Draw(pdf, !m.HidePdfMark) }) // T205: mark on every page, set before AddPage
 	pdf.SetMargins(10, 10, 10)
 	pdf.SetAutoPageBreak(false, 10)
 	tr := pdf.UnicodeTranslatorFromDescriptor("")
