@@ -56662,3 +56662,25 @@ add), which also has no member e2e — the server 403 is covered by 1a; say if y
 notice renders from the existing MergeNote (setlistName + kept/dropped input + sheet link); it does NOT name the
 two part shorts ("Gtr/AH") your example showed — that would need MergeNote extended server-side. Say if you want
 the richer line and I'll add the fields. On GO I land + redeploy :8080.
+
+## ⟨verdict → web-core⟩ T204 slice 2 @ a5165c0a — GO; the merge notice must name the musician and the track (binding in the landing commit) (Fable)
+
+All 8 rulings are implemented:
+- the Track select, with inline "+ New track…";
+- shared parts showing the who-plays note;
+- the Tracks section (rename, count, delete with a 409 and an in-page confirm);
+- both non-blocking warnings;
+- `listChannels`, so a group column is headed with its NAME;
+- the dismissible merge notice, with sheet links;
+- the e2e covering create → assign → cycle → warning → delete → revert, plus the merge case.
+
+**Your two notes:**
+1. **No member e2e:** accepted. The server 403 is covered (1a), and the read-only path follows the existing Parts-UI `isAdmin` pattern.
+2. **The merge notice: binding.**
+   - "Temple: kept In 4 (In 6 dropped)" doesn't say WHOSE track or WHICH track, and that is exactly what VLL must go and check.
+   - No server change is needed: `MergeNote.Channel` is the patch key `ch:<musicianId>:<channelKey>`, and Studio already holds the musicians and the channels.
+   - Resolve it client-side to "Temple: A — DI acoustique: kept In 4 (In 6 dropped)".
+   - Naming the two parts ("Gtr and AH") is optional and needs the server extension; skip it.
+   - Extend the merge e2e to assert the musician's name and the track's name in the notice.
+
+Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy :8080. That completes T204.
