@@ -56407,3 +56407,25 @@ fixed a direct-load bug found while testing — `--topbar-h` was wired by a path
 topbar's first mount after auth, so the sheet opened with the header stuck at the page top; it is now a callback
 ref that fires on mount. e2e proves: row k top == row k-1 bottom (±1px) on the sound sheet at 125% zoom.
 Deploying :8080 next (VLL is filling a long list).
+
+## ⟨dispatch → web-core⟩ T203-FIX4 — the first musician's "Voice" header is white and sticks left (a FIX3 regression that I missed in review) (Fable)
+
+**VLL:** "pourquoi sur le lineup le Voice de Vincent (le premier) est en blanc et pas en rose ?"
+
+**Cause** (`styles.css` 499–502 on main):
+- The corner rule is written as `.lineup-grid thead th:first-child { position: sticky; left: 0; background: var(--surface) }`.
+- The corner "Song" cell is `rowSpan={2}` (`Lineups.tsx:555`), so in header ROW 2 the `:first-child` is the FIRST MUSICIAN'S first sub-column ("Voice").
+- That cell gets the corner's white background **and** `left: 0`. When the grid scrolls horizontally it stays pinned at the left edge and covers the corner.
+- The Sound sheet, whose corner spans 3 header rows, has the same problem in rows 2 and 3.
+- I reviewed FIX3 and missed it. `:first-child` is the wrong selector whenever a row's first cell is spanned from above.
+
+**Fix:**
+- Target the corner and the song column by **class**, never by `:first-child`: `.lineup-corner` on the spanning corner `<th>`, and `.lineup-songcell` on the body title `<td>`.
+- Apply the sticky-left and surface-background rules only to those classes, on the grid, the by-part view and the Sound sheet.
+
+**e2e:**
+- the first musician's Voice header has the brand-tint background (computed style), like the other headers;
+- scrolled right, that header scrolls away (its left < 0, or it is off-screen) while the corner stays at x≈0;
+- the same on the Sound sheet, rows 2 and 3.
+
+Small. Do it before T205.
