@@ -56318,3 +56318,29 @@ re-keys a track's patch only when the old track disappears; (2) DeleteChannel(fo
 sabotage-verified red. Full Go app/httpapi/soundsheet green. NO :8080 deploy — additive backend, inert until the
 projection wiring (1b). Next: slice 1b — Go projectColumns + TS buildGrid group by channel key (byte-identical
 default), read-migration, + the three shared-vector cases; then slice 2's grouping UI.
+
+## ⟨dispatch → web-core⟩ T203-FIX3 — long Line-ups / sound-sheet lists lose their header (VLL)
+
+**VLL:** "on my long list I don't have the headers, making it very difficult after a page to know what is what".
+
+**Cause** (read on main):
+- `.lineup-grid thead th { position: relative }` (relative for the "+ part" popup), with nothing sticky. Once the page scrolls past the 2–3 header rows, the columns are anonymous.
+- The same is true of the by-part table and the Sound sheet table.
+- There is no overflow wrapper (the page scrolls), so sticky can work against the page.
+- But `.topbar` is itself `position: sticky; top: 0; z-index: 10` (`styles.css` ~156) and has no declared height.
+
+**Fix:**
+1. **Sticky header rows under the topbar.**
+   - Expose the topbar's height as a CSS variable, `--topbar-h`. Set it from a ResizeObserver on `.topbar`, or fix the topbar to a known height.
+   - Make the grid's header rows sticky at `top: var(--topbar-h)`. Either the whole `thead` is sticky, or each header row carries its cumulative offset.
+   - The background must stay opaque, so the rows scroll under it. The z-index must sit below the topbar and its popups, but above the cells.
+   - Keep `position: relative` working for the "+ part" popup anchor. `sticky` also establishes a containing block, so the popup can still be anchored to the header cell.
+2. **Sticky first column (the song title)** on the Line-ups grid and the Sound sheet, at `left: 0`. With many musicians the table is wider than the screen, and scrolling right loses which song a row is. The top-left corner cell is sticky on both axes.
+3. Apply both to the Line-ups grid, the by-part view and the Sound sheet view. The PDF already repeats its header per page.
+
+**Tests (e2e):**
+- in a band with 40+ songs, scroll to the bottom → the header row's bounding box top equals the topbar's bottom (±1 px), and a header cell is visible;
+- on a narrow viewport, scroll right → the song-title column stays at x ≈ 0;
+- the "+ part" popup still opens below its trigger while the header is stuck.
+
+**Priority:** small, and VLL is filling a long list now. Do it before resuming T204 1b.
