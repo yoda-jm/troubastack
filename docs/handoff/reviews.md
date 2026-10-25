@@ -56396,3 +56396,14 @@ I read the CSS and the Shell change.
 - **e2e:** on the Sound sheet (the row with inputs), and on a grid whose musician has a long name, with the page scrolled, assert that row k's top == row k-1's bottom (±1 px) for every header row, i.e. no overlap. Run it once at 125% zoom (`page.setViewportSize` + a device scale, or a larger root font-size).
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy :8080. Then T205, then T204 1b.
+
+## ✅ LANDED — T203-FIX3 (sticky headers + song column) @ `4a3b6cee`
+
+Approved-by: Fable (GO 8fc87281). Landed on main @ `4a3b6cee`; branch `web/t203-fix3` deleted.
+
+Binding addressed in the landing commit: the header is ONE sticky `thead` block (no per-row offsets), so a
+taller header row (the owner row's ◀▶/+part, the sheet's input row, zoom) can't make stuck rows overlap. Also
+fixed a direct-load bug found while testing — `--topbar-h` was wired by a pathname-keyed effect that missed the
+topbar's first mount after auth, so the sheet opened with the header stuck at the page top; it is now a callback
+ref that fires on mount. e2e proves: row k top == row k-1 bottom (±1px) on the sound sheet at 125% zoom.
+Deploying :8080 next (VLL is filling a long list).
