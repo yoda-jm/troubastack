@@ -139,6 +139,11 @@ export type Musician = { id: string; userId?: string; name?: string; order?: num
 export type MusicianView = Musician & { displayName: string; isMember: boolean; former?: boolean };
 export type PartKind = "voice" | "instrument" | "other";
 export type Part = { id: string; name: string; kind: PartKind; short?: string; input?: string; shared?: boolean; order?: number; channelId?: string };
+// T204: a custom console-track group. Parts reference it by channelId; a part with no channelId is on its own track.
+export type Channel = { id: string; name: string; order?: number };
+// A merge note: assigning/deleting a channel made two patched channels in a concert share one console input; the
+// lower input was kept. Surfaced to the user so a silent patch change never happens.
+export type MergeNote = { setlistId: string; setlistName: string; channel: string; keptInput: number; droppedInput: number };
 export type LineupEntry = { musicianId: string; partIds: string[]; optional?: boolean; note?: string };
 
 // T203 stage 4 — the sound sheet model (Go-authoritative; Studio renders it).
@@ -679,6 +684,21 @@ export const api = {
     request<{ part: Part }>("PATCH", `/api/bands/${bandId}/parts/${id}`, patch).then((r) => r.part),
   mergeParts: (bandId: string, from: string, to: string) =>
     request<void>("POST", `/api/bands/${bandId}/parts/merge`, { from, to }),
+
+  // ---- channels / tracks (T204 slice 2; create/rename/delete are admin) ----
+  listChannels: (bandId: string) =>
+    request<{ channels: Channel[] }>("GET", `/api/bands/${bandId}/channels`).then((r) => r.channels ?? []),
+  createChannel: (bandId: string, name: string) =>
+    request<{ channel: Channel }>("POST", `/api/bands/${bandId}/channels`, { name }).then((r) => r.channel),
+  renameChannel: (bandId: string, id: string, name: string) =>
+    request<{ channel: Channel }>("PATCH", `/api/bands/${bandId}/channels/${id}`, { name }).then((r) => r.channel),
+  // Without force a 409 (ApiError.body.parts = how many parts would revert); with force it reverts them and
+  // returns any merge notes.
+  deleteChannel: (bandId: string, id: string, force = false) =>
+    request<{ merged: MergeNote[] }>("DELETE", `/api/bands/${bandId}/channels/${id}${force ? "?force=1" : ""}`).then((r) => r.merged ?? []),
+  // Assign a part to a channel ("" clears it back to its own track); returns any merge notes.
+  setPartChannel: (bandId: string, partId: string, channelId: string) =>
+    request<{ merged: MergeNote[] }>("PATCH", `/api/bands/${bandId}/parts/${partId}/channel`, { channelId }).then((r) => r.merged ?? []),
 
   // --- T203 stage 4: the sound sheet + the per-concert console patch ---
   getSheet: (bandId: string, setlistId: string, order: SheetOrder) =>

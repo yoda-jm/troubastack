@@ -72,3 +72,16 @@ number and report it in the migration log. It is unlikely, since nobody patches 
 - "Chœurs" was added: voice, short B, order 2.
 - The Voice cell cycles · → L → B.
 - No line-up was changed: the 44 "Voix" entries read as lead.
+
+## Labels (product words — slice 2, on the list)
+
+New UI strings in the Parts manager, on the docs-stage label list for VLL to confirm:
+
+| Surface | String |
+|---|---|
+| Track select — no group | **— own track —** |
+| Track select — create | **+ New track…** |
+| The grouping concept | **Track** (the heading is "Tracks") |
+| Shared-part note | Shared parts keep their own who-plays column |
+
+A part's "Track" is the console channel it shares. Final copy may be tuned at the gate / the documented-feature stage.

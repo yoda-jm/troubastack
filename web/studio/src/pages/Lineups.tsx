@@ -6,7 +6,7 @@
  * A "by part" toggle re-projects the same data. The chips filter the rows (tags + line-up chips, AND).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, api, type Song, type MusicianView, type Part, type LineupEntry } from "../api";
+import { ApiError, api, type Song, type MusicianView, type Part, type LineupEntry, type Channel, type MergeNote } from "../api";
 import { useBand } from "./BandLayout";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useDialogs } from "../components/Dialog";
@@ -49,7 +49,13 @@ export function Lineups() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [musicians, setMusicians] = useState<MusicianView[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [mergeNotes, setMergeNotes] = useState<MergeNote[]>([]); // T204 s2: surfaced after a track change (ruling 5)
+  const [newTrackFor, setNewTrackFor] = useState<string | null>(null); // partId whose inline "+ New track…" field is open
+  const [newTrackName, setNewTrackName] = useState("");
+  const [renameTrack, setRenameTrack] = useState<string | null>(null); // channelId being renamed inline
+  const [confirmDeleteTrack, setConfirmDeleteTrack] = useState<{ id: string; count: number } | null>(null);
   const [byPart, setByPart] = useState(false);
   const [chips, setChips] = useState<LineupChip[]>([]);
   const [query, setQuery] = useState("");
@@ -68,14 +74,16 @@ export function Lineups() {
   const load = useCallback(async () => {
     if (!bandId) return;
     try {
-      const [sg, ms, ps] = await Promise.all([
+      const [sg, ms, ps, chs] = await Promise.all([
         api.listSongs(bandId),
         api.listMusicians(bandId),
         api.listParts(bandId),
+        api.listChannels(bandId),
       ]);
       setSongs(sg);
       setMusicians(ms);
       setParts(ps);
+      setChannels(chs);
       setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't load the line-ups.");
@@ -117,7 +125,7 @@ export function Lineups() {
   const words = queryWords(query);
   const shown = filterLineupSongs(songs as LineupSong[], chips, words);
   const gridMus: GridMusician[] = musicians.map((m) => ({ id: m.id, displayName: m.displayName, order: m.order, instruments: m.instruments }));
-  const grid = buildGrid(shown as GridSong[], gridMus, parts, { editor: true });
+  const grid = buildGrid(shown as GridSong[], gridMus, parts, { editor: true, channels });
   const byPartGrid = buildGridByPart(shown as GridSong[], gridMus, parts);
   // Flat interactive-column index (voice/inst/shared), stable per render — the x-coordinate for arrow nav (M4).
   const subColIndex = new Map<string, number>();
@@ -227,6 +235,89 @@ export function Lineups() {
       lineup[i].partIds = [...lineup[i].partIds, partId];
     }
     void patchLineup(songId, prune(lineup));
+  }
+
+  // T204 slice 2 — tracks (channels). Assign/create/rename/delete a track; every track change that merges
+  // patches surfaces its notes (ruling 5). All of these are admin-only server-side.
+  async function assignTrack(partId: string, channelId: string) {
+    try {
+      setMergeNotes(await api.setPartChannel(bandId, partId, channelId));
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't change the track.");
+    }
+  }
+  async function createTrackInline(partId: string) {
+    const name = newTrackName.trim();
+    if (!name) return;
+    try {
+      const ch = await api.createChannel(bandId, name);
+      setMergeNotes(await api.setPartChannel(bandId, partId, ch.id));
+      setNewTrackFor(null);
+      setNewTrackName("");
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't create the track.");
+    }
+  }
+  async function renameChannelSave(id: string, name: string) {
+    const n = name.trim();
+    setRenameTrack(null);
+    if (!n) return;
+    try {
+      await api.renameChannel(bandId, id, n);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't rename the track.");
+    }
+  }
+  async function deleteTrack(id: string) {
+    try {
+      setMergeNotes(await api.deleteChannel(bandId, id)); // no force: 409 if it still has parts
+      await load();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setConfirmDeleteTrack({ id, count: Number(err.body?.parts ?? 0) });
+      } else {
+        setError(err instanceof ApiError ? err.message : "Couldn't delete the track.");
+      }
+    }
+  }
+  async function confirmDeleteTrackNow() {
+    if (!confirmDeleteTrack) return;
+    try {
+      setMergeNotes(await api.deleteChannel(bandId, confirmDeleteTrack.id, true));
+      setConfirmDeleteTrack(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't delete the track.");
+    }
+  }
+  // Non-blocking warnings for a track (ruling 4): a mix of console input types, or of voice + instrument parts.
+  function trackWarnings(channelId: string): string[] {
+    const ps = parts.filter((p) => p.channelId === channelId);
+    const w: string[] = [];
+    const inputs = new Set(ps.map((p) => p.input).filter((x): x is string => !!x && x !== "none"));
+    if (inputs.size > 1) w.push("mixes mic and DI");
+    const kinds = new Set(ps.map((p) => p.kind));
+    if (kinds.has("voice") && kinds.has("instrument")) w.push("mixes voice and instrument");
+    return w;
+  }
+  // Resolve a merge note's channel key (ch:<musicianId>:<channelKey>) to WHOSE track and WHICH track, so the
+  // notice reads "<concert>: <owner> — <track>: kept In N (In M dropped)" rather than a raw key (ruling, slice 2).
+  function mergeNoteParties(channel: string): { owner: string; track: string } {
+    const m = /^ch:([^:]+):(.+)$/.exec(channel);
+    if (!m) return { owner: "?", track: channel };
+    const [, mid, ck] = m;
+    const owner = musicians.find((x) => x.id === mid)?.displayName ?? "?";
+    let track = ck;
+    if (ck === "voice") track = "Voice";
+    else if (ck.startsWith("g:")) track = channels.find((c) => c.id === ck.slice(2))?.name ?? "track";
+    else if (ck.startsWith("p:")) {
+      const p = parts.find((x) => x.id === ck.slice(2));
+      track = p ? (p.short || p.name) : "track";
+    }
+    return { owner, track };
   }
 
   async function addMusician() {
@@ -455,6 +546,30 @@ export function Lineups() {
 
       {showParts && (
         <div className="lineups-parts" data-testid="lineups-parts">
+          {mergeNotes.length > 0 && (
+            <div className="merge-notice" data-testid="merge-notice">
+              <button type="button" className="linklike notice-dismiss" data-testid="merge-notice-dismiss" aria-label="Dismiss" onClick={() => setMergeNotes([])}>✕</button>
+              <strong>Patches merged:</strong>
+              <ul>
+                {mergeNotes.map((n, i) => {
+                  const { owner, track } = mergeNoteParties(n.channel);
+                  return (
+                    <li key={i}>
+                      <a data-testid="merge-notice-link" href={`/bands/${bandId}/setlists/${n.setlistId}/sheet`}>{n.setlistName}</a>
+                      {`: ${owner} — ${track}: kept In ${n.keptInput} (In ${n.droppedInput} dropped).`}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {confirmDeleteTrack && (
+            <div className="confirm-inline" data-testid="track-delete-confirm">
+              Revert {confirmDeleteTrack.count} part{confirmDeleteTrack.count === 1 ? "" : "s"} to their own track?
+              <button type="button" className="btn-sm" data-testid="track-delete-confirm-yes" onClick={() => void confirmDeleteTrackNow()}>Revert</button>
+              <button type="button" className="linklike" onClick={() => setConfirmDeleteTrack(null)}>cancel</button>
+            </div>
+          )}
           <form
             className="lineups-addpart-form"
             onSubmit={(e) => {
@@ -493,6 +608,38 @@ export function Lineups() {
                 }}
               >
                 {p.name} <span className="muted">· {p.kind}{p.shared ? " · shared" : ""}</span>
+                {/* T204 s2: the Track control. Shared parts keep their own who-plays column (ruling 2); voice may
+                    join a track (ruling 3); members see the track name read-only (ruling 7). */}
+                {p.shared ? (
+                  <span className="muted" data-testid="part-track-shared"> · track n/a — shared parts keep their own who-plays column</span>
+                ) : isAdmin ? (
+                  <span className="lineup-part-track">
+                    {" · "}
+                    <select
+                      data-testid="part-track"
+                      aria-label={`Track for ${p.name}`}
+                      value={newTrackFor === p.id ? "__new__" : (p.channelId ?? "")}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "__new__") { setNewTrackFor(p.id); setNewTrackName(""); }
+                        else { setNewTrackFor(null); void assignTrack(p.id, v); }
+                      }}
+                    >
+                      <option value="">— own track —</option>
+                      {channels.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      <option value="__new__">+ New track…</option>
+                    </select>
+                    {newTrackFor === p.id && (
+                      <form className="inline-form" onSubmit={(e) => { e.preventDefault(); void createTrackInline(p.id); }}>
+                        <input autoFocus data-testid="newtrack-name" aria-label="New track name" value={newTrackName} onChange={(e) => setNewTrackName(e.target.value)} placeholder="Track name" />
+                        <button type="submit" className="btn-sm" data-testid="newtrack-create">Create</button>
+                        <button type="button" className="linklike" onClick={() => { setNewTrackFor(null); setNewTrackName(""); }}>cancel</button>
+                      </form>
+                    )}
+                  </span>
+                ) : (
+                  p.channelId && <span className="muted" data-testid="part-track-ro"> · {channels.find((c) => c.id === p.channelId)?.name ?? "track"}</span>
+                )}
                 {isAdmin && (
                   <span className="lineup-part-move">
                     <button type="button" className="linklike" data-testid="partlist-up" title="Move up" aria-label={`Move ${p.name} up`} onClick={() => movePart(p.id, -1)}>▲</button>
@@ -502,6 +649,45 @@ export function Lineups() {
               </li>
             ))}
           </ul>
+          {channels.length > 0 && (
+            <div className="lineups-tracks" data-testid="lineups-tracks">
+              <h4>Tracks</h4>
+              <ul>
+                {channels.map((c) => {
+                  const count = parts.filter((p) => p.channelId === c.id).length;
+                  const warns = trackWarnings(c.id);
+                  return (
+                    <li key={c.id} data-testid="track-item">
+                      {renameTrack === c.id && isAdmin ? (
+                        <input
+                          autoFocus
+                          data-testid="track-rename"
+                          aria-label={`Rename ${c.name}`}
+                          defaultValue={c.name}
+                          onBlur={(e) => void renameChannelSave(c.id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") void renameChannelSave(c.id, (e.target as HTMLInputElement).value);
+                            if (e.key === "Escape") setRenameTrack(null);
+                          }}
+                        />
+                      ) : (
+                        <span
+                          data-testid="track-name"
+                          className={isAdmin ? "linklike" : undefined}
+                          onClick={() => { if (isAdmin) setRenameTrack(c.id); }}
+                        >
+                          {c.name}
+                        </span>
+                      )}
+                      <span className="muted"> · {count} part{count === 1 ? "" : "s"}</span>
+                      {warns.map((w) => <span key={w} className="warn" data-testid="track-warning"> ⚠ {w}</span>)}
+                      {isAdmin && <button type="button" className="linklike" data-testid="track-delete" onClick={() => void deleteTrack(c.id)}>delete</button>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

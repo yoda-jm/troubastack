@@ -2533,3 +2533,15 @@ a.btn-sm { display: inline-flex; align-items: center; text-decoration: none; }
 /* T205: a label+checkbox row in band settings */
 .checkbox-row { display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; }
 .checkbox-row input { width: auto; margin: 0; }
+
+/* T204 slice 2 — tracks (channels) in the Parts manager */
+.lineup-part-track { display: inline-flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.lineups-tracks { margin-top: .75rem; border-top: 1px solid var(--border); padding-top: .5rem; }
+.lineups-tracks h4 { margin: 0 0 .35rem; font-size: .85rem; }
+.lineups-tracks ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; }
+.lineups-tracks li { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.warn { color: var(--warn, #9a6700); font-size: .82rem; }
+.merge-notice { position: relative; border: 1px solid var(--border); background: var(--brand-tint); border-radius: .4rem; padding: .5rem .75rem; margin-bottom: .6rem; }
+.merge-notice ul { margin: .25rem 0 0; padding-left: 1.1rem; }
+.merge-notice .notice-dismiss { position: absolute; top: .3rem; right: .4rem; }
+.confirm-inline { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; border: 1px solid var(--border); border-radius: .4rem; padding: .4rem .6rem; margin-bottom: .6rem; }
