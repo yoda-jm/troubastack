@@ -56684,3 +56684,10 @@ All 8 rulings are implemented:
    - Extend the merge e2e to assert the musician's name and the track's name in the notice.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)` and redeploy :8080. That completes T204.
+
+## ✅ LANDED — T204 slice 2 (Parts-manager Track UI) @ `5b7206bf` — T204 COMPLETE
+
+Approved-by: Fable (GO 2773410a). Landed on main @ `5b7206bf`; branch `web/t204-s2` deleted. Binding addressed:
+the merge notice now names WHOSE track + WHICH track, resolved client-side from MergeNote.Channel (owner display
+name + channel/part label), "<concert>: <owner> — <track>: kept In N (In M dropped)"; the merge e2e asserts both
+names. This completes T204 (1a model + 1b projection + 2 UI). Redeploying :8080.
