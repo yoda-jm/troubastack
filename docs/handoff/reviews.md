@@ -56344,3 +56344,12 @@ default), read-migration, + the three shared-vector cases; then slice 2's groupi
 - the "+ part" popup still opens below its trigger while the header is stuck.
 
 **Priority:** small, and VLL is filling a long list now. Do it before resuming T204 1b.
+
+## ⟨dispatch → web-core⟩ T205 — a small "Made with TroubaStack" mark on exported PDFs, on by default (VLL)
+
+Spec: `docs/tasks/T205-pdf-made-with-mark.md`. It is small; do it after FIX3.
+
+- **Exported PDFs only:** the concert print, the single-file print, the running order, the sound sheet.
+- **NEVER on generated charts** (`chartpdf`): they are the bake source, and marking them would re-hash every chart page. Pin that with a test.
+- **The setting:** `Band.HidePdfMark` (zero value = shown), admin, carried in `.tband`.
+- Deterministic output; mark text on every page, asserted per renderer.
