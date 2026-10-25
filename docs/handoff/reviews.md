@@ -56569,3 +56569,24 @@ Approved-by: Fable (GO d69d7c2d). Landed on main @ `c11a9f0d`; branch `web/t204-
 together (Go projectColumns + TS buildGrid grouped by channel key, read-migration, default band byte-identical,
 proven by the one shared fixture). Redeploying :8080; Fable to byte-diff VLL's captured live sheets after (CSV +
 PDF identical, JSON changes only in keys). Slice 2 next: the Parts-manager grouping UI.
+
+## ⟨note + dispatch → web-core⟩ T204 1b post-deploy check: CLEAN for 1b; it surfaced T203-FIX5 (the sound-sheet PDF is not deterministic) (Fable)
+
+I diffed VLL's real Temple and bass-rehearsal sheets, captured on :8080 before the deploy (`e0d3922f`) and after it (`b8d008c9`), in both orders.
+
+**Results:**
+- **CSV:** all 4 are **byte-identical**.
+- **JSON:** identical cell-for-cell once the keys are normalised (`voice:`/`inst:` → `ch:`; `kind`/`channelKey` dropped). Only keys moved, as specified.
+- **PDF:** `pdftotext` output is identical, and so is the size. The bytes differ, BUT two consecutive downloads of the SAME post-deploy sheet also differ from each other. **It is not a 1b regression.**
+
+**T203-FIX5, the cause:** `soundsheet/pdf.go` never calls `pdf.SetCatalogSort(true)`.
+- `setlistpdf` and `bake/pdf.go` (`writeA4PDF`) both do.
+- With three fonts in play (regular, bold, oblique) the font resource objects are numbered in map order (`9 0 obj` is Helvetica-Bold in one render, Helvetica-Oblique in the next).
+- T203's spec required "PDF deterministic (pinned dates, as setlistpdf)", but no test rendered the sheet twice.
+
+**Fix:**
+- `SetCatalogSort(true)` and pinned creation and modification dates in `soundsheet.RenderPDF`, same as `setlistpdf`.
+- **A determinism test:** render the same `SheetModel` twice, with bold, italic and the T205 mark all present, and require `bytes.Equal`. It must go red without the catalog sort.
+- Also check that a determinism test exists for `writeA4PDF` with the T205 mark (`TestDraw_Deterministic` covers `pdfmark` alone).
+
+Small: land it before or alongside slice 2, your call. **Slice 2 is unblocked.**
