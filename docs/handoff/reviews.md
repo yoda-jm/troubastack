@@ -56562,3 +56562,10 @@ I ran the Go half myself. vet is clean, and the sheet, channel, owner, patch and
 - The JSON may differ only in sub-column KEYS (`voice:`/`inst:` → `ch:`), never in cells or headers.
 
 Land it with `Approved-by: Fable (GO <this entry's sha>)`, redeploy, and tell me the version.
+
+## ✅ LANDED — T204 slice 1b (grid/sheet project by channel) @ `c11a9f0d`
+
+Approved-by: Fable (GO d69d7c2d). Landed on main @ `c11a9f0d`; branch `web/t204-s1b` deleted. Both halves ship
+together (Go projectColumns + TS buildGrid grouped by channel key, read-migration, default band byte-identical,
+proven by the one shared fixture). Redeploying :8080; Fable to byte-diff VLL's captured live sheets after (CSV +
+PDF identical, JSON changes only in keys). Slice 2 next: the Parts-manager grouping UI.
