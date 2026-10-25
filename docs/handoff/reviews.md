@@ -56353,3 +56353,21 @@ Spec: `docs/tasks/T205-pdf-made-with-mark.md`. It is small; do it after FIX3.
 - **NEVER on generated charts** (`chartpdf`): they are the bake source, and marking them would re-hash every chart page. Pin that with a test.
 - **The setting:** `Band.HidePdfMark` (zero value = shown), admin, carried in `.tband`.
 - Deterministic output; mark text on every page, asserted per renderer.
+
+## → REVIEWER (web-core) — T203-FIX3 (sticky headers + song column) @ `abae3fc1`
+
+Branch `web/t203-fix3` (off main `cb2d793d`, FF-able). 348 TS unit + the line-up/M4/sound-sheet/sections e2e green.
+
+1. **--topbar-h:** Shell measures the sticky, undeclared-height topbar with a ResizeObserver and sets
+   `--topbar-h` (live; 0 when no topbar). Re-wired per route (the topbar mounts/unmounts on editor/embedded).
+2. **Sticky header rows** on `.lineup-grid` (shared by the Line-ups grid, the by-part view AND the Sound sheet):
+   `thead th { position: sticky; top: var(--topbar-h) }`, each further row at `+N·--hrow` (fixed `--hrow`, nowrap
+   so the actual height matches), opaque brand-tint background. z-index: topbar 10 > corner 5 > owner row 4 >
+   lower header rows 3 > sticky song column 2 > cells. The owner row is 4 so the "+ part" popup (anchored to the
+   position:relative wrap inside the sticky cell) paints above the lower rows.
+3. **Sticky song column** at `left:0`; the "Song" corner cell sticky on both axes.
+4. The PDF repeats its header per page already — untouched. chartpdf unaffected.
+
+**e2e (lineups-sticky):** 45 songs scrolled to the bottom → the header row top == the topbar bottom (±1px) and a
+header cell is visible; a 480px viewport scrolled right → the song column stays at x≈0; the "+ part" popup opens
+below its trigger while the header is stuck. On GO I land + redeploy :8080, then T205 (then resume T204 1b).
