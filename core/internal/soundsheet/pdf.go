@@ -2,6 +2,7 @@ package soundsheet
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/go-pdf/fpdf"
 
@@ -18,6 +19,13 @@ func RenderPDF(m app.SheetModel) ([]byte, error) {
 	plan := PlanLayout(len(m.Subcols), len(m.Rows), g)
 
 	pdf := fpdf.New("L", "mm", "A4", "")
+	// T203-FIX5: deterministic bytes — pinned dates + catalog sort, as setlistpdf and writeA4PDF already do.
+	// Without the sort the font resource objects (regular/bold/oblique/bold-oblique) are numbered in map order,
+	// so two renders of the SAME sheet differ (Bold/Oblique swap object numbers).
+	fixed := time.Unix(1700000000, 0).UTC()
+	pdf.SetCreationDate(fixed)
+	pdf.SetModificationDate(fixed)
+	pdf.SetCatalogSort(true)
 	pdf.SetFooterFunc(func() { pdfmark.Draw(pdf, !m.HidePdfMark) }) // T205: mark on every page, set before AddPage
 	pdf.SetMargins(10, 10, 10)
 	pdf.SetAutoPageBreak(false, 10)
