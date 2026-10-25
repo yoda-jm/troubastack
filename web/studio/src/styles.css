@@ -2496,10 +2496,11 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
    cells scroll under; z-index below the topbar (10) + the "+ part" popup, above the cells. */
 .lineup-grid thead { position: sticky; top: var(--topbar-h, 0px); z-index: 3; }
 .lineup-grid thead th { background: var(--brand-tint); }
-.lineup-grid thead th:first-child, .lineup-grid tbody td:first-child { position: sticky; left: 0; background: var(--surface, #fff); }
-.lineup-grid thead th:first-child { z-index: 4; } /* the corner — sticky on both axes (thead sticks top, this sticks left) */
-.lineup-grid tbody td:first-child { z-index: 2; }
-.lineup-grid tbody td:first-child, .lineup-grid thead th:first-child { text-align: left; }
+/* T203-FIX4: target the corner + song column by CLASS, never :first-child — the "Song" corner is rowSpan 2/3,
+   so :first-child also hit row 2/3's first musician header (it went white and stuck left over the corner). */
+.lineup-grid .lineup-corner { position: sticky; left: 0; background: var(--brand-tint); z-index: 4; } /* corner — thead sticks it top, this sticks it left */
+.lineup-grid .lineup-songcell { position: sticky; left: 0; background: var(--surface, #fff); z-index: 2; }
+.lineup-grid .lineup-corner, .lineup-grid .lineup-songcell { text-align: left; }
 .lineup-cell { min-width: 2.2rem; border: 0; background: transparent; cursor: pointer; font: inherit; color: var(--fg); padding: .1rem .3rem; border-radius: 4px; }
 .lineup-cell:hover { background: var(--brand-tint); }
 .lineup-cell.on { font-weight: 600; }

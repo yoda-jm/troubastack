@@ -535,14 +535,14 @@ export function Lineups() {
         <table className="lineup-grid" data-testid="lineup-grid-bypart">
           <thead>
             <tr>
-              <th>Song</th>
+              <th className="lineup-corner">Song</th>
               {byPartGrid.columns.map((c) => <th key={c.partId}>{c.label}</th>)}
             </tr>
           </thead>
           <tbody>
             {byPartGrid.rows.map((r) => (
               <tr key={r.songId} data-testid="lineup-row">
-                <td>{r.title}</td>
+                <td className="lineup-songcell">{r.title}</td>
                 {byPartGrid.columns.map((c) => <td key={c.partId}>{r.cells[c.partId]}</td>)}
               </tr>
             ))}
@@ -552,7 +552,7 @@ export function Lineups() {
         <table className="lineup-grid" data-testid="lineup-grid" ref={gridRef} onKeyDown={onGridKey}>
           <thead>
             <tr>
-              <th rowSpan={2}>Song</th>
+              <th rowSpan={2} className="lineup-corner">Song</th>
               {grid.columns.map((col) => (
                 <th
                   key={col.id}
@@ -613,7 +613,7 @@ export function Lineups() {
           <tbody>
             {grid.rows.map((r, ri) => (
               <tr key={r.songId} data-testid="lineup-row">
-                <td>
+                <td className="lineup-songcell">
                   {r.title}
                   {r.key ? <span className="muted"> · {r.key}</span> : null}
                 </td>

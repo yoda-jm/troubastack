@@ -82,3 +82,72 @@ test("sound sheet: stuck header rows stay flush (no overlap) at 125% zoom", asyn
     return worst;
   }).toBeLessThan(2);
 });
+
+// T203-FIX4 — the rowSpan "Song" corner meant `thead th:first-child` also hit row 2's first musician header:
+// it went white and stuck left over the corner. The corner + song column are now targeted by class.
+test("T203-FIX4: first Voice header keeps the tint and scrolls away while the corner stays (grid)", async ({ page }) => {
+  const u = `fix4${stamp()}`;
+  await register(page, u);
+  const { id } = await createBandAndOpen(page, `Band ${stamp()}`);
+  for (let i = 0; i < 8; i++) await page.request.post(`/api/bands/${id}/musicians`, { data: { name: `Guest ${i}` } });
+  for (let i = 0; i < 6; i++) await page.request.post(`/api/bands/${id}/songs`, { data: { title: `Song ${i}` } });
+  await page.getByTestId("nav-lineups").click();
+  await page.getByTestId("lineups-add-common").click();
+  await expect(page.getByTestId("lineup-col-owner").first()).toBeVisible();
+
+  const grid = '[data-testid="lineup-grid"]';
+  const firstSub = `${grid} thead tr:nth-child(2) th`;
+  // 1. the first Voice sub-header carries the header tint — the SAME paint as the owner header above it (both
+  //    thead cells), and not the body's transparent/surface white (the regression made this cell white). Polled:
+  //    add-common seeds the parts asynchronously, so the grid re-renders and a node read too early reads "".
+  await expect.poll(async () => {
+    const a = await page.locator(firstSub).first().evaluate((el) => getComputedStyle(el).backgroundColor).catch(() => "");
+    const o = await page.getByTestId("lineup-col-owner").first().evaluate((el) => getComputedStyle(el).backgroundColor).catch(() => "");
+    if (!a || !o) return "pending";
+    if (a === "rgba(0, 0, 0, 0)") return "transparent";
+    return a === o ? "ok" : `mismatch a=${a} o=${o}`;
+  }).toBe("ok");
+
+  // 2. scrolled right, the Voice header scrolls away (not pinned) while the corner stays at x≈0.
+  await page.setViewportSize({ width: 480, height: 800 });
+  const x0 = (await page.locator(firstSub).first().boundingBox())!.x;
+  await page.evaluate(() => window.scrollTo(document.body.scrollWidth, 0));
+  await expect.poll(async () => (await page.locator(`${grid} .lineup-corner`).boundingBox())!.x).toBeLessThan(2);
+  const x1 = (await page.locator(firstSub).first().boundingBox())!.x;
+  expect(x1).toBeLessThan(x0 - 5); // it moved left with the content, it did not stick
+});
+
+test("T203-FIX4: sound sheet first channel header keeps the tint and scrolls away while the corner stays", async ({ page }) => {
+  const u = `fix4s${stamp()}`;
+  await register(page, u);
+  const { id } = await createBandAndOpen(page, `Band ${stamp()}`);
+  const lead = (await (await page.request.post(`/api/bands/${id}/parts`, { data: { name: "Lead vocal", kind: "voice", short: "L" } })).json()).part;
+  const me = (await (await page.request.get(`/api/bands/${id}/musicians`)).json()).musicians[0].id;
+  const guests: string[] = [];
+  for (let i = 0; i < 6; i++) guests.push((await (await page.request.post(`/api/bands/${id}/musicians`, { data: { name: `Guest ${i}` } })).json()).musician.id);
+  const sl = (await (await page.request.post(`/api/bands/${id}/setlists`, { data: { name: "Gig" } })).json()).setlist;
+  const s = (await (await page.request.post(`/api/bands/${id}/songs`, { data: { title: "Opener" } })).json()).song;
+  await page.request.patch(`/api/bands/${id}/songs/${s.id}`, { data: { lineup: [me, ...guests].map((mid) => ({ musicianId: mid, partIds: [lead.id] })) } });
+  await page.request.post(`/api/bands/${id}/setlists/${sl.id}/items`, { data: { songId: s.id } });
+
+  await page.goto(`/bands/${id}/setlists/${sl.id}/sheet`);
+  await expect(page.getByTestId("sheet-title")).toBeVisible();
+  const grid = '[data-testid="sheet-grid"]';
+  const firstChan = `${grid} [data-testid="sheet-channel"]`;
+  // first channel header tinted like a sibling, not the body cell (polled against the render race — see the grid test)
+  await expect.poll(async () => {
+    const a = await page.locator(firstChan).nth(0).evaluate((el) => getComputedStyle(el).backgroundColor).catch(() => "");
+    const b = await page.locator(firstChan).nth(1).evaluate((el) => getComputedStyle(el).backgroundColor).catch(() => "");
+    const body = await page.locator(`${grid} .sheet-body-cell`).first().evaluate((el) => getComputedStyle(el).backgroundColor).catch(() => "");
+    if (!a || !b) return "pending";
+    if (a !== b) return `mismatch a=${a} b=${b}`;
+    return a !== body ? "ok" : "same-as-body";
+  }).toBe("ok");
+
+  await page.setViewportSize({ width: 480, height: 800 });
+  const x0 = (await page.locator(firstChan).first().boundingBox())!.x;
+  await page.evaluate(() => window.scrollTo(document.body.scrollWidth, 0));
+  await expect.poll(async () => (await page.locator(`${grid} .lineup-corner`).boundingBox())!.x).toBeLessThan(2);
+  const x1 = (await page.locator(firstChan).first().boundingBox())!.x;
+  expect(x1).toBeLessThan(x0 - 5);
+});

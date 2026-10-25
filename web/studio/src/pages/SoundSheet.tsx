@@ -162,7 +162,7 @@ export function SoundSheet() {
         <table className="lineup-grid sheet-grid" data-testid="sheet-grid">
           <thead>
             <tr>
-              <th rowSpan={3}>Song</th>
+              <th rowSpan={3} className="lineup-corner">Song</th>
               {model.ownerSpans.map((s, i) => <th key={i} colSpan={s.span} data-testid="sheet-owner">{s.ownerName}</th>)}
               <th rowSpan={3}>Changes</th>
               <th rowSpan={3}>Sound note</th>
@@ -219,7 +219,7 @@ export function SoundSheet() {
                     </tr>
                   )}
                   <tr key={r.songId} data-testid="sheet-row" data-section={r.section}>
-                    <td>{r.number ? `${r.number} · ` : ""}{r.title}</td>
+                    <td className="lineup-songcell">{r.number ? `${r.number} · ` : ""}{r.title}</td>
                     {model.subcols.map((sc) => {
                       const c = r.cells?.[sc.key];
                       const txt = c?.optional && c.text ? `(${c.text})` : c?.text ?? "";
