@@ -372,10 +372,15 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    # Suite is ~7 min locally; the Go webServer cold-compiles on the runner.
-    # Cap it so a broken app (e.g. an unresolved import) fails fast instead of
-    # letting every test grind through its 30s timeout.
-    timeout-minutes: 20
+    # Budget, measured on run 40416155161 (2026-10-26): the long pole is the Playwright `--with-deps` APT fetch —
+    # up to ~9 min on a slow Ubuntu mirror (24.9 MB in 8m39s @ 48 kB/s; ~1s at 30 MB/s on a good day), NOT the
+    # browser download (~10s, so a browser cache wouldn't help). The suite itself is ~14 min on a fast runner
+    # (348 specs in 852s on 2adf350a) but ~19 min on a slow one (296 in 974s before the cap), plus the Go
+    # webServer cold-compile. Worst case ≈ slow-apt + slow-suite ≈ 28 min, so cap at 35 for headroom. The cap
+    # still protects against a broken app: a broken CORE fails fast (the Go webServer won't start), and a broken
+    # SPA — Vite dev serves 500 on every page, so each test burns its full 30s timeout (see the ink-install
+    # note) — is bounded by the cap at 35 min instead of ≈3h (348 × 30s).
+    timeout-minutes: 35
     # This job HARD-GATES. The one CI-only failure (editor-rorw-shift.spec.ts,
     # a real ~27px RO/RW pageTop shift — green locally) is quarantined at the
     # spec level via `test.skip(!!process.env.CI, ...)`, tracked in T13, so the
