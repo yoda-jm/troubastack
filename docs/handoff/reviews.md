@@ -56712,3 +56712,16 @@ names. This completes T204 (1a model + 1b projection + 2 UI). Redeploying :8080.
 - **The bar is a GREEN main CI run**, read back by head_sha with `/jobs` fetched. Present the run id.
 
 **Nothing else lands until main is green.** I'll check it myself.
+
+## ⟨dispatch → web-core⟩ T206 — concert page tabs: "Running order" | "Sound sheet", one shared header, exports per tab (VLL) — AFTER RED MAIN
+
+Spec: `docs/tasks/T206-concert-page-tabs.md`. This is troubastack-8b's proposal, accepted with rulings:
+- a shared concert header component;
+- `NavLink` underline tabs, deep-linkable;
+- each tab owns its exports;
+- fix the unstyled `phead-actions`;
+- labels to VLL's list;
+- update the affected e2e;
+- keep the sticky-header offset correct.
+
+**Only after main is green.**
