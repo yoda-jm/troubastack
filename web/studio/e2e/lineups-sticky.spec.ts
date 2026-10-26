@@ -1,5 +1,19 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { register, createBandAndOpen, stamp } from "./setup-helpers";
+
+// Read an element's x through a poll. Right after setViewportSize / a scroll the grid re-renders and
+// boundingBox() can momentarily return null (the node detaches); a bare `(await boundingBox())!.x` then throws
+// "Cannot read properties of null" — the T203-FIX4 flake. Poll until the box is present.
+async function boxX(page: Page, sel: string): Promise<number> {
+  let x = NaN;
+  await expect.poll(async () => {
+    const b = await page.locator(sel).first().boundingBox();
+    if (!b) return "pending";
+    x = b.x;
+    return "ok";
+  }).toBe("ok");
+  return x;
+}
 
 // T203-FIX3 — the Line-ups grid: a sticky header under the topbar + a sticky song column, so a long/wide list
 // never loses its headers or its song titles.
@@ -110,10 +124,13 @@ test("T203-FIX4: first Voice header keeps the tint and scrolls away while the co
 
   // 2. scrolled right, the Voice header scrolls away (not pinned) while the corner stays at x≈0.
   await page.setViewportSize({ width: 480, height: 800 });
-  const x0 = (await page.locator(firstSub).first().boundingBox())!.x;
+  const x0 = await boxX(page, firstSub);
   await page.evaluate(() => window.scrollTo(document.body.scrollWidth, 0));
-  await expect.poll(async () => (await page.locator(`${grid} .lineup-corner`).boundingBox())!.x).toBeLessThan(2);
-  const x1 = (await page.locator(firstSub).first().boundingBox())!.x;
+  await expect.poll(async () => {
+    const b = await page.locator(`${grid} .lineup-corner`).boundingBox();
+    return b ? b.x : 999;
+  }).toBeLessThan(2);
+  const x1 = await boxX(page, firstSub);
   expect(x1).toBeLessThan(x0 - 5); // it moved left with the content, it did not stick
 });
 
@@ -145,9 +162,12 @@ test("T203-FIX4: sound sheet first channel header keeps the tint and scrolls awa
   }).toBe("ok");
 
   await page.setViewportSize({ width: 480, height: 800 });
-  const x0 = (await page.locator(firstChan).first().boundingBox())!.x;
+  const x0 = await boxX(page, firstChan);
   await page.evaluate(() => window.scrollTo(document.body.scrollWidth, 0));
-  await expect.poll(async () => (await page.locator(`${grid} .lineup-corner`).boundingBox())!.x).toBeLessThan(2);
-  const x1 = (await page.locator(firstChan).first().boundingBox())!.x;
+  await expect.poll(async () => {
+    const b = await page.locator(`${grid} .lineup-corner`).boundingBox();
+    return b ? b.x : 999;
+  }).toBeLessThan(2);
+  const x1 = await boxX(page, firstChan);
   expect(x1).toBeLessThan(x0 - 5);
 });
