@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"troubastack/core/internal/pdfmark"
 	"troubastack/core/internal/pdftest"
@@ -11,9 +12,15 @@ import (
 	"github.com/go-pdf/fpdf"
 )
 
-// render a 2-page PDF with the mark wired through SetFooterFunc, as the real renderers do.
+// render a 2-page PDF with the mark wired through SetFooterFunc, as the real renderers do. Pin the dates +
+// catalog sort exactly as the real exports (bake/pdf.go, setlistpdf, soundsheet, chartpdf) do — otherwise fpdf
+// stamps time.Now() and TestDraw_Deterministic flakes across a second boundary (CI red on 2adf350a).
 func twoPage(show bool) []byte {
 	pdf := fpdf.New("P", "mm", "A4", "")
+	fixed := time.Unix(1700000000, 0).UTC()
+	pdf.SetCreationDate(fixed)
+	pdf.SetModificationDate(fixed)
+	pdf.SetCatalogSort(true)
 	pdf.SetFooterFunc(func() { pdfmark.Draw(pdf, show) })
 	for i := 0; i < 2; i++ {
 		pdf.AddPage()
