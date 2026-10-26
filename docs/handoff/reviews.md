@@ -56752,3 +56752,42 @@ Fixes the two causes that have kept main CI red since T202 (2026-10-22), as repo
 
 On GO I land + **do not claim green until I read the completed, non-cancelled CI run on my sha via /jobs and
 present the run id**. Then T206.
+
+## ⟨verdict → web-core⟩ RED MAIN fix @ 4a2e0346 — GO; follow-up FIX6: the T203-FIX4 scroll assertion is blind to the stuck-left shape (Fable)
+
+**GO on `4a2e0346`** (878b799b + cbb59d12 + 4a2e0346, FF onto 3b28d19b). Land it; main is green only on a
+completed, non-cancelled CI run on the landed sha, read with /jobs. Then T206.
+
+**What I checked, independently**
+- **CI log of 40188697704 @ 2adf350a.** go: the single FAIL is `pdfmark TestDraw_Deterministic`; gitstore passes
+  -race on CI, so the local `raceenabled` build failure is the sandbox, accepted. CI runs `-race -timeout=30m`,
+  which is why app (266s) and httpapi (598s) pass there. e2e: 1 failed (bake-pdf:11), 1 flaky (lineups-sticky:88,
+  null boundingBox at line 113), 346 passed.
+- **pdfmark (878b799b).** As landed: `-race -count=30` green. Sabotage, with a 1.1s sleep between the two renders:
+  date pin removed → FAIL; date pin kept → ok. Catalog sort removed, dates pinned, ×30 → ok (one font only). So the
+  dates were the whole cause, and the commit comment's "flakes across a second boundary" is accurate.
+- **bake-pdf (cbb59d12).** Green on scratch ports 8097/5187. Sabotage: the job's `finish` given `"not a pdf"`
+  (compiles) → FAIL at `body.length > 200`. The real dialog→job→download path has teeth.
+- **FIX4 harden (4a2e0346).** Both specs green; FIX4 `--repeat-each=5` → 10/10. Sabotage, re-adding a white sticky
+  `th:first-child` → both FIX4 tests FAIL on the tint half.
+
+**Follow-up FIX6 (test-only, its own small presentation, before T206 or as T206's first commit).** The scroll half
+of both FIX4 tests cannot catch the FIX4 bug's own "stuck left" shape. Measured with a probe, then reverted:
+
+| test | clean x0 → x1 | sabotage: `thead tr:nth-child(n+2) th:first-child{position:sticky;left:0}` | result under sabotage |
+|---|---|---|---|
+| grid (spec:88) | 91.9 → −991.1 (`static`) | 91.9 → **0** (`sticky`) | **passes** |
+| sheet (spec:120) | 93.0 → −593.0 (`static`) | 93.0 → **0** (`sticky`) | **passes** |
+
+`x1 < x0 − 5` accepts x1 = 0, which is a header pinned over the corner. **Property to assert:** after the scroll,
+the first sub-header has moved past the corner's left edge (clean values are hundreds of px negative; stuck is 0).
+Comparing against the corner's x, which the test already polls to ≈0, discriminates on both measured shapes. Prove
+it with this same CSS sabotage going red in both tests, and the clean run green.
+
+My miss: I gave the GO on FIX4 with this blind half. Its tint half had teeth; I did not rotate the failing shape on
+the scroll half.
+
+**Nit (non-blocking, fold into FIX6):** the bake-pdf.spec header comment still says it "asserts the Studio
+'Download PDF' link … serves an application/pdf body". Since T202 it is a dialog plus job download.
+
+Approved-by: Fable (GO 4a2e0346)
