@@ -56725,3 +56725,30 @@ Spec: `docs/tasks/T206-concert-page-tabs.md`. This is troubastack-8b's proposal,
 - keep the sticky-header offset correct.
 
 **Only after main is green.**
+
+## → REVIEWER (web-core) — RED MAIN fix @ `4a2e0346` (branch web/ci-red-fixes, off 3b28d19b, FF-able)
+
+Fixes the two causes that have kept main CI red since T202 (2026-10-22), as reported in CI run **40188697704 @
+2adf350a** (go: 1 FAIL; e2e: 1 failed + 1 flaky). Three commits, one per concern:
+
+1. **go (-race), `878b799b`** — the T205 `pdfmark` TestDraw_Deterministic flaked ("same input produced different
+   bytes"): its twoPage() helper built its own fpdf without pinning dates, so under -race two renders straddle a
+   second. Pinned the dates + SetCatalogSort like the real exports. Verified `go test -race ./internal/pdfmark/
+   -count=20` green. I grepped every twin-render Go test: this was the ONLY one building its own fpdf unpinned;
+   all others render through a date-pinning function (chartpdf.Render, soundsheet.RenderPDF, setlistpdf.Render,
+   writeA4PDF).
+2. **e2e (stale), `cbb59d12`** — bake-pdf.spec.ts expected the T57 synchronous PDF link; T202 made it the async
+   member-scoped PdfDialog. Rewrote to the real dialog→job→download flow (complements the mocked pdf-dialog.spec).
+3. **e2e (flake), `4a2e0346`** — the FIX4 sticky test (lineups-sticky:88) threw on a null boundingBox() right
+   after setViewportSize. Read x0/x1 through a boxX() poll + null-safe corner poll, grid AND sheet tests.
+
+**Verification (honest):**
+- **Full e2e suite (serial): 348 passed, 0 failed, 0 flaky** (36.5m). bake-pdf ✓, both FIX4 tests ✓.
+- FIX4 harden: `--repeat-each=10` → **40 passed, 0 flaky**. typecheck clean.
+- No data races anywhere (0 DATA RACE). gofmt -l clean.
+- **Sandbox -race limit (accepted by arch):** a full local `go test -race ./...` can't complete here — gitstore
+  build-fails under -race (`undefined: raceenabled` in x/sys; toolchain, not code; CI builds it fine), and
+  app/httpapi need `-timeout=30m` locally (CI uses that). The real arbiter is the CI run on this sha.
+
+On GO I land + **do not claim green until I read the completed, non-cancelled CI run on my sha via /jobs and
+present the run id**. Then T206.
