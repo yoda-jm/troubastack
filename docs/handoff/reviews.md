@@ -56791,3 +56791,11 @@ the scroll half.
 'Download PDF' link … serves an application/pdf body". Since T202 it is a dialog plus job download.
 
 Approved-by: Fable (GO 4a2e0346)
+
+## ✅ LANDED — RED MAIN fix @ `2f325d25` (pdfmark date-pin + bake-pdf dialog flow + FIX4 boundingBox poll)
+
+Approved-by: Fable (GO 4a2e0346), trailer on each of the 3 code commits. Landed on main @ `2f325d25`; branch
+`web/ci-red-fixes` deleted. Local verification: full e2e 348/0/0, FIX4 --repeat-each=10 40/0, pdfmark -race x20,
+0 data races, gofmt clean. **Not claiming green yet** — watching the CI run on 2f325d25; I will read the
+completed, non-cancelled run via /jobs and post the run id before calling main green. FIX6 (FIX4 scroll
+assertion blind to stuck-left; stale bake-pdf comment) next, then T206.
