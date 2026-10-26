@@ -5,7 +5,8 @@
  * tests; this asserts the Studio "Download PDF" link appears beside the bundle
  * download and serves an application/pdf body.
  */
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { stamp, register, createBandAndOpen, createSongAndOpen, createSetlist } from "./setup-helpers";
 
 test("admin downloads a concert PDF (paper fallback)", async ({ page }) => {
@@ -32,16 +33,19 @@ test("admin downloads a concert PDF (paper fallback)", async ({ page }) => {
   await page.getByTestId("bake-setlist").click();
   await page.getByTestId("bake-dialog-confirm").click(); // P205 bake dialog
 
-  const pdfLink = page.getByTestId("bake-pdf-download");
-  await expect(pdfLink).toBeVisible();
-  await expect(pdfLink).toHaveAttribute("href", /\/concerts\/[^/]+\/pdf$/);
+  // T202: "Download PDF" now opens the PDF dialog (member scope + progress) rather than being a bare link.
+  // "Make PDF" runs the real async job and the file downloads itself. (pdf-dialog.spec mocks these routes; this
+  // exercises them for real, complementing it.)
+  await page.getByTestId("bake-pdf-download").click();
+  await expect(page.getByTestId("pdf-dialog")).toBeVisible();
+  const dl = page.waitForEvent("download");
+  await page.getByTestId("pdf-make").click();
+  const download = await dl;
+  await expect(page.getByTestId("pdf-done")).toBeVisible();
 
-  // Fetch it (shares the browser session): application/pdf, %PDF- header, sane size.
-  const href = await pdfLink.getAttribute("href");
-  const resp = await page.request.get(href!);
-  expect(resp.status()).toBe(200);
-  expect(resp.headers()["content-type"]).toContain("application/pdf");
-  const body = await resp.body();
+  // The downloaded file is a sane PDF.
+  expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+  const body = readFileSync(await download.path());
   expect(body.length).toBeGreaterThan(200);
   expect(body.subarray(0, 5).toString()).toBe("%PDF-");
 });
