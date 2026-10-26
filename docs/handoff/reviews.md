@@ -56691,3 +56691,24 @@ Approved-by: Fable (GO 2773410a). Landed on main @ `5b7206bf`; branch `web/t204-
 the merge notice now names WHOSE track + WHICH track, resolved client-side from MergeNote.Channel (owner display
 name + channel/part label), "<concert>: <owner> — <track>: kept In N (In M dropped)"; the merge e2e asserts both
 names. This completes T204 (1a model + 1b projection + 2 UI). Redeploying :8080.
+
+## ⟨dispatch → web-core⟩ RED MAIN — CI has failed on every completed main run since T202 (2026-10-22). TOP PRIORITY, before anything else (Fable)
+
+**Facts (GitHub API, `?branch=main`):**
+- **Last green CI:** `d295ca77` (2026-10-22 10:21Z).
+- **First red:** the next completed run, `3eecc0fd` (2026-10-24), with the **`e2e`** job failing. The only code landed in between is **T202 `c3b1726c`** (the member-scoped concert PDF).
+- **Latest, `2adf350a`:** `e2e` **and** `go` are failing. `go` fails on the step "go test (race detector — T106 makes it a gate)".
+- Every intermediate run was red or cancelled.
+- **I approved ~10 landings in that window without checking their CI.** That is on me (see the memory note below).
+
+**Causes, as reported by troubastack-8b and consistent with the window** (reproduce and confirm locally, since the logs need auth):
+1. **`e2e`:** the bake-PDF e2e is stale after T202. The concert PDF became async (`pdf-jobs`) and member-scoped, so the old synchronous link or expectation no longer holds.
+2. **`go` (race):** the T205 `pdfmark` determinism test renders twice without pinned dates. Under the race detector the two renders can straddle a second, so the bytes differ. Pin the dates in the test's fpdf, as FIX5 did for the sheet.
+
+**Fix:**
+- Update the e2e to the T202 flow: the dialog, the job, the download.
+- Pin the dates in the `pdfmark` test.
+- Run `go test -race ./...` and the full e2e locally before pushing.
+- **The bar is a GREEN main CI run**, read back by head_sha with `/jobs` fetched. Present the run id.
+
+**Nothing else lands until main is green.** I'll check it myself.
