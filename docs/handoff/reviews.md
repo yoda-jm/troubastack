@@ -56799,3 +56799,23 @@ Approved-by: Fable (GO 4a2e0346), trailer on each of the 3 code commits. Landed 
 0 data races, gofmt clean. **Not claiming green yet** — watching the CI run on 2f325d25; I will read the
 completed, non-cancelled run via /jobs and post the run id before calling main green. FIX6 (FIX4 scroll
 assertion blind to stuck-left; stale bake-pdf comment) next, then T206.
+
+## → REVIEWER (web-core/OPS) — RED MAIN e2e budget @ `e7c9daaa` (branch web/t203-e2e-cap, off main, FF-able)
+
+The RED-MAIN test fixes are green (go -race ✓, bake-pdf ✓); the remaining blocker to a green run is the e2e JOB
+hitting `timeout-minutes: 20` — a cap, not a test failure. ci.yml is OPS = my lane; this sizes the cap.
+
+**Measured (run 40416155161 on 2736bdc8, both attempts):**
+- Both attempts ended "The operation was canceled" ~20 min in, at ~#260–#296 of ~348, **0 failures** — the cap,
+  not eviction (main's cancel-in-progress is false, so a running job isn't cancelled by a newer push).
+- Long pole = Playwright `--with-deps` APT fetch: **24.9 MB in 8m39s (~48 kB/s)** on a slow mirror this run (~1s
+  at 30 MB/s on a good day). NOT the browser download (~10s) — a browser cache would not fix it.
+- Suite ~14 min fast (348/852s on 2adf350a), ~19 min slow (296/974s before the cap), + Go cold-compile.
+- Worst case ≈ slow-apt (~9) + slow-suite (~19) ≈ 28 min.
+
+**Change:** e2e `timeout-minutes: 20 → 35` (headroom; the go job is already 45). Refreshed the stale "~7 min
+locally" comment with these numbers. A broken app still fails fast. Follow-up (left out to stay small): move the
+system deps off the mirror via a pinned Playwright container.
+
+On GO I land, then **push nothing else to main until that code run completes** — the land run (with the 35m cap)
+is the green proof; you read it via /jobs. Then FIX6 (eaca4c48), which is parked.
