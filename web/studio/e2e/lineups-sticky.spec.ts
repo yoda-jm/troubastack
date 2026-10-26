@@ -130,8 +130,12 @@ test("T203-FIX4: first Voice header keeps the tint and scrolls away while the co
     const b = await page.locator(`${grid} .lineup-corner`).boundingBox();
     return b ? b.x : 999;
   }).toBeLessThan(2);
+  const cornerX = await boxX(page, `${grid} .lineup-corner`);
   const x1 = await boxX(page, firstSub);
-  expect(x1).toBeLessThan(x0 - 5); // it moved left with the content, it did not stick
+  // It didn't just move — it scrolled PAST the corner's left edge. FIX6: a stuck-left header would sit AT the
+  // corner (x1≈0) and still satisfy x1<x0-5, so that check alone is blind to the bug.
+  expect(x1).toBeLessThan(x0 - 5);
+  expect(x1).toBeLessThan(cornerX);
 });
 
 test("T203-FIX4: sound sheet first channel header keeps the tint and scrolls away while the corner stays", async ({ page }) => {
@@ -168,6 +172,10 @@ test("T203-FIX4: sound sheet first channel header keeps the tint and scrolls awa
     const b = await page.locator(`${grid} .lineup-corner`).boundingBox();
     return b ? b.x : 999;
   }).toBeLessThan(2);
+  const cornerX = await boxX(page, `${grid} .lineup-corner`);
   const x1 = await boxX(page, firstChan);
+  // FIX6: scrolled PAST the corner's left edge, not merely moved (a stuck-left header sits at x1≈0 and still
+  // passes x1<x0-5).
   expect(x1).toBeLessThan(x0 - 5);
+  expect(x1).toBeLessThan(cornerX);
 });

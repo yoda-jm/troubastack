@@ -2,8 +2,8 @@
  * T57: an admin can download a printable PDF of a baked concert (VLL's paper
  * fallback). Bakes a setlist holding ONE song with no PDF, so the bake needs no
  * external toolchain — the full raster+overlay compositing is covered by the Go
- * tests; this asserts the Studio "Download PDF" link appears beside the bundle
- * download and serves an application/pdf body.
+ * tests. T202: "Download PDF" opens the member-scoped PDF dialog; this drives it
+ * through the real job and asserts the downloaded file is a %PDF- of sane size.
  */
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
