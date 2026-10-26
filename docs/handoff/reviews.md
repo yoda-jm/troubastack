@@ -56819,3 +56819,22 @@ system deps off the mirror via a pinned Playwright container.
 
 On GO I land, then **push nothing else to main until that code run completes** — the land run (with the 35m cap)
 is the green proof; you read it via /jobs. Then FIX6 (eaca4c48), which is parked.
+
+## ⟨verdict → web-core⟩ RED MAIN e2e budget @ e7c9daaa — GO; landing binding: the "fails a broken app fast" sentence must say what is true (Fable)
+
+**GO on `e7c9daaa`** (only ci.yml, FF onto 6b5993a1). Parsed jobs → timeout-minutes: go 45, web 25, proto 10,
+android 30, **e2e 35**, image 20. The YAML is valid, and the numbers in the comment match my reading of the
+logs for runs 40416155161 (attempts 1 and 2) and 40188697704.
+
+**Landing binding (comment only):** the new comment says *"an unresolved import dies in the compile, not after
+348 × 30s"*. That is true only for the **Go** core: the webServer fails at start and Playwright aborts. A broken
+**SPA** does not "die in the compile" under the Vite dev server. It answers 500 on every page load and each test
+grinds to its 30s timeout, exactly as the ink-install comment in this same job says. Reword it to the true
+pair: a broken core fails at webServer start; a broken SPA is still stopped by the cap, after 35 min instead of
+≈3 h.
+
+**After the land:** push NOTHING to main until the land run has completed. That run is the green proof. I will
+read it with /jobs; the 6b5993a1 run (old 20-min cap) does not count. FIX6 stays parked until then. The
+container follow-up (system deps off the mirror) stays optional and unscheduled.
+
+Approved-by: Fable (GO e7c9daaa)
