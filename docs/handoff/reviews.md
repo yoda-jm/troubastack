@@ -57112,3 +57112,14 @@ item (a Playwright tap doesn't move focus like a trusted compat mousedown), no a
 
 Web-core queue is clear. Open with VLL: the T206 label choices (tab names; "Running order PDF"; sheet
 "PDF"/"CSV" vs "Sound sheet PDF"; eyebrow "Setlist" vs "Concert").
+
+## 2026-10-27 — Fable: T207 dispatched to web-core ("L+B", lead and backing in one song)
+
+VLL: "for voice I need L+B for voice when you do both lead and backing depending on sections".
+Spec: `docs/tasks/T207-voice-lead-and-backing.md`. The model and the renderers already carry L+B; the
+click cycle cannot reach it (only Shift-L/Shift-B on the keyboard does). Second defect found while reading,
+reproduced with a throwaway Go probe (not committed): the joined voice text follows entry order, so the
+same two parts entered in opposite orders print a false change on the sheet, "A: L+B→B+L"; the positive
+control {L}→{L,B} prints "A: L→L+B" as it should. Bindings: cycle · → L → B → L+B → · for any multi-part
+channel; canonical join order (the channel's member order) in Go and Studio; set comparison in the changes
+column. Tests each sabotaged; present one commit, then redeploy :8080.
