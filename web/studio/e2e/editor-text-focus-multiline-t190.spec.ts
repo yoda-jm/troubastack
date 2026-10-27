@@ -78,7 +78,11 @@ test("focus (mouse): type right after the click, no field click, Ctrl+Enter adds
   await page.mouse.click(p.x, p.y);
   await expect(page.getByTestId("app-dialog")).toBeVisible();
 
-  // Type WITHOUT clicking the field, then Ctrl+Enter.
+  // Type WITHOUT clicking the field, then Ctrl+Enter. The field autofocuses on open (the T190 "no second
+  // click" guarantee) — assert that focus has landed before typing, so this programmatic type never races
+  // ahead of the mount focus and drops the first keystrokes (the flake). This still proves "no click": we
+  // never click the field, only wait for the focus it takes on its own.
+  await expect(page.getByTestId("app-dialog-input")).toBeFocused();
   await page.keyboard.type("hello");
   await page.keyboard.press("Control+Enter");
 
@@ -97,6 +101,7 @@ test.describe("touch", () => {
     await page.waitForTimeout(250); // let the compat mouse events after touchend settle (T101 window)
     await expect(page.getByTestId("app-dialog")).toBeVisible();
 
+    await expect(page.getByTestId("app-dialog-input")).toBeFocused(); // autofocus landed (no field tap); don't race it
     await page.keyboard.type("from a phone");
     await page.keyboard.press("Control+Enter");
 
@@ -114,6 +119,7 @@ test("multi-line: Enter makes a new line; the stored text keeps the newline and 
   await page.mouse.click(p.x, p.y);
   await expect(page.getByTestId("app-dialog")).toBeVisible();
 
+  await expect(page.getByTestId("app-dialog-input")).toBeFocused(); // autofocus landed (no field click); don't race it
   await page.keyboard.type("line one");
   await page.keyboard.press("Enter"); // a newline, NOT submit
   await expect(page.getByTestId("app-dialog")).toBeVisible(); // still open — Enter did not submit
@@ -138,6 +144,7 @@ test("Enter alone does not submit the multi-line prompt (the box stays open)", a
   await page.mouse.click(p.x, p.y);
   await expect(page.getByTestId("app-dialog")).toBeVisible();
 
+  await expect(page.getByTestId("app-dialog-input")).toBeFocused(); // autofocus landed (no field click); don't race it
   await page.keyboard.type("one");
   await page.keyboard.press("Enter");
   await page.keyboard.press("Enter");
