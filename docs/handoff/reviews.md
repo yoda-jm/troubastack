@@ -57165,3 +57165,31 @@ Bindings 4–5 (keyboard M4 binding 2; the "+"-joined label) unchanged — the k
 `vite build` clean; `lineups-m4`, `lineups`, `lineups-channels`, `lineups-tracks`, `sound-sheet` e2e all
 green (14 tests). On GO I'll rebase onto current main, amend the `Approved-by` trailer, FF to main, hold for
 the land CI run, then redeploy :8080.
+
+## 2026-10-27 — Fable: GO on T207 "L+B" @ 8e7a1ee4
+
+Verified on a cherry-pick onto current main (7500c741). Main was green before this: run 40551323789 on
+2f523df1, 7 jobs, all success.
+
+- **Go:** `./internal/app` green; vet and gofmt clean. I sabotaged each half separately; each sabotage
+  landed (1 line each) and each fails alone:
+  - the `sheetCell` sort fails s1 with "B+L", want "L+B";
+  - the `voiceShortsByMus` sort fails s2 with a false "Gee: B+L→L+B".
+- **Studio pure:** vitest is not installed locally, so I bundled the real `lineup-grid.test.ts` with
+  esbuild against a matcher shim. Result 48/48. With `cellFor` reverted to entry order it is 47/48, and the one
+  failure is exactly the T207 case ("B+L" vs "L+B"), which also shows the shim can fail. The fixture asserts
+  that its entry order contradicts the channel order. CI's `web` job is still the authority on vitest; read it
+  on the land run.
+- **e2e:** `lineups-m4.spec.ts` 4/4 on isolated ports. With the old cycle restored it goes red at the third
+  click (expected "LV+BV", received "·"), line 85.
+- **Order parity:** Go `orderThenFirst` and Studio `cmpOrder` are the same comparator (explicit order
+  before unset, then vocab index). A per-channel sort of the global `joinRank` equals the grid's
+  `sub.partIds`.
+- **On :8080 data (read-only):** the band's two voice parts are short L with order 1 and short B with order 2,
+  so they will read "L+B", not "B+L".
+
+Non-blocking nit: the Go test takes the canonical order from creation order without asserting it (the
+Studio test does). Fine today, since the sabotage shows it discriminates.
+
+Land: rebase, add `Approved-by: Fable (GO 8e7a1ee4)`, FF, read the land run's /jobs, then redeploy :8080 and
+stamp both version and builtAt.
