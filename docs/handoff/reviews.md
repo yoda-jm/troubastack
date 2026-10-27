@@ -57123,3 +57123,45 @@ same two parts entered in opposite orders print a false change on the sheet, "A:
 control {L}→{L,B} prints "A: L→L+B" as it should. Bindings: cycle · → L → B → L+B → · for any multi-part
 channel; canonical join order (the channel's member order) in Go and Studio; set comparison in the changes
 column. Tests each sabotaged; present one commit, then redeploy :8080.
+
+## 2026-10-27 — web-core → Fable: T207 "L+B" PRESENTED (one commit)
+
+Branch `web/t207-lead-and-backing` @ `8e7a1ee4` (off `2f523df1`, FFs onto main). One commit, 8 files
+(+165/−33). All three bindings implemented; all three tests teeth-checked by sabotage, each sabotage shown
+to land.
+
+**Binding 1 — click cycle (`Lineups.tsx` `cycleChannel`).** A multi-part channel now cycles none → each
+member alone (channel order) → **all members together** → none. The Voice cell reads · → L → B → L+B → ·,
+so the mouse/touch user reaches the lead-AND-backing state the keyboard already could. A single-part channel
+still toggles on/off; a partial multi-selection (2 of 3) still clicks to none. `memberIds` is the canonically
+ordered member list (grid `sub.partIds`), so the stored "all" state is already in canonical order.
+
+**Binding 2 — canonical join.** Cells join a channel's parts in the **member order**, not line-up entry
+order. Studio `cellFor` now iterates `sub.partIds` filtered to the entry (was: entry order filtered to
+members). Go `sheetCell` sorts the matched part ids by a new `joinRank` — parts ordered by (Order, vocab
+index) via the existing `orderThenFirst`, the exact mirror of the grid's `cmpOrder` / `projectColumns`. So
+grid, sheet screen, PDF and CSV all read "L+B", never "B+L", and Go and Studio produce the same string.
+
+**Binding 3 — set comparison.** `voiceShortsByMus` now joins in `joinRank` order too, so the changes column
+compares voice parts order-insensitively: {B,L} then {L,B} prints no voice change, and a real change prints
+in canonical order ("A: L+B→L", "A: L→L+B"). `sheetChanges`/`sheetCell` thread the one `rank` map built once
+in `BuildSheet`.
+
+Bindings 4–5 (keyboard M4 binding 2; the "+"-joined label) unchanged — the keyboard test still passes.
+
+**Tests (each sabotaged separately, sabotage shown to land):**
+- **Go** `TestSheetVoice_LeadAndBacking_T207`: s1 entered backing-first reads "L+B" (cell join); s2 {L,B}
+  vs s1 {B,L} prints no change; s3/s4 print real changes both directions. Sabotage the cell sort → s1 reads
+  "B+L" (RED, changes stay green); sabotage the changes sort → s2 prints false "Gee: B+L→L+B" (RED, cell
+  stays green). The two halves fail independently.
+- **Studio pure** `lineup-grid.test.ts`: backing-first fixture reads "L+B", and the test asserts the entry
+  order contradicts the channel order (so a fixture edit to lead-first trips the guard, not a silent pass).
+  Sabotage `cellFor` to entry order → "B+L" (RED). (Teeth-checked via esbuild+node: vitest isn't installed
+  in a worktree; CI's `web` job runs it.)
+- **e2e** `lineups-m4.spec.ts`: four clicks read ·→LV→BV→LV+BV→·, and LV+BV survives a reload. Sabotage the
+  old cycle → RED at the third click (lands on "·", not "LV+BV"), exactly as the spec predicted.
+
+**Local verification:** `go build`/`vet`/`gofmt` clean; full `go test ./internal/app/` green; `tsc -b` +
+`vite build` clean; `lineups-m4`, `lineups`, `lineups-channels`, `lineups-tracks`, `sound-sheet` e2e all
+green (14 tests). On GO I'll rebase onto current main, amend the `Approved-by` trailer, FF to main, hold for
+the land CI run, then redeploy :8080.
