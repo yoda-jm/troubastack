@@ -56942,3 +56942,65 @@ still hits it), and the App.tsx route nesting vs the separate full-bleed editor 
 
 On GO: FF-land with the trailer, hold main until the land run completes, confirm via /jobs, then redeploy
 :8080 (web-only build: studio dist → embed → go build with version/builtAt) per VLL.
+
+## ⟨verdict → web-core⟩ T206 concert-page tabs @ f9ce5eea — GO; two landing bindings: the scroll-away assertion must clear the sub-pixel, and the eyebrow keeps its word (Fable)
+
+**GO on `f9ce5eea`** (one commit, FF onto 396d6d21). Land it with the two bindings below. Hold main until the
+land run completes; I read it with /jobs. Then redeploy :8080 (VLL is waiting for the tab).
+
+**What I checked, independently** (scratch worktree, ports 8097/5187)
+- **Studio `tsc --noEmit`:** clean.
+- **Every spec that opens a concert, plus my pixel spec:** concert-tabs, back-navigation,
+  fullbleed-editor-routes, lineups-sticky, lineups-tracks, link-states, setlist-bake-deeplink,
+  setlist-duplicate, sound-sheet, setlist-edited-tag and bake-pdf. **38/38 passed.**
+- **Code:**
+  - The layout fetches the concert once.
+  - Edits from the tabs (reorder, add, meta save, unarchive, bake) all go through the shared `setItems`,
+    `setSetlist` and `reload`, so the header's song count, name and edited chip stay current.
+  - The edited chip now also refreshes after an item edit. Before, it was fixed at the BakeCard's
+    first fetch.
+  - Unarchive and export errors now show: the old page set `error` and never rendered it.
+  - The removed test ids (`sound-sheet-link`, `sheet-title`) have no remaining references.
+  - `<SetlistDetail>` and `<SoundSheet>` are mounted only under ConcertLayout.
+- **Pixels, light and dark, at 1280 and 390:**
+  - The underline tabs read clearly and the active tab is in the brand colour.
+  - The header is identical on both tabs.
+  - Each tab carries only its own exports.
+  - Tab reaches the second tab.
+- **Sabotage S1** (`end` removed from the Running-order NavLink): the deep-link/Back test goes red on
+  `not.toHaveAttribute("aria-current")`. Good.
+- **Sabotage S2** (`.concert-tabs { position: sticky; top: var(--topbar-h) }`): **the scroll-away test PASSES.**
+  Measured with a probe, then reverted:
+
+  | state | tab.y | tab bottom | topbar bottom | thead.y | result |
+  |---|---|---|---|---|---|
+  | clean (`static`) | −447.9 | −408.7 | 57.375 | 57 | pass |
+  | sabotage (`sticky`) | **57** | **96.2** | 57.375 | 57 | **pass**, because 57 < 57.375 |
+
+  `tab.y < topbarBottom` holds by **0.375 px** with the strip stuck under the topbar and covering the grid
+  header. thead.y is 57 in both states, so it cannot tell the two apart either. This is the T203-FIX4 shape
+  again.
+
+**Binding 1 (test, in the landing commit).** Assert the property: the strip has scrolled out of view, i.e.
+the tab's **bottom** edge is at or above the topbar's bottom (−408.7 clean, 96.2 stuck, so a ~39 px
+margin each way). Prove the S2 CSS above goes red and the clean run stays green, and post both results in
+the LANDED note.
+
+**Binding 2 (label).** The eyebrow changed from "Setlist" to "Concert". The spec did not ask for this; it is a
+product word changing as a side effect. Land "Setlist", and add "Concert" to the label list for VLL.
+
+**Labels for VLL** (proposed, not settled): tab names "Running order" / "Sound sheet"; "Running order PDF"
+(was "Export PDF", from VLL's docs-stage list); sheet exports "PDF" / "CSV" in the tab, or "Sound sheet
+PDF"; eyebrow "Setlist" or "Concert".
+
+**Nits (non-blocking):**
+- The `.staff.sig` ornament now sits between the tab strip and the tab body. Below the header and above the
+  tabs would keep it from looking like part of the panel.
+- `.concert-tab` re-declares the `.drawer-tab` palette (`--brand-strong` / `--brand`). Acceptable, since the
+  spec said "family", not "class".
+
+**The two reds in your full local run:** t190:74 is the same focus race as :108, so one fix covers the
+whole file (queued after T206). editor.spec:135 is ws ECONNRESET under a 47-minute run. Neither touches the
+concert route; CI is the judge.
+
+Approved-by: Fable (GO f9ce5eea)
