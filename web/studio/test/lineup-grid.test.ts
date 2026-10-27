@@ -40,9 +40,19 @@ describe("buildGrid — the review checklist", () => {
     expect(g.rows[1].cells[voiceKey("A")].text).toBe("B");
   });
 
-  it("several voice parts in one song join on the single channel (L+B)", () => {
-    const songs: GridSong[] = [{ id: "s1", title: "One", lineup: [{ musicianId: "A", partIds: ["lead", "back"] }] }];
+  it("several voice parts in one song join on the single channel, in CHANNEL order not entry order (L+B) [T207]", () => {
+    // Enter the two voice parts BACKING-FIRST — the opposite of the vocabulary (channel) order.
+    const songs: GridSong[] = [{ id: "s1", title: "One", lineup: [{ musicianId: "A", partIds: ["back", "lead"] }] }];
     const g = buildGrid(songs, musicians, parts);
+    const aCol = g.columns.find((c) => c.id === "A")!;
+    const voiceSub = aCol.subs.find((s) => s.kind === "channel" && s.channelKey === "voice")!;
+    const channelOrder = voiceSub.kind === "channel" ? voiceSub.partIds : [];
+    // Guard: the fixture's entry order really CONTRADICTS the channel order, so a canonical-order regression
+    // can't pass by luck (and an edit that enters lead-first would trip this guard, not silently pass).
+    expect(songs[0].lineup![0].partIds).toEqual(["back", "lead"]);
+    expect(channelOrder).toEqual(["lead", "back"]);
+    expect(songs[0].lineup![0].partIds).not.toEqual(channelOrder);
+    // The cell reads canonical "L+B", never entry-order "B+L".
     expect(g.rows[0].cells[voiceKey("A")].text).toBe("L+B");
   });
 

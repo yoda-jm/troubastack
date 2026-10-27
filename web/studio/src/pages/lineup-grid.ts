@@ -250,13 +250,14 @@ function cellFor(
   musById: Map<string, GridMusician>,
 ): Cell {
   if (sub.kind === "channel") {
-    // The shorts of the channel's member parts this musician plays in the song (in their line-up order), joined
-    // "+". A voice channel reads "L"/"B"/"L+B"; a single-instrument channel reads its short or empty; a group
-    // channel reads whichever of its parts is carried.
+    // The shorts of the channel's member parts this musician plays in the song, joined "+" in the CHANNEL's
+    // member order (sub.partIds), not the line-up entry order — so two voice parts always read "L+B", never
+    // "B+L" (T207 binding 2; matches the Go sheetCell join). A voice channel reads "L"/"B"/"L+B"; a
+    // single-instrument channel reads its short or empty; a group channel reads whichever of its parts is carried.
     const e = byMus.get(sub.musicianId);
     if (!e) return { text: "" };
-    const members = new Set(sub.partIds);
-    const shorts = e.partIds.filter((pid) => members.has(pid)).map((pid) => partShort(partById.get(pid)!));
+    const have = new Set(e.partIds);
+    const shorts = sub.partIds.filter((pid) => have.has(pid)).map((pid) => partShort(partById.get(pid)!));
     if (shorts.length === 0) return { text: "" };
     return { text: shorts.join("+"), optional: e.optional };
   }

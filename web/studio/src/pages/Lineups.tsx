@@ -173,9 +173,10 @@ export function Lineups() {
   }
 
   // T204: one cell = one CHANNEL, carrying the channel's member parts (memberIds, ordered). Clicking cycles
-  // none → p0 → p1 → … → none within the channel. This generalises the old per-kind handlers: the Voice channel
-  // (all voice parts) reproduces cycleVoice, a single-instrument channel reproduces the on/off toggle, and a
-  // custom group steps through its parts.
+  // none → p0 → p1 → … → (if the channel has 2+ members) ALL members together → none. This generalises the old
+  // per-kind handlers: a single-instrument channel reproduces the on/off toggle, a custom group steps through
+  // its parts, and the Voice channel reaches L+B by click (T207 binding 1) — the state the keyboard already
+  // reached with Shift-L/Shift-B but the mouse/touch user never could. A partial multi-selection resets to none.
   function cycleChannel(songId: string, musicianId: string, memberIds: string[]) {
     const lineup = songLineup(songId);
     const { i } = withEntry(lineup, musicianId);
@@ -183,14 +184,18 @@ export function Lineups() {
     const member = new Set(memberIds);
     const other = e.partIds.filter((pid) => !member.has(pid));
     const cur = e.partIds.filter((pid) => member.has(pid));
-    // cycle: none → p0 → p1 → … → none (any multi-selection resets to none)
+    const multi = memberIds.length > 1;
     let next: string[] = [];
-    if (cur.length === 1) {
-      const idx = memberIds.indexOf(cur[0]);
-      next = idx + 1 < memberIds.length ? [memberIds[idx + 1]] : [];
-    } else if (cur.length === 0) {
+    if (cur.length === 0) {
       next = memberIds.length ? [memberIds[0]] : [];
-    }
+    } else if (cur.length === 1) {
+      const idx = memberIds.indexOf(cur[0]);
+      if (idx + 1 < memberIds.length) next = [memberIds[idx + 1]]; // next member alone
+      else if (multi) next = [...memberIds]; // last single → all members together
+      // else (single-member channel): fall through to none
+    } else if (multi && cur.length === memberIds.length) {
+      next = []; // all → none
+    } // any partial multi-selection → none
     e.partIds = [...other, ...next];
     void patchLineup(songId, prune(lineup));
   }

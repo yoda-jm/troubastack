@@ -166,6 +166,7 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 		projMus = append(projMus, projMusician{ID: v.ID, Name: v.DisplayName, Order: v.Order})
 	}
 	subcols := projectColumns(songs, projMus, band.Parts, band.Channels)
+	rank := joinRank(band.Parts) // canonical channel-member order for cell joins and the changes column (T207)
 	// Fill the console-input row (row 3) from the concert's patch; set shared headers' players.
 	for i := range subcols {
 		subcols[i].Input = inputText(patchByKey, subcols[i].Key, subcols[i].Amplified)
@@ -218,7 +219,7 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 		}
 		cells := map[string]SheetCell{}
 		for _, sc := range subcols {
-			cells[sc.Key] = sheetCell(sc, byMus, partByID, name)
+			cells[sc.Key] = sheetCell(sc, byMus, partByID, name, rank)
 		}
 		section := SheetSectionMain
 		var changes []string
@@ -226,7 +227,7 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 			section = SheetSectionOnCall // on-call is a bench section — no running number, no "changes vs previous"
 		} else {
 			if prevSong != nil {
-				changes = sheetChanges(*prevSong, sg, partByID, name)
+				changes = sheetChanges(*prevSong, sg, partByID, name, rank)
 			}
 			songCopy := sg
 			prevSong = &songCopy
@@ -263,23 +264,30 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 	return model, nil
 }
 
-// sheetCell is the cell value for a subcol in one song.
-func sheetCell(sc SheetSubcol, byMus map[string]LineupEntry, partByID map[string]Part, name map[string]string) SheetCell {
+// sheetCell is the cell value for a subcol in one song. rank is the canonical join order (joinRank): a
+// channel's parts always join in the channel's member order (e.g. "L+B", never "B+L"), whatever order the
+// line-up entry holds them in — the same string the Studio grid produces (T207 binding 2).
+func sheetCell(sc SheetSubcol, byMus map[string]LineupEntry, partByID map[string]Part, name map[string]string, rank map[string]int) SheetCell {
 	switch sc.Kind {
 	case "channel":
-		// the musician's parts on THIS channel in the song, joined (L / Gtr / "L+B"), in line-up order.
+		// the musician's parts on THIS channel in the song, joined (L / Gtr / "L+B") in canonical member order.
 		e, ok := byMus[sc.OwnerID]
 		if !ok {
 			return SheetCell{}
 		}
-		var shorts []string
+		var ids []string
 		for _, pid := range e.PartIDs {
 			if p, ok := partByID[pid]; ok && !p.Shared && PartChannelKey(p) == sc.ChannelKey {
-				shorts = append(shorts, PartShort(p))
+				ids = append(ids, pid)
 			}
 		}
-		if len(shorts) == 0 {
+		if len(ids) == 0 {
 			return SheetCell{}
+		}
+		sort.SliceStable(ids, func(i, j int) bool { return rank[ids[i]] < rank[ids[j]] })
+		shorts := make([]string, len(ids))
+		for i, pid := range ids {
+			shorts[i] = PartShort(partByID[pid])
 		}
 		return SheetCell{Text: strings.Join(shorts, "+"), Optional: e.Optional}
 	default: // shared: every player of this part in the song, joined
@@ -377,6 +385,28 @@ func partOrderLess(oa, ob int) bool {
 		return oa != 0
 	}
 	return oa < ob
+}
+
+// joinRank ranks every part by the canonical channel-member order — (Order, vocabulary index), the same
+// orderThenFirst tie-break projectColumns uses and the mirror of the Studio grid's cmpOrder. Parts within one
+// channel join in this order (T207 binding 2), so a cell and the changes column read the same string in Go and
+// Studio regardless of line-up entry order. (Shared parts are ranked too; they never join with channel parts.)
+func joinRank(parts []Part) map[string]int {
+	type pr struct {
+		id    string
+		order int
+		idx   int
+	}
+	ps := make([]pr, len(parts))
+	for i, p := range parts {
+		ps[i] = pr{p.ID, p.Order, i}
+	}
+	sort.SliceStable(ps, func(i, j int) bool { return orderThenFirst(ps[i].order, ps[j].order, ps[i].idx, ps[j].idx) })
+	r := make(map[string]int, len(ps))
+	for i, p := range ps {
+		r[p.id] = i
+	}
+	return r
 }
 
 // patchRank sorts for patch order: patched (by input) first, then unpatched amplified, then unamplified.

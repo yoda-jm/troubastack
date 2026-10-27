@@ -10,7 +10,7 @@ import (
 // repatch) and a personal instrument moving between people ("repatch: Gtr A→B"). Labels come from the central
 // list, so the wording is one edit. Emitted in a stable category order (out, in, voice, shared, repatch),
 // alphabetical within each.
-func sheetChanges(prev, now Song, partByID map[string]Part, name map[string]string) []string {
+func sheetChanges(prev, now Song, partByID map[string]Part, name map[string]string, rank map[string]int) []string {
 	nm := func(mid string) string { return firstName(name[mid]) }
 	var out []string
 
@@ -31,8 +31,9 @@ func sheetChanges(prev, now Song, partByID map[string]Part, name map[string]stri
 	out = append(out, outs...)
 	out = append(out, ins...)
 
-	// voice changes for a musician present in both
-	pv, nv := voiceShortsByMus(prev, partByID, name), voiceShortsByMus(now, partByID, name)
+	// voice changes for a musician present in both — compared in canonical order, so the SAME two voice parts
+	// entered in opposite orders are not a change (T207 binding 3): {B,L} vs {L,B} both read "L+B".
+	pv, nv := voiceShortsByMus(prev, partByID, rank), voiceShortsByMus(now, partByID, rank)
 	var voice []string
 	for mid := range nPresent {
 		if pPresent[mid] && pv[mid] != nv[mid] && (pv[mid] != "" || nv[mid] != "") {
@@ -90,18 +91,26 @@ func presenceSet(sg Song) map[string]bool {
 	return m
 }
 
-func voiceShortsByMus(sg Song, partByID map[string]Part, _ map[string]string) map[string]string {
+func voiceShortsByMus(sg Song, partByID map[string]Part, rank map[string]int) map[string]string {
 	out := map[string]string{}
 	for _, e := range sg.Lineup {
-		var shorts []string
+		var ids []string
 		for _, pid := range e.PartIDs {
 			if p, ok := partByID[pid]; ok && p.Kind == PartVoice {
-				shorts = append(shorts, PartShort(p))
+				ids = append(ids, pid)
 			}
 		}
-		if len(shorts) > 0 {
-			out[e.MusicianID] = strings.Join(shorts, "+")
+		if len(ids) == 0 {
+			continue
 		}
+		// Join in canonical member order (not entry order) so the comparison is order-insensitive and the
+		// printed change reads "L→L+B", never "L→B+L" (T207 binding 3).
+		sort.SliceStable(ids, func(i, j int) bool { return rank[ids[i]] < rank[ids[j]] })
+		shorts := make([]string, len(ids))
+		for i, pid := range ids {
+			shorts[i] = PartShort(partByID[pid])
+		}
+		out[e.MusicianID] = strings.Join(shorts, "+")
 	}
 	return out
 }

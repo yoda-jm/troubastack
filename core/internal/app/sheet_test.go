@@ -39,6 +39,62 @@ func buildConcert(t *testing.T, st stack) (admin app.User, bandID, setlistID str
 	return admin, bandID, sl.ID, g1, g2, leadID, backID, bassID, shakerID
 }
 
+// T207: one person sings lead AND backing. The voice cell joins in the channel's member order ("L+B", never
+// "B+L") whatever order the line-up holds the parts in (binding 2), and the changes column compares the voice
+// parts as a set, so the same two parts in opposite entry order print no change (binding 3).
+func TestSheetVoice_LeadAndBacking_T207(t *testing.T) {
+	st := newStack()
+	admin, _, bandID, _, _, _ := buildSourceBand(t, st)
+
+	g1, _ := st.svc.AddMusician(admin, bandID, "Gee")
+	// Lead is created first, so it is the vocabulary-first voice part: the canonical channel order is lead
+	// before backing. (These are the two voice parts of the band's one voice channel.)
+	lead, _ := st.svc.CreatePart(admin, bandID, "Lead vocal", app.PartSpec{Kind: app.PartVoice, Short: "L"})
+	back, _ := st.svc.CreatePart(admin, bandID, "Backing vocal", app.PartSpec{Kind: app.PartVoice, Short: "B"})
+
+	mk := func(title string, pids ...string) string {
+		s, err := st.svc.CreateSong(admin, bandID, title, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		setLineup(t, st, admin, bandID, s.ID, []app.LineupEntry{{MusicianID: g1.ID, PartIDs: pids}})
+		return s.ID
+	}
+	s1 := mk("One", back.ID, lead.ID) // entry order {B,L} CONTRADICTS the channel order {L,B}
+	s2 := mk("Two", lead.ID, back.ID) // same set as s1, opposite entry order
+	s3 := mk("Three", lead.ID)        // lead only
+	s4 := mk("Four", lead.ID, back.ID)
+
+	sl, _ := st.svc.CreateSetlist(admin, bandID, "Set", "", "", "")
+	for _, sid := range []string{s1, s2, s3, s4} {
+		if _, err := st.svc.AddSetlistItem(admin, bandID, sl.ID, sid); err != nil {
+			t.Fatalf("add item: %v", err)
+		}
+	}
+
+	m, err := st.svc.BuildSheet(admin, bandID, sl.ID, app.SheetOrderStage)
+	if err != nil {
+		t.Fatalf("BuildSheet: %v", err)
+	}
+	voiceKey := app.PatchKey(g1.ID, "voice")
+
+	// Binding 2 — canonical join: s1, entered backing-first, still reads "L+B" (never "B+L").
+	if got := m.Rows[0].Cells[voiceKey].Text; got != "L+B" {
+		t.Errorf("s1 voice cell = %q, want \"L+B\" (canonical order, though entered backing-first)", got)
+	}
+	// Binding 3 — set comparison: s2 {L,B} vs s1 {B,L} is the same set → NO voice change line.
+	if ch := strings.Join(m.Rows[1].Changes, " | "); strings.Contains(ch, "Gee:") {
+		t.Errorf("s2 should show no voice change (same two parts as s1, opposite order), got %q", ch)
+	}
+	// Control — a real change still prints, in canonical order both ways.
+	if ch := strings.Join(m.Rows[2].Changes, " | "); !strings.Contains(ch, "Gee: L+B→L") {
+		t.Errorf("s3 want voice change 'Gee: L+B→L' in %q", ch)
+	}
+	if ch := strings.Join(m.Rows[3].Changes, " | "); !strings.Contains(ch, "Gee: L→L+B") {
+		t.Errorf("s4 want voice change 'Gee: L→L+B' in %q", ch)
+	}
+}
+
 func TestBuildSheet_ProjectionChangesInput(t *testing.T) {
 	st := newStack()
 	admin, bandID, setlistID, g1, g2, _, _, bassID, shakerID := buildConcert(t, st)

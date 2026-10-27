@@ -71,6 +71,26 @@ test("voice cell: L / B keys set and clear, Shift adds", async ({ page }) => {
   await expect(vc()).toContainText("BV");
 });
 
+// T207 binding 1: clicking a two-part Voice cell cycles · → L → B → L+B → ·, so a mouse/touch user reaches the
+// lead-AND-backing state the keyboard already could. The L+B state must survive a reload (it reached the server).
+test("voice cell: click cycles none → lead → backing → both → none, both persists", async ({ page }) => {
+  await seededBand(page, `m4lb${stamp()}`);
+  const vc = () => page.getByTestId("lineup-cell-voice").first();
+  await expect(vc()).toHaveText("·");
+  await vc().click();
+  await expect(vc()).toHaveText("LV");
+  await vc().click();
+  await expect(vc()).toHaveText("BV");
+  await vc().click();
+  await expect(vc()).toHaveText("LV+BV"); // the state a mouse user could never reach before T207
+  // It reached the server: after a reload the L+B cell is still there.
+  await page.reload();
+  await expect(vc()).toHaveText("LV+BV");
+  // A fourth click closes the cycle back to none.
+  await vc().click();
+  await expect(vc()).toHaveText("·");
+});
+
 // Binding 1: a chip filter that shrinks the rows must not orphan the roving tabstop.
 test("roving tabstop survives a filter that shrinks the rows", async ({ page }) => {
   await seededBand(page, `m4c${stamp()}`);

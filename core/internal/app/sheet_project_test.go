@@ -55,6 +55,7 @@ func TestSheetProjection_SharedVectors(t *testing.T) {
 				name[m.ID] = m.Name
 			}
 			subcols := projectColumns(c.Songs, mus, c.Parts, c.Channels)
+			rank := joinRank(c.Parts)
 			gotKeys := make([]string, len(subcols))
 			for i, sc := range subcols {
 				gotKeys[i] = sc.Key
@@ -76,7 +77,7 @@ func TestSheetProjection_SharedVectors(t *testing.T) {
 					byMus[e.MusicianID] = e
 				}
 				for key, wantText := range want {
-					got := sheetCell(byKey[key], byMus, partByID, name)
+					got := sheetCell(byKey[key], byMus, partByID, name, rank)
 					if got.Text != wantText {
 						t.Errorf("%s cell[%s] = %q, want %q", sg.ID, key, got.Text, wantText)
 					}
