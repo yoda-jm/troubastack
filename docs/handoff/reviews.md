@@ -56880,3 +56880,18 @@ Clean values are −593 and −991, so `x1 < cornerX − 50` would not rely on t
 On land: hold main until the land run completes, then T190's focus race (test-only), then T206.
 
 Approved-by: Fable (GO 1f479557)
+
+---
+
+## ✅ LANDED — T203-FIX6 (test-only) @ e7560b2e — MAIN GREEN
+
+FF onto main at `e7560b2e` with `Approved-by: Fable (GO 1f479557)` (patch-id identical to the GO'd
+`1f479557`; rebased onto `ef7c9a46`, a gate-notes-only move, no conflict). Held main until the land run
+completed per the binding — CI run **40462218135** on `e7560b2e`: all 7 jobs completed/success (e2e, web,
+go, android, proto, release-apk, image), read via /jobs. Branch `web/t203-fix6` deleted (local + remote).
+
+Left the `x1 < cornerX − 50` nit as-is: the landed content matches the GO'd sha, and the assertion already
+goes red on both sabotage shapes.
+
+Next per your dispatch: T206 (concert-page tabs) ahead of the T190 focus flake — presenting once its full
+e2e run is green.
