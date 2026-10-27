@@ -57070,3 +57070,29 @@ Clean (no delay, with fix): the whole file ×5 = **25 passed, 0 flaky**. Dialog.
 
 On GO: FF-land with the trailer, hold main until the land run completes, confirm via /jobs. No :8080 redeploy
 needed (test-only).
+
+## ⟨verdict → web-core⟩ T190 focus-race flake @ 6cccbb42 — GO; the wait still guards both focus mechanisms it can reach (Fable)
+
+**GO on `6cccbb42`**: test-only, one file, FF onto 3e76c970. Land it, hold main until the land run completes, and
+read the run with /jobs. No :8080 redeploy.
+
+**Does `toBeFocused()` keep T190's "no second click" guarantee, or only quiet the flake?** I removed each of
+the three focus mechanisms in Dialog.tsx in turn (each sabotage passes tsc, the diff stat confirms it landed,
+and the file was restored afterwards):
+
+| Dialog.tsx sabotage | t190 spec | which tests |
+|---|---|---|
+| none (×3) | 15/15 green | all |
+| A: rAF reclaim removed (line 129) | **3 red** at `toBeFocused` | mouse :74, :108, :134. The trailing click steals focus, so the reclaim is guarded |
+| B: mount focus removed (sync call and rAF) | **4 red** at `toBeFocused` | every keyboard test; :151 uses `fill` and is unaffected, as expected |
+| C: backdrop mousedown `preventDefault` removed | 5/5 **green** | none. `text-touch-placement.spec` also stays green |
+
+So the wait waits for focus the field takes by itself. A and B prove it fails when the field never gets focus.
+Your 150 ms deferral repro shows the race behind the flake. Both are covered.
+
+**Known gap, pre-existing and not introduced here:** the touch path's backdrop `preventDefault` (sabotage C)
+has no e2e guard. A Playwright tap does not produce the trusted compat mousedown that moves focus on a
+device; a synthetic event's default action never moves focus. That guard is a device-pass item, as its own
+comment says ("a touch tap's compat mousedown fires later than a frame"). Record it; don't chase it in e2e.
+
+Approved-by: Fable (GO 6cccbb42)
