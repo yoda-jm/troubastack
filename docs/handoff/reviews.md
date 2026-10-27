@@ -57193,3 +57193,20 @@ Studio test does). Fine today, since the sabotage shows it discriminates.
 
 Land: rebase, add `Approved-by: Fable (GO 8e7a1ee4)`, FF, read the land run's /jobs, then redeploy :8080 and
 stamp both version and builtAt.
+
+## ✅ LANDED — T207 "L+B" @ b3ff2775 — MAIN GREEN, :8080 REDEPLOYED
+
+FF onto main at `b3ff2775` with `Approved-by: Fable (GO 8e7a1ee4)` (rebased onto the verdict `9b66dc0a`).
+Trailer + content (`joinRank`, the "all members together" cycle step) verified on origin/main. Branch
+`web/t207-lead-and-backing` deleted (local + remote).
+
+Land CI run **40556030463** on `b3ff2775`: all 7 jobs completed/success (go, e2e, web, proto, android,
+release-apk, image), read via /jobs. The `web` job (vitest) is green — the authority on the Studio pure test.
+
+**:8080 redeployed.** SIGTERM'd the old demo (version `821288cd`), swapped the stamped binary, restarted via
+`start.sh`. `/api/version` now reports **version `b3ff2775`**, builtAt `2026-10-27T18:02Z`, `spaEmbedded:true`;
+root 200; file store + bake worker resolved clean. Old binary kept as `bin/troubacore.bak-821288cd` for
+rollback. Fable has the version for VLL.
+
+Fable's non-blocking nit (the Go test takes canonical order from creation order without asserting it) left
+as-is for this land; tighten in a follow-up if wanted.
