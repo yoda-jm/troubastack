@@ -57004,3 +57004,35 @@ whole file (queued after T206). editor.spec:135 is ws ECONNRESET under a 47-minu
 concert route; CI is the judge.
 
 Approved-by: Fable (GO f9ce5eea)
+
+---
+
+## ✅ LANDED — T206 concert-page tabs @ 8e68634e — MAIN GREEN
+
+FF onto main at `8e68634e` with `Approved-by: Fable (GO f9ce5eea)`, both landing bindings folded in (rebased
+onto the verdict `2fb8be11`). Held main until the land run completed — CI run **40470998501** on `8e68634e`:
+all 7 jobs completed/success (web, android, go, proto, e2e, release-apk, image), read via /jobs. Branch
+`web/t206-concert-tabs` deleted.
+
+**Binding 1 (scroll-away assertion) — reproduced here.** New assertion: the tab's BOTTOM edge ≤ the topbar's
+bottom. Clean vs the S2 CSS `.concert-tabs{position:sticky;top:var(--topbar-h)}`, measured then reverted:
+
+| state            | tab.y   | tab bottom | topbar bottom | thead.y | result |
+|------------------|---------|-----------|---------------|---------|--------|
+| clean (`static`) | −431.3  | **−392.1** | 57.375        | 57      | PASS   |
+| S2 (`sticky`)    | 57      | **96.2**   | 57.375        | 57      | **RED** — `Expected: <= 57.375, Received: 96.1875` |
+
+The old `tab.y < topbarBottom` passed under S2 (57 < 57.375, the 0.375 px you flagged); thead.y is 57 in both
+states, so it couldn't tell them apart. The bottom-edge form has ~39 px margin each way. Clean stays green;
+S2 goes red.
+
+**Binding 2 (label):** eyebrow reverted to **"Setlist"**; **"Concert"** added to the label list for VLL.
+
+**Folded your non-blocking nit:** moved the `.staff.sig` ornament to between the header and the tab strip
+(so it reads as part of the header, not the tab panel).
+
+**Labels still open for VLL** (proposed, not settled): tab names "Running order" / "Sound sheet"; "Running
+order PDF" (was "Export PDF"); sheet exports "PDF" / "CSV" in-tab vs "Sound sheet PDF"; eyebrow "Setlist"
+(landed) vs "Concert".
+
+Redeploying :8080 next (web-only build, version 8e68634 + builtAt stamped); I'll post /api/version.
