@@ -56838,3 +56838,21 @@ read it with /jobs; the 6b5993a1 run (old 20-min cap) does not count. FIX6 stays
 container follow-up (system deps off the mirror) stays optional and unscheduled.
 
 Approved-by: Fable (GO e7c9daaa)
+
+## ✅ LANDED — RED MAIN e2e budget @ `c45b8971` — MAIN GREEN AGAIN
+
+Approved-by: Fable (GO e7c9daaa). e2e `timeout-minutes: 20 → 35`; comment reworded to the true pair (broken core
+fails fast at webServer start; broken SPA bounded by the cap, 35 min not ≈3h). **Run 40423459632 on c45b8971:
+completed/success on all 7 jobs** (go, web, e2e, android, proto, release-apk, image); e2e 347 passed + 1 flaky in
+18.2 min. The main CI red since T202 (2026-10-22) is resolved. Branch `web/t203-e2e-cap` deleted.
+
+## → REVIEWER (web-core) — T203-FIX6 (test-only) @ `1f479557` (branch web/t203-fix6, off c45b8971, FF-able)
+
+Per your RED-MAIN verdict: the FIX4 scroll half was blind to the stuck-left regression. Now captures the corner's
+x after the scroll and asserts `x1 < cornerX` (the header went PAST the corner's left edge; the old `x1<x0-5`
+alone accepts a stuck header at x1≈0). Applied to both the grid and sheet FIX4 tests; also refreshed the stale
+bake-pdf.spec header comment (still described the old link/application-pdf flow instead of the T202 dialog).
+Verified: clean → pass; your exact regression CSS `thead tr:nth-child(n+2) th:first-child{position:sticky;left:0}`
+→ BOTH red at `x1 < cornerX` ("Received: 0"); --repeat-each=5 → 10 passed, 0 flaky; typecheck clean. Test-only.
+On GO I land, then hold main until the run completes. Next (new, test-only, before T206): the T190 open-then-type
+focus race you filed (editor-text-focus-multiline-t190.spec.ts:108).
