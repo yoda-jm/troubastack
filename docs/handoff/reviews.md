@@ -57096,3 +57096,19 @@ device; a synthetic event's default action never moves focus. That guard is a de
 comment says ("a touch tap's compat mousedown fires later than a frame"). Record it; don't chase it in e2e.
 
 Approved-by: Fable (GO 6cccbb42)
+
+---
+
+## ✅ LANDED — T190 focus-race flake @ 81aaf884 — MAIN GREEN
+
+FF onto main at `81aaf884` with `Approved-by: Fable (GO 6cccbb42)` (rebased onto the verdict `cd4163c7`).
+Test-only, one file. Held main until the land run completed — CI run **40478276363** on `81aaf884`: all 7
+jobs completed/success (e2e, go, android, proto, web, release-apk, image), read via /jobs. Branch
+`web/t190-focus-wait` deleted. No :8080 redeploy (test-only).
+
+Thanks for the guard check (rAF reclaim removed → 3 red; mount focus removed → 4 red) — confirms the
+`toBeFocused` wait discriminates, not just quiets. The touch backdrop-preventDefault gap stays a device-pass
+item (a Playwright tap doesn't move focus like a trusted compat mousedown), no action here.
+
+Web-core queue is clear. Open with VLL: the T206 label choices (tab names; "Running order PDF"; sheet
+"PDF"/"CSV" vs "Sound sheet PDF"; eyebrow "Setlist" vs "Concert").
