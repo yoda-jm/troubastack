@@ -56895,3 +56895,50 @@ goes red on both sabotage shapes.
 
 Next per your dispatch: T206 (concert-page tabs) ahead of the T190 focus flake — presenting once its full
 e2e run is green.
+
+---
+
+## → REVIEWER (web-core) — T206 concert-page tabs @ `f9ce5eea` (branch web/t206-concert-tabs, off 73fa67b3, FF-able)
+
+Spec: `docs/tasks/T206-concert-page-tabs.md` (3b28d19b). Web-only (studio). 10 files: +ConcertLayout.tsx,
++components/ConcertTabs.tsx, +e2e/concert-tabs.spec.ts; App.tsx, SetlistDetail.tsx, SoundSheet.tsx,
+styles.css, and 3 e2e specs updated.
+
+**Design (built to the accepted proposal + rulings):**
+- Running order + Sound sheet are two **route-based tabs of one concert**, via a shared `ConcertLayout`
+  route (mirrors the T130 `BandLayout`: it owns the crumb + one header + the tab strip, fetches the
+  concert ONCE, renders each tab through `<Outlet>` — no re-mount / re-fetch on tab switch).
+- **Tabs:** `NavLink`s in the `.drawer-tab` underline family (not `.details-tab` pills). `/sheet` stays
+  deep-linkable, Back works, `aria-current="page"` marks the active tab (NavLink sets it), keyboard-reachable.
+- **Exports live in their own tab.** Running order: the running-order PDF + bake controls + the T202
+  member-scoped PDF dialog. Sound sheet: PDF / CSV / order toggle / patch. The shared header carries only
+  chips (songs / on-call / archived / edited-since-bake).
+- **Unstyled actions row fixed by removal + one rule:** the old `.phead-actions` (Export PDF + the Sound
+  sheet link) is gone — the link became a tab; the running-order actions are one styled `.concert-actions`.
+- SoundSheet dropped its own `← Concert` crumb + `Sound sheet — <name>` h1 (shared header now); reads role
+  from context (no 2nd getBand). The edited-since-bake chip moved from BakeCard to the header; BakeCard now
+  reads `concerts` + `reload` from the shared context (no 2nd /concerts fetch; a bake calls shared reload).
+
+**My ruling where the spec said "say which":** the tab strip is **normal flow and scrolls away** — it is NOT
+part of the sticky offset, so the sheet's sticky grid header still pins at `--topbar-h` under the topbar.
+e2e proves it (loads /sheet, scrolls, asserts thead.y ≈ topbar bottom ±2 and the strip scrolled above the
+topbar).
+
+**Labels — proposed, NOT settled (VLL's call, spec §5):** tab names **"Running order" / "Sound sheet"**;
+**"Running order PDF"** (was "Export PDF"); sheet exports left as **"PDF" / "CSV"** in-tab (the tab already
+says Sound sheet) — the docs-stage list says "Sound sheet PDF", so flag if VLL wants the longer form. The
+title eyebrow reads **"Concert"** (was "Setlist" on the detail); say if that should stay "Setlist".
+
+**Tests.** Studio + e2e typecheck clean. Focused subset (17 specs incl. the FIX6 sticky tests, sound-sheet,
+edited-tag, archive-row, duplicate, live-mode, bake-pdf): **17/17, 0 flaky**. Full local suite:
+**350 passed, 2 failed** — both OUTSIDE the T206 surface and both pass in isolation (10/10):
+`editor-text-focus-multiline-t190.spec.ts:74` (the T190 focus race you filed) and `editor.spec.ts:135`
+realtime @smoke (vite ws-proxy ECONNRESET under the 47-min local run). Neither navigates concert tabs.
+CI (retries=1) should absorb both as flaky-passed.
+
+**Worth a close look:** the shared-layout data-flow (items/reorder/role/concerts now from context + a single
+`reload`), the moved edited chip (fed by ConcertLayout's /concerts fetch — the setlist-edited-tag.spec mock
+still hits it), and the App.tsx route nesting vs the separate full-bleed editor routes.
+
+On GO: FF-land with the trailer, hold main until the land run completes, confirm via /jobs, then redeploy
+:8080 (web-only build: studio dist → embed → go build with version/builtAt) per VLL.
