@@ -13,8 +13,10 @@ async function openSheet(page: Page, u: string) {
   const sl = await (await page.request.post(`/api/bands/${id}/setlists`, { data: { name: "The Gig" } })).json();
   await page.request.post(`/api/bands/${id}/setlists/${sl.setlist.id}/items`, { data: { songId: song.song.id } });
   await page.goto(`/bands/${id}/setlists/${sl.setlist.id}`);
-  await page.getByTestId("sound-sheet-link").click();
-  await expect(page.getByTestId("sheet-title")).toContainText("The Gig");
+  // T206: the "Sound sheet" link is now a tab of the concert; the shared header h1 carries the concert name.
+  await page.getByTestId("concert-tab-sheet").click();
+  await expect(page).toHaveURL(/\/sheet$/);
+  await expect(page.getByTestId("setlist-detail-title")).toContainText("The Gig");
 }
 
 test("sound sheet: render, patch inline, order toggle, input list", async ({ page }) => {
@@ -87,7 +89,7 @@ test("sound sheet: numbering, intermission separator, on-call section", async ({
   await page.request.patch(`/api/bands/${id}/setlists/${sl.id}/items/${ocItem.item.id}`, { data: { onCall: true } });
 
   await page.goto(`/bands/${id}/setlists/${sl.id}/sheet`);
-  await expect(page.getByTestId("sheet-title")).toContainText("Show");
+  await expect(page.getByTestId("setlist-detail-title")).toContainText("Show"); // T206: shared concert header h1
   // main songs number 1, 2
   const rows = page.getByTestId("sheet-row");
   await expect(rows.nth(0)).toContainText("1 · First");

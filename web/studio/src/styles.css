@@ -1850,6 +1850,23 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .section-tab:hover { text-decoration: none; color: var(--fg); background: var(--surface-2); }
 .section-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
+/* T206 — the concert's tab strip (Running order | Sound sheet). Underline tabs (the .drawer-tab family,
+   not the .details-tab pills): a bottom rule under the whole strip, the active tab's own rule in the brand.
+   NavLinks, so each is a real route and NavLink sets the .active class itself. The strip is normal flow —
+   it scrolls away with the header, so the sticky sheet grid header still pins at --topbar-h underneath. */
+.concert-tabs { display: flex; gap: .25rem; margin: .4rem 0 1.1rem; border-bottom: 1px solid var(--border); }
+.concert-tab {
+  padding: .45rem .9rem; font-weight: 600; font-size: .92rem;
+  color: var(--muted); border-bottom: 2px solid transparent;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+.concert-tab:hover { text-decoration: none; color: var(--fg); background: var(--surface-2); }
+.concert-tab.active { color: var(--brand-strong); border-bottom-color: var(--brand); }
+
+/* T206 — the running-order tab's own actions row (Running order PDF, Unarchive). One styled class, in the
+   tab body (the old unstyled `.phead-actions` in the header is gone — the Sound sheet link became a tab). */
+.concert-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: 0 0 1rem; }
+
 /* ---- T05: compact song-editor chrome ----------------------------------- */
 /* One-row header directly under the top bar: back · title · status. Replaces
    the old centered back-link + big <h1> so the score starts far higher. */

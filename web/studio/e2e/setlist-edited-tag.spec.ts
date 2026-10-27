@@ -46,7 +46,8 @@ test("edited tag shows on the setlist list and detail when a concert is edited s
   // The list row carries the tag.
   await expect(page.getByTestId("setlist-edited-tag")).toBeVisible();
 
-  // The detail page (its BakeCard fetches /concerts) carries it too, next to the bake button.
+  // The detail page carries it too (T206: in the shared concert header now, fed by ConcertLayout's
+  // /concerts fetch — no longer only next to the bake button).
   await page.getByTestId("setlist-link").filter({ hasText: name }).click();
   await expect(page.getByTestId("bake-setlist")).toBeVisible();
   await expect(page.getByTestId("setlist-edited-tag")).toBeVisible();

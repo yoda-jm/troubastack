@@ -6,12 +6,11 @@
  * distinct "Bench (on call)" section (T23).
  */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ApiError,
   api,
   type Concert,
-  type ConcertChanges,
   type Role,
   type Setlist,
   type SetlistItem,
@@ -32,85 +31,62 @@ import {
 } from "../components/SortableList";
 import { BakeDialog } from "./BakeDialog";
 import { PdfDialog } from "./PdfDialog";
+import { useConcert } from "./ConcertLayout";
 
+// T206: the Running order tab. The concert (setlist, items, role, bakes) is loaded once by ConcertLayout
+// and shared through context; this tab owns only the band song library (the add-song picker) and the
+// running-order editing. The shared header + tab strip + crumb live in the layout.
 export function SetlistDetail() {
-  const { bandId, setlistId } = useParams<{ bandId: string; setlistId: string }>();
+  const { bandId, setlistId, setlist, setSetlist, items, setItems, myRole, concerts, bandConcert, reload } =
+    useConcert();
   const navigate = useNavigate();
-  const [setlist, setSetlist] = useState<Setlist | null>(null);
-  const [items, setItems] = useState<SetlistItem[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
-  const [myRole, setMyRole] = useState<Role | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!bandId || !setlistId) return;
-    try {
-      const [{ setlist, items }, songs, { myRole }] = await Promise.all([
-        api.getSetlist(bandId, setlistId),
-        api.listSongs(bandId),
-        api.getBand(bandId),
-      ]);
-      // Main order first, then bench; position within each group (matches the server
-      // and lets the Items view slice the two groups cleanly — T23).
-      items.sort(
-        (a, b) => Number(a.onCall ?? false) - Number(b.onCall ?? false) || a.position - b.position,
-      );
-      setSetlist(setlist);
-      setItems(items);
-      setSongs(songs);
-      setMyRole(myRole);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load setlist");
-    }
-  }, [bandId, setlistId]);
-
+  // The band song library is this tab's own fetch — the concert itself comes from context. Adding/removing
+  // a setlist item calls the shared `reload`; the library doesn't change under those edits, so fetch once.
   useEffect(() => {
-    void load();
-  }, [load]);
+    let live = true;
+    void (async () => {
+      try {
+        const s = await api.listSongs(bandId);
+        if (live) setSongs(s);
+      } catch {
+        // The add-song picker just stays empty if the library can't be read; item edits still work.
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [bandId]);
 
-  // Optimistic reorder: apply the new order to local state IMMEDIATELY so a drag / ↑↓ settles with no
+  // Optimistic reorder: apply the new order to the shared items IMMEDIATELY so a drag / ↑↓ settles with no
   // server round-trip. The old path awaited reorderSetlist + reload, so on release every row snapped back
   // to the OLD order, paused for the network, then reflowed to the new one — which read as "it moves too
   // much" and "a full refresh when releasing". The reorder is a pure permutation, so array order + the
   // onCall split is all the render needs; the server call rides in the background (a failure reverts via
   // reload). Guarded to a complete permutation so a partial/garbled list never half-applies.
-  const applyOrder = useCallback((orderedIds: string[]) => {
-    setItems((prev) => {
-      const byId = new Map(prev.map((it) => [it.id, it]));
-      const next: SetlistItem[] = [];
-      for (const id of orderedIds) {
-        const it = byId.get(id);
-        if (it) next.push(it);
-      }
-      return next.length === prev.length ? next : prev;
-    });
-  }, []);
-
-  if (!bandId || !setlistId) return <div className="page">Loading…</div>;
-  if (error && !setlist) {
-    return (
-      <div className="page">
-        <Link className="crumb" to={`/bands/${bandId}/setlists`}>
-          &larr; Setlists
-        </Link>
-        <ErrorBanner message={error} />
-      </div>
-    );
-  }
-  if (!setlist) return <div className="page">Loading…</div>;
-
-  const mainCount = items.filter((it) => !it.onCall).length;
-  const benchCount = items.length - mainCount;
-  const sub = [setlist.eventDate, setlist.venue].filter(Boolean).join(" · ");
+  const applyOrder = useCallback(
+    (orderedIds: string[]) => {
+      setItems((prev) => {
+        const byId = new Map(prev.map((it) => [it.id, it]));
+        const next: SetlistItem[] = [];
+        for (const id of orderedIds) {
+          const it = byId.get(id);
+          if (it) next.push(it);
+        }
+        return next.length === prev.length ? next : prev;
+      });
+    },
+    [setItems],
+  );
 
   // T200: one-click unarchive from the opened concert (admin-only). An archived concert can still be
   // opened and edited here; this brings it back to the live list and the tablets.
   async function onUnarchive() {
-    if (!setlist) return;
     setError(null);
     try {
-      setSetlist(await api.setSetlistArchived(bandId!, setlist.id, false));
+      setSetlist(await api.setSetlistArchived(bandId, setlist.id, false));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn’t unarchive the concert");
     }
@@ -120,8 +96,7 @@ export function SetlistDetail() {
   async function exportPdf() {
     setError(null);
     try {
-      // bandId/setlistId are guaranteed by the guard above; the assertion just carries that into this closure.
-      const { blob, filename } = await api.exportSetlist(bandId!, setlistId!);
+      const { blob, filename } = await api.exportSetlist(bandId, setlistId);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -136,60 +111,37 @@ export function SetlistDetail() {
   }
 
   return (
-    <div className="page">
+    <>
       {liveNow(setlist) && (
         <div className="live-banner" data-testid="live-banner" role="status">
           <span className="live-dot" aria-hidden="true" />
           LIVE — edits to these songs are auto-publishing to performers
         </div>
       )}
-      <Link className="crumb" to={`/bands/${bandId}/setlists`}>
-        &larr; Setlists
-      </Link>
-      <header className="phead">
-        <div>
-          <div className="eyebrow">Setlist</div>
-          <h1 className="title" data-testid="setlist-detail-title">
-            {setlist.name}
-          </h1>
-          {sub && <div className="sub">{sub}</div>}
-          <div className="meta">
-            <span className="chip mono">
-              {mainCount} song{mainCount === 1 ? "" : "s"}
-            </span>
-            {benchCount > 0 && <span className="chip brand">{benchCount} on call</span>}
-            {setlist.archived && (
-              <span className="chip" data-testid="setlist-archived-tag" title="Archived — kept in Studio, not offered on the tablets">
-                Archived
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="phead-actions">
-          {setlist.archived && myRole === "admin" && (
-            <button
-              type="button"
-              className="secondary"
-              data-testid="setlist-unarchive"
-              onClick={() => void onUnarchive()}
-            >
-              Unarchive
-            </button>
-          )}
+      {/* T206: the running-order tab's own exports/actions live in the tab (not the shared header). The
+          running-order PDF (T158) sits here; the bake controls + the member-scoped PDF are in the Bake
+          panel below. "Running order PDF" is VLL's docs-stage label (was "Export PDF"). */}
+      <div className="concert-actions" data-testid="running-order-actions">
+        <button
+          type="button"
+          className="secondary"
+          data-testid="export-setlist-pdf"
+          onClick={() => void exportPdf()}
+        >
+          Running order PDF
+        </button>
+        {setlist.archived && myRole === "admin" && (
           <button
             type="button"
             className="secondary"
-            data-testid="export-setlist-pdf"
-            onClick={() => void exportPdf()}
+            data-testid="setlist-unarchive"
+            onClick={() => void onUnarchive()}
           >
-            Export PDF
+            Unarchive
           </button>
-          <Link className="secondary" data-testid="sound-sheet-link" to={`/bands/${bandId}/setlists/${setlistId}/sheet`}>
-            Sound sheet
-          </Link>
-        </div>
-      </header>
-      <div className="staff sig" aria-hidden="true" />
+        )}
+      </div>
+      <ErrorBanner message={error} />
 
       <SetlistMeta bandId={bandId} setlist={setlist} onSaved={setSetlist} />
       <Items
@@ -197,7 +149,7 @@ export function SetlistDetail() {
         setlistId={setlistId}
         items={items}
         songs={songs}
-        reload={load}
+        reload={reload}
         onReorder={applyOrder}
       />
       <DuplicateAction
@@ -213,6 +165,9 @@ export function SetlistDetail() {
         setlistId={setlistId}
         songIds={[...new Set(items.map((it) => it.songId))]}
         myRole={myRole}
+        concerts={concerts}
+        bandConcert={bandConcert}
+        reload={reload}
       />
       {myRole === "admin" && (
         <DeleteSetlist
@@ -221,7 +176,7 @@ export function SetlistDetail() {
           onDeleted={() => navigate(`/bands/${bandId}/setlists`)}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -240,16 +195,6 @@ export function bakeSetlistDisabled(dialogOpen: boolean, songCount: number): boo
 
 function liveNow(sl: Setlist): boolean {
   return !!sl.liveUntil && new Date(sl.liveUntil).getTime() > Date.now();
-}
-
-// editedSummary (T201) is the tooltip behind the "Edited since last bake" tag — what a re-bake would change.
-export function editedSummary(ch?: ConcertChanges): string {
-  if (!ch) return "A re-bake would change this concert.";
-  const parts: string[] = [];
-  const songs = (ch.songs ?? []).map((s) => `${s.title} (${s.what})`);
-  if (songs.length) parts.push(songs.join(", "));
-  if (ch.setlist) parts.push("the running order changed");
-  return parts.length ? `Changed since the last bake: ${parts.join("; ")}.` : "A re-bake would change this concert.";
 }
 
 // LiveModeCard (P201, admin-only): toggle rehearsal live mode. While on, edits to the
@@ -309,13 +254,20 @@ function BakeCard({
   setlistId,
   songIds,
   myRole,
+  concerts,
+  bandConcert,
+  reload,
 }: {
   bandId: string;
   setlistId: string;
   songIds: string[];
   myRole: Role | null;
+  // T206: the concert list + its exact-id bundle come from ConcertLayout (shared with the header's
+  // edited-since-bake chip) instead of a second /concerts fetch here. A bake calls the shared `reload`.
+  concerts: Concert[];
+  bandConcert: Concert | null;
+  reload: () => Promise<void>;
 }) {
-  const [concerts, setConcerts] = useState<Concert[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]); // T60: per-song bake warnings
   // P205: the bake dialog is open (true) or not. Baking goes THROUGH the dialog so
@@ -342,21 +294,6 @@ function BakeCard({
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, isAdmin, songIds.length]);
 
-  const load = useCallback(async () => {
-    try {
-      const all = await api.listConcerts(bandId);
-      setConcerts(
-        all.filter((c) => c.concertId === setlistId || c.concertId.startsWith(`${setlistId}~`)),
-      );
-    } catch {
-      // A missing/empty concert list is not an error worth surfacing here.
-    }
-  }, [bandId, setlistId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   // T99: baking runs INSIDE the dialog now (it polls progress and shows "song N of M").
   // The dialog calls onBake to fire the POST — carrying the id it minted so it can poll —
   // and hands us the concert on success; we surface warnings + refresh as the inline bake did.
@@ -369,14 +306,12 @@ function BakeCard({
   }
   function onBakeDone(warnings: string[]) {
     // T103: the outcome arrived via the terminal progress record — warnings ride it now, not the
-    // (async) POST body. Reload to pick up the new concert rev.
+    // (async) POST body. Reload (shared) to pick up the new concert rev + refresh the header chip.
     setError(null);
     setWarnings(warnings);
     setDialog(false);
-    void load();
+    void reload();
   }
-
-  const bandConcert = concerts.find((c) => c.concertId === setlistId) ?? null;
 
   return (
     <section className="panel" data-testid="bake-card">
@@ -400,11 +335,8 @@ function BakeCard({
             >
               Bake setlist
             </button>
-            {bandConcert?.editedSinceBake && (
-              <span className="chip edited" data-testid="setlist-edited-tag" title={editedSummary(bandConcert.changes)}>
-                Edited since last bake
-              </span>
-            )}
+            {/* T206: the "Edited since last bake" chip moved up to the shared concert header (page-level
+                state), so it shows on both tabs and no longer sits only next to the Bake button. */}
             <AudienceTag audience="band" />{/* T56: the shared band bundle */}
             {bandConcert && (
               <a

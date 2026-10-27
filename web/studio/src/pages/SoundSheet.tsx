@@ -4,19 +4,21 @@
  * toggle, "Copy patch from…", "Auto-number", and PDF/CSV download.
  */
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
 import { ApiError, api, type SheetModel, type SheetOrder, type ChannelPatch, type Setlist } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useDialogs } from "../components/Dialog";
+import { useConcert } from "./ConcertLayout";
 
 type Draft = Record<string, { input: string; strip: string }>;
 
+// T206: the Sound sheet tab. The shared concert header + crumb + tab strip live in ConcertLayout; this tab
+// keeps only its own sheet model + patch editing. Role comes from the shared context (no second getBand).
 export function SoundSheet() {
-  const { bandId, setlistId } = useParams<{ bandId: string; setlistId: string }>();
+  const { bandId, setlistId, myRole } = useConcert();
   const { confirm } = useDialogs();
   const [model, setModel] = useState<SheetModel | null>(null);
   const [order, setOrder] = useState<SheetOrder>("stage");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const isAdmin = myRole === "admin";
   const [setlists, setSetlists] = useState<Setlist[]>([]);
   const [draft, setDraft] = useState<Draft>({});
   const [error, setError] = useState<string | null>(null);
@@ -25,13 +27,11 @@ export function SoundSheet() {
   const load = useCallback(async () => {
     if (!bandId || !setlistId) return;
     try {
-      const [m, band, sls] = await Promise.all([
+      const [m, sls] = await Promise.all([
         api.getSheet(bandId, setlistId, order),
-        api.getBand(bandId),
         api.listSetlists(bandId),
       ]);
       setModel(m);
-      setIsAdmin(band.myRole === "admin");
       setSetlists(sls.filter((s) => s.id !== setlistId));
       // Rebuild the draft from the server, but KEEP any key the user has edited but not saved (so an order
       // toggle — which re-fetches — never discards unsaved patch edits).
@@ -128,14 +128,8 @@ export function SoundSheet() {
     }
   }
 
-  if (!bandId || !setlistId) return null;
-
   return (
     <>
-      <p className="crumb">
-        <Link to={`/bands/${bandId}/setlists/${setlistId}`}>← Concert</Link>
-      </p>
-      <h1 data-testid="sheet-title">Sound sheet{model ? ` — ${model.setlistName}` : ""}</h1>
       <ErrorBanner message={error} />
 
       <div className="sheet-controls">

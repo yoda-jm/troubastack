@@ -14,6 +14,7 @@ import { BandDetail } from "./pages/BandDetail";
 import { BandSettings } from "./pages/BandSettings";
 import { Setlists } from "./pages/Setlists";
 import { Lineups } from "./pages/Lineups";
+import { ConcertLayout } from "./pages/ConcertLayout";
 import { SetlistDetail } from "./pages/SetlistDetail";
 import { SoundSheet } from "./pages/SoundSheet";
 import { Invites } from "./pages/Invites";
@@ -46,8 +47,12 @@ export function App() {
           <Route path="lineups" element={<Lineups />} />
           <Route path="settings" element={<BandSettings />} />
         </Route>
-        <Route path="/bands/:bandId/setlists/:setlistId" element={<SetlistDetail />} />
-        <Route path="/bands/:bandId/setlists/:setlistId/sheet" element={<SoundSheet />} />
+        {/* T206: Running order + Sound sheet are tabs of one concert — a shared layout owns the crumb,
+            header and tab strip and fetches the concert once; the two render through its Outlet. */}
+        <Route path="/bands/:bandId/setlists/:setlistId" element={<ConcertLayout />}>
+          <Route index element={<SetlistDetail />} />
+          <Route path="sheet" element={<SoundSheet />} />
+        </Route>
         {/* The editor routes come from ONE table (routes.tsx) that Shell also derives full-bleed from, so a
             route cannot be mounted without being full-bleed (T184). Flat song address, the T175 ⟨D5⟩ setlist
             address, and the T105 chart editor — all documented beside the table. */}

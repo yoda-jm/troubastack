@@ -76,7 +76,7 @@ test("sound sheet: stuck header rows stay flush (no overlap) at 125% zoom", asyn
   }
 
   await page.goto(`/bands/${id}/setlists/${sl.id}/sheet`);
-  await expect(page.getByTestId("sheet-title")).toBeVisible();
+  await expect(page.getByTestId("setlist-detail-title")).toBeVisible(); // T206: shared concert header h1
   await expect(page.locator('[data-testid="sheet-grid"] thead tr')).toHaveCount(3);
   await page.evaluate(() => { (document.documentElement.style as unknown as { zoom: string }).zoom = "1.25"; });
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -152,7 +152,7 @@ test("T203-FIX4: sound sheet first channel header keeps the tint and scrolls awa
   await page.request.post(`/api/bands/${id}/setlists/${sl.id}/items`, { data: { songId: s.id } });
 
   await page.goto(`/bands/${id}/setlists/${sl.id}/sheet`);
-  await expect(page.getByTestId("sheet-title")).toBeVisible();
+  await expect(page.getByTestId("setlist-detail-title")).toBeVisible(); // T206: shared concert header h1
   const grid = '[data-testid="sheet-grid"]';
   const firstChan = `${grid} [data-testid="sheet-channel"]`;
   // first channel header tinted like a sibling, not the body cell (polled against the render race — see the grid test)
