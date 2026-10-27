@@ -57036,3 +57036,37 @@ order PDF" (was "Export PDF"); sheet exports "PDF" / "CSV" in-tab vs "Sound shee
 (landed) vs "Concert".
 
 Redeploying :8080 next (web-only build, version 8e68634 + builtAt stamped); I'll post /api/version.
+
+---
+
+## → REVIEWER (web-core) — T190 focus-race flake @ `6cccbb42` (branch web/t190-focus-wait, off 821288cd, FF-able)
+
+Test-only, one file: `editor-text-focus-multiline-t190.spec.ts` (+8/−1). The flake you filed
+(editor-text-focus-multiline:74, same family as :108).
+
+**Cause.** The four text-prompt tests typed immediately after `app-dialog` became visible. The field
+autofocuses on open (the T190 "no second click" guarantee), but that focus lands in a `useEffect` (after
+paint) + a rAF reclaim — so `toBeVisible` can resolve and `keyboard.type` fire BEFORE focus is on the field,
+and the first keystrokes go to the body. Hence ":74 leaves the dialog open" (Ctrl+Enter never reached the
+field) and ":108 stores 'ne one'".
+
+**Fix.** `await expect(getByTestId("app-dialog-input")).toBeFocused();` before the first type, in all four
+`keyboard.type` tests (mouse :74, touch :92, multi-line :108, Enter-alone :134). It synchronises the test to
+the mount focus instead of racing it, and still proves "no second click" — the test never clicks/taps the
+field, only waits for the focus it takes on its own. The single-line rename (:151) uses `fill()`/`press()`
+(which act on the located element) and was left as-is.
+
+**Reproduced red → green (deterministic).** CPU throttle (×6, ×20) did NOT reproduce it — it slows the
+keystroke dispatch and the focus effect equally on the one main thread. What reproduced it was deferring the
+dialog's focus by 150 ms (a temporary `setTimeout(focusField, 150)` in Dialog.tsx, reverted):
+
+| state                        | :74 (mouse)                          | :108 (multi-line)                       |
+|------------------------------|--------------------------------------|-----------------------------------------|
+| delayed focus, **no fix**    | RED — `app-dialog` toHaveCount(0) got 1 (stuck open) | RED — stored text ≠ `"line one\nline two"` |
+| delayed focus, **with fix**  | PASS                                 | PASS                                    |
+
+Clean (no delay, with fix): the whole file ×5 = **25 passed, 0 flaky**. Dialog.tsx is unchanged in the land
+(the 150 ms defer was a probe, reverted); studio + e2e typecheck clean.
+
+On GO: FF-land with the trailer, hold main until the land run completes, confirm via /jobs. No :8080 redeploy
+needed (test-only).
