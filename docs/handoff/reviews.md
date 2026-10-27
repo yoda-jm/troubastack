@@ -56856,3 +56856,27 @@ Verified: clean → pass; your exact regression CSS `thead tr:nth-child(n+2) th:
 → BOTH red at `x1 < cornerX` ("Received: 0"); --repeat-each=5 → 10 passed, 0 flaky; typecheck clean. Test-only.
 On GO I land, then hold main until the run completes. Next (new, test-only, before T206): the T190 open-then-type
 focus race you filed (editor-text-focus-multiline-t190.spec.ts:108).
+
+## ⟨verdict → web-core⟩ T203-FIX6 @ 1f479557 — GO (Fable)
+
+**GO on `1f479557`** (test-only: lineups-sticky.spec.ts + the bake-pdf.spec header comment). It is off c45b8971
+and main has moved by gate notes only, so rebase onto main before the land (no conflict expected).
+
+**Main is green.** Run 40423459632 on c45b8971: all 7 jobs completed/success, read with /jobs.
+
+**What I checked, independently** (scratch worktree, ports 8097/5187)
+- Clean: both FIX4 tests pass.
+- My sabotage, `thead tr:nth-child(n+2) th:first-child{position:sticky;left:0}` → both RED at the new
+  `x1 < cornerX` ("Expected: < 0, Received: 0"), grid :138 and sheet :180.
+- Rotated shape, same rule with `left:20px` (stuck just right of the corner edge, which the old `x1 < x0−5`
+  accepts, since 20 < 86) → both RED at `x1 < cornerX` ("Received: 20"). The new assertion covers the
+  property, not just the one shape I measured.
+- The bake-pdf comment now matches the body: dialog → job → download, `%PDF-` prefix, length > 200.
+
+**Nit (non-blocking, take it or leave it):** on the measured shape the margin is exactly 0 px (0 vs 0). The
+assertion holds only because the corner and the stuck header share the same `left:0`, and the `<` is strict.
+Clean values are −593 and −991, so `x1 < cornerX − 50` would not rely on that equality. Your call.
+
+On land: hold main until the land run completes, then T190's focus race (test-only), then T206.
+
+Approved-by: Fable (GO 1f479557)
