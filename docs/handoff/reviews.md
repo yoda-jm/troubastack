@@ -57382,3 +57382,58 @@ adb needs reconnecting.
 
 Noted, not required: a cancelled pending load reports Loaded early ("Loading…" disappears before the
 replacing load finishes). This predates A93 and is cosmetic.
+
+## 2026-10-31 — web-core: ✅ GO on the editor toolbar fix (fable/editor-toolbar-tablet @ a4c27013)
+
+Reviewed independently in a throwaway worktree off the branch (CSS read line by line, every `.tb-scroll`
+child enumerated, the guard run and both halves sabotaged), not from the report. The fix is correct, phone
+is unchanged, and both halves are independently guarded. **GO.**
+
+**The layout logic holds.** The pill is centred with `left:0; right:0; margin-inline:auto` (the old
+`translateX(-50%)` is gone) and sized `width: fit-content` clamped by `min-width: min(1080px, 100% - 1.75rem)`
+and `max-width: 100% - 1.75rem`. Wide: it grows to its ~1360px content under the viewport cap and nothing
+scrolls. Narrow: `min` pins it to the viewport minus the gutter and the overflow scrolls in `.tb-scroll`. The
+1080 floor still lines the bar up with the bottom bar when everything fits.
+
+**Phone is unchanged — checked, not assumed.** The T66 `.tb-nav`/`.tb-scroll` flex rules moved verbatim from
+the `@≤600` block up to the base `.topbar-pill` rules; the phone block now only tightens the two gaps. The one
+declaration dropped from phone — `.tb-scroll .tool-palette { touch-action: pan-x }` — was redundant: the base
+`.topbar-pill .tool-palette` already sets `touch-action: pan-x` on that same element, so the tap-wins-over-drag
+behaviour (VLL's original phone blocker) is intact at every width.
+
+**Only the rehearsal popover needed the portal — confirmed by enumeration, not trust.** `.tb-scroll` is now
+`overflow-x:auto`, which coerces `overflow-y` to `auto`, so it clips on both axes. I walked every child:
+- The rehearsal popover was `position:absolute` with its containing block *inside* the strip
+  (`.rehearsal-chip-wrap` is `position:relative`) → it would clip → correctly moved to a `position:fixed`
+  portal under `<body>`, coords measured off the ⋯ button, repositioned on resize + capture-scroll, cleaned
+  up on close, rendered only when `open && coords`.
+- `draw-locked-hint` is `position:absolute` whose containing block is the PILL (the pill is `position:absolute`
+  with no `overflow`; `.tb-scroll` is `position:static`, so it is NOT in the hint's containing-block chain and
+  cannot clip it). Identical on both builds — your claim verified.
+- `RehearsalNoteViewer` (also rendered inside `.tb-scroll`) and StyleMore / size-hud / size-select are all
+  `createPortal(…, document.body)`; the glyph palettes render as siblings OUTSIDE `.tb-scroll`; the zoom
+  `<select>` dropdown is browser-drawn. None can be clipped.
+- Dropping the pill's `translateX` actually helps: it is no longer a transform containing block. `backdrop-filter`
+  stays (and is a containing block for fixed descendants), but every fixed child is portaled out of the pill's
+  subtree, so it is moot.
+
+**Teeth-checked both halves myself** (isolated ports, clean detached worktree off the branch):
+- Clean: 4/4 green.
+- Sabotage A (styles.css back to the parent): all 4 red, at the tool-size assertion ("tool … must keep its
+  size, not be squeezed").
+- Sabotage B (only the old `width: min(1080px, …)` cap restored, strip kept): ONLY the wide-screen test red, at
+  "no overflow on a wide screen" (line 152); the other three stay green. The two halves are independent.
+- Portal regression: `rehearsal-note-goto` + `rehearsal-notes` 14/14 green — including `goto:62` (which closes
+  the portaled popover) and `notes:337` (the top-bar collision test). `goto:62` ran green here, consistent with
+  your read that its flake under load is not this change.
+
+The guard spec is the right shape: a centre hit-test (not `toBeVisible`), a ≥24px squeeze guard, and
+`expectFixtureBeatsOldCap` as a positive control asserted AFTER the tool checks so a sabotage fails for the
+right reason.
+
+Non-blocking: icon-only pills on tablet widths is a product choice for VLL, not this fix. The inconclusive
+`draw-locked-hint` forced-visible probe is fine — the CSS reasoning above shows that hint is genuinely
+unaffected either way.
+
+Land: rebase onto origin/main, put `Approved-by: web-core (GO a4c27013)` on the code commit, FF, read the land
+run's /jobs, then redeploy :8080 and stamp both version and builtAt.
