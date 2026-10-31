@@ -413,8 +413,13 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
    controls, so drawing under the glass still works. ---- */
 .viewer-chrome.topbar-pill {
   position: absolute; z-index: 8;
-  top: .55rem; left: 50%; transform: translateX(-50%);
-  width: min(1080px, calc(100% - 1.75rem));
+  /* Centred with auto margins (not left:50% + translate, whose shrink-to-fit would cap the bar at half the
+     viewport). Fix 2026-10-31: the old fixed min(1080px, …) became too narrow once the bar's content grew past it
+     (~1360px) and the squeezed tool row lost its buttons (none left at a portrait tablet's 686px). Now 1080px is
+     only the FLOOR (still aligned with the bottom bar when everything fits); the bar grows to its content, capped
+     by the viewport, and what still does not fit scrolls in .tb-scroll below. */
+  top: .55rem; left: 0; right: 0; margin-inline: auto;
+  width: fit-content; min-width: min(1080px, calc(100% - 1.75rem)); max-width: calc(100% - 1.75rem);
   display: flex; align-items: center; gap: .5rem;
   padding: .35rem .5rem; border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
@@ -439,10 +444,21 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 }
 .tb-divider { flex: 0 0 auto; width: 1px; height: 1.4rem; background: var(--border); }
 .tb-spring { flex: 1 1 auto; }
-/* T66: the pin-Back wrappers are transparent on desktop (their children are the pill's
-   direct flex items, so the desktop layout is byte-identical to before). The phone block
-   (@≤600px) turns them into real boxes: .tb-nav pinned, .tb-scroll a horizontal-scroll row. */
+/* T66: Back + title are PINNED (.tb-nav); everything else lives in .tb-scroll, a single
+   horizontal-scroll strip with the T65 edge fade. Fix 2026-10-31: this was phone-only and the
+   wrappers were display:contents above 600px, so on a tablet the TOOL ROW was the only shrinkable
+   item and absorbed the whole overflow (portrait 11": 0 of 9 tools left). Now at every width:
+   the tools keep their size (flex:0 0 auto below) and the overflow scrolls. The phone block
+   still owns its own gaps/insets. */
 .tb-nav, .tb-scroll { display: contents; }
+.topbar-pill .tb-nav { display: flex; align-items: center; gap: .5rem; flex: 0 0 auto; }
+.topbar-pill .tb-scroll {
+  display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0;
+  overflow-x: auto; scrollbar-width: none;
+  touch-action: pan-x; /* T66 Part E: a tap on a control fires its click, a horizontal drag scrolls */
+}
+.topbar-pill .tb-scroll::-webkit-scrollbar { display: none; }
+.topbar-pill .tb-scroll .tool-palette { flex: 0 0 auto; overflow-x: visible; }
 
 /* the tool cluster sits inline in the pill (shed its card chrome) */
 .topbar-pill .editor-toolbar { display: contents; }
@@ -452,9 +468,9 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
      tight (phone), wraps degenerate into a column floating over the canvas (T32 HOLD). */
   display: flex; align-items: center; gap: .15rem; border: none; padding: 0; margin: 0;
   flex-wrap: nowrap; flex: 0 1 auto;
-  /* T65 Part C: when the tools don't fit (an 8th button on a phone), the row SCROLLS
-     horizontally instead of clipping past the edge. Same pattern as .style-controls;
-     hidden scrollbar so it never fattens the slim pill past the T33 height guard. */
+  /* T65 Part C: the row SCROLLS rather than clipping past the edge, hidden scrollbar (T33
+     height guard). Inside the top bar it never needs to: .tb-scroll owns the scroll there and
+     the row keeps its size (rule above). Kept for any palette rendered outside .tb-scroll. */
   overflow-x: auto; scrollbar-width: none;
   /* T66 Part E: a finger TAP on a tool button must win over the scroll — pan-x lets the
      browser scroll on a horizontal DRAG only, so a tap (and vertical gestures) fire the
@@ -764,7 +780,9 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 }
 .rehearsal-chip-more { padding-inline: .45rem; }
 .rehearsal-popover {
-  position: absolute; z-index: 8; top: calc(100% + .35rem); right: 0;
+  /* Fixed, in a portal, coords set inline from the ⋯ button (RehearsalNotesChip): the chip lives in the top
+     bar's .tb-scroll, an overflow scroll container that would clip an absolutely-positioned child. */
+  position: fixed; z-index: 40; pointer-events: auto;
   min-width: 20rem; max-width: min(28rem, calc(100vw - 1.5rem));
   padding: .4rem; border-radius: .6rem;
   background: var(--surface, #1b1b1f); color: inherit;
@@ -1067,23 +1085,11 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   .viewer-chrome.topbar-pill { gap: .3rem; flex-wrap: nowrap; align-items: center;
     padding: .3rem .4rem; }
   .topbar-pill .tb-divider, .topbar-pill .tb-spring { display: none; }
-  .topbar-pill .tb-nav { display: flex; align-items: center; gap: .1rem; flex: 0 0 auto; }
+  /* The pinned nav + the scroll strip (with its T66 Part E pan-x: a TAP fires the button, only
+     a horizontal DRAG scrolls — VLL's phone blocker) are the base rules; phone only tightens. */
+  .topbar-pill .tb-nav { gap: .1rem; }
   .tb-title { max-width: 34vw; font-size: .9rem; }
-  /* The scroll strip: nowrap + overflow-x, hidden scrollbar (like .tool-palette/.style-controls). */
-  .topbar-pill .tb-scroll {
-    display: flex; align-items: center; gap: .3rem; flex: 1 1 auto; min-width: 0;
-    overflow-x: auto; scrollbar-width: none;
-    /* T66 Part E (the blocker): a finger TAP on a tool button must fire its click, not be
-       eaten as a scroll drag. pan-x scrolls on a horizontal DRAG only; taps + vertical
-       gestures reach the buttons. Without this the always-scrolling phone bar swallows the
-       tap and the tool never selects (no ctx bar) — exactly VLL's phone repro. */
-    touch-action: pan-x;
-  }
-  .topbar-pill .tb-scroll::-webkit-scrollbar { display: none; }
-  /* Inside the strip the tool row no longer scrolls on its OWN (the strip scrolls it) — its
-     T65 self-scroll + fade is a desktop-only concern now. touch-action stays pan-x so the
-     inner buttons are tappable too (inherited intent; the strip owns the scroll). */
-  .topbar-pill .tb-scroll .tool-palette { overflow-x: visible; flex: 0 0 auto; touch-action: pan-x; }
+  .topbar-pill .tb-scroll { gap: .3rem; }
   .pill-btn { padding: .25rem .4rem; font-size: .78rem; flex: 0 0 auto; }
   /* Icon-only actions on phone: the text label costs ~150px across the three buttons. */
   .topbar-pill .pill-icon { display: inline-flex; }

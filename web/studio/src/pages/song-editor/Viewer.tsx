@@ -713,9 +713,9 @@ export function Viewer({
     return () => ro.disconnect();
   }, [status]);
 
-  // T66: toggle .of-start/.of-end on the phone chrome's scroll region so its edge fade shows
-  // only when it can scroll that way (dependency-free; a no-op on desktop where it's
-  // display:contents and never scrolls). Same idiom as the T65 tool-row fade.
+  // T66: toggle .of-start/.of-end on the top bar's scroll region so its edge fade shows only
+  // when it can scroll that way (dependency-free). At every width since 2026-10-31 (it was
+  // phone-only); on a wide screen the strip fits and no fade shows. Same idiom as the T65 tool-row fade.
   useEffect(() => {
     const el = tbScrollRef.current;
     if (!el) return;

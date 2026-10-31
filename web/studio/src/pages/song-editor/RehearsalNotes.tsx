@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, type RehearsalNote, type SongFile } from "../../api";
 
 /**
@@ -125,6 +126,28 @@ export function RehearsalNotesChip({
   onView: (index: number) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // The popover is `position: fixed` in a portal, with coords measured from the ⋯ button (the StyleMore
+  // pattern in Toolbar.tsx): the chip sits in the top bar's .tb-scroll, an overflow-x scroll container that
+  // clips anything dropping below it, at every width since the 2026-10-31 tablet fix.
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+  const moreRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    const place = () => {
+      const b = moreRef.current?.getBoundingClientRect();
+      if (b) setCoords({ top: b.bottom + 6, right: Math.max(8, window.innerWidth - b.right) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true); // the strip scrolling under an open popover
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
   if (notes.length === 0) return null;
   return (
     <span className="rehearsal-chip-wrap">
@@ -148,12 +171,17 @@ export function RehearsalNotesChip({
         data-testid="rehearsal-notes-more"
         aria-expanded={open}
         title="List the rehearsal notes on this song"
+        ref={moreRef}
         onClick={() => setOpen((v) => !v)}
       >
         <span className="pill-label">⋯</span>
       </button>
-      {open && (
-        <div className="rehearsal-popover" data-testid="rehearsal-notes-popover">
+      {open && coords && createPortal(
+        <div
+          className="rehearsal-popover"
+          data-testid="rehearsal-notes-popover"
+          style={{ top: coords.top, right: coords.right }}
+        >
           {notes.map((n, i) => {
             // T185 ⟨D3⟩ — a resolved note names its file and the page within it; "Go to" switches to that
             // file when it is not the open one. An unresolved note keeps the single-file "page N" rule.
@@ -254,7 +282,8 @@ export function RehearsalNotesChip({
             </div>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </span>
   );
