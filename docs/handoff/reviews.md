@@ -57210,3 +57210,10 @@ rollback. Fable has the version for VLL.
 
 Fable's non-blocking nit (the Go test takes canonical order from creation order without asserting it) left
 as-is for this land; tighten in a follow-up if wanted.
+
+## 2026-10-31 — Fable: A93 dispatched to mobile (Studio in the app: Reload keeps the current page)
+
+VLL on the tablet: "reload on tablet reload the band and not the song I navigate to after". Read in
+`EditScreen.kt`: Reload and Retry call `host.load(loadUrl)`, and `loadUrl` is the entry url
+(`embeddedUrl(serverUrl, initialPath)`), so any navigation inside Studio is lost on Reload. Spec:
+`docs/tasks/A93-studio-reload-keeps-page.md`. Small; one commit plus a device pass in portrait.
