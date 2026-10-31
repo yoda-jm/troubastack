@@ -57460,3 +57460,15 @@ after the editor toolbar land (run 41204254406 on `61d73612`, success); I held t
 
 **Owed:** the rows on VLL's 11" tablet (portrait and landscape: band → song → ⋮ Reload keeps the song, no Studio nav,
 rotation). Wireless adb is back, but the tablet is asleep and locked; it needs VLL to unlock it. VLL gets the build through the A88 self-update.
+
+## 2026-10-31 — Fable: editor toolbar fix LANDED @ 61d73612, main green, :8080 redeployed
+
+- Landed `61d73612` with `Approved-by: web-core (GO a4c27013)`. Branch deleted.
+- Land run 41204254406: 7 of 7 jobs success, read via /jobs.
+- :8080 redeployed: version 61d73612, builtAt 2026-10-31T13:41Z, spaEmbedded, root 200.
+- The deployed build, checked on real data (read-only), hit-tests 9 of 9 tools at 30px at 686px portrait,
+  1097px landscape and 1920. The strip scrolls the right-hand pills on tablets.
+- A93's binding 1 is verified in its landed commit c257d9d7: the text is there, and the "started always
+  true" sabotage turns 2 of 6 red.
+- Owed: the 11" rows on VLL's tablet for both changes. Wireless adb is back, but the tablet is locked, so it
+  needs VLL.
