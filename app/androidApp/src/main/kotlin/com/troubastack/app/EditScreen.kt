@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.troubastack.shared.distribution.embeddedUrl
+import com.troubastack.shared.distribution.reloadUrl
 import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.seams.WebViewHost
 
@@ -65,15 +66,17 @@ fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null
             onStudioMessage { json -> Log.i("ShellBridge", "studio → shell: $json") }
         }
     }
-    fun reload() {
+    fun open(url: String) {
         // Seed the app's Connect session (B03) into the WebView so Edit doesn't re-prompt: the session
         // is an app-side ktor cookie; the WebView has its own jar. sessionCookieFor() returns it ONLY
         // when it was issued by this origin, so another server's session never leaks to a typed URL.
         seedSessionCookie(serverUrl, sessionCookieFor(storage::getSecret, serverUrl))
         state = WebViewHost.State.Loading
-        host.load(loadUrl)
+        host.load(url)
     }
-    LaunchedEffect(loadUrl) { reload() }
+    // A93: Reload and Retry stay on the page you are on (or the one that failed), not the entry page.
+    fun reload() = open(reloadUrl(host.currentUrl, loadUrl))
+    LaunchedEffect(loadUrl) { open(loadUrl) } // first load, and a new server's entry page
 
     BackHandler { if (host.canGoBack()) host.goBack() else onBack() }
 

@@ -8,6 +8,7 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.troubastack.shared.distribution.EditorPage
 import org.json.JSONObject
 
 /**
@@ -31,6 +32,12 @@ actual class WebViewHost(context: Context) {
     var onState: ((State) -> Unit)? = null
     private var handler: ((String) -> Unit)? = null
 
+    /** A93: the page shown (or that just failed) and whether its load failed — see [EditorPage]. */
+    private val page = EditorPage()
+
+    /** The page the WebView is on, or the URL that just failed: what Reload and Retry reload (A93). */
+    val currentUrl: String? get() = page.currentUrl
+
     val view: WebView = WebView(context).apply {
         // T151: give the WebView EXPLICIT match_parent LayoutParams. Compose's AndroidView holder
         // adds the view with ViewGroup's default (wrap_content) params, and Chromium's AwLayoutSizer
@@ -49,10 +56,17 @@ actual class WebViewHost(context: Context) {
         addJavascriptInterface(Bridge(), BRIDGE_NAME)
         webViewClient = object : WebViewClient() {
             override fun onPageStarted(v: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                onState?.invoke(State.Loading)
+                if (page.started(url)) onState?.invoke(State.Loading) // not over the error cover
+            }
+
+            override fun doUpdateVisitedHistory(v: WebView?, url: String?, isReload: Boolean) {
+                page.visited(url) // Studio's router (pushState), back/forward
             }
 
             override fun onPageFinished(v: WebView?, url: String?) {
+                // A93: after a failed main-frame load this is WebView's own error page finishing — reporting
+                // Loaded would replace the Error state, so the app's error cover (and its Retry) never stayed up.
+                if (!page.finished()) return
                 onState?.invoke(State.Loaded)
                 // Handshake kickoff: greet Studio; its bridge.ts replies {"type":"ready"} (I10 feature-detected).
                 postToStudio("""{"type":"hello","shell":"troubastage-android"}""")
@@ -60,13 +74,15 @@ actual class WebViewHost(context: Context) {
 
             override fun onReceivedError(v: WebView?, req: WebResourceRequest?, err: WebResourceError?) {
                 if (req?.isForMainFrame == true) {
-                    onState?.invoke(State.Error(err?.description?.toString() ?: "Couldn't reach the server"))
+                    val message = err?.description?.toString() ?: "Couldn't reach the server"
+                    if (page.failed(req.url.toString(), message)) onState?.invoke(State.Error(message))
                 }
             }
         }
     }
 
     actual fun load(url: String) {
+        page.load(url)
         view.loadUrl(url)
     }
 
