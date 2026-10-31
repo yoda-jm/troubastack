@@ -57217,3 +57217,58 @@ VLL on the tablet: "reload on tablet reload the band and not the song I navigate
 `EditScreen.kt`: Reload and Retry call `host.load(loadUrl)`, and `loadUrl` is the entry url
 (`embeddedUrl(serverUrl, initialPath)`), so any navigation inside Studio is lost on Reload. Spec:
 `docs/tasks/A93-studio-reload-keeps-page.md`. Small; one commit plus a device pass in portrait.
+
+## 2026-10-31 — A93 presented to Fable: Studio Reload keeps the page; the error cover stays up (branch `mobile/a93-reload-keeps-page` @ b509a186)
+
+One commit on `4a9be745`. It includes the `mainFrameFailed` fix you approved for the same commit.
+
+**What changed**
+- `reloadUrl(current, entry)` (EditorUrl.kt) picks what ⋮ → Reload and Retry load:
+  - the WebView's current page, exactly as it is;
+  - else the entry URL, when there is no current page or it is not on the entry's server (an error or blank pseudo-URL, or the old server after a server-URL change).
+  - The URL is not rebuilt: re-appending `?embedded=1` would make a different URL, which means a new history entry and Back landing on the same page.
+  - `LaunchedEffect(loadUrl)` still loads the entry page (binding 4).
+- `EditorPage` (commonMain) folds the WebView callbacks into two things:
+  - the current page: `onPageStarted`, `doUpdateVisitedHistory` (Studio's pushState), the failed main-frame URL;
+  - whether the main-frame load failed.
+- The androidMain `WebViewHost` uses `EditorPage`:
+  - `onPageFinished` no longer reports Loaded for a failed load. Android WebView calls it for its own error page, which overwrote Error. That has been true since A06.
+  - **Order-proof (your check 1):** a failure is cleared only by an app load or by a page start for a *different* web URL. So "error before start" keeps it, and error-page pseudo-URLs never clear it.
+  - **Your check 2:** `net::ERR_ABORTED` is not a failure.
+- iOS is untouched: `didFinishNavigation` does not follow `didFailProvisionalNavigation`.
+
+**Unit tests:** EditorUrlTest 6/6 and EditorPageTest 6/6. Each sabotage below was shown to land (grep), and each was restored:
+
+| Sabotage | Tests red | Which |
+|---|---|---|
+| `reloadUrl` → always the entry | 1/6 | `reload_currentPageWins` |
+| `reloadUrl` → no server check | 2/6 | |
+| `EditorPage.finished()` → always true (flag ignored) | 3/6 | through-the-finish, error-before-start, pseudo-URLs |
+| clear the failure on every page start (the naive flag) | 1/6 | error-before-start |
+| no `ERR_ABORTED` filter | 1/6 | `interruptedLoad_isNotAFailure` |
+
+Full CI gradle set (`:shared:check :androidApp:test :androidApp:assembleDebug` + both iOS compiles) is green on the final tree (local run, exit 0, APK 13:40). Main was green before this: run 41195995152 on 4a9be745.
+
+**Device pass: emulator** (Trouba_Tablet_1200, 1200×1920 portrait). Setup:
+- a copy of the deployed b3ff2775 server on a scratch port, with throwaway data and the demo seed;
+- page state read over WebView DevTools.
+
+Results:
+- **Reload keeps the page:** Studio band → Setlists → concert → song by in-app taps (pushState; the URL has no flag). Then ⋮ → Reload:
+  - a marker set in the page is gone and `performance.timeOrigin` changed, so it is a real reload;
+  - same song path;
+  - `trouba_embedded=1` and `.shell-embedded` are present, so no Studio nav;
+  - `history.length` stays 4 (no new entry).
+  - Back after Reload goes to the concert page, still embedded.
+- **The cover shows (check 1):** server stopped, then ⋮ → Reload.
+  - On screen: "Can't reach the server / net::ERR_CONNECTION_REFUSED / Back / Retry".
+  - State log: Loading → Error, and no Loaded after it. Before the fix the same steps logged Loading → Error → Loaded, and Chromium's "Webpage not available" page showed instead.
+- **Retry → the failed URL → Loaded:** server restarted, then Retry. The log shows Loading → Loaded on the song URL. The song is rendered, still embedded, history 4, status chip "live".
+- **No false cover (check 2):** a TCP relay held page-document requests for 4–30 s, so a second navigation could start while a Reload was pending.
+  - The real cancellation: a Reload held at 13:33:36, replaced at 13:33:39.9 by a browser-side navigation (DevTools `Page.navigate`). The cancelled load ended with `onPageFinished` only. **No `onReceivedError` at all**: a raw-error log line was in the APK, which I confirmed in the dex. No Error, no cover. The new page then loaded normally.
+  - Reload twice, Back mid-load, and a JS navigation mid-load produced no cancellation (the WebView kept or queued the pending load). No error and no cover either.
+  - So this WebView does not report an aborted main-frame load. The filter guards versions that do, and the unit test above covers it.
+- The device runs used a build that differed from this commit only by two temporary `Log.i` probe lines (state transitions, raw main-frame errors). They are removed in the commit.
+- Noted, not changed: when a pending load is cancelled, its `onPageFinished` reads Loaded while the replacing load is still pending. So "Loading…" disappears early in that case. It is cosmetic and existed before.
+
+**Owed:** VLL's 11" tablet in portrait and landscape (binding 5, plus the spec's device pass). It is unreachable here ("no route to host" on wireless adb). I'll run it as soon as it's back. VLL installs through the A88 self-update after the land.
