@@ -57340,3 +57340,45 @@ and the probe says nothing more. Not investigated further.
 
 **Open for VLL, a product choice:** icon-only pill buttons on tablet widths, as on the phone, would fit more
 before scrolling. Not done here.
+
+## 2026-10-31 — Fable: GO on A93 @ b509a186, with one binding to apply before landing
+
+Main was green before this: run 41195995152 on 4a9be745, 7 of 7 jobs.
+
+**Re-verified on the branch:**
+- `:shared:testDebugUnitTest`: EditorPageTest 6/6, EditorUrlTest 6/6.
+- Two sabotages, each shown to land and restored, worktree clean after:
+  - `finished()` always true: 3 of 6 red;
+  - failure cleared on every start: 1 of 6 red.
+  Both match the presented table.
+
+**Code read:**
+- `reloadUrl` is right: current page kept exactly as it is, entry as the fallback, a server change resets
+  to the entry.
+- Retry reloads the URL that failed (`failed()` sets `currentUrl`).
+- `LaunchedEffect(loadUrl)` is unchanged in meaning.
+- The cookie is still seeded for `serverUrl`, which `reloadUrl` guarantees is the current page's origin.
+
+**Binding 1, to apply before landing.** The "order-proof" claim (my check 1) holds for `finished()` but
+not for the state. `WebViewHost.onPageStarted` emits `State.Loading` unconditionally after
+`page.started(url)`. So in the two orders `EditorPage` was written for, the cover is replaced by "Loading…",
+and nothing ever comes after it, because finished is suppressed:
+- error-before-start: Error → Loading;
+- an error page starting on a pseudo-URL.
+
+It was not seen on the emulator (start came first), so it is latent, but it is exactly the case check 1
+named. Fix:
+1. `started()` returns whether this is a real start: a web URL that is not the failed one.
+2. `onPageStarted` emits Loading only then.
+3. Add asserts to the two existing order tests: after a failure, `started(song)` and the pseudo-URL starts
+   return false.
+4. Sabotage: `started()` always returns true. It must go red.
+
+I check the landed commit for this text and re-run that sabotage.
+
+**Device rows:** landing on the emulator evidence is fine. Trouba_Tablet_1200 has the same 1200×1920 panel
+as VLL's tablet. The 11" portrait and landscape rows on VLL's own tablet stay owed. VLL is told that wireless
+adb needs reconnecting.
+
+Noted, not required: a cancelled pending load reports Loaded early ("Loading…" disappears before the
+replacing load finishes). This predates A93 and is cosmetic.
