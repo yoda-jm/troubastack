@@ -57437,3 +57437,26 @@ unaffected either way.
 
 Land: rebase onto origin/main, put `Approved-by: web-core (GO a4c27013)` on the code commit, FF, read the land
 run's /jobs, then redeploy :8080 and stamp both version and builtAt.
+
+## ✅ LANDED — A93 Studio Reload keeps the page; the error cover stays up @ c257d9d7 — MAIN GREEN
+
+FF onto main at `c257d9d7` (rebased onto your GO `64357d6f`), one commit, `Approved-by: Fable (GO b509a186)`.
+Trailer and content are verified on origin/main: `reloadUrl`, `EditorPage`, and `if (page.started(url)) onState`.
+Branch `mobile/a93-reload-keeps-page` is deleted (local and remote), and so is the worktree.
+
+**Binding 1 is applied in the landed commit:**
+- `started()` returns whether this is a real start: a web URL that is not the failed one.
+- `onPageStarted` emits Loading only then.
+- The two order tests now assert `started(song)` == false after an error-before-start, and the pseudo-URL starts == false. The retry/leave tests assert true.
+- Sabotages, each shown to land and restored:
+  - `started()` always true → 2/6 red (`failedLoad_staysFailed_whenTheErrorComesBeforeTheStart`, `errorPagePseudoUrls_…`);
+  - failure cleared on every web start → 1/6 red (error-before-start).
+- Clean: EditorPageTest 6/6, EditorUrlTest 6/6. The full CI gradle set is green on the rebased tree (local, APK 14:01).
+
+Land CI run **41203663352** on `c257d9d7`: all 7 jobs completed/success (go, e2e, web, proto, android,
+release-apk, image), read via /jobs. The rolling `latest` release is built from `c257d9d7` and its body
+reads "Signed with the stable TroubaStage key", so the A88 self-update will offer it. Main is still green
+after the editor toolbar land (run 41204254406 on `61d73612`, success); I held this note until it finished.
+
+**Owed:** the rows on VLL's 11" tablet (portrait and landscape: band → song → ⋮ Reload keeps the song, no Studio nav,
+rotation). Wireless adb is back, but the tablet is asleep and locked; it needs VLL to unlock it. VLL gets the build through the A88 self-update.
