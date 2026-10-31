@@ -57272,3 +57272,71 @@ Results:
 - Noted, not changed: when a pending load is cancelled, its `onPageFinished` reads Loaded while the replacing load is still pending. So "Loading…" disappears early in that case. It is cosmetic and existed before.
 
 **Owed:** VLL's 11" tablet in portrait and landscape (binding 5, plus the spec's device pass). It is unreachable here ("no route to host" on wireless adb). I'll run it as soon as it's back. VLL installs through the A88 self-update after the land.
+
+## 2026-10-31 — Fable presents: editor tools stay shown at every width (branch fable/editor-toolbar-tablet @ a4c27013) — reviewer: web-core
+
+VLL, on an 11" tablet in portrait: "tools not shown in studio on the tablet", then "fix it yourself". I wrote
+this, so I cannot approve it. **Web-core reviews.**
+
+**Measured cause.** Hit-tested at each button's centre, on :8080 real data (read-only):
+
+| Width | Tools hittable on main |
+|---|---|
+| 686px (portrait) | **0 of 9** |
+| 1097px (landscape) | 6 |
+| 1920px desktop | 7 (Icon and Jump mark lost) |
+
+- The top bar was capped at `min(1080px, 100% - 1.75rem)`, while its content had grown to about 1360px
+  (rehearsal notes, edit chart, show links…).
+- Above 600px, `.tb-nav` and `.tb-scroll` were `display: contents`, so the tool row (`flex: 0 1 auto`,
+  `overflow-x: auto`) was the only shrinkable item and absorbed the whole overflow. Its buttons went to 17px
+  and clipped.
+
+**Fix (one commit, 4 files):**
+- **The T66 layout now applies at every width.** It was phone-only: Back and the title pinned, then
+  `.tb-scroll`, a scroll strip with the T65 fade. The tools are `flex: 0 0 auto`. The phone block keeps only
+  its tighter gaps, so phone layout is unchanged; the duplicated rules were removed.
+- **The bar grows to its content.** It uses `width: fit-content`; the old min(1080…) is now `min-width`
+  (still aligned with the bottom bar when everything fits) and `max-width` is the viewport. It is centred
+  with `left: 0; right: 0; margin-inline: auto` instead of the translate.
+- **The rehearsal-notes popover moves to a portal** with fixed coordinates, the same pattern as StyleMore in
+  `Toolbar.tsx`. The strip is now an overflow container at every width, so an absolute child dropping below
+  it would be clipped. It probably already was on phone.
+
+**Guard: `e2e/editor-toolbar-tablet.spec.ts`.** It runs at 11" portrait and landscape (touch, DPR 1.75),
+1280, and 1800. It hit-tests every tool: width ≥ 24 and centre hit.
+- The fixture is made adversarial: a long title plus one rehearsal note. The spec ASSERTS that its natural
+  width beats the old space, and that check runs after the tool checks, so a sabotage goes red for the right
+  reason.
+- Portrait and landscape: the end of the strip is reachable by scrolling.
+- 1800: nothing overflows and every pill button is hittable.
+
+**Sabotages, each shown to land:**
+- (A) CSS back to main: all 4 red at the tools. Portrait has 0 of 10 hittable (Crop is present with a PDF).
+  The others are squeezed to 17px.
+- (B) Only the old cap restored: only the wide test is red ("no overflow on a wide screen").
+
+**Regression run.** The editor-*, rehearsal-note* and header-mobile e2e (153 tests) ran on a machine with
+load average 7–13 on 4 cores (the emulator was running). Result: 148 passed, 5 failed. Each red was
+attributed against unmodified main under the same load:
+
+| Spec | With this change | Unmodified main | Verdict |
+|---|---|---|---|
+| `editor-crop:240` | red | also red | not this change |
+| `rehearsal-note-goto:62` | red 1 of 3 | red 2 of 3 | pre-existing flake under load |
+| `ctx-thin:137`, `ctx-thin:165` | 3 of 3 green alone | — | load |
+
+`tsc -b` is clean.
+
+**Real data** (vite proxied to :8080, read-only):
+- 9 of 9 tools at 30px at 686, 1097, 1280 and 1920.
+- Phone (412) is unchanged.
+- At 1920 everything fits. Narrower widths scroll the right-hand pills, as on the phone.
+- The popover is under `<body>`, and its View button is hittable at 686 and 1920.
+
+**Inconclusive, not claimed:** a forced-visible probe of `draw-locked-hint` does not paint on EITHER build,
+even with both scroll containers forced to `overflow: visible`. So that hint is not affected by this change,
+and the probe says nothing more. Not investigated further.
+
+**Open for VLL, a product choice:** icon-only pill buttons on tablet widths, as on the phone, would fit more
+before scrolling. Not done here.
