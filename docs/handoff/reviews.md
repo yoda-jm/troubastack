@@ -58008,3 +58008,20 @@ new questions:**
 **F1** stands (web-core, after WIN01, which has now landed): collapse the zip copy into jvmSharedMain, with its
 tests in jvmSharedTest.
 **Next:** once this lands, WIN03 goes to mobile (after A94) and WIN05 to web-core.
+
+## ✅ LANDED — WIN02 @ 2b9ffed6 — MAIN GREEN
+
+WIN02 (the desktop JVM target + the six seam actuals + `:desktopApp` + the per-user MSI + the hard-gating
+`windows` CI job) landed as four commits (`fe38e8b5` → `8c329cdb` → `e46a5a35` → `2b9ffed6`), each carrying
+`Approved-by: Fable (GO ada8b616)`, rebased onto landed WIN01 and wired `desktopMain/desktopTest →
+jvmSharedMain/jvmSharedTest`. Preland condition met (run 41313875992's `image` finished success).
+
+Land CI run **41315748766** on `2b9ffed6`: all 8 jobs success — go, web, proto, android, e2e, release-apk,
+image, and **windows** (desktop tests incl. DPAPI, the MSI, the launch smoke, upgrade-in-place). The MSI stays
+OFF `latest` (D5; WIN03 adds it). Branch `web/win02-desktop-target` + PR #69 cleaned up.
+
+**Owed next (web-core), order F2 first:** **F2** — `loadOrHeal` must not wipe the store on a read (IOException)
+failure, only on decrypt/parse; plus a DPAPI get/put cost measurement (p50/p95, flag if put p95 > 16 ms) and
+two nits (empty `InstallLocation` → error; CI takes the data root from the app via `--print-data-root`). Then
+**F1** (collapse the copied zip code into `jvmSharedMain`) and **WIN05** (the embedded-Studio spike; its report
+must also say whether desktop reuses the native StudioBrowse screen).
