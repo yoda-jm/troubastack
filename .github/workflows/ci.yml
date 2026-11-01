@@ -605,8 +605,9 @@ jobs:
           # B3: install n, CHECK the exit code (/qn hides failures), then assert EXACTLY ONE entry at n BEFORE
           # n+1 — otherwise a silent install-n failure + a working n+1 would fake an "upgrade" with one entry.
           $msiN = (Get-ChildItem desktopApp\build\compose\binaries\main\msi\*.msi | Select-Object -First 1).FullName
-          $p1 = Start-Process msiexec.exe -ArgumentList @("/i","`"$msiN`"","/qn","/norestart","/l*v","$env:RUNNER_TEMP\msi-n.log") -Wait -PassThru
-          if ($p1.ExitCode -ne 0) { Write-Error "install n (msiexec) failed: exit $($p1.ExitCode)"; exit 1 }
+          # SABOTAGE B3: skip installing n — the strengthened "one entry AT n before n+1" assert must catch it.
+          # $p1 = Start-Process msiexec.exe -ArgumentList @("/i","`"$msiN`"","/qn","/norestart","/l*v","$env:RUNNER_TEMP\msi-n.log") -Wait -PassThru
+          # if ($p1.ExitCode -ne 0) { Write-Error "install n (msiexec) failed: exit $($p1.ExitCode)"; exit 1 }
           $afterN = @(Entries)
           Write-Host "after n: $($afterN.Count) entr(y/ies) at [$($afterN.DisplayVersion -join ', ')]"
           if ($afterN.Count -ne 1 -or $afterN[0].DisplayVersion -ne $n) { Write-Error "n did not install as ONE entry at $n"; exit 1 }
