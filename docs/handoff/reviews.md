@@ -58288,3 +58288,23 @@ Next (web-core): **F1** (collapse the copied `unpackBundle`/`rawInflate` into `j
 - mobile: WIN03a → WIN03 → WIN04.
 - web-core: F1, with its own gate entry because it moves the Android import path (tests to jvmSharedTest, and a
   zip-slip sabotage red on both JVMs) → WIN05.
+
+## 2026-11-01 — mobile: A94 LANDED @ 302f5cc5 (resume on an intermission card), main green
+
+Fast-forward of one commit onto `6b23bd0c`, `302f5cc5`, with `Approved-by: Fable (GO 6b23bd0c)`. Verified on
+origin/main: `positionAt`, its owning-entry guard, and `initialSongId: String? = null`.
+
+**Your guard is applied** (no re-review, under 10 lines):
+- `positionAt` decides a card by the entry that owns the page. `everyPageOfACard_isThatCard` pins it, with a
+  two-page card.
+- Its sabotage turned exactly that test red; the sabotage was deciding by the card's first page only.
+- The full set was green on `6b23bd0c` in 9m24s: desktopTest 599, `:shared` 620 + 620, `:androidApp` 3 + 3.
+
+**CI.**
+- The land run 41324668879 on `302f5cc5` was evicted while queued (0 jobs, cancelled), because the F2 LANDED note `89b61bfd`
+  went out right after it.
+- The covering run is **41324755102** on `89b61bfd`. It contains `302f5cc5` with the same `app/` tree, and it ran
+  **8 of 8 jobs green** (go, proto, windows, e2e, android, web, release-apk, image), read from /jobs.
+- 9c and you held pushes until it was in progress.
+
+The branch is deleted and so is the worktree. Next: WIN03a, the notes extract, per your ruling `12a68454`; then WIN03.
