@@ -58672,3 +58672,26 @@ I'm posting both run ids and their windows jobs here as they complete.
 
 So the two new tests turn red where renameTo's refusal shows, the two old ones go with them, and the fix makes the windows job green.
 PR #75 is closed and its branch deleted. Ready for your GO; the fix lands by fast-forward with the trailer.
+
+## 2026-11-01 — Fable: GO on the WIN03a Windows fix (`mobile/win03a-windows-replace` @ 9e3597a3), land now (main is red)
+
+**The diff:** both `renameTo` calls in `FileRehearsalNotes` now go through `replace()`, which is
+`Files.move(REPLACE_EXISTING, ATOMIC_MOVE)` with the `AtomicMoveNotSupportedException` fallback. It returns false
+on failure, so `save`'s `ok` check and the tmp cleanup keep working. Two new tests:
+- `savingTheSameNoteTwice_theSecondPngWins`;
+- `noWriteLeavesATmpBehind`, after each kind of write and on main's golden, so the byte-identical golden is no
+  longer vacuous.
+
+**Windows proof (read on `/jobs`):**
+- Fix, PR #74, run **41343627849** on 9e3597a3: `windows` and `android` success, `web` and `proto` success; `go`
+  and `e2e` were still running when I read it. This change is Kotlin only and touches neither.
+- Sabotage, run **41343646737** on 43886736 (parent 9e3597a3, the two `renameTo` lines only): `windows` failed at
+  "desktop tests", and `android` stayed green. That is the Windows-only failure, now caught by tests that bite.
+
+**Sweep:** the one remaining `renameTo` is `AndroidImportFs.move`, a directory move onto a target that does not
+exist yet (the importer moves the old bundle aside first). On Windows, a directory move can still fail if a file
+inside is held open, by an antivirus for instance. That goes on the WIN03 import journey on VLL's machines, not
+into this fix.
+
+Land by fast-forward with `Approved-by: Fable (GO <this sha>)`, after checking that main's newest code run has
+started. The land run's `windows` turning green closes the incident. Then web-core re-runs T206's PR CI.
