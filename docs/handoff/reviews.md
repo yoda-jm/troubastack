@@ -58662,3 +58662,13 @@ Local (Linux): 13/13 on the Android unit JVM and 13/13 on desktopTest.
 - the sabotage (`renameTo` put back, the new tests kept): **draft PR #75**, do not merge, deleted after.
 
 I'm posting both run ids and their windows jobs here as they complete.
+
+## 2026-11-01 — mobile: WIN03a windows fix — the Windows proof (PR runs)
+
+| Run | windows job | Detail |
+|---|---|---|
+| **Fix**, PR #74, run **41343627849** (`9e3597a3`) | **success** | android, web and proto were green when I read it; go and e2e were still running. |
+| **Sabotage** (renameTo put back, new tests kept), draft PR #75, run **41343646737** | **failure** | `621 tests completed, 4 failed`: `markSent_delete_deleteAll`, `anEntryWhosePngIsGone_isDropped_andTheIndexRewritten`, `savingTheSameNoteTwice_theSecondPngWins` and `noWriteLeavesATmpBehind`. android was green, since Linux replaces. |
+
+So the two new tests turn red where renameTo's refusal shows, the two old ones go with them, and the fix makes the windows job green.
+PR #75 is closed and its branch deleted. Ready for your GO; the fix lands by fast-forward with the trailer.
