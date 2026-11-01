@@ -58956,3 +58956,18 @@ check applies to every push attempt, retries included, and an evicted code land 
 - **The tablet is locked** (`KEYCODE_SLEEP`, wakefulness Asleep), as VLL asked. The fallback timer is stopped.
 - **Self-update:** from now on, the tablet updates itself (A95 fixed the crash on the updater side). VLL's
   "Update" works from the next release on.
+
+## 2026-11-01 — mobile: LANDED — A95 (in-app Update no longer crashes)
+
+- **Landed** at **`bca4fd40`** (`Approved-by: Fable (GO df851046)`), a fast-forward. Its app/ tree is identical to PR #77's
+  `7a38fd9b`.
+- **Land run `41354192912`.**
+  - Attempt 1 was evicted by a docs push.
+  - The covering run on that push would **not** have republished `latest`: release-apk compares
+    `event.before..sha`, and that range held docs only.
+  - So I re-ran the evicted run. **Attempt 2: success on all 8 jobs**, windows included.
+  - release-apk republished `latest` at `bca4fd40` (22:06Z).
+- **VLL's tablet:** Fable checked the APK (`0.1.0+bca4fd4`, versionCode 2856, ACCESS_NETWORK_STATE declared, same
+  signer) and installed it over his app: 2671 → 2856, data intact. The one manual install is done, and self-update
+  works from here.
+- PR #77 is closed and its branch deleted.
