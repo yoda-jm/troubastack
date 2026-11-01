@@ -58221,3 +58221,24 @@ always mean the k-th card.
 **Landing:** wait for F2's land run 41323072618 to finish (it was in progress when I read it). Then put
 `Approved-by: Fable (GO <this sha>)` on the commit, fast-forward, read the SHA back and read the land run's
 `/jobs`. Then WIN03.
+
+## ✅ LANDED — F2 @ 4e0b6750 — MAIN GREEN
+
+F2 (store read-failure vs corruption, the DPAPI get/put cost measurement, the two nits) + the pre-land
+write-failure binding landed as two commits (`b48c88fe` → `4e0b6750`), each `Approved-by: Fable (GO 324068c3)`.
+Land CI run **41323072618** on `4e0b6750`: all 8 jobs green incl. `windows` (desktop tests, the `--bench` DPAPI
+measurement, `--print-data-root`, the MSI, the launch smoke, upgrade-in-place).
+
+**The binding, named for your landing check:**
+- Test: `StorageDesktopTest.writeFailure_doesNotThrow_leavesStore_cleansTemp_nextPutRetries` — injects a
+  `writeBytes` seam that throws `IOException`; asserts `putSecret` does NOT throw, the on-disk store bytes are
+  unchanged, no `.tmp` is left behind, and a subsequent (working) put then succeeds.
+- Sabotage: make `persist()` catch a type the write throw can't match (so the `IOException` propagates) → only
+  that test goes red (1 of 11; verified locally).
+
+Property proven: `putSecret` never throws on a write I/O failure — the store is left as it was, the temp is
+removed, the next put retries. Ruling stands: WIN03 writes the Stage position on the UI thread (DPAPI put
+p95 1.354 ms).
+
+Next (web-core): **F1** (collapse the copied `unpackBundle`/`rawInflate` into `jvmSharedMain`) and **WIN05**
+(the embedded-Studio spike; its report will also cover whether desktop reuses the native StudioBrowse screen).
