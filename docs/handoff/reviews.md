@@ -58987,3 +58987,71 @@ version **fc6d7811**, builtAt **2026-11-01T22:05Z** (clean version computed pre-
 up). T206's redeploy is thereby closed out too.
 
 Next: T199 (deskew) — I'll plan its stages and check the staging + the resampler choice at the gate before implementing.
+
+## 2026-11-01 — web-core: T199 (deskew) STAGING PLAN for sign-off (no code yet)
+
+Per your ask, bringing the stage breakdown + the resampler decision + one design question to the gate before I
+write code. T199 builds on T198's crop; the tree is pre-seasoned (anticipatory comments at `resample.go:9`,
+`cropGeometry.ts:6/38`, `CropOverlay.tsx:15/197/224`, `Viewer.tsx:359`). No functional angle/rotate code exists yet.
+
+### Decisions I'm proposing
+
+1. **Resampler: in-tree, not x/image** (your lean, my rule too). Add a Catmull-Rom bicubic ROTATION resampler to
+   `core/internal/bake/resample.go` beside the existing `resampleBilinear` (a scaler). "Separable" doesn't apply to
+   a rotation, so this is a **4×4 tap grid (16 taps) on the inverse-mapped sample point**, white background,
+   premultiplied like the bilinear one. ~80–100 lines, stdlib-only. I'll revisit x/image only if I can show it
+   beats in-tree bicubic with numbers on a real crooked scan.
+
+2. **Quality test — one discriminating metric PER failure mode** (your point). A single metric can't separate the
+   two bad resamplers, so the +3° thin-line test asserts BOTH:
+   - **thickness** (rows > 50% ink ≤ unrotated-at-same-`dpi_eff` + 1 px): **bilinear fails** (blurs/thickens);
+     nearest-neighbour passes (a staircase stays thin).
+   - **edge straightness** (residual of per-row edge positions vs a fitted line along the rotated line):
+     **nearest-neighbour fails** (jagged); bilinear passes.
+   - **bicubic green on both**; single-peak row profile also checked. I'll show bilinear-red-A, NN-red-B,
+     bicubic-green-both in the stage-1 submission.
+
+3. **The central new plumbing:** rotation is about the window centre in PHYSICAL units, so the math needs each
+   page's **aspect (W/H)**. The T198 app layer (`ValidateCrop`, `CropHidesMark`, `importCrop`) is purely normalized
+   and carries no page dims. I'll thread a page aspect into the view transform + validation. At **save/bake** the
+   server has the PDF, so dims are available. **At `.tband` import the sanitizer has no rendered dims** — see the
+   question below.
+
+### QUESTION for you (before stage 1)
+
+`importCrop` (`core/internal/app/crop.go:71`) calls `ValidateCrop(*c, 0)` with no page W/H. The rotated-corners
+∈[0,1]² check needs the aspect. My recommendation: **import degrades to the dimension-free checks only**
+(`finite` + `|angle| ≤ 10`, drop otherwise); the full rotated-corner clamp runs at the next save (dims available)
+and the bake clamps defensively. That keeps the sanitizer's job — reject corrupt/hostile values — without
+decoding the incoming PDF mid-import. The round-trip test still proves a VALID angle survives; a wild angle is
+still dropped. OK, or do you want the aspect decoded at import?
+
+### Stages (each shippable, each presented with its own CI run)
+
+- **S1 — Core deskew bake + data model.** `Angle float64 json:"angle,omitempty"` on `CropRect` (`app.go:380`) +
+  bake `cropRect` (`bake/crop.go:43`); validation (`finite`, `|angle|≤10`, rotated-corners in physical units) in
+  `ValidateCropRect` (`app/crop.go:24`) + 0.05° rounding in `NormalizeCrop` (`crop_service.go:86`); the bicubic
+  rotation resampler; render the AABB of the rotated window + kernel margin at `dpi_eff`, rotate, cut the window,
+  then the T169 greyscale (insert at `bake/render.go:114` and `previewPage` `bake/crop.go:151`); add angle to
+  `rasterKey` (`rendercache.go:184`). Tests: **angle-0 byte-identical** (extend `TestBakeCropThenResetIsByteIdentical`),
+  the two-metric +3° quality test, `rasterKey` includes angle, the **sign-convention** test (window +θ over staves
+  crooked +θ → level), sanitizer drop + .tband round-trip.
+- **S2 — The ONE rotate-then-crop mark transform.** A single `PageViewTransform(pt, aspect, rect, angle)` used by
+  BOTH `CropHidesMark` (`app/crop.go:112`) and the bake drop `applyCropToDoc` (`bake/crop.go:340`), so the dryRun
+  hidden list == the bake drop stays true. Freehand/line points rotate; text anchor rotates, text stays
+  horizontal; two-point shapes rotate both corners then re-AABB; stroke width/font size unchanged by rotation.
+  Tests: dryRun==drop with a rotated case (`TestCropHiddenMarks`), overlay-dot-within-1px acceptance, rehearsal
+  note "page changed" on an angle change.
+- **S3 — Pure-Go autodetect.** Horizontal projection-profile variance, coarse (0.5°) → fine (0.05°), confidence
+  threshold → propose 0 on weak signal; run BEFORE content-box detect (`autocrop.go:70`), returned through
+  `crop-detect`. The 5 spec vectors incl. the long-diagonal page that must read 0, NOT the diagonal (fails a naive
+  strongest-line detector — shown).
+- **S4 — Studio UI (default: edit crooked, preview straight).** Rotate handle + angle control (±0.05/±0.5 +
+  numeric) in `CropOverlay.tsx`; the window grid rotates with the window (it's a child of `.crop-rect`);
+  `clampSquareOnPage` → rotated-corner clamp (`cropGeometry.ts:39`, already flagged for T199) + TS tests; Auto
+  angle (this/all pages) mirroring the crop-auto wiring; the straightened preview is the existing SERVER preview
+  (`crop-preview`/TabletPreview) — no new client mark transform, matching your [VLL] default. Device pass after S4.
+- **S5 — Docs.** T198's documented-feature copy gains "Scanned crooked, with big margins? No problem" + one
+  USER-JOURNEY sentence, same labels as the UI.
+
+Sign off on the staging + the import-validation question and I'll start S1.
