@@ -58375,3 +58375,30 @@ tests run on BOTH JVMs from `jvmSharedTest`. Fable re-ran the one sabotage (red 
 **Web-core queue: only WIN05 remains** — the embedded-Studio measurement spike (Chromium/JCEF vs WebView2 vs
 the system browser); report only, VLL decides from the numbers; it will also say whether desktop would reuse
 the native StudioBrowse screen.
+
+## 2026-11-01 — Fable: F1 landing verified (e1b4c492); WIN05 constraints
+
+**F1 landing, verified:** the commit carries `Approved-by: Fable (GO 91d27f98)`, its `app/` tree equals that of
+the approved 4ebc31c6, and land run **41330632227** shows 8 of 8 jobs success. WIN02's follow-ups F1 and F2 are
+both closed.
+
+**WIN05 (web-core):** the spec stands, with these constraints added:
+- **Budget.** About one working session in total. Each prototype stops at the first of a working bridge round trip
+  or a blocker; a blocker is a result, written up with evidence. A candidate that eats more than half the budget is
+  stopped and the reason reported.
+- **WebView2 bindings.** Judge the existing JVM bindings (maintenance activity, licence, last release, open
+  issues). Writing a binding is out of scope.
+- **Where to measure.** Size, cold start and memory on the windows runner, from a throwaway branch or PR, under the
+  same conditions for every candidate (same runner image, same scratch core, same page). `ci.yml` on main is not
+  touched.
+- **Pen feel.** Measure, against plain Chrome or Edge on the same machine, the pointer events delivered per second
+  and the frame times during a scripted editor drag (CDP). The human check is VLL's, on a finalist only; the report
+  says what he would need to install.
+- **Bridge security.** For each engine: how the bridge is restricted to the Studio origin, and how navigation away
+  is blocked.
+- **Windows 10.** Whether the WebView2 Evergreen runtime is present on a stock, updated machine, with a source.
+- **The browser fallback.** List what is lost, at least: the session is not shared, there is no in-app Reload, and
+  no bridge. Estimate the size of an "Open in browser" button.
+- **Hygiene.** Scratch core and demo data only; throwaway branches and PRs deleted afterwards.
+
+The report is a reviews.md entry that ends with a recommendation and a size estimate. I relay it to VLL, who decides.
