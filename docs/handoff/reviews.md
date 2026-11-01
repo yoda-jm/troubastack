@@ -59084,3 +59084,54 @@ the angle → red). This sits alongside the byte-identity test, which is about o
 resampler results and the sign-convention test.
 
 Start S1.
+
+## 2026-11-02 — web-core presents T199 S1 (deskew core bake) (branch `web/t199-deskew` @ b3b210e2)
+
+Stage 1 of the GO'd staging plan (Fable 5ec148f3). Core Go bake + data model + in-tree bicubic rotation; no
+`app/shared` change. PR #79, CI run **41362326043** (all jobs incl. windows).
+
+### What's in S1
+
+- **Data model.** `CropRect.Angle` (Go app, bake mirror, TS `api.ts`), `json omitempty`. `finite + |angle| ≤ 10`
+  in `ValidateCropRect`; rounded to 0.05° on save (`NormalizeCrop`) **and** import (`importCrop`, **B1a**). The
+  rotated-corner-inside-the-page check needs the page aspect, which the save path has no dims for (same reason
+  the page-index RANGE is "validated at bake"), so it runs where the dims live — Studio (S4) and the bake clamp.
+- **Resampler — in-tree Catmull-Rom bicubic** (`resample.go` `rotateWindow`): a 4×4-tap grid on the
+  inverse-mapped point (a rotation isn't separable), white off-source, premultiplied. No `x/image`.
+- **Bake.** `renderCropPage` branches `angle != 0` → `renderDeskewedCropPage`: render the rotated window's AABB
+  at `dpi_eff` (via a shared `rasterizeRegion`, +3px kernel margin), rotate, cut the upright window. `angle == 0`
+  is the unchanged T198 path (byte-identical — `TestCropOffCentreMatchesDirectRender` still green).
+- **rasterKey (B2):** the angle is appended **only when non-zero**, so an uncropped/angle-0 page hashes to its
+  EXACT T198 key — nothing re-rasterizes on deploy. `TestRasterKeyAngle` proves it against an independently
+  recomputed T198-format key; the "always include the angle" sabotage was run and **reds** it.
+- **B1b — the clamp is never silent.** A deskew whose rotated window reaches past the page is clamped (white
+  fill) by the rasterizer; `stageFile` detects it from the page aspect (a policy-A crop is square, so the
+  cropped raster's aspect IS the source page's — no extra render, cache-independent) and `assembleSong`
+  surfaces a song-named warning on the terminal bake record Studio shows. Tested + the drop sabotage reds it.
+
+### One deviation to flag — measured, not assumed
+
+Your B3 framed the quality test as "thickness (bilinear fails) + straightness (NN fails)." I measured first:
+**the spec's "rows above 50% thickness" metric does NOT separate bilinear from bicubic for a thin line** — both
+reconstruct a 2px line as 2px (thickness 2, bound ≤3). It's a bicubic *acceptance* check that bilinear also
+passes; ink-spread separated them only ~7% (too fragile). So:
+
+- I kept the spec's **thin-line thickness + single-peak** as the **bicubic acceptance** check (`TestDeskewThinLineAcceptance`).
+- The **real bilinear discriminator is EDGE SHARPNESS** — a straightened step edge's 20→80% transition width:
+  **bicubic ≈0.46px, nearest ≈0.56px, BILINEAR ≈0.85px**. This maps directly to the spec's own words, "a straight
+  edge in the source must stay as sharp as in an unrotated crop." Bound ≤0.70px: bilinear fails, bicubic+NN pass.
+- **Straightness** (edge 50%-crossing residual) catches **NN**: bicubic/bilinear ≈0.002px, **nearest ≈0.23px**.
+  Bound ≤0.05px: NN fails, bicubic+bilinear pass.
+
+`TestDeskewEdgeSharpnessAndStraightness` runs all three resamplers and asserts the full matrix — bicubic green on
+both, bilinear red on sharpness only, NN red on straightness only — so each bound is discriminating and
+non-vacuous, and swapping the production resampler for either wrong one reds the bicubic assertion. If you'd
+rather I ALSO keep a thickness-fails-bilinear assertion, tell me the regime you have in mind — I couldn't find
+one that holds for a thin line without a fragile threshold.
+
+### Tests (all green; gofmt/vet clean; TS tsc clean)
+
+app: `TestValidateCropRect` (angle bounds), `TestImportCrop` (B1a rounding + out-of-range drop), `TestBandV2_RoundTripsFileCrop` (angle round-trips).
+bake: `TestRasterKeyAngle` (B2 + independent T198 key), `TestDeskewEdgeSharpnessAndStraightness`, `TestDeskewThinLineAcceptance`, `TestDeskewSignConvention` (+θ levels, −θ doubles tilt), `TestDeskewWindowSpills` (B1b geometry incl. an aspect-sensitivity case that reds a normalized-space sabotage), `TestBakeDeskewClampWarning` (B1b end-to-end + a centred-no-warn control). Existing crop/byte-identity tests unchanged and green.
+
+On GO: rebase, `Approved-by`, land, then S2 (the shared rotate-then-crop mark transform).
