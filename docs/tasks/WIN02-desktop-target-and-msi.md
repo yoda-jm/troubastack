@@ -37,7 +37,7 @@ The window shows almost nothing yet. WIN03 (mobile) puts the app in it.
 
 **D2 — The actuals.**
 - `Storage`: one data root.
-  - Windows: `%LOCALAPPDATA%\TroubaStage`.
+  - Windows: `%LOCALAPPDATA%\TroubaStage`. **Superseded at the gate (B2):** that is the per-user install folder, so the data root is `%LOCALAPPDATA%\TroubaStageData`.
   - Elsewhere (Linux is where lanes develop and test): `${XDG_DATA_HOME:-~/.local/share}/troubastage`.
   - Both overridable by `TROUBASTAGE_HOME`, so tests and agents run isolated.
   - `bundles/`, `notes/`, `tmp/` under it.

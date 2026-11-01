@@ -247,7 +247,7 @@ repos); IOS03 is a decision stub (devices/App Store need a Mac + Apple ID).
 
 VLL, 2026-11-01: refactor first, then Stage only, with Studio saying "Coming soon"; embedded Studio later
 "if it isn't too big". Windows is a JVM platform, so `HttpTransport` and the file code are shared as they
-are. The iOS hoist stays deferred. Order: WIN01 ∥ WIN02 → WIN03 → WIN04; WIN05 after WIN02.
+are. The iOS hoist stays deferred. Order: WIN01 ∥ WIN02 → WIN03 → WIN04 and WIN06 (docs and site, per VLL: "à la fin n'oublie pas la documentation et les pages web"); WIN05 after WIN02.
 
 | # | Task | Owner | Size |
 |---|---|---|---|
@@ -256,6 +256,7 @@ are. The iOS hoist stays deferred. Order: WIN01 ∥ WIN02 → WIN03 → WIN04; W
 | WIN03 | [TroubaStage on Windows: windowed/full screen, mouse + keyboard, Studio "Coming soon"](WIN03-troubastage-on-windows.md) | mobile | L |
 | WIN04 | [Windows self-update from the `latest` release](WIN04-windows-self-update.md) | mobile | S/M |
 | WIN05 | [Embedded Studio on Windows: measured spike, VLL decides](WIN05-embedded-studio-spike.md) | web-core | S |
+| WIN06 | [Windows in the docs and on the public site](WIN06-windows-in-the-docs-and-on-the-site.md) | web-core | S |
 
 ## Phase 2 — opt-in modes & debt retirement
 

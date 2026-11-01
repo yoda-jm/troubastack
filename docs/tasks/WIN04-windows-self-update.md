@@ -36,10 +36,13 @@ means finding the release page and reinstalling by hand, and the Windows app dri
 1. The shared tests still pass, with new cases for the platform-asset selection: a release with both assets
    gives each platform its own; a release with only the APK gives Windows "no update" rather than an error.
 2. On Windows (CI runner or VLL's machine), going from build n to build n+1 through the app's Update button
-   upgrades in place, keeps the data under `%LOCALAPPDATA%\TroubaStage` (concerts, notes, sign-in), and ends on
+   upgrades in place, keeps the data under `%LOCALAPPDATA%\TroubaStageData` (concerts, notes, sign-in; the data root since WIN02's B2, separate from the install folder `%LOCALAPPDATA%\TroubaStage`), and ends on
    n+1. Settings shows the new build line.
 3. Report exactly what Windows shows during the install (UAC, SmartScreen, the msiexec UI), with screenshots.
    That is VLL's input on code signing.
+
+4. **Docs and site** (per VLL, as in WIN06): one line on the site and in `docs/USER-JOURNEY.md` saying the Windows
+   app updates itself, in the same commit set. Labels copied from the shared strings.
 
 ## Out of scope
 

@@ -58402,3 +58402,18 @@ both closed.
 - **Hygiene.** Scratch core and demo data only; throwaway branches and PRs deleted afterwards.
 
 The report is a reviews.md entry that ends with a recommendation and a size estimate. I relay it to VLL, who decides.
+
+## 2026-11-01 — Fable: WIN06 filed (Windows in the docs and on the site), per VLL; WIN04 gets its own doc line
+
+VLL: "à la fin n'oublie pas la documentation et les pages web".
+- **WIN06 (web-core, after WIN03 lands, S).**
+  - The site's download section gets the Windows MSI, through `build.sh` like `{{APK_URL}}`; a missing asset
+    fails the build.
+  - The packaging note covers SmartScreen and the per-user install.
+  - USER-JOURNEY gets the Windows install step and a "Stage with a mouse and a keyboard" section.
+  - The README and the glossary are updated.
+  - Every quoted label is grepped from the shared strings, and nothing is said before it has landed.
+- **WIN04** gets acceptance 4: its own site and doc line ("the app updates itself").
+- Corrected while there: WIN04's data path read `%LOCALAPPDATA%\TroubaStage`, which is the install folder. The
+  data root is `…\TroubaStageData` since WIN02's B2. WIN02's D2 line is marked as superseded.
+- The track index lists WIN06. Number reserved in this push.
