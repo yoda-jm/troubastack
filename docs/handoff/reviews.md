@@ -57776,3 +57776,72 @@ Journeys on head:
 - 27 imports `MainActivity.kt` carried without using them are gone (commit 2).
 
 **Still owed (unchanged):** A93 and the toolbar fix on VLL's 11" tablet, once he unlocks it.
+
+## 2026-11-01 — Fable: GO on WIN01 (`mobile/win01-hoist-app` @ 59decf96)
+
+**What I checked:**
+- The three commits, with `git show -M --summary` on each.
+- The full App.kt and EditedConcertsScreen diffs across commit 3, plus AppPlatform, AndroidAppPlatform, the
+  MainActivity wiring, the build files and the two commonMain signatures.
+- The guard greps, with a control.
+- Your screenshot sets, compared pixel by pixel.
+- The full acceptance set on 59decf96 on this box: `:shared:check :androidApp:test :androidApp:assembleDebug :shared:compileKotlinIosArm64` (`--no-daemon`, in-process Kotlin) **BUILD SUCCESSFUL in 11m 32s**; `<testcase>` count **1216** (:shared 605+605, :androidApp 3+3, 0 failures), the debug APK written at the end of the run; the single-use build VM is gone.
+- Your three per-commit build logs: one `BUILD SUCCESSFUL` each, iOS Arm64 and SimulatorArm64 included.
+- No `ci.yml` run exists for the branch; there was no PR, and the `push` trigger is main-only. Criterion 1's CI
+  half is therefore read on the landed SHA.
+
+**Verified:**
+- **Renames.**
+  - Commit 1: all 100% except HttpTransport at 99% (two `internal` dropped, explained).
+  - Commit 3: App.kt at 84% with only the de-Androidification in its diff.
+- **Guard.** The spec's grep is empty. A stricter one (`android.*` fully qualified, `LocalContext`, `AndroidView`,
+  `viewinterop`, `SystemClock`, `android.text`, `androidx.lifecycle/webkit/activity/core/camera/security`) over
+  jvmSharedMain and jvmSharedTest is also empty; the same grep finds 13 files in androidApp (control). Apart from
+  Compose, jvmSharedMain imports only ktor, kotlinx, `java.*` and project code.
+  - The one Compose suspect you flagged, `statusBarsPadding`, is already used by commonMain's `StageScreen`, which
+    compiles for iOS. So it is common, not Android-only.
+- **Back.** EditedConcertsScreen's handler is now composed by App right after the screen, in the same early-return
+  branch. The screen never had another handler, so "the last composed wins" picks the same one.
+- **Cookies.** `clearWebCookies` is a required constructor parameter with no default, so it cannot be forgotten.
+  App is the only place an `HttpTransport` is built (main also had exactly one). EditScreen passes the same clear to
+  `dropSessionIfOriginChanged`.
+- **Stage position.** The lines (`posKey`, `decodeStagePosition`, `onPositionChange`, `encodeStagePosition`) are
+  textually identical to main's MainActivity.
+- **Image decoder.** Still built inside the VM's `remember`, as before.
+- **Screens.** I compared `rig/shots/main` against `rig/shots/head` myself.
+  - 8 of 9 are pixel-identical.
+  - `03-settings` differs only inside the About build-line box (241,1637)-(802,1665). The strip shows
+    `0f7c6d68 · built 10:59` against `d32a4be1-dirty · built 12:04`.
+- **Journeys.** In the second runs, A79's "Back closes the drawer" equals Stage page 1, and the second Back equals
+  the first. For A46, `j06b-right`, reopen and restore-after-kill are all identical, and each of the four equals
+  main's.
+
+**Your two calls:**
+1. **StudioBrowseScreen stays in androidApp.** androidx `BackHandler` is an Android API, so D4 is met, and nothing
+   else would use the screen yet. WIN05's report must say whether desktop reuses the native Browse screen (for
+   example, a band list that opens Studio in a browser). If it does, moving it, with `platform.BackHandler`, belongs
+   to that follow-up.
+2. **The three-commit shape is accepted.** "At least two" was a floor. The purpose was reviewable moves and
+   bisectable commits, and an 84% App.kt rename serves it better than a new 600-line file.
+
+**Not blocking, recorded:**
+- **The interval-card resume.** Your first run ended on the Interval card. Reopening started at song 1, page 1, and
+  the restore-after-kill shot (`journeys/j10-restored.png`) shows Stage chrome with an undrawn page. The code path is
+  unchanged (above), so this is very likely main's behaviour too, but nobody has run it on main. Run that exact
+  sequence on main's APK.
+  - If it matches, file an A-ticket for "resume after leaving on an interval card". Also find out whether the
+    undrawn page is only an early capture.
+  - If it does not match, it is a WIN01 regression and comes back here.
+- **Null branches.** The null branches (no Studio tile, no scan, no Import, no MIDI line, no update) first run on
+  desktop. WIN03 must show each one hidden, and its desktop `BackHandler` must keep "the last composed wins", which
+  A79 relies on. Both go into WIN03 at dispatch.
+- **Nit.** `AndroidImportFs` now lives in jvmSharedMain under an Android name. Rename it in a later pass, not in a
+  pure-move commit.
+
+**Landing and WIN02.** WIN02 is NOT YET (above), so WIN01 most likely lands first.
+- Put `Approved-by: Fable (GO <this sha>)` on the code commit (commit 3), fast-forward, read the landed SHA back,
+  then read the `android` job on it (`/jobs`).
+- Ping 9c when it lands. Their rebase then adds the two `dependsOn` lines. From that point the desktop target
+  compiles jvmSharedMain, and the compiler enforces the guard.
+- That compile, `:shared:compileKotlinDesktop` with jvmSharedMain in it, becomes part of WIN02's re-presentation,
+  together with B1–B5.
