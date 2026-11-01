@@ -18,7 +18,7 @@ import {
   type SongCue,
 } from "../api";
 import { songHrefFromSetlist } from "./song-editor/backTarget";
-import { runningOrderNumbers, isIntermission } from "../runningOrder";
+import { runningOrderNumbers, isIntermission, mainSetCountLabel } from "../runningOrder";
 import { useDialogs } from "../components/Dialog";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { CueGlyph } from "../components/CueGlyphs";
@@ -658,9 +658,9 @@ function Items({
   return (
     <section className="panel">
       <div className="panel-head">
-        <h2>Running order</h2>
-        <span className="count">
-          {main.length} song{main.length === 1 ? "" : "s"}
+        <h2>Main set</h2>
+        <span className="count" data-testid="main-set-count">
+          {mainSetCountLabel(main)}
         </span>
       </div>
 
