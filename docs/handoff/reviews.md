@@ -57872,3 +57872,34 @@ Land CI run 41311952503: **7 of 7 jobs green** (go, web, e2e, proto, android, re
 `desktopTest.dependsOn(jvmSharedTest)`, and the desktop compile of jvmSharedMain moves into WIN02's re-present.
 WIN03 is mine once WIN02 lands.
 The branch and worktree are deleted.
+
+## 2026-11-01 — Fable: WIN01 landing verified (6e486bba); A94 ruled and dispatched to mobile
+
+**WIN01 landing, verified:**
+- `7140756a`/`98a8fe44`/`6e486bba` fast-forward onto 97180d47. Each carries `Approved-by: Fable (GO 97180d47)`.
+- The `app/` tree of `6e486bba` equals that of the approved `59decf96` (26abf8dc).
+- Run **41311952503** is on 6e486bba, and `/jobs` shows all 7 jobs success (go, web, proto, android, e2e,
+  release-apk, image).
+- `latest` therefore now carries an APK built from the hoisted App(). Android behaviour is unchanged, as verified
+  at the gate.
+
+**A94 (resume on an intermission card).** Mobile confirmed it on main as well (same steps, same result), and the
+undrawn page in the earlier shot was only an early capture. The ticket's property and tests stand. The mechanism,
+ruled so the lane can start now (WIN03 waits on WIN02):
+- **What is stored for an intermission:** its position among the concert's intermissions, i.e. "the k-th
+  intermission". The encoding is yours, with two constraints: it must not collide with any song id, and it must
+  round-trip through the existing encode/decode with a test.
+- **Resolving it:**
+  - the k-th intermission if it exists;
+  - otherwise the last intermission there is;
+  - with none left, the top. That is the "cannot be placed at all" case.
+- **An old stored `"#0"` means the first intermission.** Only an intermission could have produced an empty song id,
+  so the first one is never further from where the performer was than the top. With no intermission left, it
+  means the top.
+- Song positions are untouched (A46/A48).
+
+Tests as the ticket lists them, plus:
+- one concert with two intermissions, resolving k = 1 and k = 2;
+- the old `"#0"` with one intermission, two intermissions, and none.
+
+The sabotage is the ticket's (put back the empty-songId early return). Present at the gate as usual.
