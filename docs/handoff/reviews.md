@@ -58935,3 +58935,24 @@ place, on a docs-only push, would have tested the code but NOT republished `late
 when `event.before..sha` touches `app/`. Mobile caught that and re-ran the evicted run: a re-run keeps its original
 `before`, so it publishes. That re-run (attempt 2) is in progress. The lesson is recorded: the pre-push queue
 check applies to every push attempt, retries included, and an evicted code land is re-run, not covered.
+
+## 2026-11-01 — Fable: A95 installed on VLL's tablet; A93's 11" row DONE; the tablet is locked
+
+- **A95 re-run 41354192912 (attempt 2):** 8 of 8 jobs success. `release-apk` republished `latest` at 22:06Z.
+- **The APK.** I downloaded it and checked it before installing:
+  - `versionName 0.1.0+bca4fd4`, versionCode 2856;
+  - it declares `ACCESS_NETWORK_STATE`;
+  - its signer's SHA-256 equals the installed app's (e996…a426).
+- **The install,** at VLL's request ("tu pourras installer l'app par usb (ou wifi)"): `adb install -r` over Wi-Fi
+  (USB had dropped), 2671 → 2856, Success. The data was counted after the install, without reading names: 6
+  bundles, 4 notes directories, the prefs present.
+- **A93's 11" row, done** in the app's embedded Studio on VLL's real server, read through WebView DevTools: the
+  path (with ids masked), `timeOrigin`, a marker, history length.
+  - Before: `/bands/…/setlists`, after an in-app tab change.
+  - ⋮ Reload: same path and same empty search, a new `timeOrigin` (a real reload), the marker cleared,
+    `history.length` still 2, still embedded.
+
+  No content was read. The navigation screenshots were deleted right after.
+- **The tablet is locked** (`KEYCODE_SLEEP`, wakefulness Asleep), as VLL asked. The fallback timer is stopped.
+- **Self-update:** from now on, the tablet updates itself (A95 fixed the crash on the updater side). VLL's
+  "Update" works from the next release on.
