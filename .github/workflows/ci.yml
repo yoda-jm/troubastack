@@ -587,33 +587,53 @@ jobs:
           if ($p.ExitCode -ne 0) { Write-Error "smoke exited with $($p.ExitCode)"; exit 1 }
           if (-not ((Test-Path $png) -and ((Get-Item $png).Length -gt 0))) { Write-Error "smoke wrote no PNG"; exit 1 }
           Write-Host "smoke OK — $((Get-Item $png).Length) bytes"
-      - name: prove upgrade-in-place (MSI n → n+1 leaves ONE entry at the new version)
+      - name: prove upgrade-in-place (one entry at n, upgrade to n+1, data survives, install disjoint from data)
         working-directory: app
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $n   = "1.0.${{ github.run_number }}"
           $n1  = "1.0.$([int]${{ github.run_number }} + 1)"
+          $dataRoot = Join-Path $env:LOCALAPPDATA "TroubaStageData"   # must match resolveDataRoot (B2)
           function Entries { @(
             "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
             "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
             "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
           ) | ForEach-Object { Get-ItemProperty $_ -ErrorAction SilentlyContinue } |
               Where-Object { $_.DisplayName -eq "TroubaStage" } }
-          # install n (per-user, silent)
+
+          # B3: install n, CHECK the exit code (/qn hides failures), then assert EXACTLY ONE entry at n BEFORE
+          # n+1 — otherwise a silent install-n failure + a working n+1 would fake an "upgrade" with one entry.
           $msiN = (Get-ChildItem desktopApp\build\compose\binaries\main\msi\*.msi | Select-Object -First 1).FullName
-          Start-Process msiexec.exe -ArgumentList @("/i", "`"$msiN`"", "/qn", "/norestart", "/l*v", "$env:RUNNER_TEMP\msi-n.log") -Wait
+          $p1 = Start-Process msiexec.exe -ArgumentList @("/i","`"$msiN`"","/qn","/norestart","/l*v","$env:RUNNER_TEMP\msi-n.log") -Wait -PassThru
+          if ($p1.ExitCode -ne 0) { Write-Error "install n (msiexec) failed: exit $($p1.ExitCode)"; exit 1 }
           $afterN = @(Entries)
           Write-Host "after n: $($afterN.Count) entr(y/ies) at [$($afterN.DisplayVersion -join ', ')]"
-          # build + install n+1
+          if ($afterN.Count -ne 1 -or $afterN[0].DisplayVersion -ne $n) { Write-Error "n did not install as ONE entry at $n"; exit 1 }
+
+          # B2: InstallLocation must be DISJOINT from the data root (a data root inside the install dir is wiped
+          # on upgrade). Print both, assert neither contains the other, then prove a data-root marker survives.
+          $install = $afterN[0].InstallLocation
+          Write-Host "InstallLocation = [$install]   dataRoot = [$dataRoot]"
+          if ($install) {
+            $i = $install.TrimEnd('\'); $d = $dataRoot.TrimEnd('\')
+            if ($d -eq $i -or $d.StartsWith("$i\") -or $i.StartsWith("$d\")) { Write-Error "data root and install dir are NOT disjoint"; exit 1 }
+          }
+          New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
+          $marker = Join-Path $dataRoot "marker.txt"; "keep me" | Set-Content $marker
+
+          # Build + install n+1, checking its exit code too.
           .\gradlew.bat :desktopApp:packageMsi "-PdesktopVersion=$n1"
           $msiN1 = (Get-ChildItem desktopApp\build\compose\binaries\main\msi\*.msi | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
-          Start-Process msiexec.exe -ArgumentList @("/i", "`"$msiN1`"", "/qn", "/norestart", "/l*v", "$env:RUNNER_TEMP\msi-n1.log") -Wait
+          $p2 = Start-Process msiexec.exe -ArgumentList @("/i","`"$msiN1`"","/qn","/norestart","/l*v","$env:RUNNER_TEMP\msi-n1.log") -Wait -PassThru
+          if ($p2.ExitCode -ne 0) { Write-Error "install n+1 (msiexec) failed: exit $($p2.ExitCode)"; exit 1 }
+
           $afterUpg = @(Entries)
-          $afterUpg | Select-Object DisplayName, DisplayVersion | Format-Table | Out-String | Write-Host
+          $afterUpg | Select-Object DisplayName, DisplayVersion, InstallLocation | Format-Table | Out-String | Write-Host
           if ($afterUpg.Count -ne 1) { Write-Error "expected ONE TroubaStage entry after upgrade, found $($afterUpg.Count)"; exit 1 }
           if ($afterUpg[0].DisplayVersion -ne $n1) { Write-Error "upgraded entry is $($afterUpg[0].DisplayVersion), expected $n1"; exit 1 }
-          Write-Host "upgrade-in-place proven: one entry, version $n1"
+          if (-not (Test-Path $marker)) { Write-Error "data-root marker did NOT survive the upgrade (data root ~ install dir?)"; exit 1 }
+          Write-Host "upgrade-in-place proven: one entry at $n1; data-root marker survived; install dir disjoint from data root"
       - name: upload MSI + smoke PNG
         if: always()
         uses: actions/upload-artifact@v7

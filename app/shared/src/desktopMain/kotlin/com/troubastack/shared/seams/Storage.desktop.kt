@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.PosixFilePermission
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * SEAM 3 `actual` (desktop) — storage (I15). One data root under the OS's per-user data dir; a single
@@ -18,6 +19,13 @@ import java.nio.file.attribute.PosixFilePermission
  *
  * The real app constructs `Storage()`; tests use the internal constructor to inject a throwaway [root]
  * and a [codec] (so the plaintext path and the heal path are driven on any OS).
+ *
+ * B1 — every Storage over ONE root is ONE store, like Android's EncryptedSharedPreferences (which the
+ * framework caches per file). MainActivity opens two instances (theme + storage); a per-instance cache
+ * made each blind to the other's writes, so one instance's persist overwrote the file with its stale
+ * snapshot and dropped the other's keys. So there is NO in-memory cache: every read loads the file, every
+ * write loads-merges-writes, and both happen under a process-global per-root lock, so concurrent
+ * `putSecret`s serialize (no lost update, no `ConcurrentModificationException`). The file is tiny.
  */
 actual class Storage internal constructor(
     private val root: File,
@@ -35,22 +43,21 @@ actual class Storage internal constructor(
     // Rehearsal notes live BESIDE bundles/, never inside a bundle (a re-import destroys bundles/<id>). (A70)
     actual fun notesDir(): String = File(root, "notes").apply { mkdirs() }.path
 
-    // Read from the in-memory cache, loaded once (healed if the file is unreadable). Every preference goes
-    // through this store and the Stage position is written on every page turn, so reads are a map lookup
-    // and a write rewrites one small file.
-    private val cache: MutableMap<String, String> by lazy { loadOrHeal().toMutableMap() }
-
-    actual fun getSecret(key: String): String? = cache[key]
+    actual fun getSecret(key: String): String? = synchronized(lockFor(root)) { loadOrHeal()[key] }
 
     actual fun putSecret(key: String, value: String) {
-        cache[key] = value
-        persist(cache)
+        synchronized(lockFor(root)) {
+            val m = loadOrHeal().toMutableMap()
+            m[key] = value
+            persist(m)
+        }
     }
 
     /** A54 (desktop): read + decrypt + parse the store, or heal to empty — never throw. A missing file is
      *  simply empty. A file that cannot be decrypted or parsed (wrong DPAPI user after a restore, a truncated
      *  write, a format change) is deleted and the process-global reset signal is raised, so Home can show the
-     *  "settings were reset" notice; what is lost is a session + settings, never a concert (those are files). */
+     *  "settings were reset" notice; what is lost is a session + settings, never a concert (those are files).
+     *  Called only under the per-root lock. */
     private fun loadOrHeal(): Map<String, String> {
         root.mkdirs()
         val f = secretsFile
@@ -65,6 +72,7 @@ actual class Storage internal constructor(
         }
     }
 
+    /** Called only under the per-root lock. */
     private fun persist(map: Map<String, String>) {
         root.mkdirs()
         val bytes = codec.encrypt(Json.encodeToString(KV, map).toByteArray(StandardCharsets.UTF_8))
@@ -93,6 +101,15 @@ actual class Storage internal constructor(
         @Volatile
         var settingsWereReset: Boolean = false
             internal set
+
+        /** One monitor per data root (by canonical path), shared across every Storage instance over it — so
+         *  two instances behave as one store and concurrent writes serialize (B1). */
+        private val LOCKS = ConcurrentHashMap<String, Any>()
+
+        private fun lockFor(root: File): Any {
+            val key = runCatching { root.canonicalPath }.getOrDefault(root.absolutePath)
+            return LOCKS.computeIfAbsent(key) { Any() }
+        }
 
         /** Owner read+write only, where the filesystem is POSIX. On Windows (no POSIX view) DPAPI is the
          *  protection, so there is nothing to do and the UnsupportedOperationException is expected. */
@@ -136,8 +153,13 @@ internal fun defaultSecretCodec(): SecretCodec = if (isWindows()) DpapiCodec els
  * Where TroubaStage keeps its data on desktop. Pure (the environment is passed in) so each branch is
  * unit-tested without touching the real env or OS:
  *  - `TROUBASTAGE_HOME` wins everywhere (tests and agents run isolated);
- *  - Windows: `%LOCALAPPDATA%\TroubaStage` (fallback `<user.home>\AppData\Local\TroubaStage`);
+ *  - Windows: `%LOCALAPPDATA%\TroubaStageData` (fallback `<user.home>\AppData\Local\TroubaStageData`);
  *  - elsewhere: `${XDG_DATA_HOME:-<user.home>/.local/share}/troubastage`.
+ *
+ * B2 — the Windows folder is `TroubaStageData`, a SIBLING of the per-user MSI install dir
+ * (`%LOCALAPPDATA%\TroubaStage`), NOT the same folder: a data root inside the install dir would be wiped
+ * when an upgrade replaces it. The `windows` CI job asserts the two are disjoint and that a marker in the
+ * data root survives an upgrade.
  */
 internal fun resolveDataRoot(
     home: String?,
@@ -149,7 +171,7 @@ internal fun resolveDataRoot(
     home?.trim()?.takeIf { it.isNotEmpty() }?.let { return File(it) }
     return if (isWindows) {
         val base = localAppData?.takeIf { it.isNotBlank() } ?: "$userHome\\AppData\\Local"
-        File(base, "TroubaStage")
+        File(base, "TroubaStageData")
     } else {
         val base = xdgDataHome?.takeIf { it.isNotBlank() } ?: "$userHome/.local/share"
         File(base, "troubastage")
