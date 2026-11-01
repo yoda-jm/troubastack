@@ -166,6 +166,18 @@ part of this task.
    - a second launch;
    - reinstall over it with a newer build.
 
+   **VLL's machines (2026-11-01): a Proxmox VM and a Surface.** Run the checklist on both and report it per
+   machine.
+   - **The VM** usually has no GPU. Expect the smoke and the app to log a software render API; that is fine. It
+     is the place for install, upgrade, the keyboard and the mouse through the console.
+   - **The Surface** adds three things to report:
+     - its precision touchpad sends a two-finger swipe as a stream of wheel events with inertia, so the
+       one-gesture-one-page rule must hold there (tune the burst end on this device, not on a mouse);
+     - touch and the pen reach the app as mouse events through Windows: a tap is a click, a finger drag is a drag
+       turn, and the pen draws in note mode;
+     - there is no pinch or other multi-touch. Touch stays out of scope (see Out of scope). Report what the Surface
+       does, so VLL can decide whether touch on Windows becomes its own task.
+
 ## Additions from the gate (2026-11-01, after WIN01 and WIN02 landed)
 
 These come from the WIN01 and WIN02 reviews. Where they differ from D1 to D8, they win.

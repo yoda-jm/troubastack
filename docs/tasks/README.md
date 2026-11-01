@@ -257,6 +257,7 @@ are. The iOS hoist stays deferred. Order: WIN01 ∥ WIN02 → WIN03 → WIN04 an
 | WIN04 | [Windows self-update from the `latest` release](WIN04-windows-self-update.md) | mobile | S/M |
 | WIN05 | [Embedded Studio on Windows: measured spike, VLL decides](WIN05-embedded-studio-spike.md) | web-core | S |
 | WIN06 | [Windows in the docs and on the public site](WIN06-windows-in-the-docs-and-on-the-site.md) | web-core | S |
+| DESK01 | [Linux AppImage + macOS DMG (unsigned) from the same CI matrix](DESK01-linux-and-macos-packages.md) | web-core | M |
 
 ## Phase 2 — opt-in modes & debt retirement
 

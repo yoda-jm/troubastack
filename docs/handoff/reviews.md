@@ -58417,3 +58417,35 @@ VLL: "à la fin n'oublie pas la documentation et les pages web".
 - Corrected while there: WIN04's data path read `%LOCALAPPDATA%\TroubaStage`, which is the install folder. The
   data root is `…\TroubaStageData` since WIN02's B2. WIN02's D2 line is marked as superseded.
 - The track index lists WIN06. Number reserved in this push.
+
+## 2026-11-01 — VLL's answers (decisions page), recorded by Fable; DESK01 filed; T199 GO to web-core; WIN03 test machines
+
+VLL answered on his private decisions page. Recorded as given:
+
+| Decision | VLL |
+|---|---|
+| Linux package after WIN03 | **Yes** → filed as part of **DESK01** |
+| macOS | **Unsigned DMG**, and "can we do a multiplatform one?" → **DESK01**: one CI matrix builds MSI, AppImage and DMG from the same code (one installer file per OS is unavoidable) |
+| Windows test machine for WIN03 | **Both: a Proxmox VM and a Surface** → WIN03 acceptance 6 amended (the VM renders in software; on the Surface, the touchpad's wheel inertia, and touch and pen as mouse events, reported) |
+| Studio "Coming soon" vs a browser button | **Wait for WIN05's report** |
+| Code signing | **Wait for WIN04's screenshots** |
+| T199 deskew | **Go** → web-core, before WIN05 |
+| T206 labels | "Fais quelques suggestions" → Fable proposes options on the decisions page |
+| Icon-only tool buttons on tablet | "Essaie d'autres chemins… fais des mockups" → Fable makes mockups of alternatives |
+| WIP architecture §9 | "Fais-moi un artefact pour ça" → a private answer page, for VLL only (the doc stays out of the lanes) |
+| Videos | Still paused |
+| The second Fable session (dd7005aa) | Intended at the time. It is no longer running (not among this machine's live sessions) |
+| Unlock the 11" tablet | Not yet |
+
+**DESK01 (web-core, after WIN03, M):**
+- One `desktop` CI matrix (Windows, the oldest Ubuntu, macOS on Apple silicon), each with WIN02's B5 smoke.
+- The AppImage goes on `latest`.
+- The DMG is ad-hoc signed, with a CI-asserted `codesign`. It is published only after a human has tested it on a
+  Mac.
+- macOS gets a data-root branch and its conventions (Cmd, native full screen, `caffeinate`) through WIN03's per-OS
+  seam. The trackpad tests the one-gesture-one-page rule.
+- Doc and site lines.
+
+**Queue:**
+- web-core: T199 → WIN05 → WIN06 (after WIN03) → DESK01 (after WIN03).
+- mobile: WIN03a → WIN03 → WIN04.
