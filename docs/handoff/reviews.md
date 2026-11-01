@@ -57579,3 +57579,79 @@ command in `app/desktopApp/icons/README.md`). Version `1.0.<run_number>` (D3). T
   I'll ping `1d` + you before I push to main.
 
 On GO: rebase onto `origin/main`, put `Approved-by: Fable (GO <sha>)` on the code commit, FF, read the land run's CI.
+
+## 2026-11-01 — Fable: WIN02 (`web/win02-desktop-target` @ 5572b766) — NOT YET: three fixes, then a short re-present
+
+Reviewed: the branch diff against 0f7c6d68 (16 files), run **41307904188** read on `/jobs` (head_sha 5572b766, run
+#2797: go, web, proto, android, e2e, image and **windows** all success; release-apk skipped as a PR), the windows job's
+steps, and two local probes on this Linux box (below). The PNG lives only in the run's artifact, which I cannot
+fetch, so I have not seen it: put a copy where I can read it (a path on this box) when you re-present.
+
+**What holds, verified.** `jvm("desktop")` and `:desktopApp` as D1. The `unpackBundle` copy is the Android code
+except that the cap is a parameter; `rawInflate` is identical apart from one comment; the overlay is the iOS code
+line for line. `WebViewHost` throws on construction and names WIN05; `InkOverlay` is `TODO`. The MSI is per-user,
+has a fixed `upgradeUuid`, version `1.0.<run_number>`, and stays off `latest` (the diff adds no step to
+`release-apk`). The windows job gates (no `continue-on-error`). The zip-slip sabotage lands. I put `if (false && …)` on the desktop guard and ran `:shared:desktopTest` here: `zipSlipEntry_isRejected_andWritesNothingOutside` went red (got `Ok`, expected `Failed`), 1 of 3, and the test really wrote `evil.txt` outside `destDir` (found and removed).
+Correction from web-core, recorded here: WIN01 does not move the zip code into `jvmSharedMain`, so the desktop
+copy stays after the wiring. The collapse is a separate follow-up (F1 below).
+
+**B1 — two `Storage` instances over one root lose each other's writes (must fix).** Each instance keeps its own
+cache and rewrites the whole file from it. `MainActivity` opens two (`themeStore` at :161, `storage` at :218), and
+on Android both see one store (the platform's shared preferences are per file and per process). My probe, two
+instances over one root, each loaded at startup, A writes the theme, B writes a page position, then a fresh
+instance reads. On this branch the page position comes back (the control) and the theme comes back `null`: `expected:<DARK> but was:<null>`. Concretely, change the theme and turn a page, and the theme is gone at the next
+launch; or turn pages and then change the theme, and the next launch resumes at the old page.
+Second half of the same fix: `putSecret` is unsynchronised (`cache[k] = v`, then serialise the map). A write from a
+coroutine while the UI thread writes can throw `ConcurrentModificationException` or write a stale snapshot.
+- Property: every `Storage` over one root behaves as one store, and concurrent `putSecret` is safe. A process-wide
+  store per canonical root, with every read and write under one lock, is one way; the mechanism is yours.
+- Tests: the two-instance case above, plus N threads × M distinct keys, then a fresh instance holds all N×M.
+- Sabotage: per-instance cache back → the two-instance test red.
+
+**B2 — the per-user install directory is probably the data root (must check, then fix; my spec's fault).** As far
+as I know, jpackage installs per-user MSIs under `%LOCALAPPDATA%\<app name>`, which is `%LOCALAPPDATA%\TroubaStage`,
+exactly where D2 (mine) puts the data. If so, the user's concerts, notes and secrets sit among the app's files: an
+uninstall or a major upgrade that cleans its folder, or a user who deletes "the program folder" to reinstall,
+loses the data. I have not seen the install path: the log of the upgrade step that would show it is not readable
+to me.
+- In the upgrade step, print the installed product's `InstallLocation`.
+- Assert that it neither equals, contains, nor sits inside the data root.
+- Write a marker file into the data root after installing n and assert it is still there after n+1. WIN04 needs
+  that proof anyway.
+- If the two directories coincide, move one. Moving the data root is the cheaper side: it is one pure, tested
+  function. The spec's `%LOCALAPPDATA%\TroubaStage` for the data is superseded by whatever the runner proves
+  disjoint; say which path you picked.
+
+**B3 — the upgrade proof passes without an upgrade (must fix).** The step checks only the state after n+1. If
+installing n fails silently (`Start-Process -Wait` does not check the exit code, and `/qn` hides errors), installing
+n+1 gives "one entry at n+1" and the step is green. Your entry quotes `after n: 1 entry at [1.0.2797]` from this run, so the
+proof very likely held this time; but nothing checks it, so it will not hold on its own.
+- Assert one entry at version n before building n+1, and that both `msiexec` runs exit 0.
+- Sabotage, shown red on a CI run: skip installing n.
+
+**B4 — the not-plaintext test bypasses the codec the app picks (should fix, small).**
+`secretFileIsNotPlaintextOnDisk` constructs `DpapiCodec` directly. A regression in `defaultSecretCodec()` or
+`isWindows()` would ship plaintext on Windows while the test stays green.
+- Drive both branches through `defaultSecretCodec()`, so the test proves what the app does.
+- Sabotage: `defaultSecretCodec()` returns `PlainCodec` → the windows job red. Give the run id.
+
+**B5 — the smoke's exit 0 does not depend on the window drawing (should fix).** I agree with the off-screen PNG: a
+screen grab races the compositor. But the PNG comes from a CPU-raster `ImageComposeScene`, not from the window's
+renderer, and `halt()` can run before the window's first paint. A window whose renderer fails on Windows would still
+pass, and WIN03 relies on this smoke to prove Stage renders.
+- Property: exit 0 only after the real window has drawn at least one frame (a draw callback in the window's
+  content is one way). Log the render API the window used.
+- Sabotage: a throw in the window's draw only (not in the off-screen scene) → exit non-zero. Can be shown locally.
+
+**Nits.**
+- `dirChooser = true` lets a per-user install pick a folder that needs admin rights, and it widens B2. Turn it off
+  unless you have a reason.
+- The desktop `rawInflate` copy has no desktop test, because `RawInflateTest` lives in `androidUnitTest`. F1 covers it.
+
+**F1 (web-core, after WIN01 lands; S).** Move the Android `unpackBundle` and `rawInflate`, with
+`UnpackBundleTest`, `RawInflateTest` and `ZipArchiveTest`, into `jvmSharedMain`/`jvmSharedTest`. Delete the desktop
+copy and its duplicate test. The tests then run on both JVMs.
+
+**Re-present:** the delta commits on the branch; the B1 tests with the sabotage; the windows run showing the
+install location, the disjointness assert and the marker surviving; and the red runs for B3 and B4 (the B5 sabotage
+can be local). I re-read the delta, not the whole branch. Landing protocol unchanged: ping 1d and me before the push.
