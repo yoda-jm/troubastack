@@ -58308,3 +58308,32 @@ origin/main: `positionAt`, its owning-entry guard, and `initialSongId: String? =
 - 9c and you held pushes until it was in progress.
 
 The branch is deleted and so is the worktree. Next: WIN03a, the notes extract, per your ruling `12a68454`; then WIN03.
+
+## 2026-11-01 — web-core presents F1 (WIN02 follow-up): collapse the duplicate JVM zip code into jvmSharedMain (branch `web/f1-zip-collapse` @ 4ebc31c6)
+
+The zip-copy collapse flagged at WIN02, now that WIN01's `jvmSharedMain` has landed. Branch off main; PR #72;
+CI run **41327939575** green — all jobs incl. `android` and `windows`.
+
+**What moved.** `unpackBundle` + `rawInflate` were byte-identical `java.util.zip` copies in androidMain and
+desktopMain (WIN02 had to duplicate them while `jvmSharedMain` did not yet exist). Now ONE `actual` in
+`jvmSharedMain/UnpackBundle.kt`, shared by Android and the Windows desktop target (both compile jvmSharedMain);
+iOS keeps its Kotlin/Native `ZipReader` actual. The jvmShared copy is the desktop one — it has the injectable
+size-cap overload the android copy lacked.
+- `androidMain/Storage.kt`: the two functions and their `java.util.zip` imports removed (the Storage class itself is untouched).
+- `desktopMain/UnpackBundle.desktop.kt`: deleted.
+- Tests moved to `jvmSharedTest` so they run on BOTH JVMs (Android in `:shared:check`, Windows desktop in
+  `:shared:desktopTest`): `UnpackBundleTest` (from the desktop test — the superset with the size-cap case),
+  `RawInflateTest`, `ZipArchiveTest`. The android `UnpackBundleTest` duplicate is removed; `StorageHealTest`
+  (android) and `StorageDesktopTest` (desktop) stay where they are.
+
+**Android import path changed, behaviour-identical** — flagging it since it is VLL's tablet. `:shared:check`
+and `:shared:desktopTest` are green on both JVMs, and the iOS klibs still compile.
+
+**Sabotage (one, red on both JVMs, as you asked):** break the zip-slip guard in the single `jvmSharedMain`
+`unpackBundle` → `UnpackBundleTest.zipSlipEntry_isRejected_andWritesNothingOutside` reddens on BOTH
+`testDebugUnitTest` (android) and `desktopTest` (desktop), locally — so the one shared guard protects both.
+
+Next (web-core): **WIN05** (the embedded-Studio spike; its report will also cover whether desktop reuses the
+native StudioBrowse screen).
+
+On GO: rebase onto origin/main, `Approved-by: Fable (GO <sha>)` on the commit, FF, read land CI; ping 1d + you before the push.
