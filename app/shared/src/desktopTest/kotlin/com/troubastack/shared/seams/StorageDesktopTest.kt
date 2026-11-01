@@ -1,6 +1,7 @@
 package com.troubastack.shared.seams
 
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermission
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -141,6 +142,27 @@ class StorageDesktopTest {
     @Test fun missingFile_isSimplyEmpty_notAReset() {
         assertNull(Storage(root, PlainCodec).getSecret("anything"))
         assertFalse(Storage.settingsWereReset)
+    }
+
+    // ---- F2: a transient READ failure must NOT be treated as corruption ----
+
+    @Test fun readFailure_isUnavailable_neverHeals_getNull_putSkipped() {
+        // Seed a real store, then open it with a reader that throws IOException (disk busy, a lock, a blip).
+        Storage(root, PlainCodec).putSecret("token", "keep-me")
+        val f = File(root, "secrets.dat")
+        assertTrue(f.isFile)
+
+        val failing = Storage(root, PlainCodec, reader = { throw IOException("disk busy") })
+        assertNull(failing.getSecret("token"), "a read failure reads as no-value, not a crash")
+        failing.putSecret("other", "2") // must not write (would clobber an unread store) and must not crash
+
+        assertFalse(Storage.settingsWereReset, "a transient read failure must NOT heal/reset the store")
+        assertTrue(f.isFile, "the store file must NOT be deleted on a read failure")
+
+        // Once reads work again the original store is intact, and the skipped put never landed.
+        val ok = Storage(root, PlainCodec)
+        assertEquals("keep-me", ok.getSecret("token"))
+        assertNull(ok.getSecret("other"), "the put during the read failure must not have been written")
     }
 
     // ---- protected at rest: DPAPI (Windows) / 0600 (elsewhere) ----

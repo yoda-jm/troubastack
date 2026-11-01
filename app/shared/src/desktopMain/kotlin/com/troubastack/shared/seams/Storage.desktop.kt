@@ -6,6 +6,7 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -30,6 +31,9 @@ import java.util.concurrent.ConcurrentHashMap
 actual class Storage internal constructor(
     private val root: File,
     private val codec: SecretCodec,
+    // F2: the file read is a seam so a test can make it throw — a transient read failure must NOT be treated
+    // as corruption (it must not wipe the store). Default is a plain read.
+    private val reader: (File) -> ByteArray = { it.readBytes() },
 ) {
     /** The entrypoint (:desktopApp) constructor: root from the OS/env, DPAPI on Windows else plaintext. */
     constructor() : this(defaultDataRoot(), defaultSecretCodec())
@@ -43,32 +47,49 @@ actual class Storage internal constructor(
     // Rehearsal notes live BESIDE bundles/, never inside a bundle (a re-import destroys bundles/<id>). (A70)
     actual fun notesDir(): String = File(root, "notes").apply { mkdirs() }.path
 
-    actual fun getSecret(key: String): String? = synchronized(lockFor(root)) { loadOrHeal()[key] }
-
-    actual fun putSecret(key: String, value: String) {
-        synchronized(lockFor(root)) {
-            val m = loadOrHeal().toMutableMap()
-            m[key] = value
-            persist(m)
+    actual fun getSecret(key: String): String? = synchronized(lockFor(root)) {
+        when (val r = loadOrHeal()) {
+            is Load.Ok -> r.map[key]
+            Load.Unavailable -> null // F2: a transient read failure reads as "no value", never a crash
         }
     }
 
-    /** A54 (desktop): read + decrypt + parse the store, or heal to empty — never throw. A missing file is
-     *  simply empty. A file that cannot be decrypted or parsed (wrong DPAPI user after a restore, a truncated
-     *  write, a format change) is deleted and the process-global reset signal is raised, so Home can show the
-     *  "settings were reset" notice; what is lost is a session + settings, never a concert (those are files).
+    actual fun putSecret(key: String, value: String) {
+        synchronized(lockFor(root)) {
+            // F2: if the store could not be READ (a transient failure), skip the write rather than clobber a
+            // store we cannot see — and never crash the caller (Stage writes the position on every page turn).
+            val current = loadOrHeal()
+            if (current is Load.Ok) {
+                val m = current.map.toMutableMap()
+                m[key] = value
+                persist(m)
+            }
+        }
+    }
+
+    /** A54 + F2 (desktop): load the store, distinguishing a TRANSIENT READ failure from CORRUPTION — never throw.
+     *  - missing file → an empty store;
+     *  - the read fails (IOException: disk busy, a lock, a permission blip) → [Load.Unavailable]; the file is
+     *    left ALONE (never deleted) and the caller degrades (get → null, put → skip), so a blip cannot wipe
+     *    settings;
+     *  - bytes read but cannot be DECRYPTED or PARSED (wrong DPAPI user after a restore, a truncated write, a
+     *    format change) → genuine corruption: delete + raise the A54 reset signal, heal to an empty store.
      *  Called only under the per-root lock. */
-    private fun loadOrHeal(): Map<String, String> {
+    private fun loadOrHeal(): Load {
         root.mkdirs()
         val f = secretsFile
-        if (!f.isFile) return emptyMap()
+        if (!f.isFile) return Load.Ok(emptyMap())
+        val bytes = try {
+            reader(f)
+        } catch (e: IOException) {
+            return Load.Unavailable
+        }
         return try {
-            val plain = codec.decrypt(f.readBytes())
-            Json.decodeFromString(KV, String(plain, StandardCharsets.UTF_8))
+            Load.Ok(Json.decodeFromString(KV, String(codec.decrypt(bytes), StandardCharsets.UTF_8)))
         } catch (e: Exception) {
             settingsWereReset = true
             runCatching { f.delete() }
-            emptyMap()
+            Load.Ok(emptyMap())
         }
     }
 
@@ -123,6 +144,15 @@ actual class Storage internal constructor(
         }
     }
 }
+
+/** F2 — the outcome of loading the secret store: read + usable, or a TRANSIENT read failure that must not heal. */
+private sealed interface Load {
+    data class Ok(val map: Map<String, String>) : Load
+    data object Unavailable : Load
+}
+
+/** The desktop data root as the app resolves it (F2.3 nit — CI reads this instead of hard-coding the folder). */
+fun desktopDataRoot(): String = defaultDataRoot().path
 
 /** How the secret file's bytes are protected at rest. Injected so the plaintext and heal paths are testable
  *  on any OS, and so DPAPI is referenced but only INSTANTIATED on Windows. */

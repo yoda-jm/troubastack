@@ -587,6 +587,17 @@ jobs:
           if ($p.ExitCode -ne 0) { Write-Error "smoke exited with $($p.ExitCode)"; exit 1 }
           if (-not ((Test-Path $png) -and ((Get-Item $png).Length -gt 0))) { Write-Error "smoke wrote no PNG"; exit 1 }
           Write-Host "smoke OK — $((Get-Item $png).Length) bytes"
+      - name: secret store cost — DPAPI get/put p50/p95 (F2)
+        working-directory: app
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $exe) { Write-Error "packaged exe not found for --bench"; exit 1 }
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "bench-store"  # isolated store, real DPAPI
+          $p = Start-Process -FilePath $exe -ArgumentList @("--bench", "bench.txt") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Write-Error "bench exited $($p.ExitCode)"; exit 1 }
+          if (-not (Test-Path bench.txt)) { Write-Error "bench wrote no report"; exit 1 }
+          Get-Content bench.txt | Write-Host   # p50/p95 land in the job log (and the artifact)
       - name: prove upgrade-in-place (one entry at n, upgrade to n+1, data survives, install disjoint from data)
         working-directory: app
         shell: pwsh
@@ -594,7 +605,15 @@ jobs:
           $ErrorActionPreference = "Stop"
           $n   = "1.0.${{ github.run_number }}"
           $n1  = "1.0.$([int]${{ github.run_number }} + 1)"
-          $dataRoot = Join-Path $env:LOCALAPPDATA "TroubaStageData"   # must match resolveDataRoot (B2)
+          # F2.3 nit — the data root comes FROM THE APP (--print-data-root), not a hard-coded folder name, so CI
+          # follows resolveDataRoot automatically. A GUI app's stdout is not captured, so it writes to a file.
+          $exe = (Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $exe) { Write-Error "packaged exe not found for --print-data-root"; exit 1 }
+          $drFile = "$env:RUNNER_TEMP\dataroot.txt"
+          $pr = Start-Process -FilePath $exe -ArgumentList @("--print-data-root", $drFile) -Wait -PassThru
+          if ($pr.ExitCode -ne 0 -or -not (Test-Path $drFile)) { Write-Error "--print-data-root failed (exit $($pr.ExitCode))"; exit 1 }
+          $dataRoot = (Get-Content $drFile -Raw).Trim()
+          if (-not $dataRoot) { Write-Error "--print-data-root returned empty"; exit 1 }
           function Entries { @(
             "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
             "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
@@ -615,10 +634,10 @@ jobs:
           # on upgrade). Print both, assert neither contains the other, then prove a data-root marker survives.
           $install = $afterN[0].InstallLocation
           Write-Host "InstallLocation = [$install]   dataRoot = [$dataRoot]"
-          if ($install) {
-            $i = $install.TrimEnd('\'); $d = $dataRoot.TrimEnd('\')
-            if ($d -eq $i -or $d.StartsWith("$i\") -or $i.StartsWith("$d\")) { Write-Error "data root and install dir are NOT disjoint"; exit 1 }
-          }
+          # F2.3 nit — an empty InstallLocation must be an ERROR, not a silently skipped disjoint check.
+          if (-not $install) { Write-Error "InstallLocation is empty — cannot verify it is disjoint from the data root"; exit 1 }
+          $i = $install.TrimEnd('\'); $d = $dataRoot.TrimEnd('\')
+          if ($d -eq $i -or $d.StartsWith("$i\") -or $i.StartsWith("$d\")) { Write-Error "data root and install dir are NOT disjoint"; exit 1 }
           New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
           $marker = Join-Path $dataRoot "marker.txt"; "keep me" | Set-Content $marker
 
@@ -642,3 +661,4 @@ jobs:
           path: |
             app/troubastage-*.msi
             app/smoke.png
+            app/bench.txt

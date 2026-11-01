@@ -27,6 +27,8 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.troubastack.shared.buildinfo.appBuildLine
+import com.troubastack.shared.seams.Storage
+import com.troubastack.shared.seams.desktopDataRoot
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.system.exitProcess
@@ -63,6 +65,23 @@ private fun AppRoot(onDraw: () -> Unit = {}) {
 private var windowDrew = false
 
 fun main(args: Array<String>) {
+    // F2.3 nit — CI reads the data root the app actually resolves, instead of hard-coding the folder name.
+    // Writes to the given file (a GUI app's stdout is not captured on CI); falls back to stdout locally.
+    val pdrIdx = args.indexOf("--print-data-root")
+    if (pdrIdx >= 0) {
+        val path = desktopDataRoot()
+        val outArg = args.getOrNull(pdrIdx + 1)?.takeUnless { it.startsWith("--") }
+        if (outArg != null) File(outArg).writeText(path) else println(path)
+        return
+    }
+    // F2.2 — measure the secret store's get/put cost (DPAPI on Windows) so WIN03 knows whether writes must
+    // move off the UI thread. Writes the report to the given file (a GUI app's stdout is not captured on CI),
+    // and uses Storage() (the real root — the CI step points TROUBASTAGE_HOME at a temp dir).
+    val benchIdx = args.indexOf("--bench")
+    if (benchIdx >= 0) {
+        runBench(File(args.getOrNull(benchIdx + 1) ?: "bench.txt"))
+        return
+    }
     val smokeIdx = args.indexOf("--smoke")
     if (smokeIdx >= 0) {
         val out = args.getOrNull(smokeIdx + 1)
@@ -147,4 +166,46 @@ private fun renderFrame(out: File) {
     } finally {
         scene.close()
     }
+}
+
+/**
+ * F2.2 — the secret store's get/put cost on the calling thread (DPAPI on Windows). A realistic store (a handful
+ * of keys), then 200 puts overwriting ONE key — the Stage page-turn scenario ("position written on every page
+ * turn") — and 200 gets of it. Reports p50/p95 in ms, and flags a put p95 over 16 ms (one display frame at
+ * 60 Hz), which would mean WIN03 must write off the UI thread or the store needs a shared per-root map.
+ */
+private fun runBench(out: File) {
+    val s = Storage()
+    repeat(10) { s.putSecret("key-$it", "val-$it") } // a realistic resident store size
+    repeat(20) { s.putSecret("position", "$it"); s.getSecret("position") } // warm up (JIT, DPAPI handles)
+
+    val n = 200
+    val putNs = LongArray(n)
+    val getNs = LongArray(n)
+    for (i in 0 until n) {
+        val t0 = System.nanoTime(); s.putSecret("position", "$i"); putNs[i] = System.nanoTime() - t0
+    }
+    for (i in 0 until n) {
+        val t0 = System.nanoTime(); s.getSecret("position"); getNs[i] = System.nanoTime() - t0
+    }
+
+    fun ms(a: LongArray, p: Double): Double {
+        val sorted = a.sorted()
+        return sorted[((sorted.size - 1) * p).toInt()] / 1_000_000.0
+    }
+    val putP95 = ms(putNs, 0.95)
+    val codec = if (System.getProperty("os.name").orEmpty().startsWith("Windows", true)) "DPAPI" else "plaintext"
+    val report = buildString {
+        appendLine("bench: os=${System.getProperty("os.name")} codec=$codec n=$n")
+        appendLine("bench: get  p50=%.3f ms  p95=%.3f ms".format(ms(getNs, 0.50), ms(getNs, 0.95)))
+        appendLine("bench: put  p50=%.3f ms  p95=%.3f ms".format(ms(putNs, 0.50), putP95))
+        appendLine(
+            if (putP95 > 16.0) "bench: WARNING put p95 %.3f ms > 16 ms — WIN03 must write off the UI thread or add a shared per-root map".format(putP95)
+            else "bench: OK put p95 within one 60 Hz frame (16 ms)",
+        )
+    }
+    out.absoluteFile.parentFile?.mkdirs()
+    out.writeText(report)
+    print(report)
+    System.out.flush()
 }
