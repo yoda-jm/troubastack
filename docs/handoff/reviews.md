@@ -58810,3 +58810,67 @@ unchanged. Land CI run **41348416523** on `976071dc`: all 8 jobs green incl. win
 **:8080 redeploy is DEFERRED and BATCHED** with the incoming "Main set" + count fix (VLL's ab944a28): I built
 the T206 demo binary (clean version 976071dc) but have NOT swapped it, so the demo gets ONE redeploy carrying
 both the T206 labels and the Main-set/count change, per Fable's "redeploy together if you haven't yet."
+
+## 2026-11-01 — mobile presents: A95 — in-app Update no longer crashes (branch `mobile/a95-update-crash` @ 7a38fd9b, PR #77) — reviewer: Fable
+
+One commit on `ab944a28`.
+
+**Fix.**
+- The manifest declares `android.permission.ACCESS_NETWORK_STATE`, a normal permission granted at install.
+- `AppUpdater.onMeteredNetwork` never throws: an unreadable network counts as **metered**, so the person is asked
+  first. The `Context` version now goes through an internal seam, `onMeteredNetwork(isMetered: () -> Boolean)`.
+
+**Sweep of the update path.** Every system call, checked against the manifest:
+
+| Call | Needs | Status |
+|---|---|---|
+| `HttpURLConnection` (fetch and download) | INTERNET | declared |
+| `isActiveNetworkMetered` | ACCESS_NETWORK_STATE | **was missing, now declared** |
+| `canRequestPackageInstalls`, the `PackageInstaller` session | REQUEST_INSTALL_PACKAGES | declared |
+| `getPackageInfo(own package)`, `getPackageArchiveInfo` | nothing | — |
+| `ACTION_MANAGE_UNKNOWN_APP_SOURCES` intent | nothing | — |
+| the status `PendingIntent`'s `UpdateInstallReceiver` | a manifest entry | declared, `exported=false` |
+
+Nothing else was missing.
+
+**Tests.** `UpdatePathTest`, androidApp unit, 3 tests:
+- The manifest declares every permission the path calls. Sabotage: drop ACCESS_NETWORK_STATE, and it goes red.
+- The status receiver is declared.
+- The metered check through a throwing seam returns metered. Sabotage: drop the catch, and it goes red with the
+  tablet's exact `SecurityException` escaping.
+
+Both sabotages were run in one run (2 of 3 red), then restored. The diff is the fix only.
+
+**PR CI (the new rule):** PR #77, run **`41352396719`**, success on every job, **windows included**.
+
+**The real n → n+1 update on the emulator (`Trouba_Tablet_1200`, API 36).**
+- **The installed build:**
+  - It is my head `7a38fd9b`, a genuine **"ci"** build: a clean tree, `CI=true`, versionCode **2800** through `GITHUB_RUN_NUMBER`.
+  - Its `BUILT_AT` was back-dated to 20:00Z by a Gradle init script outside the repo, so that `latest` (published 20:07:50Z)
+    reads as newer. Nothing else differs.
+  - `apksigner`: same certificate as `latest`'s APK (`e9967532…a426`), and `latest` is versionCode **2843** (`064a5cd`).
+- **On Wi-Fi:**
+  1. Home's banner, from the ci channel's own automatic check: "App update available · built 2026-11-01 20:07 UTC".
+  2. Update asks "Allow TroubaStage to install its updates" → Android's Install unknown apps → allowed.
+  3. Update again: the download runs (26 → 44 → 80 %), verification passes, and **Android's installer prompt "Do you
+     want to update this app?"** appears.
+  4. I confirmed it: versionCode 2843 is installed, and on reopening, the concert on the device is still there.
+- **On mobile data** (Wi-Fi off; the emulator's 5G is metered): I reinstalled 2800 and used Parameters → About →
+  Check for updates → Update.
+  - **"Download on mobile data? The app update is about 15 MB."** appears first.
+  - Download leads to **the installer prompt** again.
+- **No crash at any step:** the crash buffer is empty and the app's process survived.
+- **Screenshots:** `/tmp/claude-1000/-home-yoda-dev-git-troubastack/bc71b4a7-ce27-499f-9ffd-580b0cb4d245/scratchpad/a95-evidence/`
+  (`5-SYSTEM-INSTALLER-PROMPT-wifi.png`, `8-METERED-ASK-mobile-data.png`, `9-SYSTEM-INSTALLER-PROMPT-mobile-data.png`, and the
+  steps between).
+
+**Could not simulate:**
+- VLL's HyperOS install flow.
+- A real carrier: the emulator's metered network is simulated.
+
+**Seen, outside A95:** after the system install, Android returns to the launcher rather than reopening TroubaStage.
+A88's comment ("the app restarts on Home") overstates it: the person reopens it. Say if you want it filed.
+
+**For the LANDED note (as you asked):** VLL's tablet runs a build with this bug, so it **cannot update itself**. It
+needs **one manual install** of the `latest` APK in Chrome, over the old app. It has the same key, so the data is kept.
+After that, self-update works.
