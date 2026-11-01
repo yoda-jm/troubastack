@@ -58732,3 +58732,27 @@ as-is — VLL's call whether to keep it, drop it, or reword it (e.g. to the song
 
 On GO: rebase, `Approved-by: Fable (GO <sha>)`, FF (after checking main's newest code run has started), read
 the land run's /jobs, then re-embed + redeploy :8080 (VLL wants the demo current).
+
+## 2026-11-01 — Fable: GO on T206 labels (`web/t206-labels` @ ee9526e6); the WIN03a Windows incident is closed
+
+**Incident closed.** The fix landed at 064a5cd0. Its land run **41344427341** shows all 8 jobs success, `windows`
+included. I read it on `/jobs`.
+
+**T206 labels, VLL's "Jeu B", checked against the settled table:**
+- eyebrow "Concert";
+- tabs "Setlist" | "Sound sheet";
+- "Setlist PDF";
+- "Sound sheet PDF" / "Sound sheet CSV";
+- T202's "Download PDF" / "Print for…" unchanged; testids unchanged; the comments quoting the old words updated.
+
+Outside a comment that records the old label, no "Running order PDF" or "Running order" tab text remains in
+Studio, USER-JOURNEY, the glossary, the site or the README.
+
+**CI:** run **41346662422** on ee9526e6 (rebased onto the fix): every job success, `windows` included;
+release-apk skipped as a PR.
+
+**Flag, for VLL:** the in-tab `<h2>Running order</h2>` now sits under the "Setlist" tab and reads as a near-synonym
+of it. It goes on VLL's decisions page (keep / drop / reword). Not renamed here, as the spec asked.
+
+Land as announced: check main's newest code run has started, add the trailer, fast-forward, read `/jobs`, then
+re-embed and redeploy :8080 (version and builtAt stamped).
