@@ -46,6 +46,10 @@ test("setlist: add an intermission between two songs — unnumbered, renameable,
   await expect(rows.nth(2)).toContainText("2.");
   await expect(rows.nth(1)).not.toContainText("2.");
 
+  // T206 follow-up: the "Main set" count is SONGS ONLY — the intermission is named separately, not counted
+  // as a song (before the fix this read "3 songs" because the raw main length included the break).
+  await expect(page.getByTestId("main-set-count")).toHaveText("2 songs · 1 intermission");
+
   // A break is not a song: it must not render a link into /songs/<empty>, which would be a dead route
   // wearing a title. It renders a centered divider (its name between two rules) instead.
   const breakLabel = rows.nth(1).getByTestId("item-intermission-label");

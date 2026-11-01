@@ -30,3 +30,19 @@ export function runningOrderNumbers(entries: RunningOrderEntry[]): (number | nul
   let n = 0;
   return entries.map((e) => (e.kind === "song" && !e.onCall ? ++n : null));
 }
+
+/**
+ * The "Main set" count line (T206 follow-up) — SONGS ONLY. An intermission (T153) sits inline in the main set,
+ * so a bare length over-counts it (the demo concert read "5 songs" for 4 songs + 1 intermission). Count
+ * intermissions separately in Studio's own word; both words pluralise, and the intermission part is dropped
+ * when there are none. [entries] are the main-set entries (bench excluded by the caller). A legacy entry with
+ * no `kind` reads as a song.
+ * Examples: `0 songs`, `1 song`, `4 songs`, `4 songs · 1 intermission`, `4 songs · 2 intermissions`.
+ */
+export function mainSetCountLabel(entries: { kind?: string }[]): string {
+  const intermissions = entries.filter(isIntermission).length;
+  const songs = entries.length - intermissions;
+  const songPart = `${songs} song${songs === 1 ? "" : "s"}`;
+  if (intermissions === 0) return songPart;
+  return `${songPart} · ${intermissions} intermission${intermissions === 1 ? "" : "s"}`;
+}
