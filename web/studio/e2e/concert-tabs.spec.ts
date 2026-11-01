@@ -1,5 +1,5 @@
 /**
- * T206 — the concert page is "Running order" | "Sound sheet" as two route-based tabs under one shared
+ * T206 — the concert page is "Setlist" | "Sound sheet" as two route-based tabs under one shared
  * header. These drive the tab behaviour (deep-link, Back, active marking), prove each tab shows only its
  * own exports, and that the tab strip doesn't break the sheet's sticky-header offset under the topbar.
  */
@@ -26,7 +26,7 @@ test("concert tabs: deep-link to the sound sheet, Back returns, active marked on
   await register(page, `tabs${stamp()}`);
   const { id, slId } = await makeConcert(page);
 
-  // The strip shows on the running-order tab; Running order is active, Sound sheet is not.
+  // The strip shows on the Setlist tab; Setlist is active, Sound sheet is not.
   await expect(page.getByTestId("concert-tab-order")).toBeVisible();
   await expect(page.getByTestId("concert-tab-sheet")).toBeVisible();
   await expect(page.getByTestId("concert-tab-order")).toHaveAttribute("aria-current", "page");
@@ -60,7 +60,7 @@ test("concert tabs: each tab shows only its own exports", async ({ page }) => {
   await register(page, `tabsx${stamp()}`);
   const { id: bandId, slId } = await makeConcert(page);
 
-  // Running order tab: the running-order PDF; NOT the sheet's PDF/CSV.
+  // Setlist tab: the setlist PDF; NOT the sheet's PDF/CSV.
   await expect(page.getByTestId("export-setlist-pdf")).toBeVisible();
   await expect(page.getByTestId("sheet-pdf")).toHaveCount(0);
   await expect(page.getByTestId("sheet-csv")).toHaveCount(0);

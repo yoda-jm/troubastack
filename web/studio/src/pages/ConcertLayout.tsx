@@ -13,7 +13,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { ConcertTabs } from "../components/ConcertTabs";
 
 /**
- * T206 — "Running order" and "Sound sheet" are TWO TABS OF ONE CONCERT, so they share one layout route
+ * T206 — "Setlist" and "Sound sheet" are TWO TABS OF ONE CONCERT, so they share one layout route
  * (the T130 BandLayout pattern): this element owns the crumb, the concert header (name, date · venue, the
  * page-level chips) and the tab strip, fetches the concert ONCE, and renders the active tab through
  * <Outlet/>. Switching tabs no longer re-mounts the header or re-fetches the concert, and the header is
@@ -108,8 +108,8 @@ export function ConcertLayout() {
   const bandConcert = concerts.find((c) => c.concertId === setlistId) ?? null;
 
   // The crumb + header are defined ONCE, here, so the two tabs can't diverge. "Up" from either tab is the
-  // setlists list — one label, one destination (the old sound-sheet "← Concert" crumb is gone; the Running
-  // order tab IS the concert).
+  // setlists list — one label, one destination (the old sound-sheet "← Concert" crumb is gone; the Setlist
+  // tab IS the concert).
   return (
     <div className="page">
       <Link className="crumb" to={`/bands/${bandId}/setlists`}>
@@ -117,9 +117,9 @@ export function ConcertLayout() {
       </Link>
       <header className="phead">
         <div>
-          {/* T206 binding 2 (Fable): the eyebrow keeps its existing word "Setlist" — "Concert" was a
-              product word changing as a side effect; it's on the label list for VLL to settle. */}
-          <div className="eyebrow">Setlist</div>
+          {/* T206 binding 2: VLL settled the eyebrow on "Concert" (2026-11-01, "Jeu B"); the tabs carry
+              "Setlist" | "Sound sheet". */}
+          <div className="eyebrow">Concert</div>
           <h1 className="title" data-testid="setlist-detail-title">
             {setlist.name}
           </h1>
