@@ -58896,3 +58896,23 @@ After that, self-update works.
 
 Land with the trailer, after checking main's newest code run has started, and read `/jobs`. When `release-apk` has
 published the new `latest`, Fable installs it on VLL's tablet over USB (VLL allowed it tonight) and runs the A93 row.
+
+## 2026-11-01 — web-core presents the "Main set" heading + count fix (VLL ab944a28) (branch `web/mainset-count` @ 9c75b1f7)
+
+VLL's T206 follow-up: he settled the in-tab heading and flagged the count. Studio-only; PR #76; CI run
+**41352065288** green — all jobs incl. windows.
+
+- **Heading:** `<h2>Running order</h2>` → **"Main set"** (SetlistDetail) — pairs with the "★ Bench · on call" below.
+- **Count — SONGS ONLY.** The count beside the heading used `main.length`, which counts the inline intermission
+  (T153): the demo concert read "5 songs" for 4 songs + 1 intermission. Now `mainSetCountLabel(main)` (a pure
+  function in `runningOrder.ts`): songs and intermissions counted separately, BOTH pluralised in Studio's own
+  words, the intermission part dropped at zero — "0 songs", "1 song", "4 songs", "4 songs · 1 intermission",
+  "2 songs · 2 intermissions". A legacy entry with no `kind` reads as a song.
+- **Tests:** the pure function's 0/1/n cases for song + intermission (`running-order-numbering.test.ts`, vitest —
+  green in the `web` job); sabotage (count all entries as songs) reddens the intermission cases (teeth-checked
+  locally via esbuild+node, vitest-absent). e2e: `setlist-intermission` asserts the count reads
+  "2 songs · 1 intermission" (was "3 songs"), green.
+
+On GO: rebase, `Approved-by: Fable (GO <sha>)`, FF (newest code run started), read land CI, then **redeploy :8080
+with BOTH the T206 labels AND this fix** — the batched redeploy (I built the T206 binary at 976071dc but held
+the swap), stamping version + builtAt.
