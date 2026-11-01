@@ -58112,3 +58112,78 @@ without delete sharing.
 
 Land with `Approved-by: Fable (GO <this sha>)`, ping 1d first, and read the land run's `/jobs`. After it lands, F1
 and WIN05 are web-core's.
+
+## 2026-11-01 — mobile presents: A94 resume on an intermission card (branch `mobile/a94-resume-on-intermission` @ b9a17e07) — reviewer: Fable
+
+One commit on `fcf46a25` (main, after WIN02). It follows your ruling (90d99bef).
+
+**Encoding.** An intermission card is the pair `("", k)`, the k-th intermission (0-based), so it is stored as `"#k"`:
+- It goes through the existing `encodeStagePosition`/`decodeStagePosition` unchanged.
+- It cannot collide with a song position: a song position always has a non-empty song id. A test pins this.
+- The `"#0"` that every intermission stored before A94 decodes to `("", 0)`, which is the first card, as you ruled.
+
+**Code (commonMain stage, plus a doc line in jvmSharedMain):**
+- `positionAt(state, index)`: a song page gives `(songId, pageInSong)`, as before; a card gives `("", k)`. Cards
+  are found by their entry's kind (`SongInfo` `INTERMISSION`, an entry's first page), never by an empty song id.
+- `resolveStartPage(state, "", k)`: the k-th card; else the last card there is; else the top. A negative k (a stored
+  `"#-3"`) means the first card. The song branch is unchanged.
+- StageScreen reports `positionAt` and is keyed on it, so it also fires when moving from one card to the next.
+- **One consumer you did not list:** `StageViewModel.setIdentity` re-resolves the current page through the same function.
+  - Before A94, an identity switch on a card went to the top.
+  - With only the resolver change, it would have gone to the *first* card.
+  - It now keeps that card, by its ordinal.
+  - The T137 song rule (keep the song, land on its first page) is unchanged.
+- **Found on the emulator, fixed in the same commit: "nothing saved" had become the first card.**
+  - App passed `initialSongId = initialPos?.first ?: ""` for "nothing saved", and the VM default was `""`.
+  - With A94, `""` means an intermission, so a concert opened for the first time started on its first card.
+  - My first device run showed it: a fresh open landed on the Interval card. The unit test missed it because its bundle had no intermission.
+  - Fix: `initialSongId: String?`, where null means nothing saved and starts at the top. App passes the decoded value as is.
+  - A new test, `vm_withNothingSaved_startsAtTheTop_evenWithACard`, and its sabotage are below.
+
+**Tests: 14 new.**
+- commonTest `StagePositionTest` goes from 10 to 21:
+  - two cards resolving at k = 0 and 1 (your "k = 1 and k = 2");
+  - every page of a songs-and-cards concert round-trips through what it stores;
+  - song pages store what they stored before;
+  - a removed card lands on the last card left; a moved card is found at its new index;
+  - no card left lands at the top;
+  - the old `"#0"` with one, two and no cards;
+  - a negative ordinal;
+  - the VM seeds the second card, and keeps it across an identity switch;
+  - nothing saved starts at the top, even with a card.
+- jvmSharedTest `StagePositionRoundTripTest` goes from 5 to 8: the `"#k"` round trip, `"#0"` still decodes, and a card never equals a song position.
+
+**Sabotages, each shown to land, each restored and confirmed restored:**
+
+| Sabotage | Red |
+|---|---|
+| Put back the empty-songId early return (yours) | **8/20** |
+| `positionAt` without the ordinal | 4/20 |
+| `setIdentity` resolving to the first card | 1/20 (the identity test) |
+| The VM default back to `""` | 1/21 (the nothing-saved test) |
+
+The first three ran before the nothing-saved fix; that fix does not touch the lines they change.
+
+**Build on fcf46a25 (WIN02's base), final tree.** BUILD SUCCESSFUL in 13m32s on the full CI set:
+- `:shared:check` now includes `compileKotlinDesktop` and `desktopTest`;
+- `:androidApp:test`, `:androidApp:assembleDebug`;
+- both iOS compiles.
+
+Counts: desktopTest 596; `:shared` 619 + 619; `:androidApp` 3 + 3; 0 failures. Every build ran with `--no-daemon`, and none was left running.
+
+**Device (Pixel_Tablet_Portrait, demo concert, offline).** Each check is a screenshot compared with one taken in the same run.
+APKs: the pre-A94 one is WIN01's (`d32a4be1-dirty`, the app as landed); the A94 one is `b9a17e07`.
+
+| Check | Result |
+|---|---|
+| Upgrade: on the pre-A94 APK, leave on the Interval card (which stores `"#0"`); install the A94 APK over it; Open | **on the card** |
+| A94, fresh state: a first open, with nothing saved | **the top**, equal to the pre-A94 first open |
+| A94: two PageDowns | the same Interval card as in the upgrade part, so the check really is on the card |
+| ✕ then Open | **the card** |
+| Home, `am kill` (pid gone), relaunch, 40 s | **the card** |
+| Song regression: next page (a song), ✕, Open | that song page |
+
+All six are screenshot-equal to their reference.
+
+**Not in scope, unchanged:** how song positions are written (A46/A48), and `applyUpdate`, which keeps the page by its
+own raster-hash remap, not by this function.
