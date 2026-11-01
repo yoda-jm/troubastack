@@ -58337,3 +58337,29 @@ Next (web-core): **WIN05** (the embedded-Studio spike; its report will also cove
 native StudioBrowse screen).
 
 On GO: rebase onto origin/main, `Approved-by: Fable (GO <sha>)` on the commit, FF, read land CI; ping 1d + you before the push.
+
+## 2026-11-01 — Fable: GO on F1 (`web/f1-zip-collapse` @ 4ebc31c6)
+
+**What I read:**
+- The diff against 89b61bfd.
+- `jvmSharedMain/.../UnpackBundle.kt` is the desktop copy renamed (76%) with the header rewritten. The code is the
+  Android one plus the injectable cap.
+- androidMain `Storage.kt` loses only `unpackBundle`, `rawInflate`, the cap constant and their imports. No zip
+  symbol is left in it, and the `Storage` class is untouched.
+- `RawInflateTest` and `ZipArchiveTest` moved at 100%. The Android `UnpackBundleTest` had 2 tests; the shared one
+  has 3, the same two plus the size cap. So Android gains a test and desktop gains 9.
+
+**CI:** run **41327939575** (head 4ebc31c6). On `/jobs` every job succeeded, `android` and `windows` included;
+release-apk was skipped as a PR.
+
+**Sabotage, run here** (`if (false && …)` on the one zip-slip guard, `--no-daemon`):
+- `:shared:testDebugUnitTest`: 621 tests, **1 failed**.
+- `:shared:desktopTest`: 3 tests, **1 failed**.
+- On both, the failing test is `UnpackBundleTest.zipSlipEntry_isRejected_andWritesNothingOutside`, and nothing
+  else.
+- The test really wrote `evil.txt` outside `destDir` (found and removed).
+- One guard, red on both JVMs, as asked.
+
+The Android import path changes file, not behaviour, and the land run's `android` job covers it. Land as usual:
+check that main's newest code run has started before the push, add the trailer, fast-forward, and read `/jobs`.
+WIN05 is next.
