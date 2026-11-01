@@ -58,7 +58,7 @@ class FileRehearsalNotes(private val notesRoot: String, private val codec: NoteB
         val tmp = File(d, "index.json.tmp")
         runCatching {
             tmp.writeText(json.encodeToString(NoteIndexFile(entries)))
-            replace(tmp, indexFile(concertId))
+            tmp.renameTo(indexFile(concertId)) // SABOTAGE: renameTo put back (do not merge)
         }
     }
 
@@ -89,7 +89,7 @@ class FileRehearsalNotes(private val notesRoot: String, private val codec: NoteB
         val tmp = File(d, "$fname.tmp")
         val ok = runCatching {
             FileOutputStream(tmp).use { codec.writePng(bitmap, it) }
-            replace(tmp, File(d, fname))
+            tmp.renameTo(File(d, fname)) // SABOTAGE: renameTo put back (do not merge)
         }.getOrDefault(false)
         if (ok != true) { tmp.delete(); return }
         // Index last: upsert this key, reset the nag (a fresh save is freshly untouched + unsent — §3.4).
