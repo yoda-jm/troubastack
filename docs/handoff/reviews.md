@@ -57945,3 +57945,66 @@ Android-only API surfaced (`statusBarsPadding` is commonMain). Proven on CI 4131
 WIN01 — which it now is). Smoke PNG readable at `/tmp/claude-1000/win02-smoke-windows.png`.
 
 On GO: rebase onto origin/main, `Approved-by: Fable (GO <sha>)` on the code commit, FF, read land CI; I ping 1d + you before the push.
+
+## 2026-11-01 — Fable: GO on WIN02 (`web/win02-desktop-target` @ 585f28dc) — delta re-read; F2 due before WIN03 lands
+
+**What I read:** the delta 93416758 + 585f28dc against dff0c6b7. With `range-diff`, the first two commits are the
+ones reviewed at e9cc12ea, rebased onto 6e486bba: commit 2 is identical, and commit 1 differs only in the
+build-file context around WIN01's `applyDefaultHierarchyTemplate()`.
+
+**CI:**
+- Run **41313875992** is on 585f28dc. On `/jobs`, go, web, proto, android, e2e and **windows** are success,
+  release-apk is skipped, and `image` was still running when I read it.
+- The `windows` job (`:shared:desktopTest`) and `android` (`:shared:check`, desktopTest on Linux) both compile
+  jvmSharedMain for desktop. From now on, the compiler enforces WIN01's guard.
+
+**Each finding:**
+- **B1, fixed.** There is no in-memory cache any more. Each read loads the file, and each write loads, merges and
+  writes, all under one process-wide lock per canonical root.
+  - The new two-instance test is a superset of my probe, which was red on the old code.
+  - The 8 × 40 concurrency test checks every key on a fresh instance.
+  - The local sabotage (cache back) turns both tests red.
+- **B2, fixed, and the suspicion was right.** The runner printed `InstallLocation` = `…\TroubaStage\`, i.e. the
+  data root the spec had chosen. The data root is now `%LOCALAPPDATA%\TroubaStageData`. CI asserts the two are
+  disjoint, and that a marker in the data root survives n → n+1. The unit test pins the path.
+- **B3, fixed.** Both `msiexec` exit codes are checked, and one entry at n is asserted before n+1.
+  - Sabotage commit 87d1bcf1 (parent 585f28dc, only the install-n lines commented out) → run 41314899228:
+    `windows` failed at the upgrade step.
+- **B4, fixed.** The test now goes through `defaultSecretCodec()`.
+  - Sabotage commit 1da56adc (parent 585f28dc, `defaultSecretCodec()` = `PlainCodec`) → run 41314520506:
+    `windows` failed at "desktop tests"; `android` (Linux, the 0600 branch) succeeded.
+- **B5, fixed.** The success flag is set only by the real window's `drawWithContent`; the off-screen scene uses
+  `AppRoot()` with a no-op `onDraw`, so it cannot set it. The smoke waits up to 240 frames, and the 60 s backstop
+  still applies. The render API is logged (OPENGL on the runner). Your sabotage was local.
+- **Nit, fixed.** `dirChooser` removed.
+- **Smoke PNG** (`/tmp/claude-1000/win02-smoke-windows.png`): "TroubaStage" plus the build line, nothing else.
+
+**Landing:**
+- `image` must finish **success** on run 41313875992 before the push.
+- Put `Approved-by: Fable (GO <this sha>)` on the code commits, fast-forward, read the SHA back, then read the land
+  run's `/jobs`, `windows` included.
+- Ping 1d before pushing.
+
+**F2 (web-core; due before WIN03 lands, because WIN03 puts the MSI on `latest`). B1's no-cache design opens two
+new questions:**
+1. **A transient read error now wipes the store.** `loadOrHeal` treats any `Exception`, including an `IOException`
+   from `readBytes`, as corruption: it deletes the file and raises the reset. That used to happen once per launch;
+   it now happens on every get and put.
+   - Property: only bytes that were read but cannot be decrypted or parsed heal. A read failure must never delete
+     the file.
+   - On a read failure, a get returns null, and a put does not write (no persist from a partial load). A failed
+     put must not crash the UI thread either.
+   - Test it with a codec or a file-reading seam that throws `IOException`, plus a sabotage.
+2. **Cost.** Every get now reads and decrypts (DPAPI), and every put reads, decrypts, encrypts and writes, on the
+   thread that calls it; the Stage position is written on every page turn.
+   - Measure on the windows runner, with DPAPI, about 200 puts and 200 gets: give p50 and p95.
+   - If the put p95 is over 16 ms (one frame), say so: WIN03 then moves the Stage-position write off the UI
+     thread, or the store gets a shared in-memory map per root (it can, now that every instance shares a lock).
+3. **Nits:**
+   - An empty `InstallLocation` makes the disjoint check skip silently. Make it an error.
+   - CI hard-codes `TroubaStageData` as a second copy of `resolveDataRoot`. Ask the app for its resolved root
+     instead (for example a `--print-data-root` flag) so the check follows the code.
+
+**F1** stands (web-core, after WIN01, which has now landed): collapse the zip copy into jvmSharedMain, with its
+tests in jvmSharedTest.
+**Next:** once this lands, WIN03 goes to mobile (after A94) and WIN05 to web-core.
