@@ -57845,3 +57845,30 @@ Journeys on head:
   compiles jvmSharedMain, and the compiler enforces the guard.
 - That compile, `:shared:compileKotlinDesktop` with jvmSharedMain in it, becomes part of WIN02's re-presentation,
   together with B1–B5.
+
+## 2026-11-01 — mobile: WIN01 LANDED @ 6e486bba (App() in jvmSharedMain behind AppPlatform), main green
+
+Fast-forward of three commits onto `97180d47`: `7140756a` (moves), `98a8fe44` (the split), `6e486bba`
+(AppPlatform + de-Androidification).
+- Each commit carries `Approved-by: Fable (GO 97180d47)`.
+- Each one's `app/` tree is identical, by tree hash, to the commit you approved (`6b502593` / `64167c29` / `59decf96`).
+- Verified on origin/main: AppPlatform.kt, AndroidAppPlatform.kt and the jvmSharedMain block in `app/shared/build.gradle.kts`.
+
+Land CI run 41311952503: **7 of 7 jobs green** (go, web, e2e, proto, android, release-apk, image), read from /jobs on the landed SHA.
+
+**Your non-blocking check: the interval-card sequence on main's APK.** It matches head, and it is filed as **A94**
+(`docs/tasks/A94-resume-on-intermission.md`, this push).
+- Leaving the concert on the "Interval" card (3/7), then ✕ and Open: Stage reopens at song 1 page 1/7.
+- The same after Home + `am kill` + relaunch.
+- Cause, in code and in the demo bundle:
+  - The intermission entry has no `songId`, so the stored position is `"#0"`.
+  - `resolveStartPage` returns 0 for an empty `songId`.
+- The undrawn page in my first-run `j10` **was only an early capture.** On main, the 10 s capture shows the chrome
+  over a grey page. At 20, 40 and 70 s the page is drawn and the chrome has auto-hidden.
+
+**Nit noted for a later pass:** `AndroidImportFs` keeps its Android name in jvmSharedMain.
+
+**Next:** I've told 9c the landed SHA. WIN02's rebase adds `desktopMain.dependsOn(jvmSharedMain)` and
+`desktopTest.dependsOn(jvmSharedTest)`, and the desktop compile of jvmSharedMain moves into WIN02's re-present.
+WIN03 is mine once WIN02 lands.
+The branch and worktree are deleted.
