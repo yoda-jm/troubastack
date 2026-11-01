@@ -8,6 +8,9 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 /** The on-disk shape of one concert's note index (§3.3 — the index is the truth about what exists). */
@@ -55,7 +58,7 @@ class FileRehearsalNotes(private val notesRoot: String, private val codec: NoteB
         val tmp = File(d, "index.json.tmp")
         runCatching {
             tmp.writeText(json.encodeToString(NoteIndexFile(entries)))
-            tmp.renameTo(indexFile(concertId))
+            replace(tmp, indexFile(concertId))
         }
     }
 
@@ -86,7 +89,7 @@ class FileRehearsalNotes(private val notesRoot: String, private val codec: NoteB
         val tmp = File(d, "$fname.tmp")
         val ok = runCatching {
             FileOutputStream(tmp).use { codec.writePng(bitmap, it) }
-            tmp.renameTo(File(d, fname))
+            replace(tmp, File(d, fname))
         }.getOrDefault(false)
         if (ok != true) { tmp.delete(); return }
         // Index last: upsert this key, reset the nag (a fresh save is freshly untouched + unsent — §3.4).
@@ -113,6 +116,18 @@ class FileRehearsalNotes(private val notesRoot: String, private val codec: NoteB
         val f = File(dir(concertId), fileNameFor(key))
         return if (f.exists()) runCatching { f.readBytes() }.getOrNull() else null
     }
+
+    /** Put [tmp] in place of [target] in one step, replacing it. Not `File.renameTo`: on Windows it refuses an
+     *  existing target (returns false), so every index rewrite after the first and every re-save was lost there
+     *  (WIN03a, seen on the windows CI job). Same-directory move: rename(2) on Linux/Android, MoveFileEx on Windows. */
+    private fun replace(tmp: File, target: File): Boolean = runCatching {
+        try {
+            Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING) // as WIN02's desktop Storage
+        }
+        true
+    }.getOrDefault(false)
 
     private fun sha256(s: String): String {
         val d = MessageDigest.getInstance("SHA-256").digest(s.encodeToByteArray())
