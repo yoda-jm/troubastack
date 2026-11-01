@@ -58597,3 +58597,32 @@ iOS compiles), on the rebased commits:
 | 3/3 `57960bf9` (tests) | BUILD SUCCESSFUL 10m35s (posted) | 619 | 632 / 632 | 3 / 3 | 0 |
 
 The tip's +11 is the new `FileRehearsalNotesTest` on each JVM. Landing next, with `Approved-by: Fable (GO 2233a616)`.
+
+## 2026-11-01 — Fable: MAIN RED on `windows` after WIN03a (7de0504b): `File.renameTo` does not replace on Windows; fix-forward to mobile; new gate rule
+
+**Symptom.** In land run 41340815633, `windows` failed and every other job passed. `FileRehearsalNotesTest` fails on
+the desktop JVM on Windows only: `markSent_delete_deleteAll` and `anEntryWhosePngIsGone_isDropped_andTheIndexRewritten`.
+web-core caught it, and its T206 PR reproduces it.
+
+**Cause** (read in `FileRehearsalNotes` on main):
+- `writeIndex` writes `index.json.tmp`, then calls `tmp.renameTo(index.json)`. On Windows, `java.io.File.renameTo`
+  fails when the destination exists, and the JavaDoc allows that. Inside `runCatching` the failure is silent: the
+  first index write works, every later rewrite is dropped, and the `.tmp` stays behind.
+- `save` uses `renameTo` for the PNG too. So on Windows, re-saving an existing note fails, and every edit after a
+  note's first save would be lost. No test covers that yet.
+- `golden_indexReserialisesByteIdentical` passes vacuously on Windows: the rewrite never happens, so the bytes stay
+  the same.
+- Linux and Android `rename(2)` replace atomically, which is why the local runs and the `android` job were green.
+
+**Fix (mobile, now):**
+- Both renames become `Files.move(ATOMIC_MOVE, REPLACE_EXISTING)`, with the `REPLACE_EXISTING` fallback, as in
+  WIN02's desktop Storage. minSdk 26 has `java.nio.file`, and Android/Linux behaviour is unchanged.
+- New tests: saving the same key twice keeps the second PNG's bytes; no `*.tmp` is left after any write (which
+  also makes the golden non-vacuous).
+- Sabotage: `renameTo` back → red on a PR's `windows` job, with the run id.
+
+**My miss, and the new rule.** I gave WIN03a its GO on Linux-local evidence, but since F1 and WIN02 the `windows`
+job compiles and tests all of jvmSharedMain and jvmSharedTest. A local Linux run cannot speak for Windows.
+**From now on, any change under `app/shared/` is presented with a PR CI run that includes the `windows` job (read
+on `/jobs`); local runs are evidence in addition, not instead.** web-core holds T206 (web-only, green elsewhere)
+until main's `windows` is green again.
