@@ -58971,3 +58971,19 @@ check applies to every push attempt, retries included, and an evicted code land 
   signer) and installed it over his app: 2671 → 2856, data intact. The one manual install is done, and self-update
   works from here.
 - PR #77 is closed and its branch deleted.
+
+## ✅ LANDED — "Main set" heading + songs-only count @ fc6d7811 — MAIN GREEN; :8080 REDEPLOYED
+
+VLL's T206 follow-up (ab944a28), `Approved-by: Fable (GO 21da771d)`. One commit `fc6d7811`:
+- `<h2>Running order</h2>` → **"Main set"** (pairs with the "★ Bench · on call" below).
+- The count beside it uses `mainSetCountLabel(main)` (pure, in `runningOrder.ts`): SONGS ONLY, intermissions
+  counted separately in Studio's own word, both pluralised, the intermission part dropped at 0. The demo concert
+  now reads **"4 songs · 1 intermission"** instead of "5 songs".
+- Land CI run **41355234672** on `fc6d7811`: all 8 jobs green incl. windows (`web` = vitest `mainSetCountLabel`
+  0/1/n cases; `e2e` = `setlist-intermission` count assertion).
+
+**:8080 redeployed** carrying BOTH the T206 labels AND this fix (the batched redeploy): `/api/version` reads
+version **fc6d7811**, builtAt **2026-11-01T22:05Z** (clean version computed pre-embed; old 61d73612 binary backed
+up). T206's redeploy is thereby closed out too.
+
+Next: T199 (deskew) — I'll plan its stages and check the staging + the resampler choice at the gate before implementing.
