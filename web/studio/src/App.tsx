@@ -47,7 +47,7 @@ export function App() {
           <Route path="lineups" element={<Lineups />} />
           <Route path="settings" element={<BandSettings />} />
         </Route>
-        {/* T206: Running order + Sound sheet are tabs of one concert — a shared layout owns the crumb,
+        {/* T206: Setlist + Sound sheet are tabs of one concert — a shared layout owns the crumb,
             header and tab strip and fetches the concert once; the two render through its Outlet. */}
         <Route path="/bands/:bandId/setlists/:setlistId" element={<ConcertLayout />}>
           <Route index element={<SetlistDetail />} />

@@ -136,8 +136,8 @@ export function SoundSheet() {
         <button type="button" className="btn-sm" data-testid="sheet-order" aria-pressed={order === "patch"} onClick={() => setOrder((o) => (o === "stage" ? "patch" : "stage"))}>
           {order === "stage" ? "Order: stage" : "Order: patch"}
         </button>
-        <a className="btn-sm" data-testid="sheet-pdf" href={api.sheetPdfUrl(bandId, setlistId, order)} target="_blank" rel="noreferrer">PDF</a>
-        <a className="btn-sm" data-testid="sheet-csv" href={api.sheetCsvUrl(bandId, setlistId, order)} target="_blank" rel="noreferrer">CSV</a>
+        <a className="btn-sm" data-testid="sheet-pdf" href={api.sheetPdfUrl(bandId, setlistId, order)} target="_blank" rel="noreferrer">Sound sheet PDF</a>
+        <a className="btn-sm" data-testid="sheet-csv" href={api.sheetCsvUrl(bandId, setlistId, order)} target="_blank" rel="noreferrer">Sound sheet CSV</a>
         {isAdmin && (
           <>
             <button type="button" className="btn-sm" data-testid="sheet-autonumber" onClick={() => void autoNumber()}>Auto-number</button>

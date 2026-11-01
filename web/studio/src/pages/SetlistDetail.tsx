@@ -33,7 +33,7 @@ import { BakeDialog } from "./BakeDialog";
 import { PdfDialog } from "./PdfDialog";
 import { useConcert } from "./ConcertLayout";
 
-// T206: the Running order tab. The concert (setlist, items, role, bakes) is loaded once by ConcertLayout
+// T206: the Setlist tab. The concert (setlist, items, role, bakes) is loaded once by ConcertLayout
 // and shared through context; this tab owns only the band song library (the add-song picker) and the
 // running-order editing. The shared header + tab strip + crumb live in the layout.
 export function SetlistDetail() {
@@ -118,9 +118,9 @@ export function SetlistDetail() {
           LIVE — edits to these songs are auto-publishing to performers
         </div>
       )}
-      {/* T206: the running-order tab's own exports/actions live in the tab (not the shared header). The
-          running-order PDF (T158) sits here; the bake controls + the member-scoped PDF are in the Bake
-          panel below. "Running order PDF" is VLL's docs-stage label (was "Export PDF"). */}
+      {/* T206: the Setlist tab's own exports/actions live in the tab (not the shared header). The
+          setlist PDF (T158) sits here; the bake controls + the member-scoped PDF are in the Bake
+          panel below. "Setlist PDF" is VLL's settled label (2026-11-01; was "Running order PDF"). */}
       <div className="concert-actions" data-testid="running-order-actions">
         <button
           type="button"
@@ -128,7 +128,7 @@ export function SetlistDetail() {
           data-testid="export-setlist-pdf"
           onClick={() => void exportPdf()}
         >
-          Running order PDF
+          Setlist PDF
         </button>
         {setlist.archived && myRole === "admin" && (
           <button
