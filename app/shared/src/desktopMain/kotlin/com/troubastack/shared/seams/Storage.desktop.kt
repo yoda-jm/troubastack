@@ -34,6 +34,9 @@ actual class Storage internal constructor(
     // F2: the file read is a seam so a test can make it throw — a transient read failure must NOT be treated
     // as corruption (it must not wipe the store). Default is a plain read.
     private val reader: (File) -> ByteArray = { it.readBytes() },
+    // F2 binding: the temp write is a seam so a test can make a WRITE fail — putSecret must not throw on the
+    // caller's (UI) thread. Default is a plain write.
+    private val writeBytes: (java.nio.file.Path, ByteArray) -> Unit = { p, b -> Files.write(p, b) },
 ) {
     /** The entrypoint (:desktopApp) constructor: root from the OS/env, DPAPI on Windows else plaintext. */
     constructor() : this(defaultDataRoot(), defaultSecretCodec())
@@ -94,22 +97,29 @@ actual class Storage internal constructor(
     }
 
     /** Called only under the per-root lock. */
+    /** Atomic write (temp beside the target, 0600 before any bytes land on a POSIX disk, then rename).
+     *  F2 binding: a WRITE failure must NOT throw on the caller's thread — which is the UI thread on a page
+     *  turn (Stage writes the position on every turn). On an IOException (full disk, a temp that cannot be
+     *  created, an ATOMIC_MOVE onto a file an antivirus/indexer holds without delete-sharing) the on-disk store
+     *  is left exactly as it was — only the temp is touched, and it is removed — so the next put simply retries. */
     private fun persist(map: Map<String, String>) {
         root.mkdirs()
-        val bytes = codec.encrypt(Json.encodeToString(KV, map).toByteArray(StandardCharsets.UTF_8))
-        // Atomic write: a temp beside the target, 0600 before any bytes land on a POSIX disk, then rename.
-        val tmp = Files.createTempFile(root.toPath(), "secrets", ".tmp")
+        var tmp: java.nio.file.Path? = null
         try {
+            val bytes = codec.encrypt(Json.encodeToString(KV, map).toByteArray(StandardCharsets.UTF_8))
+            tmp = Files.createTempFile(root.toPath(), "secrets", ".tmp")
             restrictToOwner(tmp.toFile())
-            Files.write(tmp, bytes)
+            writeBytes(tmp, bytes)
             try {
                 Files.move(tmp, secretsFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
             } catch (e: java.nio.file.AtomicMoveNotSupportedException) {
                 Files.move(tmp, secretsFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
             restrictToOwner(secretsFile)
+        } catch (e: IOException) {
+            // write failed — leave the store as it was; the next put retries. Never thrown to the caller.
         } finally {
-            Files.deleteIfExists(tmp)
+            tmp?.let { runCatching { Files.deleteIfExists(it) } }
         }
     }
 

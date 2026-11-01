@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -163,6 +164,25 @@ class StorageDesktopTest {
         val ok = Storage(root, PlainCodec)
         assertEquals("keep-me", ok.getSecret("token"))
         assertNull(ok.getSecret("other"), "the put during the read failure must not have been written")
+    }
+
+    @Test fun writeFailure_doesNotThrow_leavesStore_cleansTemp_nextPutRetries() {
+        // F2 binding: a WRITE failure (full disk, an ATOMIC_MOVE onto a file an AV/indexer holds) must not throw
+        // on the caller's (UI) thread. The store is left as it was, the temp is removed, the next put retries.
+        Storage(root, PlainCodec).putSecret("a", "1") // seed
+        val f = File(root, "secrets.dat")
+        val before = f.readBytes()
+
+        val failing = Storage(root, PlainCodec, writeBytes = { _, _ -> throw IOException("disk full") })
+        failing.putSecret("b", "2") // must NOT throw
+
+        assertContentEquals(before, f.readBytes(), "a failed write must leave the store exactly as it was")
+        assertEquals(0, root.listFiles { file -> file.name.endsWith(".tmp") }?.size ?: 0, "the temp must be removed")
+
+        // Writes work again: the next put succeeds and nothing was corrupted.
+        Storage(root, PlainCodec).putSecret("b", "2")
+        assertEquals("2", Storage(root, PlainCodec).getSecret("b"))
+        assertEquals("1", Storage(root, PlainCodec).getSecret("a"))
     }
 
     // ---- protected at rest: DPAPI (Windows) / 0600 (elsewhere) ----
