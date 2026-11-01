@@ -57520,3 +57520,62 @@ Pense au full screen et windowed, pense à l'interaction à la souris dans stage
 - Code signing: VLL's call, since it costs money. Without it, SmartScreen warns on a browser download.
 
 **Reviews:** I spec'd this; I review the lanes' work as usual.
+
+## 2026-11-01 — web-core presents: WIN02 desktop target + :desktopApp + Windows MSI (branch `web/win02-desktop-target` @ 5572b766) — reviewer: Fable
+
+Desktop plumbing for a Windows TroubaStage, proven end to end. One branch off `0f7c6d68`; PR #69. The full CI
+run **41307904188** is green — all jobs: go, web, proto, android, e2e, image, **and the new hard-gating
+`windows` job**; release-apk skipped (PR).
+
+**What landed.** `jvm("desktop")` in `:shared` with SIX desktop actuals — the spec's five **plus `rawInflate`**
+(an internal `expect` in `ZipReader.kt`; the desktop compile needs it, it is not in the spec's list):
+- **Storage** — data root `%LOCALAPPDATA%\TroubaStage` on Windows, `${XDG_DATA_HOME:-~/.local/share}/troubastage`
+  elsewhere, both overridable by `TROUBASTAGE_HOME` (resolution is a pure function, unit-tested per branch).
+  One secret file, **DPAPI current-user on Windows** (JNA `Crypt32Util`, dep `net.java.dev.jna:jna(+platform) 5.17.0`)
+  and **`0600`** elsewhere, written atomically (temp + `ATOMIC_MOVE`), **healed to empty on corruption** with the
+  A54 `settingsWereReset` signal — never a crash. The codec is injected so the plaintext and heal paths test on any OS.
+- **`unpackBundle` + `rawInflate`** — plain `java.util.zip`, COPIED from the Android actual **with its zip-slip +
+  size-cap guards and their tests** (D2: `jvmSharedMain` does not exist yet; WIN01 collapses the copy on landing).
+- **`transformOverlayBitmap`** — Skia, byte-for-byte the iOS actual (desktop renders with skiko too).
+- **`localUtcOffsetSeconds`** — `java.time`. **`WebViewHost`** — constructor + methods throw, message names WIN05.
+  **`InkOverlay`** — TODO, as on the other two platforms.
+
+`:desktopApp` is a Compose for Desktop skeleton window (title + the shared build line). The per-user MSI uses a
+fixed `upgradeUuid` (`bbb66ebc-…`), a Start-menu entry, and a `.ico` built from the TroubaStage brand mark (exact
+command in `app/desktopApp/icons/README.md`). Version `1.0.<run_number>` (D3). The MSI is **not** on `latest` (D5, WIN03).
+
+**Each acceptance criterion, and where it was proven:**
+1. **Desktop tests + window; `:shared:check` + `:androidApp:test` green.** Linux: `:shared:desktopTest` = **555 tests,
+   0 failures** (the whole shared suite on the desktop JVM + the new seam tests); `:desktopApp:run` opens the window;
+   `:shared:check` + `:androidApp:test` green. CI `android` job green confirms both on Linux.
+2. **Storage tests** (root override, secret round-trip, heal-on-corrupt, zip-slip + size-cap refusals) — green on both
+   JVMs. **The file-is-not-plaintext test is `StorageDesktopTest.secretFileIsNotPlaintextOnDisk`**: its DPAPI branch
+   ran and passed in the `windows` job (asserts the raw `secrets.dat` bytes do NOT contain the plaintext secret); its
+   `0600` branch runs on Linux.
+3. **`windows` job green; MSI + smoke PNG uploaded.** The packaged app launched with `--smoke` opened its window and
+   rendered a frame (`smoke OK — 6574 bytes`). Artifact `troubastage-windows-msi`: `troubastage-1.0.2797.msi` (64 MB,
+   bundled JRE) + `smoke.png`. **The PNG is attached in chat** (shows `TroubaStage` + the clean CI build line).
+4. **Upgrade-in-place — proven on the runner, not assumed.** Installed MSI `1.0.2797`, then `1.0.2798` (built with the
+   higher version), then queried the per-user + machine Uninstall registry: `after n: 1 entry at [1.0.2797]` →
+   after n+1: **one `TroubaStage` entry at `1.0.2798`**. The step fails if the count ≠ 1 or the version ≠ n+1.
+5. **Other jobs unchanged + iOS klibs compile.** go/web/proto/android/e2e/image all green on run 41307904188;
+   `:shared:compileKotlinIosArm64` and `:shared:compileKotlinIosSimulatorArm64` compile locally (and in the `android` job).
+   Also D4: `:shared:check` now runs `desktopTest` on Linux too — both JVMs agree.
+6. **Both sabotages shown red** (local, each through the real test/exe, then reverted — same discipline as the A93 table;
+   the zip-slip test also runs in CI's `android` + `windows` jobs and the smoke-throw fails the `windows` smoke step, so
+   a CI reproduction is one push away if you want the run ids):
+   - break the zip-slip guard (`if (false && …)`) → `UnpackBundleDesktopTest.zipSlipEntry_isRejected_andWritesNothingOutside`
+     goes red (1 of 3), and the evil entry is written outside `destDir`.
+   - make the smoke render throw → the packaged run exits **1** with no PNG (fast, no hang — the smoke uses `halt()` not
+     `System.exit`, which deadlocks on the AWT shutdown from the Compose thread).
+
+**Notes / calls made (flagging, not ruling):**
+- The `--smoke` PNG is rendered **off-screen via `ImageComposeScene`** (the same skiko pipeline), not a live screen-grab
+  of the window: a screenshot races the compositor (an early capture shows the desktop through the unpainted window) and
+  is flaky on a runner. The real window IS opened first, so a windowing failure still fails the job. Say if you want a
+  literal on-screen grab instead.
+- `OverlayTransform` + the zip code are **copied**, not shared (no `skiaMain`, no `jvmSharedMain` yet). Intentional for WIN02.
+- WIN01 (mobile, `1d`) edits the same `app/shared/build.gradle.kts`; whoever lands second wires `desktopMain → jvmSharedMain`.
+  I'll ping `1d` + you before I push to main.
+
+On GO: rebase onto `origin/main`, put `Approved-by: Fable (GO <sha>)` on the code commit, FF, read the land run's CI.
