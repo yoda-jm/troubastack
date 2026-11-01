@@ -3,11 +3,15 @@ package bake
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"image"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"testing"
 
@@ -222,8 +226,8 @@ func TestCropOffCentreMatchesDirectRender(t *testing.T) {
 func TestRasterKeyIncludesCrop(t *testing.T) {
 	pdf := []byte("%PDF-1.4 fixture")
 	base := rasterKey(pdf, 150, "poppler-x", nil)
-	c1 := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {0.1, 0.1, 0.8, 0.8}})
-	c2 := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {0.2, 0.1, 0.8, 0.8}})
+	c1 := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8}})
+	c2 := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.2, y: 0.1, w: 0.8, h: 0.8}})
 	if base == c1 {
 		t.Error("a crop must change the raster cache key (else a crop serves stale cached pixels)")
 	}
@@ -231,8 +235,56 @@ func TestRasterKeyIncludesCrop(t *testing.T) {
 		t.Error("different crops must produce different keys")
 	}
 	// Deterministic: same crop, same key.
-	if c1 != rasterKey(pdf, 150, "poppler-x", pageCrops{0: {0.1, 0.1, 0.8, 0.8}}) {
+	if c1 != rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8}}) {
 		t.Error("the same crop must hash to the same key")
+	}
+}
+
+// t198RasterKey recomputes the PRE-T199 raster key format independently of the production code, so the test
+// below can prove a T199 angle-0 key is byte-identical to what T198 produced (B2) — not merely equal to
+// itself. If rasterKey ever appends an angle term for a zero angle, this reference diverges and the test reds.
+func t198RasterKey(pdf []byte, dpi int, popplerVer string, crops pageCrops) string {
+	h := sha256.New()
+	h.Write(pdf)
+	fmt.Fprintf(h, "\x00dpi=%d\x00poppler=%s\x00enc=%s", dpi, popplerVer, rasterEncoding)
+	if len(crops) > 0 {
+		idxs := make([]int, 0, len(crops))
+		for i := range crops {
+			idxs = append(idxs, i)
+		}
+		sort.Ints(idxs)
+		for _, i := range idxs {
+			c := crops[i]
+			fmt.Fprintf(h, "\x00crop[%d]=%.6f,%.6f,%.6f,%.6f", i, c.x, c.y, c.w, c.h)
+		}
+	}
+	return "r" + hex.EncodeToString(h.Sum(nil))
+}
+
+// TestRasterKeyAngle covers T199 B2: the deskew angle enters the key ONLY when non-zero (like omitempty), so
+// an uncropped-or-angle-0 page keeps EXACTLY its T198 key and nothing re-rasterizes on deploy; a non-zero
+// angle, and a change to only the angle, both produce a distinct key.
+func TestRasterKeyAngle(t *testing.T) {
+	pdf := []byte("%PDF-1.4 fixture")
+	// Angle 0 (and an absent angle) must hash to the independently computed T198 key, byte for byte.
+	for _, crops := range []pageCrops{
+		{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8}},
+		{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8, angle: 0}},
+	} {
+		if got, want := rasterKey(pdf, 150, "poppler-x", crops), t198RasterKey(pdf, 150, "poppler-x", crops); got != want {
+			t.Fatalf("angle-0 raster key must equal the T198 key\n got=%s\nwant=%s", got, want)
+		}
+	}
+	// A non-zero angle must change the key (else a deskew serves stale cached pixels)...
+	zero := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8}})
+	tilt := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8, angle: 2.5}})
+	if zero == tilt {
+		t.Error("a non-zero deskew angle must change the raster key")
+	}
+	// ...and a change to ONLY the angle must change it too.
+	tilt2 := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8, angle: -2.5}})
+	if tilt == tilt2 {
+		t.Error("changing only the deskew angle must change the raster key")
 	}
 }
 

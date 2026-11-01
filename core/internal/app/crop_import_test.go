@@ -1,6 +1,9 @@
 package app
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 // TestImportCrop sanitizes a crop arriving on an imported file: a valid crop on an uploaded file is kept
 // verbatim, but a crop on a generated chart (P4), a geometrically invalid crop, or one with a non-canonical
@@ -32,5 +35,21 @@ func TestImportCrop(t *testing.T) {
 	nonSquare := &Crop{LockAR: false, Pages: map[string]CropRect{"0": {X: 0.1, Y: 0.1, W: 0.8, H: 0.5, Source: "manual"}}}
 	if got := importCrop(nonSquare, false); got != nil {
 		t.Fatalf("a non-square crop must be dropped under forced AR-lock, got %+v", got)
+	}
+
+	// T199 B1a: an imported deskew angle is rounded to the 0.05° grid, exactly as a save (NormalizeCrop) does,
+	// so an imported angle can never mint a raster hash a save would not have produced. 2.37 → 2.35.
+	tilted := &Crop{Pages: map[string]CropRect{"0": {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: 2.37, Source: "manual"}}}
+	got := importCrop(tilted, false)
+	if got == nil {
+		t.Fatal("a valid tilted crop must be kept")
+	}
+	if a := got.Pages["0"].Angle; math.Abs(a-2.35) > 1e-9 {
+		t.Fatalf("imported angle must be rounded to 0.05° (2.37→2.35), got %v", a)
+	}
+	// An angle past ±10° is DROPPED on import (the dimension-free bound is enforced here).
+	wild := &Crop{Pages: map[string]CropRect{"0": {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: 45, Source: "manual"}}}
+	if importCrop(wild, false) != nil {
+		t.Fatal("a crop with an out-of-range angle must be dropped on import")
 	}
 }

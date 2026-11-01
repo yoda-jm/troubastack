@@ -19,11 +19,28 @@ const cropEps = 1e-6
 // intent, so it is refused rather than baked into a postage-stamp page (spec §Data model).
 const minCropSide = 0.2
 
+// maxDeskewDeg bounds the T199 per-page deskew: small-skew only. A quarter turn (sideways/upside-down scan) is
+// the musician's job (spec §Out of scope), so an angle past ±10° is refused, never auto-rotated.
+const maxDeskewDeg = 10.0
+
+// deskewStepDeg is the angle quantum. Rounding to it on save AND import (so the two agree) keeps float noise
+// from minting a raster hash that only one path would produce.
+const deskewStepDeg = 0.05
+
+// roundDeskew snaps an angle to the 0.05° grid (B1a). Shared by the save (NormalizeCrop) and import so an
+// imported angle can never hash to a raster the save path would not have produced.
+func roundDeskew(a float64) float64 {
+	if a == 0 || isBadFloat(a) {
+		return a // 0 stays 0 (omitempty, the T198-identical key); a non-finite angle is caught by validation
+	}
+	return math.Round(a/deskewStepDeg) * deskewStepDeg
+}
+
 // ValidateCropRect checks one page's bake area against the geometry rules (spec §Data model):
 // 0 ≤ x,y; x+w ≤ 1; y+h ≤ 1; w,h ≥ 0.2. It returns a wrapped ErrInvalidInput naming the broken rule, or nil.
 func ValidateCropRect(r CropRect) error {
 	switch {
-	case isBadFloat(r.X) || isBadFloat(r.Y) || isBadFloat(r.W) || isBadFloat(r.H):
+	case isBadFloat(r.X) || isBadFloat(r.Y) || isBadFloat(r.W) || isBadFloat(r.H) || isBadFloat(r.Angle):
 		return fmt.Errorf("%w: crop numbers must be finite (no NaN/Inf)", ErrInvalidInput)
 	case r.X < -cropEps || r.Y < -cropEps:
 		return fmt.Errorf("%w: crop origin must be inside the page (x,y ≥ 0)", ErrInvalidInput)
@@ -31,6 +48,11 @@ func ValidateCropRect(r CropRect) error {
 		return fmt.Errorf("%w: crop is too small — each side must be at least %.0f%% of the page", ErrInvalidInput, minCropSide*100)
 	case r.X+r.W > 1+cropEps || r.Y+r.H > 1+cropEps:
 		return fmt.Errorf("%w: crop must stay inside the page (x+w ≤ 1, y+h ≤ 1)", ErrInvalidInput)
+	// T199: dimension-free angle bound. The rotated-window-inside-the-page check needs the page aspect, which
+	// this layer never carries (the service has no page dims without rendering), so it is enforced where the
+	// dims exist — Studio clamps it, and the bake clamps defensively — exactly as the page-index RANGE is.
+	case math.Abs(r.Angle) > maxDeskewDeg+cropEps:
+		return fmt.Errorf("%w: crop deskew angle must be within ±%.0f°", ErrInvalidInput, maxDeskewDeg)
 	case r.Source != "manual" && r.Source != "auto":
 		return fmt.Errorf("%w: crop source must be \"manual\" or \"auto\"", ErrInvalidInput)
 	}
@@ -79,6 +101,16 @@ func importCrop(c *Crop, generated bool) *Crop {
 	// hand-edited folder that left LockAR off with a non-square rect is DROPPED, not silently stored
 	// aspect-locked-but-distorted.
 	c.LockAR = true
+	// B1a (T199): round each deskew angle to the 0.05° grid, exactly as NormalizeCrop does on save, so an
+	// imported angle can never mint a raster hash a save would not have produced. Import has no page dims, so
+	// the rotated-window-inside-the-page check is left to the next save (Studio clamps) and the bake's
+	// defensive clamp; only the dimension-free bound (|angle| ≤ 10, finite) is enforced here via ValidateCrop.
+	for key, r := range c.Pages {
+		if a := roundDeskew(r.Angle); a != r.Angle {
+			r.Angle = a
+			c.Pages[key] = r
+		}
+	}
 	if ValidateCrop(*c, 0) != nil {
 		return nil
 	}

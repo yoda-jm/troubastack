@@ -204,7 +204,8 @@ export type SongFile = {
 
 // Crop (T198) is the per-page bake area. lockAR is policy A (always true today: a crop is a pure zoom, so a
 // rect is a SQUARE in page-fraction space). pages maps a stringified 0-based page index to its rect.
-export type CropRect = { x: number; y: number; w: number; h: number; source: string };
+// angle (T199) is the per-page deskew in degrees (+ = counter-clockwise correction); absent/0 ⇒ no rotation.
+export type CropRect = { x: number; y: number; w: number; h: number; angle?: number; source: string };
 export type Crop = { lockAR: boolean; auto?: boolean; pages?: Record<string, CropRect> };
 
 // HiddenMark (T198) names one live mark a crop would push off the tablet — the crop-save dry run returns

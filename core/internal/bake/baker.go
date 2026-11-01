@@ -574,6 +574,10 @@ type stagedFile struct {
 	// T198: the per-page crop that produced this file's rasters (nil ⇒ whole-page). Recorded in the
 	// page-sources sidecar so the server knows each baked page's bake area.
 	crops pageCrops
+	// T199 (B1b): warnings raised while staging this file — e.g. a deskew window whose rotated box reached
+	// past the page, so the bake clamped it. Collected into the bake's terminal warnings so the clamp is
+	// never silent; Studio shows them like any other bake warning.
+	warnings []string
 }
 
 // stagedSong is a song after phase 1 (metadata + rasters), waiting for its overlays from the one
@@ -817,6 +821,16 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 		}
 		pageSizes = append(pageSizes, pageSize{Index: i, Width: cfg.Width, Height: cfg.Height})
 	}
+	// T199 (B1b): a deskew whose rotated window reaches past the page is clamped by the rasterizer (white
+	// fill); warn here so the clamp is never silent. The crop is policy A (w == h), so the cropped raster's
+	// own aspect (outW/outH) EQUALS the source page's aspect, which is exactly what the physical-units
+	// rotated-corner test needs — no extra render, and it runs every bake regardless of the raster cache.
+	var cropWarnings []string
+	for idx, rect := range crops {
+		if rect.angle != 0 && idx >= 0 && idx < len(pageSizes) && deskewWindowSpills(rect, pageSizes[idx].Width, pageSizes[idx].Height) {
+			cropWarnings = append(cropWarnings, fmt.Sprintf("%q: page %d was straightened past the sheet's edge, so a corner of the baked page is blank — narrow or re-centre the crop window.", item.SongTitle, idx+1))
+		}
+	}
 	// Overlays are drawn at the raster's pixel width so they composite 1:1 on the presenter.
 	overlayWidth := 0
 	if len(pageSizes) > 0 {
@@ -832,7 +846,7 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 			ownerByLayer[l.ID] = o
 		}
 	}
-	sf := stagedFile{fileID: file.ID, rasters: rasters, nameByLayer: nameByLayer, ownerByLayer: ownerByLayer, crops: crops}
+	sf := stagedFile{fileID: file.ID, rasters: rasters, nameByLayer: nameByLayer, ownerByLayer: ownerByLayer, crops: crops, warnings: cropWarnings}
 	// T195 (anchoring stage 2): for a generated chart, linked marks are projected onto the chart's current
 	// render before baking, so a mark follows its line (the reflow-orphan guard in assembleSong is the
 	// backstop for fixed and lost marks). Only against a render that reproduces file.BlobHash byte-for-byte
@@ -882,6 +896,7 @@ func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedO
 	rasterRefByHash := map[string]string{}
 	pagesByFile := map[string][]int32{}
 	for _, sf := range st.files {
+		warnings = append(warnings, sf.warnings...) // T199 (B1b): the deskew-clamp warnings staged for this file
 		overlaysByPage := map[int][]renderedOverlay{}
 		for _, ov := range overlaysByKey[sf.overlayKey] {
 			overlaysByPage[ov.Page] = append(overlaysByPage[ov.Page], ov)

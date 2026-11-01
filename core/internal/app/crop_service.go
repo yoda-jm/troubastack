@@ -87,8 +87,18 @@ func NormalizeCrop(crop *Crop) error {
 	crop.LockAR = true
 	crop.Auto = false // a manual save never turns autodetect on; that is a separate task's path.
 	for key, r := range crop.Pages {
+		changed := false
 		if r.Source == "" {
 			r.Source = "manual"
+			changed = true
+		}
+		// T199: snap the deskew angle to the 0.05° grid so a save and an import of the "same" angle can't
+		// differ by float noise and produce two different raster hashes.
+		if a := roundDeskew(r.Angle); a != r.Angle {
+			r.Angle = a
+			changed = true
+		}
+		if changed {
 			crop.Pages[key] = r
 		}
 	}

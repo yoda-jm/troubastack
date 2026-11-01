@@ -15,18 +15,28 @@ func TestValidateCropRect(t *testing.T) {
 	if err := ValidateCropRect(CropRect{X: 0, Y: 0, W: 1, H: 1, Source: "auto"}); err != nil {
 		t.Fatalf("full-page rect rejected: %v", err)
 	}
+	// T199: a small deskew angle within ±10° is valid, boundaries included.
+	for _, a := range []float64{3.25, 10, -10, 0} {
+		if err := ValidateCropRect(CropRect{X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: a, Source: "manual"}); err != nil {
+			t.Fatalf("valid deskew angle %.2f rejected: %v", a, err)
+		}
+	}
 	inf := math.Inf(1)
 	nan := math.NaN()
 	bad := map[string]CropRect{
-		"negative x":  {X: -0.01, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
-		"too small w": {X: 0.1, Y: 0.1, W: 0.19, H: 0.5, Source: "manual"},
-		"too small h": {X: 0.1, Y: 0.1, W: 0.5, H: 0.1, Source: "manual"},
-		"x+w over 1":  {X: 0.6, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
-		"y+h over 1":  {X: 0.1, Y: 0.7, W: 0.5, H: 0.5, Source: "manual"},
-		"bad source":  {X: 0.1, Y: 0.1, W: 0.5, H: 0.5, Source: "pink"},
-		"NaN x":       {X: nan, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
-		"Inf w":       {X: 0.1, Y: 0.1, W: inf, H: 0.5, Source: "manual"},
-		"-Inf y":      {X: 0.1, Y: math.Inf(-1), W: 0.5, H: 0.5, Source: "manual"},
+		"negative x":      {X: -0.01, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
+		"too small w":     {X: 0.1, Y: 0.1, W: 0.19, H: 0.5, Source: "manual"},
+		"too small h":     {X: 0.1, Y: 0.1, W: 0.5, H: 0.1, Source: "manual"},
+		"x+w over 1":      {X: 0.6, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
+		"y+h over 1":      {X: 0.1, Y: 0.7, W: 0.5, H: 0.5, Source: "manual"},
+		"bad source":      {X: 0.1, Y: 0.1, W: 0.5, H: 0.5, Source: "pink"},
+		"NaN x":           {X: nan, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
+		"Inf w":           {X: 0.1, Y: 0.1, W: inf, H: 0.5, Source: "manual"},
+		"-Inf y":          {X: 0.1, Y: math.Inf(-1), W: 0.5, H: 0.5, Source: "manual"},
+		"angle over +10":  {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: 10.5, Source: "manual"}, // T199
+		"angle under -10": {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: -11, Source: "manual"},
+		"NaN angle":       {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: nan, Source: "manual"},
+		"Inf angle":       {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: inf, Source: "manual"},
 	}
 	for name, r := range bad {
 		err := ValidateCropRect(r)
