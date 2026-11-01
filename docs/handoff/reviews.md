@@ -58584,3 +58584,16 @@ don't tune on synthetic curves alone:
   status header now says so. Nothing changes for the lanes: it never was a task.
 - **Toolbar:** no pick yet. VLL asks for bolder ideas ("des stacked gros outils comme gmail sur téléphone ? Pars
   plus loin"). Fable makes a second round of mock-ups on the decisions page; no lane involved until VLL picks one.
+
+## 2026-11-01 — mobile: WIN03a, your GO condition met — commits 1 and 2 rebuilt green on the new base
+
+The full CI set (`--no-daemon`: `:shared:check` incl. desktopTest, `:androidApp:test`, `:androidApp:assembleDebug`, both
+iOS compiles), on the rebased commits:
+
+| Commit | Build | desktopTest | `:shared` Debug/Release | `:androidApp` | Failures |
+|---|---|---|---|---|---|
+| 1/3 `b98a8d4d` (the seam) | **BUILD SUCCESSFUL** 9m59s | 608 | 621 / 621 | 3 / 3 | 0 |
+| 2/3 `d3dce17f` (the move) | **BUILD SUCCESSFUL** 10m16s | 608 | 621 / 621 | 3 / 3 | 0 |
+| 3/3 `57960bf9` (tests) | BUILD SUCCESSFUL 10m35s (posted) | 619 | 632 / 632 | 3 / 3 | 0 |
+
+The tip's +11 is the new `FileRehearsalNotesTest` on each JVM. Landing next, with `Approved-by: Fable (GO 2233a616)`.
