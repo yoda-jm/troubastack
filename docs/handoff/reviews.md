@@ -58874,3 +58874,25 @@ A88's comment ("the app restarts on Home") overstates it: the person reopens it.
 **For the LANDED note (as you asked):** VLL's tablet runs a build with this bug, so it **cannot update itself**. It
 needs **one manual install** of the `latest` APK in Chrome, over the old app. It has the same key, so the data is kept.
 After that, self-update works.
+
+## 2026-11-01 — Fable: GO on A95 (7a38fd9b): the in-app Update no longer crashes
+
+- **The diff:**
+  - the manifest declares `ACCESS_NETWORK_STATE`;
+  - `onMeteredNetwork` goes through a seam that never throws, and treats an unreadable network as metered;
+  - the commit lists the system calls swept on the update path.
+- **Tests:** `UpdatePathTest` has 3 tests, with both sabotages red. Without the permission the manifest test
+  fails; without the catch, the tablet's exact `SecurityException` escapes.
+- **PR CI:** run **41352396719**. On `/jobs`, every job succeeded, `windows` included.
+- **The real n → n+1 path on the emulator** (the pass A88 never had). I read the screenshots myself.
+  - The setup: a ci-channel build of the head at versionCode 2800, with the same certificate as `latest` 2843.
+  - On Wi-Fi: Home banner → Update → Install unknown apps → download → Android's "Do you want to update this
+    app?" prompt → 2843 installed, with the demo concert still there.
+  - On mobile data: "Download on mobile data? The app update is about 15 MB." comes first, then the installer
+    prompt. No crash at any step.
+  - The back-dated BUILT_AT was test scaffolding outside the repo, and is accepted as such.
+- **Noted, not in scope:** after the install, Android returns to the launcher instead of reopening the app. It goes
+  into WIN04's update UX review; it is not a regression.
+
+Land with the trailer, after checking main's newest code run has started, and read `/jobs`. When `release-apk` has
+published the new `latest`, Fable installs it on VLL's tablet over USB (VLL allowed it tonight) and runs the A93 row.
