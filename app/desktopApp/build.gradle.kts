@@ -46,7 +46,7 @@ compose.desktop {
                 upgradeUuid = "bbb66ebc-f242-48c2-8546-22a9975075eb"
                 menuGroup = "TroubaStage"      // Start-menu entry
                 shortcut = true                // desktop shortcut
-                dirChooser = true
+                // No dirChooser: a per-user install must not let the user pick an admin-only folder.
                 // The brand mark as a multi-size .ico (see icons/README.md for the exact build command).
                 iconFile.set(project.file("icons/troubastage.ico"))
             }

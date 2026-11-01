@@ -15,9 +15,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -29,11 +31,20 @@ import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.system.exitProcess
 
-/** The whole desktop UI for now: "TroubaStage" and the build line (commit + UTC build time), from :shared. */
+/**
+ * The whole desktop UI for now: "TroubaStage" and the build line (commit + UTC build time), from :shared.
+ * [onDraw] fires after this content has actually been PAINTED (B5): the smoke uses it to prove the real
+ * window drew a frame before declaring success — a throw inside the real window's draw must fail the smoke.
+ */
 @Composable
-private fun AppRoot() {
+private fun AppRoot(onDraw: () -> Unit = {}) {
     MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
+        Surface(
+            modifier = Modifier.fillMaxSize().drawWithContent {
+                drawContent()
+                onDraw()
+            },
+        ) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.Center,
@@ -46,6 +57,10 @@ private fun AppRoot() {
         }
     }
 }
+
+/** Set by the REAL window's draw (not the off-screen scene) once it has painted a frame (B5). */
+@Volatile
+private var windowDrew = false
 
 fun main(args: Array<String>) {
     val smokeIdx = args.indexOf("--smoke")
@@ -92,18 +107,27 @@ private fun runSmoke(out: File) {
             title = "TroubaStage",
             state = rememberWindowState(width = 640.dp, height = 400.dp, position = WindowPosition(0.dp, 0.dp)),
         ) {
-            AppRoot()
+            // onDraw fires from the REAL window's paint (B5) — not the off-screen scene.
+            AppRoot(onDraw = { windowDrew = true })
             LaunchedEffect(Unit) {
-                // The window is up (we are in its composition). Render one frame, then terminate with halt(),
-                // NOT System.exit/exitProcess: System.exit from the Compose/AWT thread deadlocks on the AWT
-                // shutdown sequence (the PNG lands but the JVM hangs). halt() skips shutdown hooks and exits
-                // immediately — the PNG is already flushed to disk — so both the happy and the error path end
-                // cleanly with the right code even when the render threw on the very first frame.
-                val attempt = runCatching { renderFrame(out) }
-                attempt.exceptionOrNull()?.printStackTrace()
-                val ok = attempt.isSuccess && out.isFile && out.length() > 0
-                if (ok) println("smoke: wrote ${out.absolutePath} (${out.length()} bytes)")
-                else System.err.println("smoke: FAILED — no frame rendered")
+                // Log which backend skiko gave the real window (DIRECT3D / OPENGL / SOFTWARE).
+                runCatching { println("smoke: window render API = ${window.renderApi}") }
+                // Render one frame off-screen for the PNG (deterministic, no compositor race).
+                val rendered = runCatching { renderFrame(out) }
+                rendered.exceptionOrNull()?.printStackTrace()
+                // B5: do NOT declare success until the REAL window has actually painted a frame — so a throw
+                // inside the window's own draw fails the smoke even though the off-screen raster succeeded.
+                var frames = 0
+                while (!windowDrew && frames < 240) {
+                    withFrameNanos { }
+                    frames++
+                }
+                val ok = rendered.isSuccess && out.isFile && out.length() > 0 && windowDrew
+                // Terminate with halt(), NOT System.exit/exitProcess: System.exit from the Compose/AWT thread
+                // deadlocks on the AWT shutdown (the PNG lands but the JVM hangs). halt() skips shutdown hooks
+                // and exits immediately — the PNG is already flushed to disk.
+                if (ok) println("smoke: OK — window drew after $frames frame ticks, PNG ${out.length()} bytes")
+                else System.err.println("smoke: FAILED — rendered=${rendered.isSuccess} windowDrew=$windowDrew frames=$frames")
                 System.out.flush()
                 System.err.flush()
                 Runtime.getRuntime().halt(if (ok) 0 else 1)
