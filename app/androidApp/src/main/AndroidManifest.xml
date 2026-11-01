@@ -22,6 +22,9 @@
     <!-- A88: update the app from the GitHub `latest` release through PackageInstaller. Android still asks the person
          to confirm every install, and the first time sends them to "Install unknown apps" for TroubaStage. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- A95: the update asks before ~15 MB over mobile data, and reading whether the network is metered needs this
+         (a normal permission, granted at install). Without it every Update crashed (SecurityException). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"

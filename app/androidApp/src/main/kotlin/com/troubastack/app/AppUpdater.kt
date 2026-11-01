@@ -71,7 +71,16 @@ object AppUpdater {
 
     /** True on a metered connection (mobile data): the ~15 MB download is confirmed first (§2). */
     fun onMeteredNetwork(context: Context): Boolean =
-        (context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).isActiveNetworkMetered
+        onMeteredNetwork { (context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager).isActiveNetworkMetered }
+
+    /**
+     * A95 — never throws. Every build from A88 to A95 crashed on Update: reading the network needs
+     * ACCESS_NETWORK_STATE, which the manifest did not declare (a SecurityException). When Android will not say
+     * (that, or no connectivity service), the network counts as metered: asking once about mobile data is harmless,
+     * a crash is not.
+     */
+    internal fun onMeteredNetwork(isMetered: () -> Boolean): Boolean =
+        try { isMetered() } catch (e: Exception) { true }
 
     /** Download [release]'s APK to the app cache, reporting progress 0..1. Cancellable. */
     suspend fun download(context: Context, release: LatestRelease, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
