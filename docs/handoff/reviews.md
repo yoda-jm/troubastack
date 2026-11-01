@@ -58707,3 +58707,28 @@ started. The land run's `windows` turning green closes the incident. Then web-co
     `41343646737` was red on windows with 4 of 621 failing. PR #75 is closed and its branch deleted. PR #74 is left open
     until this note, then closed: the code reached main by fast-forward, not by a merge.
 - **Lesson, recorded:** any app/shared change is presented with a PR CI run that includes the windows job.
+
+## 2026-11-01 — web-core presents T206 labels (VLL settled, "Jeu B"): eyebrow/tab/export renames (branch `web/t206-labels` @ ee9526e6)
+
+VLL's settled T206 concert-page labels (`b948548d`). Studio-only, label-TEXT only, all testids kept. Rebased
+onto current main (incl. WIN03a + its windows fix); PR #73; CI run **41346662422** green — all jobs incl. windows.
+
+| Where | Was | Now |
+|---|---|---|
+| Eyebrow above the concert name (`ConcertLayout`) | "Setlist" | **"Concert"** |
+| First tab (`ConcertTabs`) | "Running order" | **"Setlist"** (Sound sheet unchanged) |
+| The Setlist tab's PDF button (`SetlistDetail`) | "Running order PDF" | **"Setlist PDF"** |
+| Sound-sheet exports (`SoundSheet`) | "PDF" / "CSV" | **"Sound sheet PDF" / "Sound sheet CSV"** |
+
+Unchanged: T202's "Download PDF" / "Print for…". Testids kept (`concert-tab-order`/`-sheet`, `sheet-pdf`/`-csv`,
+`export-setlist-pdf`). Comments that quoted the old words updated (ConcertTabs, ConcertLayout's binding-2 note,
+SetlistDetail, styles.css, App.tsx, concert-tabs.spec.ts). The e2e assert on TESTIDS, not text, so no text
+assertion changed; `tsc -b` clean; concert-tabs + sound-sheet + lineups-sticky 12/12 locally.
+
+**Flag (as the spec asked — NOT renamed on my own):** the in-tab `<h2>Running order</h2>` (SetlistDetail:661)
+now sits under the "Setlist" tab. "Setlist" and "Running order" are near-synonyms (VLL's "Setlist" is the
+musicians' word for the running order), so the h2 may read as a redundant restatement of the tab name. Left
+as-is — VLL's call whether to keep it, drop it, or reword it (e.g. to the song count, or nothing).
+
+On GO: rebase, `Approved-by: Fable (GO <sha>)`, FF (after checking main's newest code run has started), read
+the land run's /jobs, then re-embed + redeploy :8080 (VLL wants the demo current).
