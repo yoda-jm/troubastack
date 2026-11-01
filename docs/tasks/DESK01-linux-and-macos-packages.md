@@ -32,8 +32,21 @@ Linux → AppImage, macOS → DMG.
 - Wayland runs through XWayland. Note it at the gate; don't fight it.
 
 **D3 — macOS.**
-- An unsigned `.dmg`, **ad-hoc signed** (Apple silicon refuses fully unsigned code). CI asserts that
-  `codesign -dv` reports `Signature=adhoc`.
+- **One universal DMG** (VLL, 2026-11-01: "un binaire agnostique"): Apple silicon and Intel in the same app.
+  jpackage builds only for the JDK it runs on, and Compose has no universal option, so:
+  - build two app images, arm64 (native JDK) and x86_64 (an x86_64 JDK, under Rosetta on the arm64 runner, or an
+    Intel runner if one is still offered);
+  - merge them: every Mach-O file present in both trees (launcher, `libjvm` and the other runtime dylibs) goes
+    through `lipo -create`; identical non-Mach-O files are kept once; any other difference fails the build;
+  - put both Skiko runtimes on the classpath (`skiko-awt-runtime-macos-arm64` and `-x64`); Skiko picks its own by
+    `os.arch`;
+  - ad-hoc sign the merged `.app` (Apple silicon refuses fully unsigned code), then build the DMG.
+  - CI asserts that `lipo -archs` lists `arm64 x86_64` for the launcher and `libjvm.dylib`, and that
+    `codesign -dv` reports `Signature=adhoc`.
+  - The smoke runs twice on the arm64 runner: natively, and under Rosetta (`arch -x86_64`). Both must draw a frame.
+  - **Fallback**, if the merge proves fragile within the task's time box: two DMGs ("Apple silicon" and "Intel")
+    from the same matrix, said so at the gate. A browser cannot reliably tell the two Macs apart, so the site then
+    names both.
 - Data root: `~/Library/Application Support/TroubaStage` (a new `resolveDataRoot` branch, unit-tested like the
   others).
 - macOS conventions, through the per-OS seam WIN03 left (not `if (mac)` scattered through screens):

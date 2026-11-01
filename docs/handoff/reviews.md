@@ -58756,3 +58756,30 @@ of it. It goes on VLL's decisions page (keep / drop / reword). Not renamed here,
 
 Land as announced: check main's newest code run has started, add the trailer, fast-forward, read `/jobs`, then
 re-embed and redeploy :8080 (version and builtAt stamped).
+
+## 2026-11-01 — VLL's third round; the 11" tablet rows for the editor toolbar fix are done
+
+- **Mac: one universal binary** (VLL: "un binaire agnostique"). DESK01 D3 now plans one universal DMG:
+  - two jpackage app images (arm64, and x86_64 via Rosetta), merged Mach-O by Mach-O with `lipo`;
+  - both Skiko runtimes on the classpath;
+  - ad-hoc signed;
+  - CI asserts `lipo -archs` and runs the smoke natively and under `arch -x86_64`.
+
+  The fallback, said at the gate if it applies, is two DMGs. VLL no longer needs to name his chip.
+- **Studio editor toolbar redesign: PARKED** (VLL: less urgent now that the bar scrolls). The interactive
+  prototype of the eleven variants stays on VLL's page; no lane is involved.
+- **The in-tab "Running order" heading.** Five worded examples are on VLL's page. Seen on the tablet tonight: the
+  heading names one panel among several (Details, Bake, Rehearsal live mode), and the list has two parts, the
+  numbered songs and then "★ Bench · on call". Fable's advice changed to keeping "Running order". Separately, **its
+  count includes the intermission** ("5 songs" for 4 songs and 1 interval on the demo concert, `main.length` in
+  `SetlistDetail`). That gets fixed together with VLL's pick.
+- **Tablet rows owed since 2026-10-31 for the editor toolbar fix (61d73612), done tonight** on VLL's 11" tablet,
+  in Chrome:
+  - against a scratch core built from main 976071dc (port 18080, demo seed only, then stopped and wiped);
+  - portrait 686 px: all 10 tools visible and hittable, Pen active with its style row, and the strip's end (Fit,
+    tempo, This file, Details) reachable by swipe;
+  - landscape: everything on one row, Rect active with its presets.
+
+  The screenshots stay local. The device's rotation setting was restored (accelerometer 1, user 0).
+- **A93's tablet row (mobile)** needs the app updated first: the tablet runs a build of 2026-10-21 (89c8e80, which
+  has the A88 self-update). VLL updates it from the app, then tries ⋮ Reload in Studio. His answer lands on his page.
