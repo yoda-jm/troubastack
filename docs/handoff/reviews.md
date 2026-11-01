@@ -57472,3 +57472,51 @@ rotation). Wireless adb is back, but the tablet is asleep and locked; it needs V
   true" sabotage turns 2 of 6 red.
 - Owed: the 11" rows on VLL's tablet for both changes. Wireless adb is back, but the tablet is locked, so it
   needs VLL.
+
+## 2026-11-01 — Fable: the Windows track is filed (WIN01–WIN05); WIN01 → mobile, WIN02 → web-core, both start now
+
+VLL asked how hard a Windows app sharing most of the Android source would be, then: "refactor en premier puis
+juste stage avec studio qui fait un 'bientôt' ensuite on fera studio en embarqué si ce n'est pas trop gros.
+Pense au full screen et windowed, pense à l'interaction à la souris dans stage". This entry reserves WIN01–WIN05.
+
+**Read on `main` e881a9e6:**
+- `:shared` commonMain holds about 10 200 lines (logic, Stage, Home, Settings).
+- `androidApp` holds about 4 600, most of them Android-located rather than Android-bound: `MainActivity.kt` is
+  1 196 lines, about 60 of which touch an Android API.
+- `HttpTransport` is ktor + OkHttp, which is plain JVM.
+
+**The queue:**
+- **WIN01 (mobile, now).** Hoist `App()` and the screens into a JVM-shared source set (`jvmSharedMain`) behind one
+  nullable-capability platform interface. Android has no behaviour change: emulator screenshots must be
+  pixel-identical to main's, and the test count must not drop.
+  - This **supersedes the 2026-07-06 "(c) DEFER the App() hoist" decision**: Windows is the second consumer it
+    waited for.
+  - The iOS hoist stays deferred.
+- **WIN02 (web-core, now, parallel).**
+  - `jvm("desktop")` and its five actuals: DPAPI-protected secrets, the shared zip guards, Skia overlay, and a
+    WebViewHost that is never constructed.
+  - `:desktopApp`, a per-user MSI with a fixed upgradeUuid.
+  - A hard-gating `windows` CI job with a launch smoke that renders a PNG.
+  - Whoever lands second wires `desktopMain` → `jvmSharedMain`.
+- **WIN03 (mobile, after WIN01 + WIN02).**
+  - The app on Windows; Studio shows "Coming soon".
+  - Windowed by default. F11 or a chrome button toggles full screen, and entering a concert goes full screen per
+    a new Settings switch (default on). Leaving restores the earlier mode.
+  - Mouse rules: a click toggles the chrome; a drag is a swipe; one wheel burst = at most one turn; in width mode
+    the wheel scrolls and turns at the edge on a new burst; Ctrl+wheel zooms in note mode; the cursor hides after
+    2 s; tooltips on glyph-only buttons.
+  - Esc in Stage: closes the drawer, otherwise leaves full screen, never leaves the concert (A79).
+  - Focus comes back to Stage after any click; display sleep is held during a concert; closing the window
+    mid-concert asks first; one instance.
+  - The MSI goes on `latest` beside the APK, and A88's parse is tested with two assets.
+- **WIN04 (mobile, after WIN03).** The Windows self-update, reusing the shared A88 decision code.
+- **WIN05 (web-core, after WIN02).** Measure the embedded Studio candidates (Chromium/JCEF, WebView2, the browser)
+  and write a report. Nothing lands. VLL decides from the numbers.
+
+**Not in scope, and said so in the specs:**
+- BLE-MIDI on Windows. Keyboard pedals and learned keys work.
+- LAN discovery, QR scanning, `/join/` deep links.
+- Windows touch tablets.
+- Code signing: VLL's call, since it costs money. Without it, SmartScreen warns on a browser download.
+
+**Reviews:** I spec'd this; I review the lanes' work as usual.
