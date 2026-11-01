@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -94,6 +95,11 @@ fun SettingsScreen(
     onUpdateApp: (() -> Unit)? = null,
     autoChecks: Boolean = false,
     onAutoChecks: (Boolean) -> Unit = {},
+    // WIN03 D4 — keys the platform's window keeps (F11, Esc on a desktop): Learn refuses them. Android: none.
+    reservedKeys: Set<Key> = emptySet(),
+    // WIN03 D2 — "Full screen when performing": null ⇒ no window modes ⇒ no switch (Android).
+    fullScreenWhenPerforming: Boolean? = null,
+    onFullScreenWhenPerforming: (Boolean) -> Unit = {},
     onBack: () -> Unit,
 ) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -101,7 +107,7 @@ fun SettingsScreen(
             // A72/VLL: pad for the status + nav bars (edge-to-edge), so in portrait the header clears the
             // status bar and the last section clears the nav bar — otherwise the bottom hides and there's
             // nothing to scroll to. Inside verticalScroll, so the clearance is part of the scroll range.
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).readableWidth(LocalMaxContentWidth.current)
                 .windowInsetsPadding(WindowInsets.systemBars).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
@@ -135,10 +141,21 @@ fun SettingsScreen(
                     selected = colorMode,
                     onSelect = onColorMode,
                 )
+                if (fullScreenWhenPerforming != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Full screen when performing", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Switch(checked = fullScreenWhenPerforming, onCheckedChange = onFullScreenWhenPerforming)
+                    }
+                }
             }
 
-            Section("Foot pedal", subtitle = "Turn pages with a Bluetooth pedal — a keyboard/HID pedal, or a BLE-MIDI controller. For a MIDI pedal, Connect first; then Learn a button. The panel shows every press, so an empty panel is the answer, not a failure.") {
-                PedalLearnSection(pedalBindings, onLearnPedal, onForgetPedals, midiState, onConnectPedal, midiSignal)
+            Section(
+                "Foot pedal",
+                subtitle = if (onConnectPedal != null) "Turn pages with a Bluetooth pedal — a keyboard/HID pedal, or a BLE-MIDI controller. For a MIDI pedal, Connect first; then Learn a button. The panel shows every press, so an empty panel is the answer, not a failure."
+                // WIN03 D5 — no BLE-MIDI on this platform, so no MIDI controller and no Connect to promise.
+                else "Turn pages with a keyboard-type pedal (Bluetooth or USB): Learn a button. The panel shows every press, so an empty panel is the answer, not a failure.",
+            ) {
+                PedalLearnSection(pedalBindings, onLearnPedal, onForgetPedals, midiState, onConnectPedal, midiSignal, reservedKeys)
             }
 
             // A84 ⟨D1⟩/⟨D2⟩ — the build on this device, and the joined server's, side by side. Copy puts the lines on the
@@ -239,6 +256,7 @@ private fun PedalLearnSection(
     midiState: PedalLinkState,
     onConnect: (() -> Unit)?,
     midiSignal: MidiSignal?,
+    reservedKeys: Set<Key>,
 ) {
     var armed by remember { mutableStateOf<PageTurn?>(null) }
     var lastReceived by remember { mutableStateOf<String?>(null) }
@@ -313,8 +331,9 @@ private fun PedalLearnSection(
                     .onPreviewKeyEvent { e ->
                         if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         lastReceived = "key ${e.key.keyCode}" // ⟨D1⟩: show EVERY press
-                        if (!isLearnableKey(e.key)) {
-                            notice = "That key can't be learned — Back and Home would trap you in the Stage."
+                        if (!isLearnableKey(e.key, reservedKeys)) {
+                            notice = if (e.key in reservedKeys) "That key can't be learned — F11 and Esc control the window." // WIN03 D5
+                            else "That key can't be learned — Back and Home would trap you in the Stage."
                         } else {
                             learn(keyToken(e.key.keyCode), "key ${e.key.keyCode}")
                         }

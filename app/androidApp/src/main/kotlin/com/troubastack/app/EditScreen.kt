@@ -37,7 +37,6 @@ import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.seams.WebViewHost
 
 private const val CORE_URL_KEY = "coreUrl"
-private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080" // host machine, from the Android emulator
 
 /**
  * Hosts the canonical TroubaStudio web editor in a WebView (I10). No native editor logic — login,
@@ -54,7 +53,7 @@ private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080" // host machine, fro
 @Composable
 fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null, bandTitle: String? = null) {
     val context = LocalContext.current
-    var serverUrl by remember { mutableStateOf(storage.getSecret(CORE_URL_KEY) ?: DEFAULT_CORE_URL) }
+    var serverUrl by remember { mutableStateOf(storage.getSecret(CORE_URL_KEY) ?: AndroidAppPlatform.DEFAULT_SERVER_URL) }
     var showSettings by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf<WebViewHost.State>(WebViewHost.State.Loading) }

@@ -3,6 +3,8 @@
 // own: the next listing says it is no longer edited. Admins only — the server sends the flag to admins only.
 package com.troubastack.app
 
+import com.troubastack.shared.ui.LocalMaxContentWidth
+import com.troubastack.shared.ui.readableWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -61,7 +63,7 @@ internal fun EditedConcertsScreen(transport: HttpTransport, onBack: () -> Unit) 
         if (all != null) concerts = editedConcerts(all)
     }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxSize().readableWidth(LocalMaxContentWidth.current).statusBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onBack) { Text("‹  Home") }
                 Text("Edited since their last bake", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))

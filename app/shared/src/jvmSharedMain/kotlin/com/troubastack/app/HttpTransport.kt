@@ -47,7 +47,13 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 private const val CORE_URL_KEY = "coreUrl"                       // shared with A06's Edit screen
-private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080"     // emulator → host
+/**
+ * WIN03 — the server the app talks to: the saved one, else the platform's starting default (AppPlatform.defaultServerUrl:
+ * Android's emulator alias for its host); null when there is neither, and then nothing is contacted (the desktop before
+ * any server is set: no request may go to 10.0.2.2, which on a 10.x LAN is somebody's machine).
+ */
+internal fun resolveServerUrl(saved: String?, platformDefault: String?): String? =
+    (saved?.takeIf { it.isNotBlank() } ?: platformDefault)?.trimEnd('/')
 // A41: the last username, remembered so Sign in after a Disconnect needs only a password. Like the
 // server address it's not a secret and survives sign-out; but it belongs to a server, so it's cleared
 // when the origin changes (below). Package-visible so ConnectScreen seeds + persists it.
@@ -111,6 +117,8 @@ fun dropSessionIfOriginChanged(storage: Storage, newUrl: String, clearWebCookies
  */
 class HttpTransport(
     private val storage: Storage,
+    /** WIN03 — where to start when no server is saved (AppPlatform.defaultServerUrl); null: none, nothing is contacted. */
+    val defaultServerUrl: String?,
     /** Drops the Studio web view's cookies (Android: the WebView cookie jar), with the session. */
     val clearWebCookies: () -> Unit,
 ) : ManifestTransport {
@@ -131,7 +139,12 @@ class HttpTransport(
         }
         expectSuccess = false
     }
-    private val baseUrl: String get() = (storage.getSecret(CORE_URL_KEY) ?: DEFAULT_CORE_URL).trimEnd('/')
+    /** The server in use, or null when none is saved and the platform has no default. */
+    private val server: String? get() = resolveServerUrl(storage.getSecret(CORE_URL_KEY), defaultServerUrl)
+
+    /** For a request: only reached with a server (every call needs a session [cookie], which needs one) or after the
+     *  person typed one (Connect saves it first). */
+    private val baseUrl: String get() = server ?: error("no server is set")
     private val concertBand = mutableMapOf<String, String>()  // concertId -> bandId (for download URLs)
 
     val isConnected: Boolean get() = cookie() != null
@@ -421,7 +434,7 @@ class HttpTransport(
     }
 
     /** The origin the app currently points at (for A51's `joinDecision`). */
-    val currentOrigin: String get() = baseUrl
+    val currentOrigin: String get() = server ?: ""
 
     /** Clear the persisted session (Storage is overwrite-only, so empty == signed out) — and drop the
      *  Studio web view's cookies too ([clearWebCookies]), so signing out signs out everywhere. */
@@ -430,7 +443,7 @@ class HttpTransport(
         clearWebCookies()
     }
 
-    private fun cookie(): String? = sessionCookieFor(storage::getSecret, baseUrl)
+    private fun cookie(): String? = server?.let { sessionCookieFor(storage::getSecret, it) }
 
     /** A92/T201 — the listing's fields that are not in the generated proto mirror: "edited since its last bake" (admins
      *  only; null = unknown), what changed, and the concert date. Read from the SAME response as [fetchManifest]; keyed

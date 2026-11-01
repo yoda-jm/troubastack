@@ -293,8 +293,10 @@ jobs:
   # SEPARATE job on purpose: `permissions:` is granted per-job, and the `android` job runs on PRs
   # and executes a full Gradle build with third-party plugins — keeping contents:write out of it
   # (least privilege). Guarded to pushes on `main`; on PRs the `if:` skips it entirely.
+  # WIN03 D8: the Windows MSI rides the same release, built by the `windows` job: one release, two assets, recreated
+  # together (so the APK now also waits for the windows job, and a red windows job publishes neither).
   release-apk:
-    needs: [android]
+    needs: [android, windows]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -332,6 +334,12 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: troubastage-debug-apk
+      - name: fetch the MSI the windows job built
+        if: steps.gate.outputs.publish == 'true'
+        uses: actions/download-artifact@v7
+        with:
+          name: troubastage-windows-msi
+          path: windows-msi
       - name: publish it on the rolling `latest` release
         if: steps.gate.outputs.publish == 'true'
         env:
@@ -339,6 +347,10 @@ jobs:
         run: |
           # Stable, human asset name — the download URL embeds it; androidApp-debug is gradle-internal.
           mv androidApp-debug.apk troubastage-debug.apk
+          # WIN03 D8: the MSI under a stable name too (the windows job names it by run number). Exactly one, or stop.
+          msis=(windows-msi/troubastage-*.msi)
+          [ "${#msis[@]}" -eq 1 ] && [ -f "${msis[0]}" ] || { echo "::error::expected one MSI, found: ${msis[*]}"; exit 1; }
+          mv "${msis[0]}" troubastage-windows.msi
           # Finding 1 (Fable): a rolling tag must not lie. `--clobber` would replace the asset but
           # leave the tag at an old commit, and versionName is a static 0.1.0 that cannot say which
           # build this is. So recreate the release+tag at THIS commit every publish and state the
@@ -361,9 +373,11 @@ jobs:
             if [ "$SIGNER" = "$STABLE" ]; then echo "Signed with the stable TroubaStage key (updates the installed app in place)."
             elif [ -z "$SIGNER" ]; then echo "Signing key: could not be read on this run."
             else echo "Signed with a throwaway key ($SIGNER): it cannot update an app installed from another build in place."; fi
+            echo
+            echo "Windows: troubastage-windows.msi — a per-user install (no administrator rights), same commit."
           } > notes.md
           gh release delete latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
-          gh release create latest troubastage-debug.apk \
+          gh release create latest troubastage-debug.apk troubastage-windows.msi \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --prerelease \
@@ -570,7 +584,7 @@ jobs:
           if (-not $msi) { Write-Error "no MSI was produced"; exit 1 }
           Copy-Item $msi.FullName "troubastage-1.0.${{ github.run_number }}.msi"
           Write-Host "artifact MSI: $($msi.Name)"
-      - name: launch smoke — the packaged app opens a window and renders one frame
+      - name: launch smoke — the packaged app performs the demo concert in Stage (WIN03 acceptance 1)
         working-directory: app
         shell: pwsh
         run: |
@@ -581,12 +595,17 @@ jobs:
             Write-Error "packaged exe not found"; exit 1
           }
           Write-Host "exe: $($exe.FullName)"
-          $png = "smoke.png"
-          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--smoke", $png) -PassThru -WorkingDirectory (Get-Location)
-          if (-not $p.WaitForExit(120000)) { $p.Kill(); Write-Error "smoke hung (>120s)"; exit 1 }
+          # The demo concert is imported through the app's own import path into a throwaway data root, then shown in
+          # Stage; the smoke writes smoke-1920x1080.png and smoke-800x600.png and exits 0 only once the real window drew.
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "smoke-home"
+          $concert = (Resolve-Path ..\docs\demo\demo-concert.tstage).Path
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--smoke", "smoke.png", "--smoke-concert", "`"$concert`"") -PassThru -WorkingDirectory (Get-Location)
+          if (-not $p.WaitForExit(150000)) { $p.Kill(); Write-Error "smoke hung (>150s)"; exit 1 }
           if ($p.ExitCode -ne 0) { Write-Error "smoke exited with $($p.ExitCode)"; exit 1 }
-          if (-not ((Test-Path $png) -and ((Get-Item $png).Length -gt 0))) { Write-Error "smoke wrote no PNG"; exit 1 }
-          Write-Host "smoke OK — $((Get-Item $png).Length) bytes"
+          foreach ($png in @("smoke-1920x1080.png", "smoke-800x600.png")) {
+            if (-not ((Test-Path $png) -and ((Get-Item $png).Length -gt 0))) { Write-Error "smoke wrote no $png"; exit 1 }
+            Write-Host "smoke OK — $png $((Get-Item $png).Length) bytes"
+          }
       - name: secret store cost — DPAPI get/put p50/p95 (F2)
         working-directory: app
         shell: pwsh
@@ -660,5 +679,5 @@ jobs:
           name: troubastage-windows-msi
           path: |
             app/troubastage-*.msi
-            app/smoke.png
+            app/smoke-*.png
             app/bench.txt

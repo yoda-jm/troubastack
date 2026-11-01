@@ -1,10 +1,57 @@
-// TroubaStage desktop entrypoint (WIN02). A skeleton window — the title and the build line, nothing a user
-// could mistake for a feature. WIN03 replaces AppRoot with the real Stage. The `--smoke <png>` path is the
-// CI launch smoke: it opens the real window, renders one frame of the UI to a PNG, and exits (proves the
-// packaged app starts and its skiko render pipeline works on Windows).
+// TroubaStage desktop entrypoint (WIN02, WIN03). The app: the shared App() on DesktopAppPlatform, in one window
+// that remembers its place, goes full screen, and is the only one (D2). The `--smoke <png>` path is the CI launch
+// smoke: it opens the real window, renders one frame of the UI to a PNG, and exits (proves the packaged app
+// starts and its skiko render pipeline works on Windows).
 package com.troubastack.desktop
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowState
+import androidx.compose.runtime.CompositionLocalProvider
+import com.troubastack.app.App
+import com.troubastack.app.AndroidImportFs
+import com.troubastack.app.FileBundleFiles
+import com.troubastack.app.SkiaImageDecoder
+import com.troubastack.shared.bundle.BundleImporter
+import com.troubastack.shared.bundle.BundleLoader
+import com.troubastack.shared.bundle.ImportResult
+import com.troubastack.shared.bundle.LoadResult
+import com.troubastack.shared.stage.StageScreen
+import com.troubastack.shared.stage.StageViewModel
+import androidx.compose.material3.lightColorScheme
+import com.troubastack.shared.stage.LocalGlyphTooltip
+import com.troubastack.shared.stage.LocalStagePointerIcons
+import com.troubastack.shared.ui.LocalMaxContentWidth
+import com.troubastack.shared.ui.ThemePref
+import com.troubastack.shared.ui.TroubaTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import java.awt.Dimension
+import java.awt.GraphicsEnvironment
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
+import javax.swing.SwingUtilities
+import javax.swing.UIManager
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -89,19 +136,129 @@ fun main(args: Array<String>) {
             System.err.println("--smoke needs a PNG path")
             exitProcess(2)
         }
-        runSmoke(File(out))
+        // WIN03 acceptance 1: with a concert, the smoke performs it in Stage (two PNGs, <out>-WxH.png).
+        val concert = args.indexOf("--smoke-concert").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
+        if (concert != null) runStageSmoke(out.removeSuffix(".png"), File(concert)) else runSmoke(File(out))
         return
     }
-    application {
-        Window(
-            onCloseRequest = ::exitApplication,
-            title = "TroubaStage",
-            state = rememberWindowState(width = 640.dp, height = 400.dp),
-        ) {
-            AppRoot()
+    // D1: the file dialog in the system's look (Windows' own), not Swing's default.
+    if (isWindows()) runCatching { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()) }
+    // D2: one app per data root; a second launch brings this one forward and exits.
+    var bringToFront: () -> Unit = {}
+    instanceClaim = SingleInstance.claim(File(desktopDataRoot())) { SwingUtilities.invokeLater { bringToFront() } }
+        ?: exitProcess(0)
+    runApp(onWindow = { bringToFront = it })
+}
+
+/** This launch's single-instance claim, held (lock and port) for the app's lifetime. */
+private var instanceClaim: SingleInstance? = null
+
+@OptIn(ExperimentalComposeUiApi::class)
+private fun runApp(onWindow: (bringToFront: () -> Unit) -> Unit) = application {
+    val storage = remember { Storage() }
+    val opening = remember { openingPlacement(parsePlacement(storage.getSecret(WINDOW_PLACEMENT_KEY)), screens(), primaryScreen()) }
+    // D2: windowed at launch (maximized if it was), at the remembered place.
+    val windowState = rememberWindowState(
+        placement = if (opening.maximized) WindowPlacement.Maximized else WindowPlacement.Floating,
+        position = WindowPosition(opening.bounds.x.dp, opening.bounds.y.dp),
+        size = DpSize(opening.bounds.width.dp, opening.bounds.height.dp),
+    )
+    val platform = remember { DesktopAppPlatform(storage, windowState) }
+    var themePref by remember { mutableStateOf(ThemePref.parse(storage.getSecret(ThemePref.KEY))) }
+    var askClose by remember { mutableStateOf(false) }
+    Window(
+        // D2: closing mid-concert asks first (an accidental close is A79's failure again).
+        onCloseRequest = { if (platform.inConcert) askClose = true else exitApplication() },
+        title = "TroubaStage",
+        state = windowState,
+        onKeyEvent = { e -> windowKey(e, platform) },
+    ) {
+        LaunchedEffect(Unit) {
+            window.minimumSize = Dimension(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+            platform.awtWindow = window
+            window.addWindowFocusListener(object : WindowAdapter() {
+                override fun windowGainedFocus(e: WindowEvent?) = platform.onWindowFocused()
+            })
+            onWindow { windowState.isMinimized = false; window.toFront(); window.requestFocus() }
+        }
+        RememberPlacement(windowState, storage, opening)
+        TroubaTheme(dark = themePref.resolveDark()) {
+            // D3: Stage's pointer icons and glyph tooltips exist here only (Android passes neither).
+            val stagePointer = remember { desktopStagePointerIcons() }
+            // D7: list screens keep a readable width on a big window (Android leaves it full width).
+            CompositionLocalProvider(
+                LocalStagePointerIcons provides stagePointer,
+                LocalGlyphTooltip provides desktopGlyphTooltip,
+                LocalMaxContentWidth provides 960.dp,
+            ) {
+                // D4: the mouse Back button is Back, outside a concert only (side buttons never leave one, A79).
+                Box(
+                    Modifier.fillMaxSize().onPointerEvent(PointerEventType.Press) { e ->
+                        if (e.button == PointerButton.Back && !platform.inConcert) platform.back.dispatch()
+                    },
+                ) {
+                    App(platform, themePref = themePref, onThemePref = { themePref = it; storage.putSecret(ThemePref.KEY, it.name) })
+                }
+            }
+            if (askClose) {
+                AlertDialog(
+                    onDismissRequest = { askClose = false },
+                    title = { Text("Close TroubaStage?") },
+                    text = { Text("A concert is open. Your place in it and your notes are kept.") },
+                    confirmButton = { TextButton(onClick = ::exitApplication) { Text("Close") } },
+                    dismissButton = { TextButton(onClick = { askClose = false }) { Text("Cancel") } },
+                )
+            }
         }
     }
 }
+
+/**
+ * D2/D4 — the window's own keys, after the focused screen has had them (a dialog closes on its own Esc first):
+ * F11 toggles full screen everywhere; Esc is Back (in a concert, stageBackAction: the drawer, then full screen,
+ * never the concert); Alt+Left is Back outside a concert. Where nothing handles Back, Esc leaves full screen.
+ */
+private fun windowKey(e: KeyEvent, platform: DesktopAppPlatform): Boolean {
+    if (e.type != KeyEventType.KeyDown) return false
+    return when {
+        e.key == Key.F11 -> { platform.window.toggleFullScreen(); true }
+        e.key == Key.Escape -> platform.back.dispatch() || (platform.window.fullScreen && run { platform.window.toggleFullScreen(); true })
+        e.key == Key.DirectionLeft && e.isAltPressed && !platform.inConcert -> platform.back.dispatch()
+        else -> false
+    }
+}
+
+/** D2 — save the windowed bounds and the maximized state as they change (not full screen, which is never restored
+ *  at launch), half a second after the last change, so a crash or a kill keeps them too. */
+@Composable
+private fun RememberPlacement(state: WindowState, storage: Storage, opening: SavedPlacement) {
+    LaunchedEffect(state) {
+        var last = opening
+        snapshotFlow { Triple(state.placement, state.position, state.size) }.collectLatest { (placement, position, size) ->
+            delay(500)
+            last = when (placement) {
+                WindowPlacement.Floating -> {
+                    if (position !is WindowPosition.Absolute) return@collectLatest
+                    SavedPlacement(
+                        Bounds(position.x.value.roundToInt(), position.y.value.roundToInt(), size.width.value.roundToInt(), size.height.value.roundToInt()),
+                        maximized = false,
+                    )
+                }
+                WindowPlacement.Maximized -> last.copy(maximized = true)
+                WindowPlacement.Fullscreen -> return@collectLatest
+            }
+            storage.putSecret(WINDOW_PLACEMENT_KEY, last.encode())
+        }
+    }
+}
+
+private fun java.awt.Rectangle.toBounds() = Bounds(x, y, width, height)
+
+private fun screens(): List<Bounds> =
+    GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices.map { it.defaultConfiguration.bounds.toBounds() }
+
+private fun primaryScreen(): Bounds =
+    GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.defaultConfiguration.bounds.toBounds()
 
 /**
  * Open the REAL window (so a packaging failure to open one still fails the job), then render exactly the same
@@ -152,6 +309,88 @@ private fun runSmoke(out: File) {
                 Runtime.getRuntime().halt(if (ok) 0 else 1)
             }
         }
+    }
+}
+
+/**
+ * WIN03 acceptance 1 — the smoke performs a real concert: [tstage] is imported through the app's own import path
+ * (BundleImporter over AndroidImportFs, as Import does) into the data root, loaded, and shown in Stage. The real window
+ * shows it (B5: success only once that window has drawn); the PNGs are off-screen renders of the same Stage at
+ * 1920×1080 and 800×600, after its pages have had time to decode.
+ */
+private fun runStageSmoke(prefix: String, tstage: File) {
+    Thread {
+        try { Thread.sleep(90_000) } catch (_: InterruptedException) { return@Thread }
+        System.err.println("smoke: backstop timeout — no frame in 90s")
+        Runtime.getRuntime().halt(1)
+    }.apply { isDaemon = true; start() }
+
+    val storage = Storage()
+    val fs = AndroidImportFs(storage)
+    val temp = File(storage.tempDir(), "smoke-${System.nanoTime()}.tstage").also { tstage.copyTo(it) }
+    val imported = BundleImporter(fs).import(temp.path)
+    temp.delete()
+    val concertId = (imported as? ImportResult.Imported)?.concertId
+    if (concertId == null) {
+        System.err.println("smoke: FAILED — the import refused the concert: $imported")
+        Runtime.getRuntime().halt(1)
+        return
+    }
+    val dir = fs.bundleTargetDir(concertId)
+    println("smoke: imported concert $concertId into $dir")
+    fun stage(): @Composable () -> Unit {
+        val loaded = BundleLoader().load(dir, FileBundleFiles())
+        val roster = (loaded as? LoadResult.Loaded)?.bundle?.roster.orEmpty()
+        // A part picked, so the smoke shows the page, not the "Who are you?" picker.
+        val vm = StageViewModel(loaded, identity = roster.firstOrNull()?.memberId ?: "")
+        val decoder = SkiaImageDecoder(File(dir))
+        return { MaterialTheme(colorScheme = lightColorScheme()) { StageScreen(vm, decoder, onExit = {}, fullScreen = false) } }
+    }
+
+    application {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "TroubaStage",
+            state = rememberWindowState(width = 1920.dp, height = 1080.dp, position = WindowPosition(0.dp, 0.dp)),
+        ) {
+            val content = remember { stage() }
+            Box(Modifier.fillMaxSize().drawWithContent { drawContent(); windowDrew = true }) { content() }
+            LaunchedEffect(Unit) {
+                runCatching { println("smoke: window render API = ${window.renderApi}") }
+                val rendered = runCatching {
+                    renderStage(stage(), 1920, 1080, File("$prefix-1920x1080.png"))
+                    renderStage(stage(), 800, 600, File("$prefix-800x600.png"))
+                }
+                rendered.exceptionOrNull()?.printStackTrace()
+                var frames = 0
+                while (!windowDrew && frames < 240) {
+                    withFrameNanos { }
+                    frames++
+                }
+                val pngs = listOf(File("$prefix-1920x1080.png"), File("$prefix-800x600.png"))
+                val ok = rendered.isSuccess && pngs.all { it.isFile && it.length() > 0 } && windowDrew
+                if (ok) println("smoke: OK — Stage drew in the window after $frames frame ticks; PNGs ${pngs.map { "${it.name} ${it.length()} B" }}")
+                else System.err.println("smoke: FAILED — rendered=${rendered.isSuccess} windowDrew=$windowDrew pngs=${pngs.map { it.length() }}")
+                System.out.flush()
+                System.err.flush()
+                Runtime.getRuntime().halt(if (ok) 0 else 1)
+            }
+        }
+    }
+}
+
+/** Off-screen Stage at [w]×[h]: frames over 4 s of real time so the pages decode (the decode is asynchronous), then the
+ *  PNG. By then the chrome has hidden itself (its auto-hide waits in real time), so the PNG shows the page alone. */
+private fun renderStage(content: @Composable () -> Unit, w: Int, h: Int, out: File) {
+    val scene = ImageComposeScene(width = w, height = h, density = Density(1f), content = content)
+    try {
+        var t = 0L
+        repeat(40) { scene.render(t); t += 100_000_000L; Thread.sleep(100) }
+        val png = scene.render(t).encodeToData(EncodedImageFormat.PNG) ?: error("skiko produced no PNG data")
+        out.absoluteFile.parentFile?.mkdirs()
+        out.writeBytes(png.bytes)
+    } finally {
+        scene.close()
     }
 }
 

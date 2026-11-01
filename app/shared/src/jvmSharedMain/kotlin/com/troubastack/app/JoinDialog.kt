@@ -290,44 +290,45 @@ private fun SignInStep(
 
     if (registering) {
         Text("Create an account to join.", style = MaterialTheme.typography.bodyMedium)
-        OutlinedTextField(username, { username = it }, label = { Text("Username") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(displayName, { displayName = it }, label = { Text("Display name") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+        val canCreate = !busy && username.isNotBlank() && displayName.isNotBlank() && password.isNotBlank()
+        val create = create@{
+            if (password.length < MIN_PASSWORD) { error = "Use at least $MIN_PASSWORD characters."; return@create }
+            busy = true; error = null
+            scope.launch {
+                when (transport.register(username, displayName, password)) {
+                    RegisterOutcome.Created -> signInThen(username.trim(), password) // keeps busy until sign-in resolves
+                    RegisterOutcome.NameTaken -> { busy = false; error = "That name is taken — try another." }
+                    is RegisterOutcome.Failed -> { busy = false; error = "Couldn't create the account. Try again." }
+                }
+            }
+            Unit
+        }
+        OutlinedTextField(username, { username = it }, label = { Text("Username") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth().submitOnEnter(canCreate, create))
+        OutlinedTextField(displayName, { displayName = it }, label = { Text("Display name") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth().submitOnEnter(canCreate, create))
         OutlinedTextField(
             password, { password = it }, label = { Text("Password") },
-            singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+            singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth().submitOnEnter(canCreate, create),
         )
         error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = { registering = false; error = null }, enabled = !busy) { Text("Have an account? Sign in") }
-            Button(
-                enabled = !busy && username.isNotBlank() && displayName.isNotBlank() && password.isNotBlank(),
-                onClick = {
-                    if (password.length < MIN_PASSWORD) { error = "Use at least $MIN_PASSWORD characters."; return@Button }
-                    busy = true; error = null
-                    scope.launch {
-                        when (transport.register(username, displayName, password)) {
-                            RegisterOutcome.Created -> signInThen(username.trim(), password) // keeps busy until sign-in resolves
-                            RegisterOutcome.NameTaken -> { busy = false; error = "That name is taken — try another." }
-                            is RegisterOutcome.Failed -> { busy = false; error = "Couldn't create the account. Try again." }
-                        }
-                    }
-                },
-            ) { Text(if (busy) "Creating…" else "Create account") }
+            Button(enabled = canCreate, onClick = create) { Text(if (busy) "Creating…" else "Create account") }
         }
     } else {
         Text("Sign in to $origin to join.", style = MaterialTheme.typography.bodyMedium)
-        OutlinedTextField(username, { username = it }, label = { Text("Username") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+        val canSignIn = !busy && username.isNotBlank() && password.isNotBlank()
+        val signIn = { busy = true; error = null; signInThen(username.trim(), password) }
+        OutlinedTextField(username, { username = it }, label = { Text("Username") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth().submitOnEnter(canSignIn, signIn))
         OutlinedTextField(
             password, { password = it }, label = { Text("Password") },
-            singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+            singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth().submitOnEnter(canSignIn, signIn),
         )
         error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onCancel, enabled = !busy) { Text("Cancel") }
-            Button(
-                enabled = !busy && username.isNotBlank() && password.isNotBlank(),
-                onClick = { busy = true; error = null; signInThen(username.trim(), password) },
-            ) { Text(if (busy) "Signing in…" else "Sign in") }
+            Button(enabled = canSignIn, onClick = signIn) { Text(if (busy) "Signing in…" else "Sign in") }
         }
         // A57: the newcomer branch — an invite's whole point is bringing in someone with no account yet.
         TextButton(onClick = { registering = true; error = null; password = "" }, enabled = !busy) {

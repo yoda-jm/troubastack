@@ -14,6 +14,7 @@ import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.stage.ImageDecoder
 import com.troubastack.shared.stage.PageTurn
 import com.troubastack.shared.stage.PedalLinkState
+import com.troubastack.shared.stage.PointerKind
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
 import java.util.UUID
@@ -97,6 +98,18 @@ class AndroidAppPlatform(private val activity: MainActivity) : AppPlatform {
     override val volumeTurnRegistrar: (((PageTurn) -> Unit)?) -> Unit = { handler -> activity.stageVolumeTurn = handler }
 
     override val settingsWereReset: Boolean get() = Storage.settingsWereReset
+
+    override val window: WindowControls? = null // one full-screen activity: no window modes
+
+    override val pointer: PointerKind = PointerKind.TOUCH
+
+    override val defaultServerUrl: String = DEFAULT_SERVER_URL
+
+    companion object {
+        /** The host machine, seen from the Android emulator: Android's one source for the starting server address
+         *  (Connect and the Studio editor). On a real tablet LAN discovery fills the field instead. */
+        const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
+    }
 }
 
 /** Copy a picked document stream into a temp `.tstage` the importer can read. */

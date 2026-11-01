@@ -59,4 +59,32 @@ class StageBackTest {
         // There is no drawer on the failure screen; a stray flag must not stop Back from leaving it.
         assertEquals(StageBack.LEAVE, stageBackAction(StageViewModel(LoadResult.Failed("x")).state.value, drawerOpen = true))
     }
+
+    // --- WIN03 D4: Esc on a desktop window goes through the same decision ---
+
+    @Test
+    fun esc_inFullScreen_leavesFullScreen_neverTheConcert() {
+        val vm = StageViewModel(loaded(twoSongs))
+        assertEquals(StageBack.EXIT_FULL_SCREEN, stageBackAction(vm.state.value, fullScreen = true))
+    }
+
+    @Test
+    fun esc_withTheDrawerOpen_closesTheDrawerFirst_evenInFullScreen() {
+        val vm = StageViewModel(loaded(twoSongs))
+        assertEquals(StageBack.CLOSE_DRAWER, stageBackAction(vm.state.value, drawerOpen = true, fullScreen = true))
+    }
+
+    @Test
+    fun esc_windowed_withNothingOpen_staysInTheConcert() {
+        // TEETH: Esc must never become a way out of a concert (A79): windowed, nothing open ⇒ STAY, not LEAVE.
+        val vm = StageViewModel(loaded(twoSongs))
+        assertEquals(StageBack.STAY, stageBackAction(vm.state.value, fullScreen = false))
+    }
+
+    @Test
+    fun esc_onAFailureScreen_inFullScreen_leavesFullScreenFirst() {
+        val failed = StageViewModel(LoadResult.Failed("bundle.json is missing")).state.value
+        assertEquals(StageBack.EXIT_FULL_SCREEN, stageBackAction(failed, fullScreen = true))
+        assertEquals(StageBack.LEAVE, stageBackAction(failed, fullScreen = false))
+    }
 }
