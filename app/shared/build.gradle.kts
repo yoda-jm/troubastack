@@ -84,6 +84,12 @@ kotlin {
     // adds a dependsOn edge by hand, and an implicit template would then be skipped.
     applyDefaultHierarchyTemplate()
 
+    // WIN02 — the desktop (Windows) JVM target. Source sets desktopMain/desktopTest; the five+one seam
+    // actuals live in desktopMain (I15), the desktop Storage/zip/heal tests in desktopTest. Compose
+    // Multiplatform renders on desktop with skiko, so the Skia overlay actual mirrors iOS's. On Linux
+    // (the android job's :shared:check) desktopTest runs too — it proves both JVMs agree (D4).
+    jvm("desktop")
+
     sourceSets {
         commonMain { kotlin.srcDir(generateBuildInfo) } // A84: BuildInfo.kt (the task runs before any compile)
         commonMain.dependencies {
@@ -132,6 +138,20 @@ kotlin {
         //     // SEAM ACTUALS ONLY (I15): WKWebView (1), PencilKit/Metal (2), FileManager/Keychain (3).
         //     // These are platform APIs reached via cinterop; no extra shared logic.
         // }
+
+        // WIN02 — desktop seam actuals (I15). JNA for the Windows DPAPI secret codec only (compose + skiko
+        // for the overlay come transitively from the common compose deps on the desktop target).
+        val desktopMain by getting {
+            dependencies {
+                implementation(libs.jna)
+                implementation(libs.jna.platform)
+            }
+        }
+        val desktopTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
     }
 }
 

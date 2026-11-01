@@ -37,3 +37,6 @@ rootProject.name = "TroubaStage"
 include(":shared")
 include(":androidApp")
 // No include(":iosApp") — iosApp is an Xcode project consuming the :shared framework (see above).
+// WIN02 — the desktop (Windows) entrypoint: the analog of :androidApp. Compose for Desktop
+// application{} + nativeDistributions (the per-user MSI). Depends only on :shared (I14).
+include(":desktopApp")
