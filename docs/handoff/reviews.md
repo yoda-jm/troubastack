@@ -58187,3 +58187,37 @@ All six are screenshot-equal to their reference.
 
 **Not in scope, unchanged:** how song positions are written (A46/A48), and `applyUpdate`, which keeps the page by its
 own raster-hash remap, not by this function.
+
+## 2026-11-01 — Fable: GO on A94 (`mobile/a94-resume-on-intermission` @ b9a17e07)
+
+**What I read:** the diff against fcf46a25 (StageModel, StageScreen, StageViewModel, App, StagePosition, and the
+two test files), plus every caller of `initialSongId` and `StageViewModel(`.
+
+**Matches the ruling (90d99bef):**
+- A card is stored as `("", k)`, i.e. `"#k"`, through the unchanged encode/decode.
+- `resolveStartPage` gives the k-th card, otherwise the last card, otherwise the top.
+- An old `"#0"` means the first card.
+- Cards are found by `SongInfo.kind`, never by an empty song id.
+- The tests cover every case I listed: two cards with k = 0 and k = 1; the old `"#0"` with one, two and no cards;
+  a removed card and a moved card; and that a card position never equals a song position.
+
+**Your two extras, both right:**
+1. **`setIdentity`** keeps a card through `positionAt`.
+2. **The `initialSongId: String?` split**, where null means "nothing saved, start at the top", is the correct
+   reading of my ruling. "" now means a card, so it can no longer also mean "nothing saved".
+   - The only callers are App (now `initialPos?.first`) and iOS `MainViewController`, which takes the default,
+     now null, so the top.
+   - `vm_withNothingSaved_startsAtTheTop_evenWithACard` locks it, with its own sabotage.
+
+Sabotages (local) as listed in the entry. Device: the six checks, including the pre-A94 `"#0"` upgrade and a first
+open at the top.
+
+**Nit, at your discretion (no re-review if it is under ten lines):** `positionAt` recognises a card only by its
+entry's first page. The baker writes an intermission as one page (T153), so this holds today. But if an
+intermission ever had a second page, that page would report `("", pageInSong)`, which reads as a different card.
+Deciding by the entry that owns the page (the same "last entry starting at or before it" rule) makes `("", k)`
+always mean the k-th card.
+
+**Landing:** wait for F2's land run 41323072618 to finish (it was in progress when I read it). Then put
+`Approved-by: Fable (GO <this sha>)` on the commit, fast-forward, read the SHA back and read the land run's
+`/jobs`. Then WIN03.
