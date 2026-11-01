@@ -142,12 +142,17 @@ kotlin {
         // WIN02 — desktop seam actuals (I15). JNA for the Windows DPAPI secret codec only (compose + skiko
         // for the overlay come transitively from the common compose deps on the desktop target).
         val desktopMain by getting {
+            // WIN01 wiring: the second JVM target. The shared app (App(), screens, ktor transport) now
+            // compiles for desktop too, which is where WIN01's hand-held Android-free guard starts being
+            // ENFORCED by the compiler (an Android-only API in jvmSharedMain fails the desktop compile here).
+            dependsOn(jvmSharedMain)
             dependencies {
                 implementation(libs.jna)
                 implementation(libs.jna.platform)
             }
         }
         val desktopTest by getting {
+            dependsOn(jvmSharedTest)
             dependencies {
                 implementation(kotlin("test"))
             }
