@@ -1,5 +1,7 @@
 package com.troubastack.app
 
+import com.troubastack.shared.ui.LocalMaxContentWidth
+import com.troubastack.shared.ui.readableWidth
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -84,7 +86,7 @@ internal fun ConcertsScreen(
     }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxSize().readableWidth(LocalMaxContentWidth.current).statusBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // A31: a visible Home affordance on every sub-screen (placement consistent with the Edit
             // bar's "‹ Back"), so returning to the landing page never depends on the system-back gesture.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

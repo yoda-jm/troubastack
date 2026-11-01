@@ -149,12 +149,22 @@ kotlin {
             dependencies {
                 implementation(libs.jna)
                 implementation(libs.jna.platform)
+                // WIN03 — shared Stage code hops to Dispatchers.Main (a note's index refresh after its save, the clear);
+                // without a Main dispatcher on the desktop every pen-up threw "Module with the Main dispatcher is
+                // missing" (found drawing a note in the Linux journey).
+                implementation(libs.kotlinx.coroutines.swing)
             }
         }
         val desktopTest by getting {
             dependsOn(jvmSharedTest)
             dependencies {
                 implementation(kotlin("test"))
+                // WIN03 — the Skia page decoder and note codec are tested here; Skia needs its native runtime for the
+                // OS running the tests (the app gets it from :desktopApp's own compose.desktop.currentOs).
+                implementation(compose.desktop.currentOs)
+                // WIN03 acceptance 4 — Compose's UI test API, to drive Stage with mouse input in desktopTest.
+                @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+                implementation(compose.uiTest)
             }
         }
     }

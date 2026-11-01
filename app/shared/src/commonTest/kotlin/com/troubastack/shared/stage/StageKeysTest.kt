@@ -118,4 +118,15 @@ class StageKeysTest {
         assertEquals(emptyMap(), parsePedalBindings(""))
         assertEquals(emptyMap(), parsePedalBindings("garbage;=;NEXT=")) // tolerant of junk
     }
+
+    @Test
+    fun desktopReservedKeys_cannotBeLearned_andAndroidKeepsTheOldRule() {
+        // WIN03 D4: F11 and Esc are the window's on the desktop. Android passes no reserved set, so they stay learnable.
+        assertFalse(isLearnableKey(Key.F11, DESKTOP_RESERVED_KEYS))
+        assertFalse(isLearnableKey(Key.Escape, DESKTOP_RESERVED_KEYS))
+        assertTrue(isLearnableKey(Key.PageDown, DESKTOP_RESERVED_KEYS))
+        assertTrue(isLearnableKey(Key.F11))
+        assertTrue(isLearnableKey(Key.Escape))
+        assertFalse(isLearnableKey(Key.Back, DESKTOP_RESERVED_KEYS), "Back stays refused everywhere")
+    }
 }

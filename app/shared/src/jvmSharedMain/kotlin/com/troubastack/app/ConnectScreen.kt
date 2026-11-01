@@ -38,7 +38,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 private const val CORE_URL_KEY = "coreUrl"
-private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080"
 
 /**
  * A38 — Connect is a MODAL, not a page. A bounded titled surface overlaying Home (which stays visible
@@ -83,7 +82,8 @@ private fun ConnectContent(
     // A52: pasting an invite link is THE path — it names the server, so the person never hand-types a
     // URL. Manual sign-in below is the floor (camera denied/absent, iOS, or no link to hand).
     var inviteLink by remember { mutableStateOf("") }
-    var serverUrl by remember { mutableStateOf(storage.getSecret(CORE_URL_KEY) ?: DEFAULT_CORE_URL) }
+    // WIN03: the saved server, else the platform's default (Android's emulator alias), else a bare scheme to type after.
+    var serverUrl by remember { mutableStateOf(storage.getSecret(CORE_URL_KEY) ?: transport.defaultServerUrl ?: "http://") }
     // A41: seed the last username so Sign in after a Disconnect needs only a password. The password
     // field is never seeded (below) — the secret stays unpersisted.
     var username by remember { mutableStateOf(storage.getSecret(LAST_USERNAME_KEY) ?: "") }
@@ -136,15 +136,17 @@ private fun ConnectContent(
             // URL. Acting on it is routed through A51's joinDecision by the JoinDialog the host opens; this
             // modal just hands the string up and closes. Join is enabled for any non-blank paste; a bad
             // link is refused (with a reason) by the parser in the sheet, not eagerly here.
+            val canJoin = !busy && inviteLink.isNotBlank()
+            val join = { onInviteLink(inviteLink.trim()) }
             OutlinedTextField(
                 inviteLink, { inviteLink = it }, label = { Text("Paste invite link") },
-                singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
+                singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth().submitOnEnter(canJoin, join),
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                 // A53: scan the QR the studio already renders instead of pasting — same destination (the
                 // join sheet), the camera just removes the paste. Denial/absence falls back to the field above.
                 if (onScan != null) TextButton(enabled = !busy, onClick = onScan) { Text("Scan a QR") }
-                Button(enabled = !busy && inviteLink.isNotBlank(), onClick = { onInviteLink(inviteLink.trim()) }) { Text("Join") }
+                Button(enabled = canJoin, onClick = join) { Text("Join") }
             }
         } else {
             // Sign-in journey: discovery → URL → credentials → Connect. Discovery prefills the URL, so it
@@ -167,37 +169,38 @@ private fun ConnectContent(
                     }
                 }
             }
-            OutlinedTextField(serverUrl, { serverUrl = it }, label = { Text("Server URL") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(username, { username = it }, label = { Text("Username") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+            val canConnect = !busy && username.isNotBlank() && password.isNotBlank()
+            val connect = {
+                dropSessionIfOriginChanged(storage, serverUrl.trim(), transport.clearWebCookies) // new server ⇒ drop old session
+                storage.putSecret(CORE_URL_KEY, serverUrl.trim())
+                busy = true; error = null
+                scope.launch {
+                    val err = try {
+                        transport.connect(username.trim(), password)
+                    } catch (e: Exception) {
+                        "Couldn't reach the server"
+                    }
+                    busy = false
+                    if (err == null) {
+                        storage.putSecret(LAST_USERNAME_KEY, username.trim()) // A41: remember on SUCCESS only
+                        onDone()
+                    } else {
+                        error = err
+                    }
+                }
+                Unit
+            }
+            OutlinedTextField(serverUrl, { serverUrl = it }, label = { Text("Server URL") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth().submitOnEnter(canConnect, connect))
+            OutlinedTextField(username, { username = it }, label = { Text("Username") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth().submitOnEnter(canConnect, connect))
             OutlinedTextField(
                 password, { password = it }, label = { Text("Password") },
-                singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+                singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth().submitOnEnter(canConnect, connect),
             )
             error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onDone, enabled = !busy) { Text("Cancel") }
-                Button(
-                    enabled = !busy && username.isNotBlank() && password.isNotBlank(),
-                    onClick = {
-                        dropSessionIfOriginChanged(storage, serverUrl.trim(), transport.clearWebCookies) // new server ⇒ drop old session
-                        storage.putSecret(CORE_URL_KEY, serverUrl.trim())
-                        busy = true; error = null
-                        scope.launch {
-                            val err = try {
-                                transport.connect(username.trim(), password)
-                            } catch (e: Exception) {
-                                "Couldn't reach the server"
-                            }
-                            busy = false
-                            if (err == null) {
-                                storage.putSecret(LAST_USERNAME_KEY, username.trim()) // A41: remember on SUCCESS only
-                                onDone()
-                            } else {
-                                error = err
-                            }
-                        }
-                    },
-                ) { Text(if (busy) "Connecting…" else "Connect") }
+                Button(enabled = canConnect, onClick = connect) { Text(if (busy) "Connecting…" else "Connect") }
             }
             // A68: the app can create neither an account nor a band (an in-app bare account would land on a
             // Home with no band, no way forward). Registration lives in Studio, and every invite-made account

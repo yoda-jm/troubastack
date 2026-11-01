@@ -1,5 +1,7 @@
 package com.troubastack.shared.home
 
+import com.troubastack.shared.ui.LocalMaxContentWidth
+import com.troubastack.shared.ui.readableWidth
 import com.troubastack.shared.ui.LocalBrandAccents
 
 import androidx.compose.foundation.BorderStroke
@@ -423,7 +425,7 @@ fun HomeScreen(
     var showAccount by remember { mutableStateOf(false) }
     Surface(modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).readableWidth(LocalMaxContentWidth.current).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // A66: the top-left "TroubaStage" masthead is GONE. Home is the root — you cannot be lost on

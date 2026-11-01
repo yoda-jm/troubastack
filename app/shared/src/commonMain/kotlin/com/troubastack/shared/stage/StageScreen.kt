@@ -65,7 +65,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlin.math.PI
 import kotlin.math.cos
@@ -76,6 +78,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.LaunchedEffect
@@ -114,6 +117,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -134,6 +138,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
@@ -153,6 +162,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -272,6 +285,11 @@ fun StageScreen(
     // A79 follow-up — the drawer's open state up to the host's single Back handler, and its close request down.
     onDrawerOpenChange: (Boolean) -> Unit = {},
     closeDrawerRequest: Int = 0,
+    // WIN03 D2 — a desktop window's full screen: its state and the chrome button's toggle. null ⇒ no button (Android).
+    fullScreen: Boolean? = null,
+    onToggleFullScreen: () -> Unit = {},
+    // WIN03 D5 — what the performer points with; names it in the note-mode dialog.
+    pointerKind: PointerKind = PointerKind.TOUCH,
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -286,7 +304,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow, pedalBindings, midiSignal, onNoteCommitted, onFlushNotes, onDrawerOpenChange, closeDrawerRequest)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow, pedalBindings, midiSignal, onNoteCommitted, onFlushNotes, onDrawerOpenChange, closeDrawerRequest, fullScreen = fullScreen, onToggleFullScreen = onToggleFullScreen, pointerKind = pointerKind)
         }
     }
 }
@@ -315,6 +333,9 @@ private fun Performing(
     onFlushNotes: () -> Unit = {},             // A77 — host sends any debounced note now (page turn / exit)
     onDrawerOpenChange: (Boolean) -> Unit = {}, // A79 — the ☰ drawer opened/closed (the host's Back decision needs it)
     closeDrawerRequest: Int = 0,                // A79 — bumped by the host's Back handler: close the drawer
+    fullScreen: Boolean? = null,                // WIN03 D2 — the window's full screen; null ⇒ no button
+    onToggleFullScreen: () -> Unit = {},
+    pointerKind: PointerKind = PointerKind.TOUCH, // WIN03 D5
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
     // A46 (A33 drill 2): persist the reading position on every move, so a process death / exit reopens
@@ -449,7 +470,11 @@ private fun Performing(
         needsIdentityPick = needsIdentityPick(state.roster, state.identity),
         pickDismissed = pickDismissed,
     )
-    LaunchedEffect(holdsKeyFocus) { if (holdsKeyFocus) runCatching { keyFocus.requestFocus() } }
+    // WIN03 D4: one frame later. A mouse click focuses the button it lands on (the list's Open, a dialog's button); that
+    // button leaves with the screen and its focus is cleared AFTER this effect's first chance, so a request made at
+    // once was undone and, on the desktop, keys did not turn on entering a concert (measured in desktopTest:
+    // StageMouseUiTest.onEntry_pageDownTurns). Touch never focuses a button, so Android only gains a frame.
+    LaunchedEffect(holdsKeyFocus) { if (holdsKeyFocus) { withFrameNanos { }; runCatching { keyFocus.requestFocus() } } }
 
     // A15: the song drawer wraps the whole presenter so its scrim covers the pages when open. Swipe
     // gestures are enabled only WHILE open (swipe-to-close) — a left-edge swipe must never open it
@@ -663,6 +688,65 @@ private fun Performing(
         // A87 — the note bar's top edge in root px: the zoom window frames only what shows above it.
         var noteBarTop by remember { mutableStateOf<Float?>(null) }
         val noteThumb = androidx.compose.ui.graphics.rememberGraphicsLayer()
+        // WIN03 D3 — the width-mode page now on screen's scroll (set like activeNoteSpread), for the wheel's edge rule.
+        var activeWidthScroll by remember { mutableStateOf<ScrollState?>(null) }
+        // WIN03 D3 — the mouse wheel and touchpad (touch never sends wheel events). One gesture turns at most one page
+        // (wheelStep). Page and two-up turn on a new gesture; width mode scrolls natively and turns only on a new gesture
+        // at the edge, and a gesture that turned is swallowed to its end; scroll mode is the column's own scroll and never
+        // turns. In note mode the plain wheel does nothing and Ctrl+wheel zooms one A86 step per gesture; outside it
+        // Ctrl+wheel does nothing. Lock swipe locks the wheel's turns, as it does the drag's.
+        val wheel = remember { WheelState() }
+        val onWheel = rememberUpdatedState { dx: Float, dy: Float, ctrl: Boolean, atMs: Long ->
+            when {
+                scrollMode -> false
+                state.noteMode -> {
+                    if (ctrl) {
+                        val z = wheelStep(wheel.zoom, dx, dy, atMs) { true }
+                        wheel.zoom = z.gesture
+                        when (z.turn) {
+                            PageTurn.PREV -> vm.noteZoomIn() // wheel up
+                            PageTurn.NEXT -> vm.noteZoomOut()
+                            null -> {}
+                        }
+                    }
+                    true
+                }
+                ctrl -> true
+                else -> {
+                    val widthEdges = activeWidthScroll.takeIf { state.fitMode == FitMode.FIT_WIDTH && !currentIsIntermission }
+                    val step = wheelStep(wheel.turns, dx, dy, atMs) { turn ->
+                        !state.swipeLocked && (widthEdges == null || if (turn == PageTurn.NEXT) !widthEdges.canScrollForward else !widthEdges.canScrollBackward)
+                    }
+                    wheel.turns = step.gesture
+                    when (step.turn) {
+                        PageTurn.NEXT -> turnNext()
+                        PageTurn.PREV -> turnPrev()
+                        null -> {}
+                    }
+                    step.gesture.turned
+                }
+            }
+        }
+        // WIN03 D3 — the mouse pointer over the page: hidden after CURSOR_HIDE_AFTER_MS without moving (stageCursorHidden),
+        // a crosshair in note mode. Only where the platform has a cursor (LocalStagePointerIcons); over the chrome the
+        // chrome's own pointer shows, so overChrome is false here.
+        val pointerIcons = LocalStagePointerIcons.current
+        val pointerMoved = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST) }
+        var pointerStill by remember { mutableStateOf(false) }
+        if (pointerIcons != null) {
+            LaunchedEffect(pointerMoved) {
+                pointerMoved.onStart { emit(Unit) }.collectLatest { pointerStill = false; delay(CURSOR_HIDE_AFTER_MS); pointerStill = true }
+            }
+        }
+        val pointerMod = if (pointerIcons == null) Modifier else Modifier
+            .stagePointerMoves { pointerMoved.tryEmit(Unit) }
+            .pointerHoverIcon(
+                when {
+                    state.noteMode -> pointerIcons.pen
+                    stageCursorHidden(if (pointerStill) CURSOR_HIDE_AFTER_MS else 0L, state.noteMode, overChrome = false, overlayOpen = overlayOpen) -> pointerIcons.hidden
+                    else -> PointerIcon.Default
+                },
+            )
 
         Box(
             Modifier
@@ -699,7 +783,9 @@ private fun Performing(
                     // locked. Either way ‹ ›, a pedal and the keys/volume still navigate.
                     if (scrollMode || state.swipeLocked || state.noteMode) Modifier
                     else Modifier.pointerInputSwipe(twoUp, latestPrev, latestNext)
-                ),
+                )
+                .stageWheel(onWheel)
+                .then(pointerMod),
         ) {
             when {
                 // T165-B: fit the whole break card to the viewport (poster), letterboxed by the scheme —
@@ -787,6 +873,9 @@ private fun Performing(
                     // A86 — the zoom applies to the spread on screen; only it records the overview's thumbnail.
                     val onScreen = cur == state.current
                     if (onScreen) SideEffect { activeNoteSpread = noteSpread }
+                    // WIN03 D3 — this page's width-mode scroll, hoisted so the wheel's edge rule can read it.
+                    val widthScroll = rememberScrollState()
+                    if (onScreen) SideEffect { activeWidthScroll = widthScroll }
                     fun noteMod(divider: Color?) =
                         if (!noteEditing) Modifier
                         else Modifier.noteSpreadInput(noteSpread, divider, state.noteZoom, state.noteZoomCentre, if (onScreen) noteThumb else null, noteBarTop)
@@ -799,7 +888,7 @@ private fun Performing(
                         }
                     } else {
                         state.pages.getOrNull(cur)?.let { p ->
-                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize().then(noteMod(null)), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad, noteSpread = noteSpread)
+                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize().then(noteMod(null)), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad, noteSpread = noteSpread, widthScroll = widthScroll)
                         }
                     }
                 }
@@ -855,7 +944,7 @@ private fun Performing(
         ) {
             Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                    StageFab("☰") { scope.launch { drawerState.open() } }
+                    StageFab("☰", "Songs") { scope.launch { drawerState.open() } }
                     TitleCard(
                         title = state.songs.getOrNull(state.currentSong)?.name ?: "",
                         position = stagePositionLabel(state, topPage, twoUp),
@@ -873,9 +962,12 @@ private fun Performing(
                         // intercepts taps flush to the screen bottom, making a bottom ⚙ hard to hit.
                         // A70 §3.7 — the Notes entry (pencil), beside ⚙. Hidden once in note mode (the note
                         // bar takes over). requestNoteMode raises the confirmation, or the scroll-mode refusal.
-                        if (notePad != null && !state.noteMode) StageFab("✎") { vm.requestNoteMode() }
-                        StageFab("⚙") { showSettings = true }
-                        StageFab("✕", container = Color(0xCCB3261E)) { onExit() }
+                        if (notePad != null && !state.noteMode) StageFab("✎", "Note mode") { vm.requestNoteMode() }
+                        // WIN03 D2 — a desktop window's full screen, toggled here as by F11. Toggling it does not change
+                        // Parameters' "Full screen when performing".
+                        if (fullScreen != null) StageFab(label = if (fullScreen) "Leave full screen" else "Full screen", onClick = onToggleFullScreen) { FullScreenGlyph(leave = fullScreen) }
+                        StageFab("⚙", "Parameters") { showSettings = true }
+                        StageFab("✕", "Leave the concert", container = Color(0xCCB3261E)) { onExit() }
                     }
                 }
                 when {
@@ -1058,8 +1150,8 @@ private fun Performing(
                     // column and cross only at its end, because hands-free you cannot correct a wrong jump
                     // mid-piece. Page/width modes: scrollMode is false, so both fall through to turnPrev/
                     // turnNext unchanged.
-                    StageFab("‹", size = 64.dp) { if (scrollMode) scrollSwipePrev() else turnPrev() }
-                    StageFab("›", size = 64.dp) { if (scrollMode) scrollSwipeNext() else turnNext() }
+                    StageFab("‹", if (scrollMode) "Previous song" else "Previous page", size = 64.dp) { if (scrollMode) scrollSwipePrev() else turnPrev() }
+                    StageFab("›", if (scrollMode) "Next song" else "Next page", size = 64.dp) { if (scrollMode) scrollSwipeNext() else turnNext() }
                 }
             }
         }
@@ -1167,7 +1259,12 @@ private fun Performing(
         AlertDialog(
             onDismissRequest = { vm.cancelNoteMode() },
             title = { Text("Enter note mode?") },
-            text = { Text("Touch will draw, not turn pages. Pages still turn with a pedal or the volume keys.") },
+            text = {
+                Text(
+                    if (pointerKind == PointerKind.MOUSE) "The mouse will draw, not turn pages. Pages still turn with a pedal or the keyboard." // WIN03 D5
+                    else "Touch will draw, not turn pages. Pages still turn with a pedal or the volume keys.",
+                )
+            },
             confirmButton = { TextButton(onClick = { vm.confirmNoteMode() }) { Text("Enter") } },
             dismissButton = { TextButton(onClick = { vm.cancelNoteMode() }) { Text("No") } },
         )
@@ -1220,15 +1317,80 @@ private val STAGE_FAB_OUTLINE_WIDTH = 1.5.dp
 /** A2/N5 — a translucent Stage control (reference-app look): a white glyph on a dark disc with a light
  *  hairline outline so it reads on both the black canvas and the white page. */
 @Composable
-private fun StageFab(glyph: String, size: Dp = 56.dp, container: Color = STAGE_FAB_CONTAINER, onClick: () -> Unit) {
-    val shape = FloatingActionButtonDefaults.shape
-    FloatingActionButton(
-        onClick = onClick,
-        containerColor = container,
-        contentColor = Color.White,
-        shape = shape,
-        modifier = Modifier.size(size).border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, shape),
-    ) { Text(glyph, style = MaterialTheme.typography.headlineSmall) }
+private fun StageFab(glyph: String, label: String? = null, size: Dp = 56.dp, container: Color = STAGE_FAB_CONTAINER, onClick: () -> Unit) =
+    StageFab(label, size, container, onClick) { Text(glyph, style = MaterialTheme.typography.headlineSmall) }
+
+/** [label]: shown on hover where the platform has tooltips (WIN03 D3). */
+@Composable
+private fun StageFab(label: String? = null, size: Dp = 56.dp, container: Color = STAGE_FAB_CONTAINER, onClick: () -> Unit, content: @Composable () -> Unit) =
+    GlyphTooltip(label) {
+        val shape = FloatingActionButtonDefaults.shape
+        FloatingActionButton(
+            onClick = onClick,
+            containerColor = container,
+            contentColor = Color.White,
+            shape = shape,
+            modifier = Modifier.size(size).border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, shape),
+            content = content,
+        )
+    }
+
+/** WIN03 D3 — a glyph-only control's [label] as a hover tooltip, where the platform shows them (LocalGlyphTooltip). */
+@Composable
+private fun GlyphTooltip(label: String?, content: @Composable () -> Unit) {
+    val tooltip = LocalGlyphTooltip.current
+    if (tooltip == null || label == null) content() else tooltip(label, content)
+}
+
+/** WIN03 D3 — the wheel's two gestures in progress: page turns, and note mode's Ctrl+wheel zoom. */
+private class WheelState {
+    var turns = WheelGesture()
+    var zoom = WheelGesture()
+}
+
+/** WIN03 D3 — wheel events on their way down (the Initial pass, before a width page's own scroll sees them), handed to
+ *  [onWheel] with the event's time; true consumes the event. */
+private fun Modifier.stageWheel(onWheel: State<(dx: Float, dy: Float, ctrl: Boolean, atMs: Long) -> Boolean>): Modifier =
+    pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                val e = awaitPointerEvent(PointerEventPass.Initial)
+                if (e.type != PointerEventType.Scroll) continue
+                val c = e.changes.firstOrNull() ?: continue
+                if (onWheel.value(c.scrollDelta.x, c.scrollDelta.y, e.keyboardModifiers.isCtrlPressed, c.uptimeMillis)) e.changes.forEach { it.consume() }
+            }
+        }
+    }
+
+/** WIN03 D3 — any pointer movement over the page (it shows the cursor again); never consumes. */
+private fun Modifier.stagePointerMoves(onMove: () -> Unit): Modifier =
+    pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                val type = awaitPointerEvent(PointerEventPass.Initial).type
+                if (type == PointerEventType.Move || type == PointerEventType.Enter || type == PointerEventType.Press) onMove()
+            }
+        }
+    }
+
+/** WIN03 D2 — the full-screen button's glyph, drawn (no font has to carry it): four corners pointing out to go full
+ *  screen, pointing in to leave it. */
+@Composable
+private fun FullScreenGlyph(leave: Boolean) {
+    Canvas(Modifier.size(22.dp)) {
+        val s = size.minDimension
+        val arm = s * 0.36f
+        val stroke = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        for ((cx, cy) in listOf(0f to 0f, s to 0f, 0f to s, s to s)) {
+            val dx = if (cx == 0f) arm else -arm
+            val dy = if (cy == 0f) arm else -arm
+            val path = Path().apply {
+                if (leave) { moveTo(cx + dx, cy); lineTo(cx + dx, cy + dy); lineTo(cx, cy + dy) }
+                else { moveTo(cx + dx, cy); lineTo(cx, cy); lineTo(cx, cy + dy) }
+            }
+            drawPath(path, Color.White, style = stroke)
+        }
+    }
 }
 
 /** A2 — the centered translucent song-title + position card (reference-app look). */
@@ -1978,6 +2140,7 @@ private fun PageView(
     onToggleChrome: () -> Unit = {},
     notePad: NotePad? = null, // A70 §3.5: the rehearsal-note layer (null ⇒ notes off; scroll never passes one)
     noteSpread: NoteSpread? = null, // A85: the note-mode surface that owns touch across the spread
+    widthScroll: ScrollState? = null, // WIN03 D3: the width-mode scroll, hoisted by the page-turn content for the wheel
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
         PlaceholderCard(modifier, colorMode)
@@ -2019,7 +2182,7 @@ private fun PageView(
             bitmaps.raster == null -> PlaceholderCard(Modifier.fillMaxSize(), colorMode) // decode failed at render time
             else -> {
                 val aspect = bitmaps.raster.width.toFloat() / bitmaps.raster.height.toFloat()
-                val scroll = rememberScrollState()
+                val scroll = widthScroll ?: rememberScrollState()
                 // A70 §3.7: FIT_WIDTH's vertical scroll is DISABLED in note mode (touch draws) — only the
                 // visible band is drawable, the stated cost until the move-tool follow-up.
                 val container =
@@ -2107,8 +2270,8 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    NoteChip("✎", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.PENCIL, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.PENCIL) }
-                    NoteChip("⌫", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.ERASER, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.ERASER) }
+                    GlyphTooltip("Pencil") { NoteChip("✎", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.PENCIL, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.PENCIL) } }
+                    GlyphTooltip("Eraser") { NoteChip("⌫", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.ERASER, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.ERASER) } }
                     NoteBarSeparator(chrome)
                     // three widths: a small, medium, large filled dot
                     listOf(6.dp to com.troubastack.shared.stage.notes.NoteTools.FINE, 11.dp to com.troubastack.shared.stage.notes.NoteTools.MEDIUM, 18.dp to com.troubastack.shared.stage.notes.NoteTools.WIDE).forEach { (dot, w) ->
@@ -2145,8 +2308,10 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
                 // A73 ⟨D1⟩/⟨D2⟩ — a checkmark, still a FILLED Button (the sole exit must not read as a fourth tool), with
                 // an accessible name since the glyph alone has none. U+2714 HEAVY CHECK MARK: a thin ✓ on a filled
                 // container does not read at arm's length on a dark stage.
-                Button(onClick = { vm.exitNoteMode() }, modifier = Modifier.semantics { contentDescription = "Finish notes" }) {
-                    Text("✔", style = MaterialTheme.typography.titleLarge)
+                GlyphTooltip("Finish notes") {
+                    Button(onClick = { vm.exitNoteMode() }, modifier = Modifier.semantics { contentDescription = "Finish notes" }) {
+                        Text("✔", style = MaterialTheme.typography.titleLarge)
+                    }
                 }
             },
         )
@@ -2214,11 +2379,11 @@ private fun NoteBarLayout(modifier: Modifier, tools: @Composable () -> Unit, cle
 private fun ZoomChip(zoom: Float, onIn: () -> Unit, onOut: () -> Unit, onReset: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        TextButton(
+        GlyphTooltip("Zoom, " + NoteZoom.label(zoom)) { TextButton(
             onClick = { open = true },
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
             modifier = Modifier.widthIn(min = 52.dp).semantics { contentDescription = "Zoom, " + NoteZoom.label(zoom) },
-        ) { Text("⌕ " + NoteZoom.label(zoom), style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false) }
+        ) { Text("⌕ " + NoteZoom.label(zoom), style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false) } }
         androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 ZoomButton("−", enabled = NoteZoom.canZoomOut(zoom), label = "Zoom out", onClick = onOut)
@@ -2231,7 +2396,7 @@ private fun ZoomChip(zoom: Float, onIn: () -> Unit, onOut: () -> Unit, onReset: 
 }
 
 @Composable
-private fun ZoomButton(text: String, enabled: Boolean, label: String, onClick: () -> Unit) {
+private fun ZoomButton(text: String, enabled: Boolean, label: String, onClick: () -> Unit) = GlyphTooltip(label) {
     TextButton(
         onClick = onClick, enabled = enabled,
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
@@ -2446,7 +2611,7 @@ private fun StageBeatControl(tempo: Int, meter: String, beat: StageBeat, onStart
             .border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, shape),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
+        GlyphTooltip("Metronome") { Box(
             Modifier
                 .fillMaxHeight()
                 .width(height)
@@ -2458,9 +2623,9 @@ private fun StageBeatControl(tempo: Int, meter: String, beat: StageBeat, onStart
                     }
                 },
             contentAlignment = Alignment.Center,
-        ) { MetronomeIcon(beatTint(beat), Modifier.size(height * 0.42f)) }
+        ) { MetronomeIcon(beatTint(beat), Modifier.size(height * 0.42f)) } }
         Box(Modifier.width(STAGE_FAB_OUTLINE_WIDTH).fillMaxHeight().background(STAGE_FAB_OUTLINE.copy(alpha = 0.55f)))
-        Box(
+        GlyphTooltip("Keep running") { Box(
             Modifier
                 .fillMaxHeight()
                 .width(height)
@@ -2473,7 +2638,7 @@ private fun StageBeatControl(tempo: Int, meter: String, beat: StageBeat, onStart
                 color = if (beat.continuous) Color.White else MaterialTheme.colorScheme.outline,
                 style = MaterialTheme.typography.headlineSmall,
             )
-        }
+        } }
     }
 }
 

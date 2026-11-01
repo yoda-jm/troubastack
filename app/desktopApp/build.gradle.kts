@@ -20,7 +20,9 @@ kotlin {
 dependencies {
     implementation(project(":shared"))
     implementation(compose.desktop.currentOs) // Compose for Desktop runtime (skiko) for this OS
-    implementation(compose.material3)         // currentOs bundles Material 2; the skeleton uses Material 3
+    implementation(compose.material3)         // currentOs bundles Material 2; the app uses Material 3
+    implementation(libs.jna)                   // WIN03: SetThreadExecutionState, GetTickCount64 (already :shared's)
+    implementation(libs.jna.platform)
     testImplementation(kotlin("test"))
 }
 
@@ -29,11 +31,20 @@ dependencies {
 // stays 1.0.0. MSI ProductVersion fields cap at 255.255.65535, which 1.0.<run_number> clears for a long time.
 val desktopVersion: String = (findProperty("desktopVersion") as String?) ?: "1.0.0"
 
+// WIN03 — tests that build the desktop platform open a Storage(): point its data root at the build dir, never a profile.
+tasks.withType<Test>().configureEach {
+    environment("TROUBASTAGE_HOME", layout.buildDirectory.dir("test-home").get().asFile.path)
+}
+
 compose.desktop {
     application {
         mainClass = "com.troubastack.desktop.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
+            // WIN03 — the JDK modules the packaged runtime needs beyond Compose's default: the first three are what
+            // `./gradlew :desktopApp:suggestRuntimeModules` reports for the shared app (ktor, coroutines); jdk.crypto.ec
+            // is loaded as a security provider, which jdeps cannot see, and HTTPS needs it (servers, GitHub for WIN04).
+            modules("java.instrument", "java.management", "jdk.unsupported", "jdk.crypto.ec")
             packageName = "TroubaStage"        // the Android app's label
             packageVersion = desktopVersion
             description = "TroubaStage"

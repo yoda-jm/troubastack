@@ -3,12 +3,14 @@ package com.troubastack.app
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
+import androidx.compose.ui.input.key.Key
 import com.troubastack.shared.buildinfo.UpdateVerdict
 import com.troubastack.shared.distribution.ServerDiscovery
 import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.stage.ImageDecoder
 import com.troubastack.shared.stage.PageTurn
 import com.troubastack.shared.stage.PedalLinkState
+import com.troubastack.shared.stage.PointerKind
 import com.troubastack.shared.stage.notes.NoteKey
 import com.troubastack.shared.stage.notes.RehearsalNotes
 import kotlinx.coroutines.CoroutineScope
@@ -74,6 +76,33 @@ interface AppPlatform {
 
     /** A54 — the encrypted settings had to be reset this run; Home shows the one-time notice. */
     val settingsWereReset: Boolean
+
+    /** WIN03 D2/D4 — a desktop window: its full screen, and the keys it keeps for itself. null: no window (Android). */
+    val window: WindowControls?
+
+    /** WIN03 D5 — what the performer points with: touch on Android, the mouse on the desktop. Stage names it. */
+    val pointer: PointerKind
+
+    /** WIN03 (Fable's ruling) — the server address to start from when none is saved, the platform's one source for it:
+     *  Android's emulator alias for its host; null on the desktop, where Connect starts at "http://" and nothing is
+     *  contacted until a server is set. */
+    val defaultServerUrl: String?
+}
+
+/** WIN03 D2/D4 — the desktop window as the shared app sees it. */
+interface WindowControls {
+    /** The window is full screen now. Backed by Compose state, so a reader recomposes when it changes. */
+    val fullScreen: Boolean
+
+    /** F11 and Stage's full-screen button. Inside a concert it does not change [fullScreenWhenPerforming]. */
+    fun toggleFullScreen()
+
+    /** Parameters' "Full screen when performing" (default on): entering a concert goes full screen. */
+    val fullScreenWhenPerforming: Boolean
+    fun chooseFullScreenWhenPerforming(on: Boolean)
+
+    /** Keys the window keeps (F11, Esc): never learnable as pedal keys (A72's isLearnableKey). */
+    val reservedKeys: Set<Key>
 }
 
 /** A70/T170 — the note files as the Notes tab and the armed uploader use them: Stage's port plus the stored PNG. */

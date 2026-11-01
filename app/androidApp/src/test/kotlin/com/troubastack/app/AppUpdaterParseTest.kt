@@ -35,6 +35,20 @@ class AppUpdaterParseTest {
     }
 
     @Test
+    fun a_release_with_the_windows_msi_too_still_finds_the_apk() {
+        // WIN03 D8: `latest` carries the MSI next to the APK. TEETH: a parser that takes the first (or only) asset
+        // offers the MSI to Android — so the MSI is listed FIRST here.
+        val twoAssets = real.replace(
+            "\"assets\":[",
+            "\"assets\":[{\"name\":\"troubastage-windows.msi\",\"size\":98765432,\"browser_download_url\":\"https://github.com/yoda-jm/troubastack/releases/download/latest/troubastage-windows.msi\"},",
+        )
+        assertEquals(true, twoAssets.indexOf("troubastage-windows.msi") < twoAssets.indexOf("troubastage-debug.apk"), "fixture: the MSI comes first")
+        val r = AppUpdater.parseRelease(twoAssets)
+        assertEquals("https://github.com/yoda-jm/troubastack/releases/download/latest/troubastage-debug.apk", r?.apkUrl)
+        assertEquals(15_753_501, r?.apkSize)
+    }
+
+    @Test
     fun no_apk_asset_means_no_release() {
         assertNull(AppUpdater.parseRelease(real.replace("troubastage-debug.apk", "something-else.apk")))
     }

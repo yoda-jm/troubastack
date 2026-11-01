@@ -84,7 +84,7 @@ internal data class ConcertEntry(
 fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     val storage = platform.storage
     // The Studio web view's cookie jar is dropped with the session (sign-out, a new server origin).
-    val transport = remember { HttpTransport(storage, clearWebCookies = { platform.studio?.clearCookies() }) }
+    val transport = remember { HttpTransport(storage, defaultServerUrl = platform.defaultServerUrl, clearWebCookies = { platform.studio?.clearCookies() }) }
     // B06: LAN server discovery for Connect; without it Connect simply lists no servers.
     val discovery = remember { platform.discovery ?: ServerDiscovery { flowOf(emptyList()) } }
     val studio = platform.studio
@@ -241,6 +241,10 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
             },
             autoChecks = appUpdate?.autoChecks ?: false,
             onAutoChecks = { appUpdate?.chooseAutoChecks(it) },
+            // WIN03 — a desktop window: its reserved keys, and "Full screen when performing" (null hides it).
+            reservedKeys = platform.window?.reservedKeys ?: emptySet(),
+            fullScreenWhenPerforming = platform.window?.fullScreenWhenPerforming,
+            onFullScreenWhenPerforming = { platform.window?.chooseFullScreenWhenPerforming(it) },
             onBack = { settings = false },
         )
         platform.BackHandler { settings = false }
@@ -596,6 +600,9 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
                     onFlushNotes = { armedUploader.flush() },
                     onDrawerOpenChange = { stageDrawerOpen = it },
                     closeDrawerRequest = closeDrawerRequest,
+                    fullScreen = platform.window?.fullScreen, // WIN03 D2: null on Android ⇒ no button
+                    onToggleFullScreen = { platform.window?.toggleFullScreen() },
+                    pointerKind = platform.pointer, // WIN03 D5
                 )
             }
         }
@@ -604,10 +611,11 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
     // concert (VLL: "I already exited several times a concert"). ✕ is the only exit; the failure/empty screens
     // (no ✕) still leave on Back. The pure decision is stageBackAction, tested in shared.
     platform.BackHandler {
-        when (com.troubastack.shared.stage.stageBackAction(stageState, drawerOpen = stageDrawerOpen)) {
+        when (com.troubastack.shared.stage.stageBackAction(stageState, drawerOpen = stageDrawerOpen, fullScreen = platform.window?.fullScreen == true)) {
             com.troubastack.shared.stage.StageBack.LEAVE -> selectedDir = null
             com.troubastack.shared.stage.StageBack.CLOSE_DRAWER -> closeDrawerRequest++ // A79 follow-up: drawer only
             com.troubastack.shared.stage.StageBack.STAY -> {}
+            com.troubastack.shared.stage.StageBack.EXIT_FULL_SCREEN -> platform.window?.toggleFullScreen() // WIN03 D4: Esc
         }
     }
 }

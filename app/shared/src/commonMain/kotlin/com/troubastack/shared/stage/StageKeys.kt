@@ -66,8 +66,12 @@ fun tokenAction(token: String, learned: PedalBindings): PageTurn? =
 
 /** A72 ⟨D4⟩ — Back and Home may NEVER be learned (binding Back would trap the user in the Stage; Home is the
  *  OS's). Everything else is offered; the panel still SHOWS a refused press with its reason (⟨D1⟩). MIDI
- *  messages have no such trap, so all are learnable. */
-fun isLearnableKey(key: Key): Boolean = key != Key.Back && key != Key.Home
+ *  messages have no such trap, so all are learnable. WIN03 D4: a platform adds the keys it reserves for the window
+ *  ([DESKTOP_RESERVED_KEYS]); Android reserves none, so its rule is unchanged. */
+fun isLearnableKey(key: Key, reserved: Set<Key> = emptySet()): Boolean = key != Key.Back && key != Key.Home && key !in reserved
+
+/** WIN03 D4 — the desktop window's own keys: F11 toggles full screen, Esc leaves it (and closes dialogs). */
+val DESKTOP_RESERVED_KEYS: Set<Key> = setOf(Key.F11, Key.Escape)
 
 /** The outcome of teaching one token. [takenFrom] is the action the token used to drive, if any — so the UI
  *  can say "this button was Previous" (A72 ⟨D3⟩). */
