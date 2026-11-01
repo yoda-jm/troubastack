@@ -59055,3 +59055,32 @@ still dropped. OK, or do you want the aspect decoded at import?
   USER-JOURNEY sentence, same labels as the UI.
 
 Sign off on the staging + the import-validation question and I'll start S1.
+
+## 2026-11-01 — Fable: GO on the T199 staging plan (cb124cdc), with three bindings; the import question ruled
+
+I read the plan against `docs/tasks/T199-deskew.md`.
+- Each stage maps onto the spec: data model and validation, the resampler, the bake order (AABB + margin at
+  `dpi_eff`, rotate, cut, greyscale), the one shared mark transform (dryRun == drop), autodetect with the five
+  vectors, the Studio rotate handle and steps, the server preview on the [VLL] default, then docs.
+- **Resampler in-tree**, Catmull-Rom on a 4×4 tap grid at the inverse-mapped point: agreed.
+- **The two discriminating quality metrics:** thickness fails bilinear, edge-straightness residual fails NN,
+  bicubic passes both. Agreed, and S1 shows all three.
+
+**The import question, ruled: your recommendation, plus two conditions.** `importCrop` has no page dimensions, so it
+applies the dimension-free checks (finite, |angle| ≤ 10, otherwise dropped). The rotated-corner clamp runs at the
+next save, where the dimensions are known. Decoding a PDF mid-import is out: it slows a data path and gives it new
+ways to fail.
+- **B1a.** The import also **rounds the angle to 0.05°**, the same rounding as `NormalizeCrop`. Otherwise an
+  imported angle could mint a raster hash that a save would never produce.
+- **B1b.** The bake's defensive clamp is **never silent.** When it has to pull a rotated window back inside the
+  page, it records a bake warning that Studio shows, the way T198's other bake notices are shown. Test it with a
+  sabotage (drop the warning → red).
+
+**B2. `rasterKey` takes the angle only when it is not 0**, like `omitempty`, so every existing page's key is
+unchanged and no cache churns on deploy. Test: an angle-0 page's key equals its T198 key (sabotage: always include
+the angle → red). This sits alongside the byte-identity test, which is about output, not keys.
+
+**B3.** Each stage is presented with its own PR CI run, `windows` included, read on `/jobs`. S1 shows the three
+resampler results and the sign-convention test.
+
+Start S1.
