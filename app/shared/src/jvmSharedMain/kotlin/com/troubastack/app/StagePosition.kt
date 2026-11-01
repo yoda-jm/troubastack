@@ -9,6 +9,10 @@ package com.troubastack.app
  * unit-tested off-device: a stored value with no separator must degrade to null (→ start at the top),
  * never throw at composition time on launch. Behaviour is identical to A46's inline `"$s#$p"` /
  * `split('#', limit = 2).takeIf { it.size == 2 }`.
+ *
+ * A94: an intermission card goes through the same pair as ("", k), the k-th intermission, so it is stored as
+ * `"#k"`. No song has an empty id (only an intermission does, T153), so it never collides with a song position;
+ * the `"#0"` every intermission wrote before A94 reads as the first card (resolveStartPage).
  */
 internal fun encodeStagePosition(songId: String, pageInSong: Int): String = "$songId#$pageInSong"
 

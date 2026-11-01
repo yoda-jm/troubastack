@@ -21,8 +21,9 @@ class StageViewModel(
     identity: String = "",
     initialFit: FitMode = FitMode.FIT_PAGE,
     // A46 (A33 drill 2): the persisted reading POSITION for this concert (logical songId + page-in-song),
-    // so reopening lands where the performer left off, not page 0. "" ⇒ start at the top (old behaviour).
-    initialSongId: String = "",
+    // so reopening lands where the performer left off, not page 0. null ⇒ nothing saved: start at the top.
+    // A94: "" is an intermission card (initialPageInSong = its ordinal), so it must not stand for "nothing saved".
+    initialSongId: String? = null,
     initialPageInSong: Int = 0,
     // T147: a MONOTONIC millisecond source (Android: SystemClock.elapsedRealtime — advances through deep
     // sleep) for the chronometer. Injectable so the state machine is tested without sleeping; the default
@@ -52,7 +53,7 @@ class StageViewModel(
         stageStateFrom(loadResult, role, identity).let { s ->
             s.copy(
                 fitMode = initialFit,
-                current = resolveStartPage(s, initialSongId, initialPageInSong),
+                current = if (initialSongId == null) 0 else resolveStartPage(s, initialSongId, initialPageInSong),
                 chrono = initialChrono,
                 clockVisible = initialClockVisible,
                 clockStyle = initialClockStyle,
@@ -120,10 +121,15 @@ class StageViewModel(
         // page-in-song — do not map onto the new identity's sequence (a flat index would land on an
         // unrelated page mid-set). INVALIDATE the position: keep the SONG you were on but land at its first
         // page in the new sequence. songId is identity-independent, so re-resolving via resolveStartPage at
-        // page-in-song 0 is exact when the song is present, and 0 otherwise.
-        val songId = s.currentPage?.songId ?: ""
+        // page-in-song 0 is exact when the song is present, and 0 otherwise. A94: on an intermission card, keep
+        // that card (by its ordinal), not the top; with no page, the top as before.
+        val pos = positionAt(s, s.current)
         fresh.copy(
-            current = resolveStartPage(fresh, songId, 0),
+            current = when {
+                pos == null -> 0
+                pos.first.isEmpty() -> resolveStartPage(fresh, "", pos.second)
+                else -> resolveStartPage(fresh, pos.first, 0)
+            },
             fitMode = s.fitMode,
             autoUpdate = s.autoUpdate,
             // T147: identity is a view preference — the session chrono + clock keep running across it.

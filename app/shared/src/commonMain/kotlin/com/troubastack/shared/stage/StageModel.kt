@@ -523,15 +523,45 @@ internal fun stageStateFrom(result: LoadResult, role: String, identity: String =
  *  - else, if the song is still present but that page is gone (a shorter re-bake), **clamp to the song's
  *    LAST page** — never off the end, and closer to where the performer was than its first (A46 §3);
  *  - else (song removed, or nothing saved) ⇒ 0.
- * Never returns an out-of-range index. Empty [songId]/empty [state] ⇒ 0. Pure/testable.
+ * A94: an EMPTY [songId] is an intermission position ([positionAt]): [pageInSong] is then k, the k-th intermission
+ * (0-based). It resolves to that card; with fewer cards now, to the last one there is; with none, to the top. A
+ * stored "#0" from before A94 (any intermission wrote it) therefore reads as the first card.
+ * Never returns an out-of-range index. Empty [state] ⇒ 0. Pure/testable.
  */
 internal fun resolveStartPage(state: StageState, songId: String, pageInSong: Int): Int {
-    if (state.pages.isEmpty() || songId.isEmpty()) return 0
+    if (state.pages.isEmpty()) return 0
+    if (songId.isEmpty()) {
+        val cards = intermissionPages(state)
+        return cards.getOrNull(pageInSong.coerceAtLeast(0)) ?: cards.lastOrNull() ?: 0
+    }
     val exact = state.pages.indexOfFirst { it.songId == songId && it.pageInSong == pageInSong }
     if (exact >= 0) return exact
     val lastOfSong = state.pages.indexOfLast { it.songId == songId }
     return if (lastOfSong >= 0) lastOfSong else 0
 }
+
+/**
+ * A94 — the reading position to persist for page [index] (A46), the inverse of [resolveStartPage]: a song page is
+ * (songId, pageInSong); an intermission card is ("", k), the k-th intermission of the concert (0-based). An
+ * intermission has no song id (T153), so ("", k) never collides with a song position, and it survives a re-bake
+ * that adds songs around the card. Null with no page.
+ */
+internal fun positionAt(state: StageState, index: Int): Pair<String, Int>? {
+    val page = state.pages.getOrNull(index) ?: return null
+    // Decided by the entry that OWNS the page, so every page of a card (one today) means that card.
+    val entry = state.songs.getOrNull(state.songs.indexOfLast { it.firstPage <= index })
+    val k = if (entry?.kind == RunningOrderKind.INTERMISSION) intermissionPages(state).indexOf(entry.firstPage) else -1
+    return if (k >= 0) "" to k else page.songId to page.pageInSong
+}
+
+/** A94 — the page index of each intermission card, in running order. The entry a page belongs to is the last one
+ *  starting at or before it (as [StageState.currentSong]), so a card is its entry's first page. */
+private fun intermissionPages(state: StageState): List<Int> =
+    state.songs.mapIndexedNotNull { i, s ->
+        s.firstPage.takeIf {
+            s.kind == RunningOrderKind.INTERMISSION && it < state.pages.size && state.songs.indexOfLast { o -> o.firstPage <= it } == i
+        }
+    }
 
 /**
  * A50 — should the Stage hold hardware key/pedal focus right now? True only when NO focus-stealing

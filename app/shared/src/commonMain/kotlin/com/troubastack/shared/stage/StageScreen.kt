@@ -319,9 +319,10 @@ private fun Performing(
     var colorMode by remember { mutableStateOf(initialColorMode) }
     // A46 (A33 drill 2): persist the reading position on every move, so a process death / exit reopens
     // where the performer left off. Keyed on the logical page so we report once per actual page change.
-    val here = state.currentPage
-    LaunchedEffect(here?.songId, here?.pageInSong) {
-        if (here != null) onPositionChange(here.songId, here.pageInSong)
+    // A94: an intermission card is reported as ("", k), the k-th intermission (positionAt) — it has no song id.
+    val here = positionAt(state, state.current)
+    LaunchedEffect(here) {
+        if (here != null) onPositionChange(here.first, here.second)
         onFlushNotes() // A77 §7 — a page turn flushes any debounced auto-send promptly (host no-ops if none)
     }
     // A77 §7 — leaving note mode flushes too, so the strokes reach Studio without waiting out the debounce.

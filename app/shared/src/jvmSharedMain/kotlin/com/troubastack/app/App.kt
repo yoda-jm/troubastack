@@ -475,7 +475,7 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
                 loadResult,
                 identity = identity,
                 initialFit = FitMode.parse(storage.getSecret(FIT_MODE_KEY)),
-                initialSongId = initialPos?.first ?: "",
+                initialSongId = initialPos?.first, // null: nothing saved, the top (A94: "" is an intermission card)
                 initialPageInSong = initialPos?.second ?: 0,
                 // T147: a MONOTONIC source that advances through deep sleep — a paused chrono then can't
                 // drift and a running one counts the sleep, both correct (Android: elapsedRealtime, not wall time).

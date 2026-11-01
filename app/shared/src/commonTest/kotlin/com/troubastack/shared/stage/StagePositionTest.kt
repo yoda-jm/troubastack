@@ -130,4 +130,141 @@ class StagePositionTest {
         val label = stagePositionLabel(withIntermission().copy(current = 0), topPage = 0, twoUp = false)
         assertTrue(label.startsWith("Song 1/3"), "a song keeps its counter (got \"$label\")")
     }
+
+    // --- A94: an intermission card is stored as ("", k), the k-th intermission, and resolves back to it ---
+
+    /** A concert from entries: a song is (id to its page count), an intermission card is `null` (one page). */
+    private fun concert(vararg entries: Pair<String, Int>?): StageState {
+        val pages = ArrayList<StagePage>()
+        val songs = ArrayList<SongInfo>()
+        for (e in entries) {
+            if (e == null) {
+                songs += SongInfo("", "Interval", firstPage = pages.size, kind = RunningOrderKind.INTERMISSION, label = "Interval")
+                pages += page("", 0)
+            } else {
+                songs += SongInfo(e.first, e.first, firstPage = pages.size)
+                repeat(e.second) { pages += page(e.first, it) }
+            }
+        }
+        return StageState(pages = pages, songs = songs)
+    }
+
+    /** a0 a1 | card | b0 | card | c0 — the cards are at indices 2 and 4. */
+    private fun twoCards() = concert("a" to 2, null, "b" to 1, null, "c" to 1)
+
+    @Test
+    fun aCard_isStoredAsItsOrdinal_andResolvesBackToIt() {
+        // TEETH (the A94 sabotage): put back the empty-songId early return and both cards resolve to the top (0).
+        val s = twoCards()
+        assertEquals("" to 0, positionAt(s, 2), "the first card is the 0th intermission")
+        assertEquals("" to 1, positionAt(s, 4), "the second card is the 1st intermission")
+        assertEquals(2, resolveStartPage(s, "", 0))
+        assertEquals(4, resolveStartPage(s, "", 1))
+    }
+
+    @Test
+    fun everyPage_roundTripsThroughItsStoredPosition() {
+        // The property, over songs and cards alike: what is stored for a page resolves back to that page.
+        val s = twoCards()
+        for (i in s.pages.indices) {
+            val (songId, at) = positionAt(s, i)!!
+            assertEquals(i, resolveStartPage(s, songId, at), "page $i stored as ($songId, $at)")
+        }
+    }
+
+    @Test
+    fun everyPageOfACard_isThatCard() {
+        // Fable's guard: a card is decided by the entry that owns the page, so a (hypothetical) two-page card never
+        // reports its second page as ("", 1) — another card. TEETH: decide by "is the card's first page" and this reddens.
+        val s = twoCards().let { st -> st.copy(pages = st.pages.toMutableList().apply { add(3, page("", 1)) },
+            songs = st.songs.mapIndexed { i, e -> if (i >= 2) e.copy(firstPage = e.firstPage + 1) else e }) }
+        assertEquals("" to 0, positionAt(s, 2))
+        assertEquals("" to 0, positionAt(s, 3), "the card's second page is still the first card")
+        assertEquals("" to 1, positionAt(s, 5))
+    }
+
+    @Test
+    fun songPages_storeWhatTheyStoredBefore() {
+        // A46/A48 untouched: a song page is still (songId, pageInSong).
+        val s = twoCards()
+        assertEquals("a" to 1, positionAt(s, 1))
+        assertEquals("b" to 0, positionAt(s, 3))
+        assertEquals("c" to 0, positionAt(s, 5))
+    }
+
+    @Test
+    fun aRemovedCard_landsOnTheLastCardLeft_neverTheTop() {
+        // Left on the second card; the re-bake now has only one. Its card, not the top (and not off the end).
+        val oneCard = concert("a" to 2, null, "b" to 1, "c" to 1)
+        assertEquals(2, resolveStartPage(oneCard, "", 1))
+    }
+
+    @Test
+    fun aMovedCard_isFoundWhereItIsNow() {
+        // Songs were added before the first card: the card moved from index 2 to 4, and is still found.
+        val moved = concert("a" to 2, "x" to 1, "y" to 1, null, "b" to 1, null, "c" to 1)
+        assertEquals(4, resolveStartPage(moved, "", 0))
+        assertEquals(6, resolveStartPage(moved, "", 1))
+    }
+
+    @Test
+    fun noCardLeft_landsAtTheTop() {
+        val noCards = concert("a" to 2, "b" to 1)
+        assertEquals(0, resolveStartPage(noCards, "", 0))
+        assertEquals(0, resolveStartPage(noCards, "", 1))
+    }
+
+    @Test
+    fun theOldHashZero_meansTheFirstCard() {
+        // Before A94 every intermission stored "#0" (decoded as ("", 0)). Ruled: the first card, or the top with none.
+        assertEquals(2, resolveStartPage(concert("a" to 2, null, "b" to 1), "", 0), "one card")
+        assertEquals(2, resolveStartPage(twoCards(), "", 0), "two cards: the first")
+        assertEquals(0, resolveStartPage(concert("a" to 2, "b" to 1), "", 0), "no card: the top")
+    }
+
+    @Test
+    fun aNegativeOrdinal_isTheFirstCard() {
+        // decodeStagePosition parses "#-3" as -3; never an exception, never off the start.
+        assertEquals(2, resolveStartPage(twoCards(), "", -3))
+    }
+
+    // --- A94 wiring: the VM seeds the card, and an identity switch on a card keeps it ---
+
+    private fun bundleWithCards() = LoadResult.Loaded(
+        ConcertBundle(
+            concertId = "c1",
+            songs = listOf(
+                BakedSong(songId = "a", pages = listOf(PageImages(pageRasterRef = "a0.png"), PageImages(pageRasterRef = "a1.png"))),
+                BakedSong(kind = "intermission", label = "Interval", pages = listOf(PageImages(pageRasterRef = "i1.png"))),
+                BakedSong(songId = "b", pages = listOf(PageImages(pageRasterRef = "b0.png"))),
+                BakedSong(kind = "intermission", label = "Interval", pages = listOf(PageImages(pageRasterRef = "i2.png"))),
+                BakedSong(songId = "c", pages = listOf(PageImages(pageRasterRef = "c0.png"))),
+            ),
+        ),
+        emptyList(),
+    )
+
+    @Test
+    fun vm_withNothingSaved_startsAtTheTop_evenWithACard() {
+        // A concert opened for the first time has no stored position: the top, not the first card. Found on the device
+        // pass: the host passed "" for "nothing saved", which A94 reads as the first intermission. TEETH: default
+        // initialSongId back to "" and this lands on 2.
+        assertEquals(0, StageViewModel(bundleWithCards()).state.value.current)
+    }
+
+    @Test
+    fun vm_seedsTheSecondCard_fromItsStoredPosition() {
+        val vm = StageViewModel(bundleWithCards(), initialSongId = "", initialPageInSong = 1)
+        assertEquals(4, vm.state.value.current)
+        assertEquals("" to 1, positionAt(vm.state.value, vm.state.value.current))
+    }
+
+    @Test
+    fun vm_identitySwitchOnACard_keepsThatCard() {
+        // T137 lands a SONG on its first page after a switch; a card has no song id, so before A94 it went to the top.
+        // TEETH: resolve the switch with ("", 0) (the first card) and this lands on 2, not 4.
+        val vm = StageViewModel(bundleWithCards(), initialSongId = "", initialPageInSong = 1)
+        vm.setIdentity("someone")
+        assertEquals(4, vm.state.value.current)
+    }
 }
