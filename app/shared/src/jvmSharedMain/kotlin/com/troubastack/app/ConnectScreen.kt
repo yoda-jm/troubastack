@@ -53,7 +53,7 @@ fun ConnectDialog(
     discovery: ServerDiscovery = ServerDiscovery { flowOf(emptyList()) },
     onClose: () -> Unit,
     onInviteLink: (String) -> Unit = {},
-    onScan: () -> Unit = {},
+    onScan: (() -> Unit)? = {}, // null: no camera scanner on this platform ⇒ no "Scan a QR"
 ) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
@@ -77,7 +77,7 @@ private fun ConnectContent(
     discovery: ServerDiscovery,
     onDone: () -> Unit,
     onInviteLink: (String) -> Unit = {},
-    onScan: () -> Unit = {},
+    onScan: (() -> Unit)? = {},
 ) {
     val scope = rememberCoroutineScope()
     // A52: pasting an invite link is THE path — it names the server, so the person never hand-types a
@@ -143,7 +143,7 @@ private fun ConnectContent(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                 // A53: scan the QR the studio already renders instead of pasting — same destination (the
                 // join sheet), the camera just removes the paste. Denial/absence falls back to the field above.
-                TextButton(enabled = !busy, onClick = onScan) { Text("Scan a QR") }
+                if (onScan != null) TextButton(enabled = !busy, onClick = onScan) { Text("Scan a QR") }
                 Button(enabled = !busy && inviteLink.isNotBlank(), onClick = { onInviteLink(inviteLink.trim()) }) { Text("Join") }
             }
         } else {
@@ -179,7 +179,7 @@ private fun ConnectContent(
                 Button(
                     enabled = !busy && username.isNotBlank() && password.isNotBlank(),
                     onClick = {
-                        dropSessionIfOriginChanged(storage, serverUrl.trim()) // new server ⇒ drop old session
+                        dropSessionIfOriginChanged(storage, serverUrl.trim(), transport.clearWebCookies) // new server ⇒ drop old session
                         storage.putSecret(CORE_URL_KEY, serverUrl.trim())
                         busy = true; error = null
                         scope.launch {

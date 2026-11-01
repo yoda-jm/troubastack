@@ -50,20 +50,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.troubastack.shared.ui.LocalBrandAccents
-
-/** BRAND10 two-tone wordmark: "Trouba" in [ink], the product word in its [accent]. Shared by the
- *  native product launcher pages (Studio browse here, the Stage concert list in MainActivity). */
-internal fun brandTitle(product: String, accent: Color, ink: Color) = buildAnnotatedString {
-    withStyle(SpanStyle(color = ink)) { append("Trouba") }
-    withStyle(SpanStyle(color = accent)) { append(product) }
-}
 
 /**
  * A65 — the native "Studio" browse: two LAUNCHER lists (Concerts, Bands). Concerts is every concert

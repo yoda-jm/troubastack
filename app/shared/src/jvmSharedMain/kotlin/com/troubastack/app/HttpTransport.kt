@@ -90,14 +90,15 @@ fun sessionCookieFor(getSecret: (String) -> String?, url: String): String? {
 
 /**
  * Call when the user changes the server URL: if the new origin differs from the session's, drop the
- * stored session AND the WebView's cookie jar so nothing from the old server survives against the new
- * one. Defense-in-depth alongside [sessionCookieFor] (which already refuses a cross-origin replay).
+ * stored session AND the Studio web view's cookies ([clearWebCookies]) so nothing from the old server
+ * survives against the new one. Defense-in-depth alongside [sessionCookieFor] (which already refuses a
+ * cross-origin replay).
  */
-fun dropSessionIfOriginChanged(storage: Storage, newUrl: String) {
+fun dropSessionIfOriginChanged(storage: Storage, newUrl: String, clearWebCookies: () -> Unit) {
     if (originOf(newUrl) != storage.getSecret(SESSION_ORIGIN_KEY).orEmpty()) {
         clearSession(storage::putSecret)              // A38 review: consolidated onto the tested helper
         storage.putSecret(LAST_USERNAME_KEY, "")      // A41: the remembered username belongs to a server
-        android.webkit.CookieManager.getInstance().removeAllCookies(null)
+        clearWebCookies()
     }
 }
 
@@ -108,7 +109,11 @@ fun dropSessionIfOriginChanged(storage: Storage, newUrl: String) {
  * Connect survives relaunch. Offline-first: with no session, [fetchManifest] returns empty (the
  * concerts list just shows local bundles; Stage never needs an account, I12).
  */
-class HttpTransport(private val storage: Storage) : ManifestTransport {
+class HttpTransport(
+    private val storage: Storage,
+    /** Drops the Studio web view's cookies (Android: the WebView cookie jar), with the session. */
+    val clearWebCookies: () -> Unit,
+) : ManifestTransport {
     private val json = Json { ignoreUnknownKeys = true }
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) { json(json) }
@@ -411,18 +416,18 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
      *  the OLD origin (defense-in-depth with [sessionCookieFor]). The ConfirmServer path calls this after
      *  the person confirms the host — so a subsequent sign-in + accept run against the chosen server. */
     fun switchServer(url: String) {
-        dropSessionIfOriginChanged(storage, url.trim())
+        dropSessionIfOriginChanged(storage, url.trim(), clearWebCookies)
         storage.putSecret(CORE_URL_KEY, url.trim())
     }
 
     /** The origin the app currently points at (for A51's `joinDecision`). */
     val currentOrigin: String get() = baseUrl
 
-    /** Clear the persisted session (Storage is overwrite-only, so empty == signed out) — and drop it
-     *  from the Edit WebView's shared cookie jar too, so signing out signs out everywhere. */
+    /** Clear the persisted session (Storage is overwrite-only, so empty == signed out) — and drop the
+     *  Studio web view's cookies too ([clearWebCookies]), so signing out signs out everywhere. */
     fun signOut() {
         clearSession(storage::putSecret) // the tested storage half — keeps CORE_URL_KEY, touches no files
-        android.webkit.CookieManager.getInstance().removeAllCookies(null)
+        clearWebCookies()
     }
 
     private fun cookie(): String? = sessionCookieFor(storage::getSecret, baseUrl)

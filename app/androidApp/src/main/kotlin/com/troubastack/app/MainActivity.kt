@@ -18,10 +18,9 @@ import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.stage.PageTurn
 
 /**
- * The thin Android entrypoint (I15). Concerts list (Storage bundlesDir) + the shared [StageScreen],
- * plus B03 distribution: an optional Connect (session login) surfaces baked concerts as download
- * offers on the list; applying them goes through A05's atomic import. Stage stays offline (I12) —
- * offers live only in the list, never mid-performance.
+ * The thin Android entrypoint (I15). WIN01: the app itself is the shared [App] (jvmSharedMain); this is its glue —
+ * the theme holder, the deep-link intents, resume, the volume keys — and [AndroidAppPlatform] hands App() the
+ * Android capabilities.
  */
 class MainActivity : ComponentActivity() {
     // Set by App() only while a Stage is open (A09) so the hardware VOLUME keys turn pages; null
@@ -46,8 +45,9 @@ class MainActivity : ComponentActivity() {
             // the setter down to the Parameters screen. Persisted; defaults to SYSTEM.
             val themeStore = remember { Storage(applicationContext) }
             var themePref by remember { mutableStateOf(ThemePref.parse(themeStore.getSecret(ThemePref.KEY))) }
+            val platform = remember { AndroidAppPlatform(this@MainActivity) }
             TroubaTheme(dark = themePref.resolveDark()) {
-                App(themePref = themePref, onThemePref = { themePref = it; themeStore.putSecret(ThemePref.KEY, it.name) })
+                App(platform, themePref = themePref, onThemePref = { themePref = it; themeStore.putSecret(ThemePref.KEY, it.name) })
             }
         }
     }

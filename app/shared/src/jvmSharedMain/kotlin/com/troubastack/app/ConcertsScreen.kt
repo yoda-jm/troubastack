@@ -1,9 +1,5 @@
 package com.troubastack.app
 
-import android.content.Context
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -56,14 +52,10 @@ import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.ui.LocalBrandAccents
 import kotlinx.coroutines.launch
 import java.io.File
-import java.util.UUID
-
-// ".tstage" has no registered MIME type, so accept zip + anything and validate on import.
-private val TSTAGE_PICKER_TYPES = arrayOf("application/zip", "application/octet-stream", "*/*")
 
 @Composable
 internal fun ConcertsScreen(
-    context: Context,
+    platform: AppPlatform,
     storage: Storage,
     transport: HttpTransport,
     updates: UpdatesManager,
@@ -79,18 +71,16 @@ internal fun ConcertsScreen(
     // not on a row of its own (≈ 56 dp back for the list). NotesTab publishes it here; see NotesSendAllHandle.
     val notesSendAll = remember { NotesSendAllHandle() }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri != null) {
-            val temp = copyToTemp(context, storage, uri)
-            message = when (val r = BundleImporter(AndroidImportFs(storage)).import(temp)) {
-                // A81: name the concert, not its id — the id is a UUID nobody can read.
-                is ImportResult.Imported ->
-                    "Imported «${listConcerts(storage).firstOrNull { it.concertId == r.concertId }?.label ?: r.concertId}»"
-                is ImportResult.Failed -> r.reason
-            }
-            File(temp).delete()
-            refresh++
+    // Import a .tstage through the platform's picker (none ⇒ no Import button): it hands over a temp copy.
+    val pickBundle = platform.bundlePicker?.rememberLauncher { temp ->
+        message = when (val r = BundleImporter(AndroidImportFs(storage)).import(temp)) {
+            // A81: name the concert, not its id — the id is a UUID nobody can read.
+            is ImportResult.Imported ->
+                "Imported «${listConcerts(storage).firstOrNull { it.concertId == r.concertId }?.label ?: r.concertId}»"
+            is ImportResult.Failed -> r.reason
         }
+        File(temp).delete()
+        refresh++
     }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -113,13 +103,13 @@ internal fun ConcertsScreen(
                     }
                 }
                 // A81/A91: Import lives once, in the list's top bar (works with no server).
-                if (stageTab == 0) {
-                    TextButton(onClick = { picker.launch(TSTAGE_PICKER_TYPES) }) { Text("Import a .tstage…") }
+                if (stageTab == 0 && pickBundle != null) {
+                    TextButton(onClick = pickBundle) { Text("Import a .tstage…") }
                 }
             }
             // A70 §5.3 — Concerts | Notes tabs, Stage accent. The Notes tab label carries the whole nag.
             val stageAccent = LocalBrandAccents.current.stage
-            val notesWarn = remember(refresh) { allNotesWarning(storage) }
+            val notesWarn = remember(refresh) { allNotesWarning(platform, storage) }
             TabRow(
                 selectedTabIndex = stageTab, contentColor = stageAccent,
                 indicator = { pos -> TabRowDefaults.SecondaryIndicator(Modifier.tabIndicatorOffset(pos[stageTab]), color = stageAccent) },
@@ -140,12 +130,12 @@ internal fun ConcertsScreen(
                     listLocal = { listConcerts(storage).map { e -> LocalCopy(e.toLocalBundle(), e.dir) } },
                     onOpen = onOpen,
                     // A70 §3.3: deleting a bundle removes its rehearsal notes too (they live beside it).
-                    onDeleted = { cid -> if (cid.isNotEmpty() && !cid.startsWith(DAMAGED_PREFIX)) AndroidRehearsalNotes(storage.notesDir()).deleteAll(cid) },
+                    onDeleted = { cid -> if (cid.isNotEmpty() && !cid.startsWith(DAMAGED_PREFIX)) platform.rehearsalNotes(storage.notesDir()).deleteAll(cid) },
                     onChanged = { refresh++ },
                     message = { message = it },
                 )
             } else {
-                NotesTab(storage, transport, connected, onChanged = { refresh++ }, sendAllHandle = notesSendAll)
+                NotesTab(platform, storage, transport, connected, onChanged = { refresh++ }, sendAllHandle = notesSendAll)
             }
         }
     }
@@ -161,13 +151,13 @@ private fun ConcertEntry.toLocalBundle() = com.troubastack.shared.distribution.L
 )
 
 // A70 §5 — every stored rehearsal note across all installed concerts, paired with its concert id.
-private fun allNoteEntries(storage: Storage): List<Pair<String, com.troubastack.shared.stage.notes.NoteEntry>> {
-    val port = AndroidRehearsalNotes(storage.notesDir())
+private fun allNoteEntries(platform: AppPlatform, storage: Storage): List<Pair<String, com.troubastack.shared.stage.notes.NoteEntry>> {
+    val port = platform.rehearsalNotes(storage.notesDir())
     return listConcerts(storage).flatMap { c -> port.index(c.concertId).map { c.concertId to it } }
 }
 
-private fun allNotesWarning(storage: Storage): NotesWarning =
-    NoteIndex.warning(allNoteEntries(storage).map { it.second })
+private fun allNotesWarning(platform: AppPlatform, storage: Storage): NotesWarning =
+    NoteIndex.warning(allNoteEntries(platform, storage).map { it.second })
 
 /**
  * A70 §5.3 / T170 §6 — the Notes tab: every rehearsal note grouped band → concert → song → page, each with
@@ -177,10 +167,10 @@ private fun allNotesWarning(storage: Storage): NotesWarning =
  * also spells it out. This is the only place a note can be deleted, viewed off the page, or sent.
  */
 @Composable
-private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Boolean, onChanged: () -> Unit = {}, sendAllHandle: NotesSendAllHandle? = null) {
+private fun NotesTab(platform: AppPlatform, storage: Storage, transport: HttpTransport, connected: Boolean, onChanged: () -> Unit = {}, sendAllHandle: NotesSendAllHandle? = null) {
     var refresh by remember { mutableStateOf(0) }
-    val notes = remember(refresh) { allNoteEntries(storage) }
-    val port = remember { AndroidRehearsalNotes(storage.notesDir()) }
+    val notes = remember(refresh) { allNoteEntries(platform, storage) }
+    val port = remember { platform.rehearsalNotes(storage.notesDir()) }
     val labels = remember(refresh) { listConcerts(storage).associate { it.concertId to it.label } }
     var see by remember { mutableStateOf<Pair<String, com.troubastack.shared.stage.notes.NoteEntry>?>(null) }
     // A70 §5 (VLL): a collapsible band → concert → song → page tree, so a page-heavy concert folds away in one
@@ -460,11 +450,4 @@ internal fun listConcerts(storage: Storage): List<ConcertEntry> {
             is LoadResult.Failed -> ConcertEntry(d.path, "", 0uL, 0L, "Damaged bundle (${d.name})", bandId = "", bandName = "", damaged = true)
         }
     }
-}
-
-/** Copy a picked document stream into a temp `.tstage` the importer can read. */
-private fun copyToTemp(context: Context, storage: Storage, uri: Uri): String {
-    val temp = File(storage.tempDir(), "pick-${UUID.randomUUID()}.tstage")
-    context.contentResolver.openInputStream(uri)?.use { input -> temp.outputStream().use { input.copyTo(it) } }
-    return temp.path
 }

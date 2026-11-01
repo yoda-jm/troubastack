@@ -3,7 +3,6 @@
 // own: the next listing says it is no longer edited. Admins only — the server sends the flag to admins only.
 package com.troubastack.app
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,7 +55,6 @@ internal fun EditedConcertsScreen(transport: HttpTransport, onBack: () -> Unit) 
     var tick by remember { mutableStateOf(0) }
     val baking = remember { mutableStateMapOf<String, String>() } // concert id → live bake line
     val errors = remember { mutableStateMapOf<String, String>() }
-    BackHandler { onBack() }
     LaunchedEffect(tick) {
         val all = fetchServerConcertsWithEdits(transport)
         failed = all == null

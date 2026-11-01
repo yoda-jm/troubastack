@@ -1,10 +1,5 @@
 package com.troubastack.app
 
-import android.os.SystemClock
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
@@ -27,12 +22,11 @@ import com.troubastack.shared.home.HomeState
 import com.troubastack.shared.home.Identity
 import com.troubastack.shared.home.UpdateStatus
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import com.troubastack.shared.bundle.BundleImporter
 import com.troubastack.shared.bundle.BundleLoader
 import com.troubastack.shared.bundle.LoadResult
+import com.troubastack.shared.distribution.ServerDiscovery
 import com.troubastack.shared.distribution.UpdatesManager
-import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.stage.Chrono
 import com.troubastack.shared.stage.ClockStyle
 import com.troubastack.shared.stage.FitMode
@@ -40,15 +34,13 @@ import com.troubastack.shared.stage.ImageDecoder
 import com.troubastack.shared.stage.decodeChrono
 import com.troubastack.shared.stage.encodeChrono
 import com.troubastack.shared.stage.LocalVolumeTurnRegistrar
-import com.troubastack.shared.stage.PageTurn
 import com.troubastack.shared.stage.StageColorMode
 import com.troubastack.shared.stage.StageScreen
 import com.troubastack.shared.stage.StageViewModel
 import com.troubastack.shared.stage.resolveIdentity
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import java.io.File
 
 private const val POLICIES_KEY = "trouba.update.policies"
 private const val COLOR_MODE_KEY = "stage.colorMode"
@@ -81,16 +73,26 @@ internal data class ConcertEntry(
 // A91: the Perform/Manage ConcertIntent split is retired — there is ONE concert list, in TroubaStage; admin items in a
 // row's ⋯ are gated by the band role, not by which tile you came from.
 
+/**
+ * The app (WIN01: shared by the JVM platforms; everything platform-specific comes from [platform], and a null
+ * capability hides its affordance). The concerts list (Storage bundlesDir) + the shared [StageScreen], plus B03
+ * distribution: an optional Connect (session login) surfaces baked concerts as download offers on the list; applying
+ * them goes through A05's atomic import. Stage stays offline (I12) — offers live only in the list, never
+ * mid-performance.
+ */
 @Composable
-internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
-    val context = LocalContext.current.applicationContext
-    val storage = remember { Storage(context) }
-    val transport = remember { HttpTransport(storage) }
-    val discovery = remember { NsdServerDiscovery(context) } // B06: LAN server discovery for Connect
+fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
+    val storage = platform.storage
+    // The Studio web view's cookie jar is dropped with the session (sign-out, a new server origin).
+    val transport = remember { HttpTransport(storage, clearWebCookies = { platform.studio?.clearCookies() }) }
+    // B06: LAN server discovery for Connect; without it Connect simply lists no servers.
+    val discovery = remember { platform.discovery ?: ServerDiscovery { flowOf(emptyList()) } }
+    val studio = platform.studio
+    val qrScanner = platform.qrScanner
     // A88 — the in-app update from the GitHub `latest` release (one controller for Home's banner and About).
     val appScope = rememberCoroutineScope()
-    val appUpdate = remember { AppUpdateController(context, storage, appScope) }
-    AppUpdateDialogs(appUpdate)
+    val appUpdate = platform.appUpdate?.let { make -> remember { make(storage, appScope) } }
+    appUpdate?.Dialogs()
     val updates = remember {
         UpdatesManager(
             transport = transport,
@@ -105,41 +107,31 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // A76 — the BLE-MIDI pedal, app-scoped so Parameters (learn a button) and Stage (turn pages) share ONE
     // link. Each press becomes a MidiSignal both screens observe: Parameters shows it (⟨D1⟩ diagnostic) and
     // learns it if armed; Stage matches it to a page turn. The link State drives the panel's diagnostic.
-    val midiPedal = remember { MidiPedal(context) }
+    val midiPedal = platform.pedal?.let { open -> remember { open() } }
     var midiState by remember { mutableStateOf(com.troubastack.shared.stage.PedalLinkState.NOT_CONNECTED) }
     var midiSignal by remember { mutableStateOf<com.troubastack.shared.stage.MidiSignal?>(null) }
     var midiSeq by remember { mutableStateOf(0L) }
     var pedalEverConnected by remember { mutableStateOf(false) } // A76 ⟨D1⟩: gates auto-reconnect on Stage entry
     DisposableEffect(midiPedal) {
-        midiPedal.setListeners(
+        midiPedal?.setListeners(
             onStateChange = { s ->
-                if (s == MidiPedal.State.CONNECTED) pedalEverConnected = true
-                midiState = when (s) {
-                    MidiPedal.State.CONNECTED -> com.troubastack.shared.stage.PedalLinkState.CONNECTED
-                    MidiPedal.State.SCANNING -> com.troubastack.shared.stage.PedalLinkState.SCANNING
-                    MidiPedal.State.NOT_CONNECTED -> com.troubastack.shared.stage.PedalLinkState.NOT_CONNECTED
-                }
+                if (s == com.troubastack.shared.stage.PedalLinkState.CONNECTED) pedalEverConnected = true
+                midiState = s
             },
-            onPressReceived = { p ->
+            onPress = { status, data1 ->
                 midiSeq += 1
                 midiSignal = com.troubastack.shared.stage.MidiSignal(
                     midiSeq,
-                    com.troubastack.shared.stage.midiToken(p.status, p.data1),
-                    com.troubastack.shared.stage.midiLabel(p.status, p.data1),
+                    com.troubastack.shared.stage.midiToken(status, data1),
+                    com.troubastack.shared.stage.midiLabel(status, data1),
                 )
             },
         )
-        onDispose { midiPedal.close() }
+        onDispose { midiPedal?.close() }
     }
-    // A76 ⟨D1⟩ — explicit Connect: request the BLE permissions (Android 12+) then scan+connect; already
-    // granted → connect straight away. Reconnect on Stage entry is automatic once connected once (below).
-    val midiPerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        if (result.values.all { it }) midiPedal.connect()
-    }
-    val connectPedal: () -> Unit = {
-        if (midiPedal.hasPermissions()) midiPedal.connect()
-        else midiPerms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT))
-    }
+    // A76 ⟨D1⟩ — explicit Connect (the platform asks for its permissions first). Reconnect on Stage entry is
+    // automatic once connected once (below).
+    val connectPedal: (() -> Unit)? = midiPedal?.rememberConnect()
 
     // P205 Stage 3a: the logged-in member (id → roster auto-match on concert open; name/band → Home
     // line). A31: SET FROM THE LIVE PROBE below — a single source of truth. The old
@@ -155,7 +147,7 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     var selectedDir by rememberSaveable { mutableStateOf<String?>(null) }
     // A76 ⟨D1⟩ — the pedal drops the link aggressively, so reconnect on entering a concert (Stage) — but only
     // after a first successful connect, so a stand with no pedal never scans on open. connect() is idempotent.
-    LaunchedEffect(selectedDir) { if (selectedDir != null && pedalEverConnected) midiPedal.connect() }
+    LaunchedEffect(selectedDir) { if (selectedDir != null && pedalEverConnected) midiPedal?.connect() }
     var editing by rememberSaveable { mutableStateOf(false) }
     // A31: the concert list is ONE screen with two intents — entered via TroubaStage (perform: lean,
     // offline, tap-to-perform) or via TroubaStudio (manage: import/update/edit affordances).
@@ -170,16 +162,16 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     var editBandId by rememberSaveable { mutableStateOf<String?>(null) }
     var showingQr by rememberSaveable { mutableStateOf(false) }
 
-    // A52: the join sheet overlays ANY screen. It opens from a /join/ deep link (the activity's in-memory
-    // pendingLink, set by onCreate/onNewIntent) or a link pasted into ConnectDialog (onInviteLink below).
-    // Placed before the screen ladder so it isn't gated by the settings/editing early-returns; it is a
+    // A52: the join sheet overlays ANY screen. It opens from a /join/ deep link (the platform's in-memory
+    // pendingInviteLink; on Android set by onCreate/onNewIntent) or a link pasted into ConnectDialog (onInviteLink
+    // below). Placed before the screen ladder so it isn't gated by the settings/editing early-returns; it is a
     // Dialog (its own window) so it floats over whatever screen shows. joinedTick forces Home to re-probe
     // after a join so the new band's label/concerts appear without a manual refresh.
-    val mainActivity = LocalContext.current.findActivity() as? MainActivity
+    val pendingLink = platform.pendingInviteLink
     var joinLink by remember { mutableStateOf<String?>(null) }
     var joinedTick by remember { mutableStateOf(0) }
-    LaunchedEffect(mainActivity?.pendingLink?.value) {
-        mainActivity?.pendingLink?.value?.let { joinLink = it; mainActivity.pendingLink.value = null }
+    LaunchedEffect(pendingLink?.value) {
+        pendingLink?.value?.let { joinLink = it; pendingLink.value = null }
     }
     joinLink?.let { link ->
         JoinDialog(
@@ -193,12 +185,12 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // joinLink → parseTroubaLink), exactly like a paste or deep link; the scanner itself inspects nothing.
     // Cancel/deny/Back returns to the Connect modal so the paste field is one tap away (never a dead end).
     var scanning by remember { mutableStateOf(false) }
-    if (scanning) {
-        QrScanScreen(
-            onDecoded = { joinLink = it; scanning = false },
-            onClose = { scanning = false; connecting = true },
+    if (scanning && qrScanner != null) {
+        qrScanner(
+            { joinLink = it; scanning = false }, // onDecoded
+            { scanning = false; connecting = true }, // onClose
         )
-        BackHandler { scanning = false; connecting = true }
+        platform.BackHandler { scanning = false; connecting = true }
         return
     }
 
@@ -239,25 +231,26 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             midiSignal = midiSignal,
             servers = joinedServer?.let { listOf(it to joinedVersion) } ?: emptyList(),
             // A88 — the latest release, a by-hand check (works on a dev build too), Update, and the Automatic switch.
-            latestLine = com.troubastack.shared.buildinfo.latestLine(appUpdate.verdict, appUpdate.failed),
-            checkingForUpdates = appUpdate.checking,
-            onCheckForUpdates = { appUpdate.check(manual = true) },
-            onUpdateApp = when (appUpdate.verdict) {
-                is com.troubastack.shared.buildinfo.UpdateVerdict.Available, is com.troubastack.shared.buildinfo.UpdateVerdict.Dismissed -> ({ appUpdate.update() })
+            // No update capability ⇒ onCheckForUpdates null ⇒ Parameters shows none of it.
+            latestLine = appUpdate?.let { com.troubastack.shared.buildinfo.latestLine(it.verdict, it.failed) } ?: "",
+            checkingForUpdates = appUpdate?.checking ?: false,
+            onCheckForUpdates = appUpdate?.let { u -> { u.check(manual = true) } },
+            onUpdateApp = when (appUpdate?.verdict) {
+                is com.troubastack.shared.buildinfo.UpdateVerdict.Available, is com.troubastack.shared.buildinfo.UpdateVerdict.Dismissed -> ({ appUpdate?.update() })
                 else -> null
             },
-            autoChecks = appUpdate.autoChecks,
-            onAutoChecks = { appUpdate.chooseAutoChecks(it) },
+            autoChecks = appUpdate?.autoChecks ?: false,
+            onAutoChecks = { appUpdate?.chooseAutoChecks(it) },
             onBack = { settings = false },
         )
-        BackHandler { settings = false }
+        platform.BackHandler { settings = false }
         return
     }
 
     // A65: the room QR present-view — checked BEFORE EditScreen so it overlays it; Back returns to Edit.
-    if (showingQr && editBandId != null) {
+    if (showingQr && editBandId != null && studio != null) {
         MaterialTheme(colorScheme = lightColorScheme()) {
-            QrPresentScreen(
+            studio.PresentQr(
                 transport = transport,
                 bandId = editBandId!!,
                 bandName = editTitle ?: "",
@@ -269,22 +262,22 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         return
     }
 
-    if (editing) {
+    if (editing && studio != null) {
         // A36: the studio WebView host keeps its own look — the brand theme is for the NATIVE
         // screens only, and the embedded studio already carries the website's CSS (VLL: don't
         // touch the webview). Reset to the M3 baseline the screen was built under (a bare
         // MaterialTheme would INHERIT the brand scheme, so pass it explicitly).
         MaterialTheme(colorScheme = lightColorScheme()) {
-            EditScreen(storage, onBack = { editing = false }, initialPath = editInitialPath, bandTitle = editTitle)
+            studio.Edit(storage, onBack = { editing = false }, initialPath = editInitialPath, bandTitle = editTitle)
         }
         return
     }
 
     // A65: the TroubaStudio browse — two native launcher lists; a row opens the Studio WebView at its
     // deep-link path (checked AFTER `editing` so a tapped row shows EditScreen, and Back returns here).
-    if (studioBrowse) {
+    if (studioBrowse && studio != null) {
         MaterialTheme(colorScheme = lightColorScheme()) {
-            StudioBrowseScreen(
+            studio.Browse(
                 transport = transport,
                 onOpen = { path, band, bandId -> editInitialPath = path; editTitle = band; editBandId = bandId; editing = true },
                 onShowQr = { bandId, band -> editBandId = bandId; editTitle = band; showingQr = true },
@@ -301,11 +294,12 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // Connect. I12 intact: Home never gates Stage — perform works fully offline with no login.
     if (showEdited) {
         EditedConcertsScreen(transport, onBack = { showEdited = false })
+        platform.BackHandler { showEdited = false }
         return
     }
     if (atHome && selectedDir == null) {
         // A88: Home showing ⇒ not in a concert — the once-a-day automatic check may run (a "dev" build never does).
-        LaunchedEffect(Unit) { appUpdate.maybeAutoCheck() }
+        LaunchedEffect(Unit) { appUpdate?.maybeAutoCheck() }
         // A39: refreshTick re-lists concerts after an Update installs, so the count/resume reflect the
         // new state without a restart.
         var refreshTick by remember { mutableStateOf(0) }
@@ -321,13 +315,12 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         // replacement ("N concerts edited since their last bake →") is A92, after T201's server signal.
 
         // A31: LIVE connection status — never the cached cookie flag. Probe the server on entry AND on
-        // every foreground resume (resumeTick); show "Checking…" while it's in flight, then resolve to
+        // every foreground resume (resumeTicks); show "Checking…" while it's in flight, then resolve to
         // Connected / Offline / Disconnected from the RESULT.
-        val activity = LocalContext.current.findActivity() as? MainActivity
         var homeIdentity by remember { mutableStateOf<Identity>(Identity.Checking) }
         // A38: Retry re-runs the probe without a foreground round-trip; bump this to re-key the effect.
         var retryTick by remember { mutableStateOf(0) }
-        LaunchedEffect(activity?.resumeTick?.value, retryTick, refreshTick, joinedTick) {
+        LaunchedEffect(platform.resumeTicks.value, retryTick, refreshTick, joinedTick) {
             // No session cookie → Guest. Split by whether a server was ever configured: known → offer
             // Sign in (address saved, password only); unknown → offer the full Connect set-up.
             if (!transport.isConnected) {
@@ -360,18 +353,18 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 concertCount = entries.size,
                 identity = homeIdentity,
                 update = UpdateStatus.Hidden, // A91: retired (see above)
-                settingsReset = Storage.settingsWereReset, // A54: one-time recovery notice after a self-heal
+                settingsReset = platform.settingsWereReset, // A54: one-time recovery notice after a self-heal
             ),
             editedLine = com.troubastack.shared.distribution.editedHomeLine(editedCount), // A92
             onEdited = { showEdited = true },
-            appUpdateText = appUpdate.bannerText, // A88
-            appUpdateProgress = appUpdate.progress,
-            onAppUpdate = { appUpdate.update() },
-            onAppUpdateNotNow = { appUpdate.notNow() },
-            onAppUpdateCancel = { appUpdate.cancel() },
+            appUpdateText = appUpdate?.bannerText, // A88
+            appUpdateProgress = appUpdate?.progress,
+            onAppUpdate = { appUpdate?.update() },
+            onAppUpdateNotNow = { appUpdate?.notNow() },
+            onAppUpdateCancel = { appUpdate?.cancel() },
             onPerform = { atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },
-            onStudio = { studioBrowse = true; atHome = false },
+            onStudio = if (studio != null) ({ studioBrowse = true; atHome = false }) else null,
             // A38: the primary action routes by the current status.
             onPrimaryAction = {
                 when (homeIdentity) {
@@ -382,7 +375,7 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 }
             },
             onManage = { connecting = true },
-            onScanToJoin = { scanning = true }, // A57: direct scan entry for a Guest holding an invite
+            onScanToJoin = if (qrScanner != null) ({ scanning = true }) else null, // A57: direct scan entry for a Guest holding an invite
             onSettings = { settings = true },
         )
         if (showDisconnect) {
@@ -414,7 +407,7 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 storage, transport, discovery,
                 onClose = { connecting = false; retryTick++ },
                 onInviteLink = { joinLink = it; connecting = false }, // A52: hand the pasted link to the join sheet
-                onScan = { scanning = true; connecting = false },     // A53: open the camera scanner
+                onScan = if (qrScanner != null) ({ scanning = true; connecting = false }) else null, // A53: open the camera scanner
             )
         }
         return
@@ -423,7 +416,7 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     val dir = selectedDir
     if (dir == null) {
         ConcertsScreen(
-            context, storage, transport, updates,
+            platform, storage, transport, updates,
             onOpen = { selectedDir = it; storage.putSecret(LAST_CONCERT_KEY, it) },
             onHome = { atHome = true }, // A31: visible Home affordance in the top bar
         )
@@ -433,10 +426,10 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 storage, transport, discovery,
                 onClose = { connecting = false },
                 onInviteLink = { joinLink = it; connecting = false }, // A52: hand the pasted link to the join sheet
-                onScan = { scanning = true; connecting = false },     // A53: open the camera scanner
+                onScan = if (qrScanner != null) ({ scanning = true; connecting = false }) else null, // A53: open the camera scanner
             )
         }
-        BackHandler { atHome = true } // A27: system-back from the concert list also returns to Home
+        platform.BackHandler { atHome = true } // A27: system-back from the concert list also returns to Home
         return
     }
 
@@ -467,13 +460,12 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // (wall-clock start survives reboot; never the ~16h garbage a stale monotonic instant produced).
     val initialChrono = remember(dir) {
         if (concertId.isEmpty()) Chrono()
-        else decodeChrono(storage.getSecret(chronoKey), SystemClock.elapsedRealtime(), System.currentTimeMillis())
+        else decodeChrono(storage.getSecret(chronoKey), platform.monotonicNowMs(), System.currentTimeMillis())
     }
-    val ctx = LocalContext.current
 
     // A70 — the rehearsal-notes host port (bitmaps beside bundles/), and the concert's note index seeded
     // into the VM so counts/badges are right from the first frame.
-    val notesPort = remember { AndroidRehearsalNotes(storage.notesDir()) }
+    val notesPort = remember { platform.rehearsalNotes(storage.notesDir()) }
     val opened = remember(dir, identity) {
         OpenedBundle(
             // A14: seed the persisted reading mode (page/width/scroll) into the VM (A10 pattern).
@@ -486,8 +478,8 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 initialSongId = initialPos?.first ?: "",
                 initialPageInSong = initialPos?.second ?: 0,
                 // T147: a MONOTONIC source that advances through deep sleep — a paused chrono then can't
-                // drift and a running one counts the sleep, both correct (elapsedRealtime, not wall time).
-                monotonicNow = { SystemClock.elapsedRealtime() },
+                // drift and a running one counts the sleep, both correct (Android: elapsedRealtime, not wall time).
+                monotonicNow = { platform.monotonicNowMs() },
                 initialChrono = initialChrono,
                 initialClockVisible = storage.getSecret(STAGE_CLOCK_KEY) == "true",
                 initialClockStyle = ClockStyle.parse(storage.getSecret(STAGE_CLOCK_STYLE_KEY)), // T157: restore by name (BOTH survives)
@@ -496,7 +488,7 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 initialNoteWidth = storage.getSecret(NOTE_WIDTH_KEY)?.toIntOrNull() ?: com.troubastack.shared.stage.notes.NoteTools.FINE,
                 initialNoteColour = storage.getSecret(NOTE_COLOUR_KEY)?.toLongOrNull() ?: com.troubastack.shared.stage.notes.NoteTools.BLACK,
             ),
-            AndroidImageDecoder(File(dir)),
+            platform.imageDecoder(dir),
         )
     }
     // A77 — the armed auto-upload loop. Host owns the WHEN (debounce + flush); the "whether" (overwrite, the
@@ -520,11 +512,8 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // keys don't reach Compose, so the Activity intercepts them (onKeyDown) and calls back through the
     // registrar StageScreen provides here. StageScreen owns the turn logic, so two-up turns by a whole
     // spread like every other input (A13) — the entrypoint just forwards the press; register/unregister
-    // is handled inside StageScreen keyed on Stage lifetime.
-    val activity = LocalContext.current.findActivity() as? MainActivity
-    val volumeTurnRegistrar = remember(activity) {
-        { handler: ((PageTurn) -> Unit)? -> activity?.stageVolumeTurn = handler }
-    }
+    // is handled inside StageScreen keyed on Stage lifetime. No volume keys on the platform ⇒ a no-op.
+    val volumeTurnRegistrar = remember { platform.volumeTurnRegistrar ?: {} }
 
     // P201 stage 3c — rehearsal auto-update host loop. The concert is server-backed if it
     // carries a concertId (downloaded/known to a server); only then is the toggle offered.
@@ -553,7 +542,7 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // The chrono object is stable while running (fixed start instant), so this writes only on
     // start/pause/reset — not every second.
     LaunchedEffect(stageState.chrono) {
-        if (concertId.isNotEmpty()) storage.putSecret(chronoKey, encodeChrono(stageState.chrono, SystemClock.elapsedRealtime(), System.currentTimeMillis()))
+        if (concertId.isNotEmpty()) storage.putSecret(chronoKey, encodeChrono(stageState.chrono, platform.monotonicNowMs(), System.currentTimeMillis()))
     }
     LaunchedEffect(stageState.clockVisible) {
         storage.putSecret(STAGE_CLOCK_KEY, stageState.clockVisible.toString())
@@ -573,7 +562,7 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // the chrome pills or the beat.
     MaterialTheme(colorScheme = lightColorScheme()) {
         CompositionLocalProvider(LocalVolumeTurnRegistrar provides volumeTurnRegistrar) {
-            StageHost {
+            platform.StageWindow {
                 StageScreen(
                     opened.vm, opened.decoder, onExit = { selectedDir = null },
                     initialColorMode = StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY)),
@@ -585,7 +574,7 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     // A46 (A33 drill 2): persist the reading position per concert on every page move.
                     onPositionChange = { s, p -> if (concertId.isNotEmpty()) storage.putSecret(posKey, encodeStagePosition(s, p)) },
                     // T147: the bottom-right clock reads the device's local time, honouring the user's 12/24h setting.
-                    nowClockText = { android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date()) },
+                    nowClockText = { platform.localTimeText() },
                     // T147: local h/m/s for the analog face (the default clock style).
                     nowLocalHms = {
                         val cal = java.util.Calendar.getInstance()
@@ -614,7 +603,7 @@ internal fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // A79: while performing, system Back is CONSUMED — an edge swipe meant as a page turn used to leave the
     // concert (VLL: "I already exited several times a concert"). ✕ is the only exit; the failure/empty screens
     // (no ✕) still leave on Back. The pure decision is stageBackAction, tested in shared.
-    BackHandler {
+    platform.BackHandler {
         when (com.troubastack.shared.stage.stageBackAction(stageState, drawerOpen = stageDrawerOpen)) {
             com.troubastack.shared.stage.StageBack.LEAVE -> selectedDir = null
             com.troubastack.shared.stage.StageBack.CLOSE_DRAWER -> closeDrawerRequest++ // A79 follow-up: drawer only

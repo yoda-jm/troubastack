@@ -392,7 +392,7 @@ fun HomeScreen(
     state: HomeState,
     onPerform: () -> Unit,
     onResume: () -> Unit,
-    onStudio: () -> Unit,
+    onStudio: (() -> Unit)?, // WIN01: null ⇒ the platform has no Studio ⇒ no TroubaStudio tile
     // A38: the PRIMARY connection action for the current status (Disconnect / Retry / Sign in /
     // Connect) — the host routes it by state. onManage opens the server/account details (Connect modal).
     onPrimaryAction: () -> Unit,
@@ -400,7 +400,7 @@ fun HomeScreen(
     onSettings: () -> Unit,
     // A57: a DIRECT scan entry for a Guest holding an invite QR — on Home, not behind the account panel.
     // Straight into A53's scanner (which falls back to paste when the camera is denied, so it can't dead-end).
-    onScanToJoin: () -> Unit = {},
+    onScanToJoin: (() -> Unit)? = {}, // WIN01: null ⇒ no camera scanner ⇒ no scan link
     // A39: pull the newer bake(s) / cancel an in-flight update. No-ops when the update row is Hidden.
     onUpdate: () -> Unit = {},
     onCancelUpdate: () -> Unit = {},
@@ -441,7 +441,7 @@ fun HomeScreen(
             // A57: a Guest holding an invite QR is offered a DIRECT scan, on Home, not buried in the account
             // sheet. Only in the Guest states (a Recognized/Offline user has no reason to join from here);
             // the scanner falls back to paste if the camera is denied, so it can't dead-end.
-            if (state.identity is Identity.SignedOut || state.identity is Identity.NotSetUp) {
+            if ((state.identity is Identity.SignedOut || state.identity is Identity.NotSetUp) && onScanToJoin != null) {
                 TextButton(onClick = onScanToJoin, modifier = Modifier.align(Alignment.Start)) {
                     Text("⧉  Scan a QR to join a band")
                 }
@@ -544,7 +544,7 @@ fun HomeScreen(
             // enabled always (offline perform is I12).
             val studio = studioEnablement(state.identity)
             val studioEnabled = studio is StudioTile.Enabled
-            Card(
+            if (onStudio != null) Card(
                 onClick = onStudio,
                 enabled = studioEnabled,
                 modifier = Modifier.fillMaxWidth(),

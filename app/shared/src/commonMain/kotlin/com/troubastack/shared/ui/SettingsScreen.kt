@@ -81,7 +81,7 @@ fun SettingsScreen(
     onLearnPedal: (PageTurn, String) -> PageTurn? = { _, _ -> null },
     onForgetPedals: () -> Unit = {},
     midiState: PedalLinkState = PedalLinkState.NOT_CONNECTED,
-    onConnectPedal: () -> Unit = {},
+    onConnectPedal: (() -> Unit)? = {}, // WIN01: null ⇒ the platform has no BLE-MIDI ⇒ no MIDI pedal line
     midiSignal: MidiSignal? = null,
     // A84 — which build this is, and each joined server with its version (the host probes /api/version on open).
     appBuild: String = appBuildLine,
@@ -237,7 +237,7 @@ private fun PedalLearnSection(
     onLearn: (PageTurn, String) -> PageTurn?,
     onForget: () -> Unit,
     midiState: PedalLinkState,
-    onConnect: () -> Unit,
+    onConnect: (() -> Unit)?,
     midiSignal: MidiSignal?,
 ) {
     var armed by remember { mutableStateOf<PageTurn?>(null) }
@@ -270,7 +270,7 @@ private fun PedalLearnSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // ⟨D1⟩ — the link state, so "nothing received yet" means mute, not disconnected. Explicit Connect.
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (onConnect != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 when (midiState) {
                     PedalLinkState.CONNECTED -> "MIDI pedal: connected"
@@ -330,7 +330,7 @@ private fun PedalLearnSection(
                         lastReceived?.let { "received: $it" } ?: "nothing received yet",
                         style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary,
                     )
-                    if (midiState != PedalLinkState.CONNECTED) {
+                    if (onConnect != null && midiState != PedalLinkState.CONNECTED) {
                         Text("For a MIDI pedal, tap Connect above first.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     TextButton(onClick = { armed = null }) { Text("Cancel") }

@@ -3,7 +3,6 @@ package com.troubastack.app
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import com.troubastack.shared.bundle.BundleFiles
 import com.troubastack.shared.stage.ImageDecoder
 import java.io.File
 
@@ -31,11 +30,4 @@ private fun sampleSize(w: Int, h: Int, targetW: Int, targetH: Int): Int {
     var sample = 1
     while (w / (sample * 2) >= targetW && h / (sample * 2) >= targetH) sample *= 2
     return sample
-}
-
-/** File-backed [BundleFiles] — the loader is given absolute paths (bundleDir prefix), so read as-is. */
-class FileBundleFiles : BundleFiles {
-    override fun exists(path: String): Boolean = File(path).exists()
-    override fun readText(path: String): String? = File(path).let { if (it.isFile) it.readText() else null }
-    override fun sizeOf(path: String): Long = File(path).let { if (it.isFile) it.length() else 0L }
 }

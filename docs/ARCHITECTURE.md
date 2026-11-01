@@ -203,6 +203,14 @@ Android and iOS each fill the seams as `actual`s (iOS: Storage + WebViewHost rea
 InkOverlay `TODO` pending A07; the iOS entrypoint `MainViewController.kt` and the thin
 `iosApp` Xcode shell are entrypoint glue, the analog of `androidApp`). No lint enforces
 the three-seam limit — that residual check is the 🎯.
+**Layout (WIN01).** The app itself — `App()`, its navigation and screens, the ktor transport — lives in
+`:shared`'s `jvmSharedMain`, the source set the JVM platforms share (Android now, the Windows desktop app next;
+iOS compiles none of it — the iOS hoist is still deferred). What a platform does differently reaches `App()`
+through ONE interface, `AppPlatform` (Android: `AndroidAppPlatform` in `androidApp`). It is app DI like
+`ImageDecoder`/`BundleFiles`, **not a fourth seam**: its capabilities are nullable, and a platform without one
+(no camera, no BLE-MIDI, no Studio web view yet) simply hides that affordance. `androidApp` keeps only what is
+Android-bound: `MainActivity` (entrypoint glue), the Studio WebView flow, the camera scanner, the BLE-MIDI pedal,
+LAN discovery, the self-update, and the Stage window flags.
 
 ---
 

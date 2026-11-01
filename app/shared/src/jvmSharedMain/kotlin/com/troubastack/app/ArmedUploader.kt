@@ -34,7 +34,7 @@ private const val ARMED_RETRY_MS = 15_000L
 class ArmedUploader(
     private val scope: CoroutineScope,
     private val transport: HttpTransport,
-    private val notes: AndroidRehearsalNotes,
+    private val notes: RehearsalNotesStore,
     private val concertId: String,
     private val isArmed: () -> Boolean,
     private val onConflict: (String) -> Unit,

@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose.compiler)
-    alias(libs.plugins.kotlin.serialization)  // @Serializable ktor DTOs in HttpTransport (B03)
+    alias(libs.plugins.kotlin.serialization)  // @Serializable index/release files (AndroidRehearsalNotes, AppUpdater)
 }
 
 kotlin {
@@ -75,11 +75,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)  // window insets control for immersive mode
     implementation(libs.kotlinx.coroutines.core)  // Connect/download run in coroutine scopes
-    // B03 distribution transport — the ktor impl of :shared's ManifestTransport (app DI, not a seam).
-    implementation(libs.ktor.client.core)
-    implementation(libs.ktor.client.okhttp)
-    implementation(libs.ktor.client.content.negotiation)
-    implementation(libs.ktor.serialization.kotlinx.json)
+    // WIN01: the ktor transport (B03) moved to :shared's jvmSharedMain with the rest of the app.
     implementation(libs.kotlinx.serialization.json)
     // A53: QR invite scanner — CameraX preview/analysis + ZXing decode (offline, no Play Services).
     implementation(libs.androidx.camera.core)

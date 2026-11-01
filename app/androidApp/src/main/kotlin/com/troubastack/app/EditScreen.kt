@@ -111,11 +111,16 @@ fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null
     if (showSettings) {
         ServerDialog(serverUrl, onDismiss = { showSettings = false }) { newUrl ->
             serverUrl = newUrl.trim()
-            dropSessionIfOriginChanged(storage, serverUrl) // pointing at a new server ⇒ drop the old session
+            dropSessionIfOriginChanged(storage, serverUrl, ::clearWebViewCookies) // pointing at a new server ⇒ drop the old session
             storage.putSecret(CORE_URL_KEY, serverUrl)
             showSettings = false
         }
     }
+}
+
+/** Drop every cookie in the WebView's shared jar (sign-out; the server's origin changed). */
+internal fun clearWebViewCookies() {
+    android.webkit.CookieManager.getInstance().removeAllCookies(null)
 }
 
 /**

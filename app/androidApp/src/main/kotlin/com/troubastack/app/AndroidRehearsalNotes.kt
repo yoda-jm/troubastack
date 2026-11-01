@@ -7,7 +7,6 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.troubastack.shared.stage.notes.NoteEntry
 import com.troubastack.shared.stage.notes.NoteKey
-import com.troubastack.shared.stage.notes.RehearsalNotes
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -25,7 +24,7 @@ private data class NoteIndexFile(val entries: List<NoteEntry> = emptyList())
  * [index] reconciles away (§3.3). A save of an all-transparent bitmap DELETES the note (#10). Never throws
  * (a value at every edge, like the rest of the stage host); on any I/O failure it degrades to "no note".
  */
-class AndroidRehearsalNotes(private val notesRoot: String) : RehearsalNotes {
+class AndroidRehearsalNotes(private val notesRoot: String) : RehearsalNotesStore {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     private fun dir(concertId: String) = File(notesRoot, concertId)
@@ -102,7 +101,7 @@ class AndroidRehearsalNotes(private val notesRoot: String) : RehearsalNotes {
     /** T170 §6 — the raw stored PNG bytes for one note, for the send-to-Studio underlay. Returns the file
      *  VERBATIM, never a re-encode: the note must travel neutral, exactly the pixels that were authored
      *  (T170 §1 — Studio renders it as-is, no scheme transform). Null if the PNG is gone. */
-    fun pngBytes(concertId: String, key: NoteKey): ByteArray? {
+    override fun pngBytes(concertId: String, key: NoteKey): ByteArray? {
         val f = File(dir(concertId), fileNameFor(key))
         return if (f.exists()) runCatching { f.readBytes() }.getOrNull() else null
     }
