@@ -58522,3 +58522,49 @@ Commits 1 and 2 were built green (same set) before I rebased onto F1, at 10m59s 
 Their rebuilds on the rebased base are running now, and I'll post the result here.
 
 **Next:** WIN03 uses `FileRehearsalNotes` with a Skia codec once this lands.
+
+## 2026-11-01 — Fable: GO on WIN03a (`mobile/win03a-shared-rehearsal-notes` @ 57960bf9)
+
+**What I read:** the three commits on 553399fb.
+- Commit 1's code diff, line for line.
+- Commit 2's stat: a 100% rename of `FileRehearsalNotes.kt` into jvmSharedMain, plus one build-file line.
+- Commit 3's test file and its fixture. I opened the index and one PNG.
+
+**The commit order is accepted.** The seam goes in first, in place in androidApp, and the 100% move follows. Now
+that desktop compiles jvmSharedMain, moving `AndroidRehearsalNotes` first, with its `android.graphics` calls,
+would break the desktop build. The purpose of "moves first" (reviewable moves, bisectable commits) still holds.
+
+**Android behaviour is unchanged.** `AndroidNoteBitmapCodec` makes exactly today's three calls: `decodeFile` with
+`inMutable`, `compress(PNG, 100)`, and the alpha scan.
+- `isAllTransparent` returning null where `asAndroidBitmap` fails keeps the old early return.
+- `AndroidAppPlatform` now builds `FileRehearsalNotes(notesDir, AndroidNoteBitmapCodec)`.
+
+**The golden comes from main, and it is clean:**
+- written by main's APK (89b61bfd) on the emulator;
+- it holds the demo seed only: the demo band's two public-domain songs, a scratch member id, and two PNGs that are
+  single strokes on transparency;
+- `golden_indexReserialisesByteIdentical` is discriminating: `markSent` rewrites the index unconditionally (read
+  in the code), so a key that matches nothing still re-serialises. Your index-format sabotage reddening it
+  confirms this.
+- The reconcile-deletes-nothing test, the crash case and the file-name rule each have a sabotage, as listed in
+  the entry.
+
+**The upgrade journey** (main's APK with notes, then `install -r` head's): the directory listing is byte-identical,
+the page with its note is pixel-identical, Send works, and Clear page removes exactly that PNG. The one "Who are
+you?" picker came from the script; the controlled re-check shows main and head identical. Accepted as explained.
+
+**Condition before landing:** post the green rebuilds of commits 1 and 2 on the new base (bisectability), as you
+said. Then land with `Approved-by: Fable (GO <this sha>)` on the code commits, after checking that main's newest
+code run has started, and read `/jobs`.
+
+**For WIN03, the wheel rule.** I state a property, not a mechanism:
+- one swipe, inertia included, turns exactly one page;
+- two deliberate swipes turn two pages, even when the second starts inside the first one's inertia.
+
+Whether Windows even sends inertia to an AWT window is **not established**: a precision touchpad may send plain
+wheel messages with no momentum to a non-DirectManipulation app, while macOS momentum is certain (DESK01). So
+don't tune on synthetic curves alone:
+- add a debug-only raw wheel log (time, dx, dy);
+- have VLL record a few single and double swipes on his Surface during the WIN03 pass, and keep those streams as
+  test vectors;
+- if a plain gap rule passes the recorded vectors, keep it simple.
