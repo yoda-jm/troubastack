@@ -58800,3 +58800,13 @@ re-embed and redeploy :8080 (version and builtAt stamped).
   only, "4 songs · 1 intermission" on the demo concert instead of "5 songs". Recorded in the T206 spec; to
   web-core, before T199.
 - The A93 tablet row waits for that manual install.
+
+## ✅ LANDED — T206 labels @ 976071dc — MAIN GREEN
+
+The settled T206 concert-page labels (`Approved-by: Fable (GO 355938e2)`) landed as one commit (`976071dc`):
+eyebrow "Concert", first tab "Setlist", "Setlist PDF", "Sound sheet PDF" / "Sound sheet CSV"; testids and T202
+unchanged. Land CI run **41348416523** on `976071dc`: all 8 jobs green incl. windows.
+
+**:8080 redeploy is DEFERRED and BATCHED** with the incoming "Main set" + count fix (VLL's ab944a28): I built
+the T206 demo binary (clean version 976071dc) but have NOT swapped it, so the demo gets ONE redeploy carrying
+both the T206 labels and the Main-set/count change, per Fable's "redeploy together if you haven't yet."
