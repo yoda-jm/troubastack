@@ -57903,3 +57903,45 @@ Tests as the ticket lists them, plus:
 - the old `"#0"` with one intermission, two intermissions, and none.
 
 The sabotage is the ticket's (put back the empty-songId early return). Present at the gate as usual.
+
+## 2026-11-01 — web-core re-presents WIN02 (delta): B1–B5 fixed, rebased onto WIN01 + wired (branch `web/win02-desktop-target` @ 585f28dc)
+
+Addresses your WIN02 review. Branch rebased onto landed WIN01 (main 6e486bba); PR #69. Delta commits atop the
+base + ci-fix: **93416758** (B1–B5 + nit) and **585f28dc** (the two dependsOn lines). Full CI run
+**41313875992** on 585f28dc is green — every job incl. the hard-gating `windows` job; android green confirms
+`:shared:check` (with `desktopTest`) and the desktop compile of jvmSharedMain on Linux.
+
+Each finding, fix, and where proven:
+- **B1 — one store per root, concurrency-safe.** Dropped the per-instance cache; `getSecret`/`putSecret`
+  read-modify-write under a process-global per-root lock. Tests: `twoInstancesOverOneRoot_areOneStore_noLostWrites`
+  (interleaved writes through two instances + a fresh reader all see every key) and
+  `concurrentPuts_areSafe_noLostUpdatesOrExceptions` (8×40, no loss, no exception) — 9/9 StorageDesktopTest green.
+  Sabotage (per-instance cache back): exactly those two go red, the other 7 stay green (local).
+- **B2 — data root off the install dir.** Windows data root is now `%LOCALAPPDATA%\TroubaStageData`, a sibling
+  of the install dir. Your suspicion was RIGHT, and the fix holds — the runner printed:
+  `InstallLocation = [C:\Users\runneradmin\AppData\Local\TroubaStage\]` vs `dataRoot = [...\TroubaStageData]`,
+  then "install dir disjoint from data root; data-root marker survived" the upgrade.
+- **B3 — the upgrade proof needs a real install-n.** Both msiexec exit codes are checked and exactly one entry
+  AT n is asserted before building n+1 (`after n: 1 entr(y) at [1.0.2803]` → one entry at `1.0.2804`). Sabotage
+  (skip installing n): the `windows` job goes red at the upgrade step — run **41314899228** (step 10).
+- **B4 — DPAPI test through the real path.** `secretFileIsNotPlaintextOnDisk` drives Storage through
+  `defaultSecretCodec()`. Sabotage (`defaultSecretCodec()` → PlainCodec): the `windows` job goes red at the
+  desktop-tests step (secret shipped plaintext) — run **41314520506** (step 6). On Linux the test takes the
+  `0600` branch, so only the windows job reddens.
+- **B5 — exit 0 only after the real window paints.** The smoke sets a flag from the window's OWN draw and waits
+  for it before declaring success, and logs the render API (`window render API = OPENGL` locally). Sabotage (a
+  throw in the window's draw only): the off-screen PNG still writes but exit is non-zero (local; CPU-raster
+  success no longer masks a dead window).
+- **Nit — dirChooser removed.**
+
+**Wiring (your added item).** Rebased onto WIN01; added `desktopMain.dependsOn(jvmSharedMain)` and
+`desktopTest.dependsOn(jvmSharedTest)`. `:shared:compileKotlinDesktop` + `:shared:desktopTest` are green WITH
+jvmSharedMain compiled by the desktop target — WIN01's Android-free guard is now compiler-enforced on a second
+JVM and HOLDS: App(), the concert screens, HttpTransport all compile for desktop, nothing stubbed, no
+Android-only API surfaced (`statusBarsPadding` is commonMain). Proven on CI 41313875992 (android + windows) and locally.
+
+**Notes:** the smoke build line reads the PR merge ref (`d26c8c9` on the first green run), not the branch head
+— pull_request runs check out the merge commit. The zip-copy collapse is F1 (mine, a later refactor, after
+WIN01 — which it now is). Smoke PNG readable at `/tmp/claude-1000/win02-smoke-windows.png`.
+
+On GO: rebase onto origin/main, `Approved-by: Fable (GO <sha>)` on the code commit, FF, read land CI; I ping 1d + you before the push.
