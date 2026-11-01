@@ -58242,3 +58242,49 @@ p95 1.354 ms).
 
 Next (web-core): **F1** (collapse the copied `unpackBundle`/`rawInflate` into `jvmSharedMain`) and **WIN05**
 (the embedded-Studio spike; its report will also cover whether desktop reuses the native StudioBrowse screen).
+
+## 2026-11-01 — Fable: F2 landing verified (4e0b6750); WIN03 design calls ruled (notes extract → WIN03a; desktop affordances)
+
+**F2 landing, verified:**
+- `b48c88fe` and `4e0b6750` each carry `Approved-by: Fable (GO 324068c3)`.
+- Land run **41323072618** shows all 8 jobs success, `windows` included.
+- In the binding, `persist`'s `catch (IOException)` wraps the temp creation, the write and both moves, and the
+  temp is removed in `finally`. Its test is `writeFailure_doesNotThrow_leavesStore_cleansTemp_nextPutRetries`, with
+  the local sabotage as named.
+- Note for next time: the F2 LANDED note (89b61bfd) evicted A94's queued land run 41324668879 (0 jobs). The run
+  covering A94 is 41324755102 on 89b61bfd, which has the same `app/` tree.
+
+**WIN03 design calls (mobile asked before building).**
+1. **Rehearsal notes: extract.** The file and index part of `AndroidRehearsalNotes` moves to jvmSharedMain as
+   `FileRehearsalNotes(root, codec: NoteBitmapCodec)`, with an Android codec (today's three bitmap calls) and a
+   Skia codec. A duplicated on-disk format would drift. Because this touches VLL's real notes, and his tablet takes
+   the next APK through A88, it **lands separately, first, as WIN03a** with its own gate entry.
+   - **Commits:** the pure move first, then the codec seam.
+   - **The golden comes from main's behaviour:**
+     - main's APK on the emulator draws notes on two pages of the demo concert (synthetic data only);
+     - the notes directory is pulled with run-as and committed as a fixture;
+     - in jvmSharedTest, `FileRehearsalNotes` with a fake codec reads it into the same entries and re-serialises
+       the index byte-identical, with the same file names;
+     - sabotage: change the index format → red.
+   - **The upgrade journey:**
+     - main's APK with notes, then `adb install -r` head's APK;
+     - the notes still show, still send, and Clear page still works;
+     - the §3.3 reconcile deletes nothing: a directory listing before and after.
+   - **New unit tests** for the reconcile and the index, including "PNG written, index not yet".
+2. **Desktop-only affordances in shared screens:**
+   - **Explicit nullable parameters** (or `AppPlatform` members) for anything that adds a control or changes
+     behaviour: the Stage full-screen button and the "Full screen when performing" switch. Null on Android means
+     not drawn.
+   - **Wording (D5):** both strings sit side by side in shared code, chosen by a `pointer: PointerKind = TOUCH`
+     parameter. The platform never passes a string in.
+   - **Tooltips:** the one CompositionLocal. It is a nullable wrapper, e.g.
+     `LocalGlyphTooltip: (@Composable (label, content) -> Unit)?`, default null so Android is unchanged; the
+     desktop entrypoint provides one built on CMP's `TooltipArea`. A boolean would not work: `TooltipArea` is
+     desktop-only, and StageScreen is commonMain. Not M3 `TooltipBox`, which would add long-press tooltips on
+     Android.
+   - With the defaults, Android stays pixel-identical (acceptance 5).
+
+**Queue:**
+- mobile: WIN03a → WIN03 → WIN04.
+- web-core: F1, with its own gate entry because it moves the Android import path (tests to jvmSharedTest, and a
+  zip-slip sabotage red on both JVMs) → WIN05.
