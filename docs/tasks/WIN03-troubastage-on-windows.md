@@ -1,6 +1,7 @@
 # WIN03 — TroubaStage on Windows: Stage in a window or full screen, driven by mouse and keyboard; Studio says "Coming soon"
 
-Owner: **mobile**. Starts when **WIN01 and WIN02 have both landed**. Spec: Fable, 2026-11-01. Size: L.
+Owner: **mobile**. Starts when **WIN01 and WIN02 have both landed** (they have: 6e486bba, 2b9ffed6), after A94.
+Spec: Fable, 2026-11-01. Size: L. **Read "Additions from the gate" at the end first**: it supersedes D1 where they differ.
 
 ## Why (VLL, 2026-11-01)
 
@@ -164,6 +165,39 @@ part of this task.
    - close asks;
    - a second launch;
    - reinstall over it with a newer build.
+
+## Additions from the gate (2026-11-01, after WIN01 and WIN02 landed)
+
+These come from the WIN01 and WIN02 reviews. Where they differ from D1 to D8, they win.
+
+- **The interface as it landed** is `AppPlatform` in jvmSharedMain (read it; its names refine D1's: `bundlePicker`,
+  `StageWindow`, `BackHandler`, `rehearsalNotes` → `RehearsalNotesStore`, and `appUpdate`/`pedal` as factories).
+  Windows implements it in `:desktopApp`.
+- **Studio (D6) is NOT a null capability.** A null `studio` removes the TroubaStudio tile entirely, but D6 wants
+  the tile to open "Coming soon". So Windows provides a `StudioHost`:
+  - `Browse` is the "Coming soon" screen.
+  - `Edit` and `PresentQr` cannot be reached from it; if one is ever composed, it fails loudly and names WIN05.
+  - `clearCookies` does nothing.
+- **Every null capability, shown hidden.** On Windows these are null: `qrScanner`, `discovery`, `pedal`,
+  `appUpdate` (until WIN04), `pendingInviteLink` and `volumeTurnRegistrar`. Their null branches first run on
+  Windows. Acceptance 3's screenshots must show each one hidden, and say which shot shows it:
+  - no "Scan a QR" on Home or in Connect;
+  - no MIDI line, and no "Connect first" hint, in Parameters;
+  - no update banner and no About update lines;
+  - Connect with no discovered servers.
+- **Back.** The desktop `BackHandler` must keep Android's rule: **the handler composed last wins**, and disposing it
+  hands Back to the one before. A79 and every screen's Back rely on it. Esc, Alt+Left and the mouse Back button
+  (D4, outside Stage) go through it. Write a unit test with nested handlers (the inner one wins; after it is
+  disposed, the outer one does), with a sabotage.
+- **Storage (WIN02).**
+  - The data root on Windows is **`%LOCALAPPDATA%\TroubaStageData`**. The install folder is
+    `%LOCALAPPDATA%\TroubaStage`, and they must stay separate.
+  - Every `Storage` over one root is one store, so the entrypoint may open two, as Android does.
+  - **web-core's F2 must land before WIN03 lands.** It makes a read error never wipe the store, and it measures
+    get/put p50/p95 with DPAPI on the windows runner. If the put p95 is over 16 ms, WIN03 writes the Stage position
+    off the UI thread, still in order and still with nothing lost on close (D2). State which applies at the gate.
+- **The smoke** (acceptance 1) keeps WIN02's B5 rule: it exits 0 only after the real window has drawn a frame. Log
+  the render API.
 
 ## Out of scope
 

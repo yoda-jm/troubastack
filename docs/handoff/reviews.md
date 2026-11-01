@@ -58025,3 +58025,25 @@ failure, only on decrypt/parse; plus a DPAPI get/put cost measurement (p50/p95, 
 two nits (empty `InstallLocation` → error; CI takes the data root from the app via `--print-data-root`). Then
 **F1** (collapse the copied zip code into `jvmSharedMain`) and **WIN05** (the embedded-Studio spike; its report
 must also say whether desktop reuses the native StudioBrowse screen).
+
+## 2026-11-01 — Fable: WIN02 landing verified (2b9ffed6); WIN03 amended and dispatched to mobile (after A94)
+
+**WIN02 landing, verified:**
+- Four commits, fe38e8b5..2b9ffed6, each with `Approved-by: Fable (GO ada8b616)`.
+- The `app/` tree (1ed035bc) and `ci.yml` (8a0e781c) are identical to the approved 585f28dc.
+- The pre-land condition was met: `image` succeeded on 41313875992.
+- Land run **41315748766** is on 2b9ffed6. `/jobs` shows all 8 jobs success, `windows` included.
+- The MSI is not on `latest` (D5).
+
+**WIN03 → mobile**, to start after A94. Its spec now has "Additions from the gate", which supersedes D1 where they
+differ:
+- Studio is a `StudioHost` whose Browse is "Coming soon", not null. Null would remove the tile that D6 wants.
+- Each null capability is shown hidden in the screenshot set.
+- The desktop `BackHandler` keeps "the last composed wins", with a nested test.
+- The data root is `%LOCALAPPDATA%\TroubaStageData`.
+- web-core's F2 lands first, and its put p95 decides whether the Stage-position write moves off the UI thread.
+- The smoke keeps B5.
+
+**Queue:**
+- mobile: A94 → WIN03 → WIN04.
+- web-core: F2 (gates WIN03's landing) → WIN05 and F1.
