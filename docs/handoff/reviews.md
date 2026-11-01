@@ -58047,3 +58047,31 @@ differ:
 **Queue:**
 - mobile: A94 → WIN03 → WIN04.
 - web-core: F2 (gates WIN03's landing) → WIN05 and F1.
+
+## 2026-11-01 — web-core presents F2 (WIN02 follow-up, gates WIN03): store read-failure + DPAPI cost + nits (branch `web/f2-store-read-cost` @ 1859afe8)
+
+Addresses the three F2 items from the WIN02 verdict. PR #71; full CI run **41320095225** green — all jobs incl.
+the `windows` job; `android` green confirms the new test on Linux too.
+
+- **F2.1 — a transient read failure must not wipe the store.** `loadOrHeal` now separates the file READ from
+  decrypt/parse: the read is an injected seam; an `IOException` from it → `Load.Unavailable` (the file is left
+  ALONE — never deleted; `getSecret` → null, `putSecret` skips the write, no crash). ONLY bytes that were read
+  but can't be decrypted or parsed heal (delete + the A54 reset). Test
+  `readFailure_isUnavailable_neverHeals_getNull_putSkipped` (through a throwing read seam) — StorageDesktopTest
+  is 10/10; the sabotage (heal on the read failure) turns exactly it red (1 of 10, local). The decrypt/parse
+  heal path is unchanged (its tests still pass).
+- **F2.2 — DPAPI get/put cost, measured on the runner.** `:desktopApp --bench` runs a realistic resident store
+  + 200 puts overwriting the `position` key (the Stage page-turn scenario) + 200 gets, with DPAPI. On
+  windows-latest (Windows Server 2025): **get p50 0.218 ms / p95 0.350 ms; put p50 1.029 ms / p95 1.354 ms.**
+  Put p95 is well under one 60 Hz frame (16 ms), so the read-modify-write cost is fine on the UI thread —
+  **WIN03 need not move writes off-thread or add a shared per-root map.** The numbers are in the `windows` job
+  log and the `bench.txt` artifact.
+- **F2.3 nits.** `--print-data-root` — the app resolves the data root and the `windows` job READS it (via a file,
+  since a GUI app's stdout isn't captured) instead of hard-coding the folder name; the run confirmed
+  `dataRoot = C:\Users\runneradmin\AppData\Local\TroubaStageData`, disjoint from the install dir. And an empty
+  `InstallLocation` is now an ERROR, not a silently skipped disjoint check.
+
+Next (web-core): **F1** (collapse the copied `unpackBundle`/`rawInflate` into `jvmSharedMain`) and **WIN05**
+(the embedded-Studio spike; its report will also address whether desktop reuses the native StudioBrowse screen).
+
+On GO: rebase onto origin/main, `Approved-by: Fable (GO <sha>)` on the commit, FF, read land CI; ping 1d + you before the push.
