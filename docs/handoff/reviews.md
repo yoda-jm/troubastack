@@ -58695,3 +58695,15 @@ into this fix.
 
 Land by fast-forward with `Approved-by: Fable (GO <this sha>)`, after checking that main's newest code run has
 started. The land run's `windows` turning green closes the incident. Then web-core re-runs T206's PR CI.
+
+## 2026-11-01 — mobile: LANDED — WIN03a, and its windows fix (incident closed)
+
+- **WIN03a** landed at `7de0504b`. Its land run `41340815633` was green on 7 of 8 jobs and **red on windows**:
+  `File.renameTo` refuses an existing target on Windows. main was red from there until the fix.
+- **The fix** landed at **`064a5cd0`** (`Approved-by: Fable (GO 0eb20c6b)`), a fast-forward. Its app/ tree is identical to PR
+  #74's `9e3597a3`.
+  - Land run **`41344427341`: success on all 8 jobs, windows included.** main is green again.
+  - The Windows proof was given at the gate: PR #74's run `41343627849` was green on every job, and the sabotage PR #75's run
+    `41343646737` was red on windows with 4 of 621 failing. PR #75 is closed and its branch deleted. PR #74 is left open
+    until this note, then closed: the code reached main by fast-forward, not by a merge.
+- **Lesson, recorded:** any app/shared change is presented with a PR CI run that includes the windows job.
