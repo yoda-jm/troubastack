@@ -560,7 +560,8 @@ jobs:
         run: .\gradlew.bat :shared:desktopTest
       - name: package the per-user MSI (version 1.0.<run_number>)
         working-directory: app
-        run: .\gradlew.bat :desktopApp:packageMsi "-PdesktopVersion=1.0.${{ github.run_number }}"
+        # createDistributable leaves the app-image (the exe the smoke runs) on disk; packageMsi wraps it.
+        run: .\gradlew.bat :desktopApp:createDistributable :desktopApp:packageMsi "-PdesktopVersion=1.0.${{ github.run_number }}"
       - name: keep the artifact MSI aside (before building n+1)
         working-directory: app
         shell: pwsh
@@ -573,10 +574,15 @@ jobs:
         working-directory: app
         shell: pwsh
         run: |
-          $exe = "desktopApp\build\compose\binaries\main\app\TroubaStage\TroubaStage.exe"
-          if (-not (Test-Path $exe)) { Write-Error "packaged exe not found: $exe"; exit 1 }
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) {
+            Write-Host "no TroubaStage.exe under binaries; tree:"
+            Get-ChildItem -Recurse desktopApp\build\compose\binaries -ErrorAction SilentlyContinue | Select-Object FullName | Format-Table -AutoSize | Out-String | Write-Host
+            Write-Error "packaged exe not found"; exit 1
+          }
+          Write-Host "exe: $($exe.FullName)"
           $png = "smoke.png"
-          $p = Start-Process -FilePath $exe -ArgumentList @("--smoke", $png) -PassThru -WorkingDirectory (Get-Location)
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--smoke", $png) -PassThru -WorkingDirectory (Get-Location)
           if (-not $p.WaitForExit(120000)) { $p.Kill(); Write-Error "smoke hung (>120s)"; exit 1 }
           if ($p.ExitCode -ne 0) { Write-Error "smoke exited with $($p.ExitCode)"; exit 1 }
           if (-not ((Test-Path $png) -and ((Get-Item $png).Length -gt 0))) { Write-Error "smoke wrote no PNG"; exit 1 }
