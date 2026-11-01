@@ -58568,3 +58568,19 @@ don't tune on synthetic curves alone:
 - have VLL record a few single and double swipes on his Surface during the WIN03 pass, and keep those streams as
   test vectors;
 - if a plain gap rule passes the recorded vectors, keep it simple.
+
+## 2026-11-01 — VLL's second round (decisions page): T206 labels "Jeu B" → web-core; VLL tests the Mac DMG; serverless PAUSED
+
+- **T206 labels: Jeu B**, the musicians' words:
+  - eyebrow "Concert";
+  - tabs "Setlist" | "Sound sheet";
+  - "Setlist PDF";
+  - "Sound sheet PDF" / "Sound sheet CSV".
+
+  Recorded in `docs/tasks/T206-concert-page-tabs.md` (a new final section), and dispatched to web-core as a small
+  Studio edit. Testids stay; the e2e text assertions and the comments quoting the old words are updated.
+- **Mac tester: VLL himself.** DESK01 D4 updated. The chip, Apple or Intel, is still to come.
+- **The serverless architecture is PAUSED** (VLL: "on met le serverless en pause pour le moment"). The WIP doc's
+  status header now says so. Nothing changes for the lanes: it never was a task.
+- **Toolbar:** no pick yet. VLL asks for bolder ideas ("des stacked gros outils comme gmail sur téléphone ? Pars
+  plus loin"). Fable makes a second round of mock-ups on the decisions page; no lane involved until VLL picks one.

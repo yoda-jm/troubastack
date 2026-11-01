@@ -47,7 +47,7 @@ Linux → AppImage, macOS → DMG.
 - Self-update stays a "new version available" link on macOS (no in-place replace).
 
 **D4 — Release.** The AppImage goes on `latest` beside the APK and the MSI. The DMG is built and uploaded as a CI
-artifact, and goes on `latest` **only once a person has tested it on a Mac** (VLL to name who). A88/WIN04's asset
+artifact, and goes on `latest` **only once a person has tested it on a Mac**: VLL tests it himself (2026-11-01; he will say whether his Mac has an Apple or an Intel chip). A88/WIN04's asset
 selection gets a case for each platform.
 
 **D5 — Docs and site** (VLL's rule, as in WIN06): the site's download section and `docs/USER-JOURNEY.md` gain a

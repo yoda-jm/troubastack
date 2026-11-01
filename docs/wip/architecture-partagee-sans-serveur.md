@@ -1,6 +1,9 @@
 # WIP — TroubaStack partagé, sans serveur à maintenir
 
-> **Statut : document de réflexion (WIP), écrit pour VLL. Ce n'est PAS une tâche.**
+> **Statut : EN PAUSE (VLL, 2026-11-01 : « on met le serverless en pause pour le moment »).** Les questions de la
+> section 9 restent ouvertes ; on les reprendra quand VLL relancera le sujet.
+>
+> **Document de réflexion (WIP), écrit pour VLL. Ce n'est PAS une tâche.**
 > Aucun lane ne doit agir dessus, et rien ici n'est décidé. C'est une architecture « idéale » proposée pour
 > discussion. Une note de conception ne sera faite (avec critique indépendante, puis découpage en tâches)
 > qu'après lecture et arbitrage par VLL.

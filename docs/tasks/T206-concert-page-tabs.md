@@ -54,3 +54,19 @@ Owner: web-core. Spec: Fable, 2026-10-26. Small UI. **After the RED-MAIN fix.**
 - **Sticky headers (T203-FIX3/4):** the tab bar must not break the sticky grid header offset (`--topbar-h`). Either
   the tabs scroll away normally, or they become part of the sticky offset; say which, and test that the sheet's
   header still sits right under the topbar after scrolling.
+
+## Labels settled by VLL (2026-11-01, "Jeu B": the musicians' words)
+
+| Where | Shipped | Settled |
+|---|---|---|
+| Eyebrow above the concert name (`ConcertLayout`) | "Setlist" | **"Concert"** |
+| Tabs (`ConcertTabs`) | "Running order" \| "Sound sheet" | **"Setlist" \| "Sound sheet"** |
+| The running-order tab's PDF button (`SetlistDetail`) | "Running order PDF" | **"Setlist PDF"** |
+| Sound-sheet exports (`SoundSheet`) | "PDF" / "CSV" | **"Sound sheet PDF" / "Sound sheet CSV"** |
+
+- Unchanged: T202's "Download PDF" / "Print for…".
+- The in-tab heading `<h2>Running order</h2>` (`SetlistDetail`) is not in the set. If it reads as a duplicate of
+  the tab under the new name, say so at the gate rather than renaming it on your own.
+- Update the comments that quote the old words (ConcertTabs, ConcertLayout's binding 2 note, SetlistDetail,
+  styles.css) and the e2e text assertions. Keep the testids.
+
