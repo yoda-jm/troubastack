@@ -6,11 +6,10 @@ import java.util.zip.Inflater
 import java.util.zip.ZipInputStream
 
 /**
- * SEAM 3 `actual` (desktop) — `unpackBundle` + `rawInflate`. Both are PLAIN JVM (`java.util.zip`), the same
- * code as the Android actual, COPIED with its zip-slip + size-cap guards and its tests (desktopTest). This
- * duplication is deliberate for WIN02: WIN01's `jvmSharedMain` (the JVM source set Android and desktop will
- * share) does not exist yet, so there is nowhere shared to put it. Whoever lands second collapses the copy
- * into `jvmSharedMain` (D2 / the WIN01 coordination note).
+ * SEAM 3 `actual` (shared JVM) — `unpackBundle` + `rawInflate`, on plain `java.util.zip`. ONE copy shared by
+ * Android and the Windows desktop target (both compile jvmSharedMain); iOS keeps its own Kotlin/Native
+ * `ZipReader`-based actual (no zip API in the K/N stdlib). F1 (2026-11-01): this collapses the two byte-identical
+ * JVM copies that WIN02 had to duplicate while jvmSharedMain did not yet exist.
  */
 
 private const val MAX_ARCHIVE_BYTES = 512L * 1024 * 1024 // 512 MB cap (zip-bomb guard)
@@ -18,8 +17,8 @@ private const val MAX_ARCHIVE_BYTES = 512L * 1024 * 1024 // 512 MB cap (zip-bomb
 actual fun unpackBundle(zipPath: String, destDir: String): UnpackResult =
     unpackBundle(zipPath, destDir, MAX_ARCHIVE_BYTES)
 
-/** The cap is a parameter so desktopTest can drive the size-cap refusal with a tiny [maxArchiveBytes]
- *  instead of a 512 MB fixture; the `actual` above pins the real 512 MB. */
+/** The cap is a parameter so a test can drive the size-cap refusal with a tiny [maxArchiveBytes] instead of a
+ *  512 MB fixture; the `actual` above pins the real 512 MB. */
 internal fun unpackBundle(zipPath: String, destDir: String, maxArchiveBytes: Long): UnpackResult {
     val zip = File(zipPath)
     if (!zip.isFile) return UnpackResult.Failed("the selected file could not be read")
@@ -63,9 +62,9 @@ internal fun unpackBundle(zipPath: String, destDir: String, maxArchiveBytes: Lon
 }
 
 /**
- * Desktop/JVM `actual` for the [rawInflate] seam — raw DEFLATE (nowrap) via `java.util.zip.Inflater`, so the
- * portable common [ZipArchive] parser is exercisable on the desktop JVM too. Byte-identical to the Android
- * actual, including the fail-closed checks for a stream shorter OR longer than its declared size.
+ * Shared-JVM `actual` for the [rawInflate] seam — raw DEFLATE (nowrap) via `java.util.zip.Inflater`, so the
+ * portable common [ZipArchive] parser is exercisable on a JVM (Android and desktop). Fail-closed on a stream
+ * shorter OR longer than its declared size (mirrors the iOS actual).
  */
 internal actual fun rawInflate(deflated: ByteArray, expectedSize: Int): ByteArray {
     if (expectedSize == 0) return ByteArray(0)
