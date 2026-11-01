@@ -58363,3 +58363,15 @@ release-apk was skipped as a PR.
 The Android import path changes file, not behaviour, and the land run's `android` job covers it. Land as usual:
 check that main's newest code run has started before the push, add the trailer, fast-forward, and read `/jobs`.
 WIN05 is next.
+
+## ✅ LANDED — F1 @ e1b4c492 — MAIN GREEN
+
+F1 (collapse the duplicate JVM zip code into `jvmSharedMain`) landed as one commit (`e1b4c492`),
+`Approved-by: Fable (GO 91d27f98)`. Land CI run **41330632227** on `e1b4c492`: all 8 jobs green incl. `android`
+and `windows`. One `jvmSharedMain/UnpackBundle.kt` (`unpackBundle` + `rawInflate`) shared by Android and the
+Windows desktop (iOS keeps its `ZipReader` actual); `androidMain/Storage.kt` has no zip symbol left; the zip
+tests run on BOTH JVMs from `jvmSharedTest`. Fable re-ran the one sabotage (red on both JVMs) at the GO.
+
+**Web-core queue: only WIN05 remains** — the embedded-Studio measurement spike (Chromium/JCEF vs WebView2 vs
+the system browser); report only, VLL decides from the numbers; it will also say whether desktop would reuse
+the native StudioBrowse screen.
