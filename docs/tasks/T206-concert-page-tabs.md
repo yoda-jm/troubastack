@@ -70,3 +70,13 @@ Owner: web-core. Spec: Fable, 2026-10-26. Small UI. **After the RED-MAIN fix.**
 - Update the comments that quote the old words (ConcertTabs, ConcertLayout's binding 2 note, SetlistDetail,
   styles.css) and the e2e text assertions. Keep the testids.
 
+## Follow-up settled by VLL (2026-11-01): the in-tab heading, and its count
+
+- `SetlistDetail`'s `<h2>Running order</h2>` becomes **"Main set"**. It pairs with "★ Bench · on call" below it.
+- **The count next to it counts only songs.** Today it is `main.length`, which includes intermissions: the demo
+  concert shows "5 songs" for 4 songs and 1 intermission. It becomes "4 songs · 1 intermission", using
+  "intermission", Studio's own word for the kind, singular or plural as needed, and leaving out the intermission
+  part when there is none ("4 songs").
+- Tests: a pure count function (songs vs intermissions, the 0, 1 and n cases), with a sabotage; the e2e asserts the
+  count text on the demo concert.
+

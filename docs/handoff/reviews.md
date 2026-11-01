@@ -58783,3 +58783,20 @@ re-embed and redeploy :8080 (version and builtAt stamped).
   The screenshots stay local. The device's rotation setting was restored (accelerometer 1, user 0).
 - **A93's tablet row (mobile)** needs the app updated first: the tablet runs a build of 2026-10-21 (89c8e80, which
   has the A88 self-update). VLL updates it from the app, then tries ⋮ Reload in Studio. His answer lands on his page.
+
+## 2026-11-01 — VLL: in-app Update crashes on his tablet → A95 (mobile, urgent); "Main set" heading + count → web-core
+
+- **A95 filed.**
+  - VLL: "cannot update from the app, it crash the app".
+  - The tablet's crash log (read-only, today 22:12): `SecurityException … ACCESS_NETWORK_STATE` at
+    `AppUpdater.onMeteredNetwork` ← `AppUpdateController.update`. The manifest never declared the permission, and
+    main is unchanged, so every build since A88 crashes on Update. A88's pass never pressed Update on a non-dev
+    build.
+  - Fix: declare the permission, make the metered check never throw (unknown means metered, so it asks first), a
+    manifest test and a seam test with sabotages, and the real n → n+1 update path on the emulator.
+  - VLL's tablet then needs one manual install of the fixed APK; self-update works after that.
+  - Mobile takes it before continuing WIN03.
+- **T206 follow-up** (VLL picked "D · Main set"): the in-tab heading becomes "Main set", and the count counts songs
+  only, "4 songs · 1 intermission" on the demo concert instead of "5 songs". Recorded in the T206 spec; to
+  web-core, before T199.
+- The A93 tablet row waits for that manual install.
