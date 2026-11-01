@@ -137,6 +137,36 @@ class FileRehearsalNotesTest {
     }
 
     @Test
+    fun savingTheSameNoteTwice_theSecondPngWins() {
+        // Every edit after a note's first save re-saves it over its own file. TEETH (on Windows): File.renameTo
+        // refuses an existing target, so the second save was dropped and the first PNG stayed.
+        val s = store()
+        s.save("c1", entry("a", 0), FakeBitmap(byteArrayOf(1, 1)))
+        s.save("c1", entry("a", 0), FakeBitmap(byteArrayOf(2, 2, 2)))
+        val n = s.index("c1").single()
+        assertContentEquals(byteArrayOf(2, 2, 2), s.pngBytes("c1", n.key))
+        assertNoTmp()
+    }
+
+    @Test
+    fun noWriteLeavesATmpBehind() {
+        // Every write is tmp + move into place; a move that fails (renameTo onto an existing file on Windows) leaves the
+        // tmp. Checked after each kind of write, and on main's golden so its byte-identical check cannot pass vacuously.
+        val s = store()
+        s.save("c1", entry("a", 0), FakeBitmap(byteArrayOf(1))); assertNoTmp()
+        s.save("c1", entry("b", 1), FakeBitmap(byteArrayOf(2))); assertNoTmp()
+        s.markSent("c1", s.index("c1").first().key, 9L); assertNoTmp()
+        s.delete("c1", s.index("c1").first().key); assertNoTmp()
+        val cid = goldenConcert()
+        store().markSent(cid, NoteKey("no-such-song", "no-such-hash"), 1L); assertNoTmp()
+    }
+
+    private fun assertNoTmp() {
+        val left = root.walkTopDown().filter { it.isFile && it.name.endsWith(".tmp") }.map { it.name }.toList()
+        assertEquals(emptyList(), left, "no tmp file is left behind")
+    }
+
+    @Test
     fun save_ofAnAllTransparentBitmap_deletesTheNote() {
         val s = store()
         s.save("c1", entry("a", 0), FakeBitmap(byteArrayOf(1)))
