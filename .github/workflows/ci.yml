@@ -528,3 +528,91 @@ jobs:
             echo "::error::deploy compose references an unset variable — a typo, or a missing entry in deploy/.env.example"
             exit 1
           fi
+
+  # WIN02 — the Windows desktop build, proven end to end on a real Windows runner: the shared code's desktop
+  # tests (incl. the DPAPI secret protection), the per-user MSI, a launch smoke that renders one frame, and an
+  # upgrade-in-place proof (MSI n → n+1 leaves ONE entry). Hard-gating. The MSI + the smoke PNG are uploaded.
+  # (The desktop tests ALSO run on Linux in the `android` job's :shared:check — D4, both JVMs agree.)
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v6
+      # jpackage builds the MSI with WiX 3 (candle/light). It ships on the windows-latest image; fail with a
+      # clear message here if it ever stops being on PATH, rather than deep inside a Gradle stack trace.
+      - name: check WiX 3 is available (jpackage MSI needs it)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
+            Write-Host "WiX not on PATH — installing WiX 3.14 via Chocolatey"
+            choco install wixtoolset --version=3.14.1 -y --no-progress
+            "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          } else {
+            Write-Host "WiX found: $((Get-Command candle.exe).Source)"
+          }
+      - name: desktop tests (incl. DPAPI secret-not-plaintext)
+        working-directory: app
+        run: .\gradlew.bat :shared:desktopTest
+      - name: package the per-user MSI (version 1.0.<run_number>)
+        working-directory: app
+        run: .\gradlew.bat :desktopApp:packageMsi "-PdesktopVersion=1.0.${{ github.run_number }}"
+      - name: keep the artifact MSI aside (before building n+1)
+        working-directory: app
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem desktopApp\build\compose\binaries\main\msi\*.msi | Select-Object -First 1
+          if (-not $msi) { Write-Error "no MSI was produced"; exit 1 }
+          Copy-Item $msi.FullName "troubastage-1.0.${{ github.run_number }}.msi"
+          Write-Host "artifact MSI: $($msi.Name)"
+      - name: launch smoke — the packaged app opens a window and renders one frame
+        working-directory: app
+        shell: pwsh
+        run: |
+          $exe = "desktopApp\build\compose\binaries\main\app\TroubaStage\TroubaStage.exe"
+          if (-not (Test-Path $exe)) { Write-Error "packaged exe not found: $exe"; exit 1 }
+          $png = "smoke.png"
+          $p = Start-Process -FilePath $exe -ArgumentList @("--smoke", $png) -PassThru -WorkingDirectory (Get-Location)
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); Write-Error "smoke hung (>120s)"; exit 1 }
+          if ($p.ExitCode -ne 0) { Write-Error "smoke exited with $($p.ExitCode)"; exit 1 }
+          if (-not ((Test-Path $png) -and ((Get-Item $png).Length -gt 0))) { Write-Error "smoke wrote no PNG"; exit 1 }
+          Write-Host "smoke OK — $((Get-Item $png).Length) bytes"
+      - name: prove upgrade-in-place (MSI n → n+1 leaves ONE entry at the new version)
+        working-directory: app
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $n   = "1.0.${{ github.run_number }}"
+          $n1  = "1.0.$([int]${{ github.run_number }} + 1)"
+          function Entries { @(
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+          ) | ForEach-Object { Get-ItemProperty $_ -ErrorAction SilentlyContinue } |
+              Where-Object { $_.DisplayName -eq "TroubaStage" } }
+          # install n (per-user, silent)
+          $msiN = (Get-ChildItem desktopApp\build\compose\binaries\main\msi\*.msi | Select-Object -First 1).FullName
+          Start-Process msiexec.exe -ArgumentList @("/i", "`"$msiN`"", "/qn", "/norestart", "/l*v", "$env:RUNNER_TEMP\msi-n.log") -Wait
+          $afterN = @(Entries)
+          Write-Host "after n: $($afterN.Count) entr(y/ies) at [$($afterN.DisplayVersion -join ', ')]"
+          # build + install n+1
+          .\gradlew.bat :desktopApp:packageMsi "-PdesktopVersion=$n1"
+          $msiN1 = (Get-ChildItem desktopApp\build\compose\binaries\main\msi\*.msi | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
+          Start-Process msiexec.exe -ArgumentList @("/i", "`"$msiN1`"", "/qn", "/norestart", "/l*v", "$env:RUNNER_TEMP\msi-n1.log") -Wait
+          $afterUpg = @(Entries)
+          $afterUpg | Select-Object DisplayName, DisplayVersion | Format-Table | Out-String | Write-Host
+          if ($afterUpg.Count -ne 1) { Write-Error "expected ONE TroubaStage entry after upgrade, found $($afterUpg.Count)"; exit 1 }
+          if ($afterUpg[0].DisplayVersion -ne $n1) { Write-Error "upgraded entry is $($afterUpg[0].DisplayVersion), expected $n1"; exit 1 }
+          Write-Host "upgrade-in-place proven: one entry, version $n1"
+      - name: upload MSI + smoke PNG
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: troubastage-windows-msi
+          path: |
+            app/troubastage-*.msi
+            app/smoke.png

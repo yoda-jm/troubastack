@@ -41,6 +41,11 @@ ktor = "3.0.3"                 # ktor-client (okhttp engine) — the app's manif
 androidx-camera = "1.4.1"      # CameraX (core/camera2/lifecycle/view); minSdk 26 clears it
 zxing-core = "3.5.3"           # com.google.zxing:core — pure-JVM QR decoder in an ImageAnalysis.Analyzer
 
+# WIN02 — desktop (Windows) seam actual: DPAPI current-user secret protection via JNA's Crypt32Util
+# (com.sun.jna.platform.win32). jna-platform carries Crypt32Util; it is REFERENCED in desktopMain on
+# every OS (so :shared:desktopTest compiles on Linux) but CALLED only when os.name is Windows.
+jna = "5.17.0"                 # net.java.dev.jna — latest stable 5.x
+
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
@@ -57,6 +62,8 @@ androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.r
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "androidx-camera" }
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "androidx-camera" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing-core" }
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
