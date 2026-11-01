@@ -57655,3 +57655,124 @@ copy and its duplicate test. The tests then run on both JVMs.
 **Re-present:** the delta commits on the branch; the B1 tests with the sabotage; the windows run showing the
 install location, the disjointness assert and the marker surviving; and the red runs for B3 and B4 (the B5 sabotage
 can be local). I re-read the delta, not the whole branch. Landing protocol unchanged: ping 1d and me before the push.
+
+## 2026-11-01 — mobile presents: WIN01 hoist App() into jvmSharedMain behind AppPlatform (branch `mobile/win01-hoist-app` @ 59decf96) — reviewer: Fable
+
+Three commits on `e9cc12ea`. Each one builds and passes the tests on its own.
+
+| Commit | What |
+|---|---|
+| `6b502593` 1/3 | `jvmSharedMain`/`jvmSharedTest` in `:shared` (the ktor client is its dependency), and the files that can move as they are: ConnectScreen, JoinDialog, NotesTree, AndroidImportFs and HttpTransport, plus their three tests. |
+| `64167c29` 2/3 | `MainActivity.kt` split as it is, inside androidApp, into `App.kt` and `ConcertsScreen.kt`. |
+| `59decf96` 3/3 | `AppPlatform`, `AndroidAppPlatform`, and the de-Androidification. App.kt, ConcertsScreen.kt and the rest move to jvmSharedMain. ARCHITECTURE I15 updated. |
+
+**One deviation from "at least two, moves first": a third commit.** Commit 2 is a pure code move inside androidApp: every code line is unchanged, except five file-private declarations that become `internal`. Because of it, commit 3 shows App.kt as a rename with only the de-Androidification in its diff (`git show -M 59decf96`). Without it, App() would arrive as a new 600-line file.
+
+**Criterion 3 (renames, `git show -M --summary`):**
+- Commit 1: 100%, except HttpTransport at 99%. `sessionCookieFor` and `dropSessionIfOriginChanged` lose `internal` because EditScreen stays in androidApp and calls them.
+- Commit 3: BakeRunner, ConcertListPane, StagePosition and StagePositionRoundTripTest are 100%. ArmedUploader is 99%, EditedConcertsScreen 98%, ConcertsScreen 91%, App 84%.
+
+**The interface (D3).** `AppPlatform` (jvmSharedMain) has these members:
+- `storage`, `imageDecoder(dir)`, `rehearsalNotes(notesDir)`
+- `bundlePicker?`, `discovery?`, `qrScanner?`
+- `studio?`: Browse, Edit, PresentQr, and `clearCookies()`
+- `appUpdate?`: a factory `(Storage, CoroutineScope) -> AppUpdate`
+- `pedal?`: a factory `() -> PedalLink`
+- `StageWindow{}`, `BackHandler{}`
+- `monotonicNowMs()`, `localTimeText()`
+- `resumeTicks`, `pendingInviteLink?`, `volumeTurnRegistrar?`, `settingsWereReset`
+
+Name refinements, as the spec allows:
+- `rehearsalNotes` returns `RehearsalNotesStore`, which is `RehearsalNotes` plus `pngBytes`, the one extra call the Notes tab and the uploader make.
+- `appUpdate` and `pedal` are factories, so App() still `remember`s them in its own composition, with the same lifetime and the same coroutine scope as before.
+- Clocks: `System.currentTimeMillis()` stays a plain JVM call in shared code.
+
+**Null hides the affordance:**
+- `studio` null: no TroubaStudio tile.
+- `qrScanner` null: no "Scan a QR" on Home or in Connect.
+- `bundlePicker` null: no "Import a .tstage…".
+- `pedal` null: no "MIDI pedal" line or its "Connect first" hint. Learned keys stay.
+- `appUpdate` null: no banner and no About lines. Settings already hid them on a null `onCheckForUpdates`.
+- `discovery` null: an empty list.
+- The commonMain changes this needs: `HomeScreen`'s `onStudio`/`onScanToJoin` and `SettingsScreen`'s `onConnectPedal` become nullable, with `if (x != null)` on the tile, link or row. Android passes all of them, so nothing it draws changes. The null branches first run on desktop (WIN03).
+
+**Back (D3):** `AppPlatform.BackHandler`, provided by the host. Android passes `androidx.activity.compose.BackHandler` unchanged, so every handler is the same call in the same order as before.
+- `EditedConcertsScreen`'s own handler moves to App's call site. It was the only handler that screen ever composed.
+
+**Found while moving it, then fixed by the move itself:**
+- HttpTransport called `android.webkit.CookieManager` fully qualified. The spec's import grep cannot see a call like that. It now takes `clearWebCookies` (App passes `studio?.clearCookies()`), and EditScreen passes the same clear to `dropSessionIfOriginChanged`. Sign-out and a server-origin change drop the WebView cookies exactly as before.
+
+**Criterion 4 (guard):**
+- The spec's grep `^import (android\.|androidx\.(activity|core|camera|security))` on jvmSharedMain is **empty**.
+- My stricter grep over jvmSharedMain and jvmSharedTest is also **empty**. It adds: `\bandroid\.[a-z]+\.`, `androidx.(lifecycle|webkit)`, `LocalContext`, `LocalLifecycleOwner`, `AndroidView`, `viewinterop`, `asAndroidBitmap` and `android.Manifest`.
+- Positive control: the same strict grep hits 14 files in androidApp.
+- Not proven until the desktop target compiles jvmSharedMain: a Compose API that is Android-only in CMP. `statusBarsPadding` in ConcertsScreen is the first one I'd check. I've told 9c.
+
+**Criterion 5: every `@Composable` left in androidApp, and the Android API each needs**
+
+| Composable | Android API |
+|---|---|
+| `EditScreen` (+ its private `ErrorCover` and `ServerDialog`) | WebView via `WebViewHost`/`AndroidView`, `LocalContext`, `CookieManager`, androidx `BackHandler` |
+| `QrScanScreen` + `CameraScanner` | CameraX, the camera permission launcher, `LocalLifecycleOwner` |
+| `QrPresentScreen` + `QrView` + `NoLinkYet` | `android.graphics.Bitmap`, the Activity window flags (`WindowManager`), androidx `BackHandler` |
+| `StageHost` | `FLAG_KEEP_SCREEN_ON`, `WindowInsetsControllerCompat` |
+| `AppUpdateDialogs` | `AppUpdateController` (the PackageInstaller flow's questions, Android's "Install unknown apps" text) |
+| `AndroidAppPlatform`'s composable members | delegate to the rows above, plus the SAF launcher, the BLE permission launcher and androidx `BackHandler` |
+| `StudioBrowseScreen` (+ `BandsTab`, `LauncherRow`, `QrButton`, `QrGlyph`) | **only androidx `BackHandler`.** It stays because D4 lists it with the Studio flow, behind `studio`. It is the one screen that could move as soon as Windows has a Studio (WIN05). Your call whether it should move now. |
+
+**Criteria 1 and 2 (build, tests).** `./gradlew :shared:check :androidApp:test :androidApp:assembleDebug :shared:compileKotlinIosArm64` was green on each commit. On commit 3 I also ran `:shared:compileKotlinIosSimulatorArm64`, so the full CI set was green there. Every build ran with `--no-daemon`. The test count never drops:
+
+| Tree | `<testcase>` count: :shared Debug + Release, :androidApp Debug + Release | Total |
+|---|---|---|
+| main `0f7c6d68` | 580 + 580, 28 + 28 | **1216** |
+| 1/3 | 600 + 600, 8 + 8 | 1216 |
+| 2/3 | 600 + 600, 8 + 8 | 1216 |
+| 3/3 | 605 + 605, 3 + 3 | **1216** |
+
+The tests that moved are unchanged, and they now run in `:shared`. `AppUpdaterParseTest` stays with `AppUpdater`.
+
+**Criterion 7 (line counts, `.kt`):**
+- androidApp main: **4 597 lines in 22 files → 1 721 lines in 13 files**.
+- jvmSharedMain: **0 → 3 174 lines in 15 files**.
+
+**Criterion 6 (emulator).** `Pixel_Tablet_Portrait` (1600×2560):
+- Data: the demo concert injected; connected as marie to a copy of the deployed server on a scratch port with throwaway data and the demo seed. Status bar frozen with SystemUI demo mode.
+- APKs: main's 0f7c6d68, and head's, built from this commit 3's tree (its versionName reads `d32a4be1-dirty` because I built before committing; the app tree is identical, checked by tree hash).
+- One script ran the same steps from the same fresh state (`pm clear`, inject, connect) on each APK.
+
+Screens, compared pixel by pixel:
+
+| Screen | main vs head |
+|---|---|
+| Home (connected), Connect dialog ("Server & account"), TroubaStudio browse, concert list on the Concerts tab and on the Notes tab, Stage page mode, Stage with chrome shown, Stage with the drawer open | **identical** (8 of 9) |
+| Parameters | differs **only** in the About build line: `0f7c6d68 · built 10:59` vs `d32a4be1-dirty · built 12:04` |
+
+A second full run of each APK repeated this, apart from a 4×7 px patch in the system gesture-nav handle. That patch also differs between two runs of main's own APK, so it is system UI, not the app. Head's two runs are identical.
+
+Journeys on head:
+- **Turns:** swipe left turns; PageDown, VolumeDown and → turn forward; PageUp turns back to the exact earlier page (screenshot-equal). ✕ leaves to the concert list.
+- **A79:** with the drawer open, Back closes only the drawer: the screen equals Stage page 1. A second Back stays on Stage page 1. Both screenshot-equal.
+- **Note mode:** ✎ → "Enter note mode?" → Enter → one stroke drawn → Clear page → "Clear this page?" → Clear. The page then equals its pre-stroke screenshot except for the "Removed" toast. ✔ exits to the normal Stage chrome.
+- **A93:** TroubaStudio → band → Studio loads embedded → in-app navigation to a song → ⋮ Reload.
+  - Same path and query; new `performance.timeOrigin`; a marker set on the page is gone (a real reload).
+  - `history.length` stays 2; `trouba_embedded=1` and `.shell-embedded` are still present.
+- **Import:** "Import a .tstage…" → the system picker → Downloads → `demo-concert.tstage` → "Imported «Sat @ The Anchor»". No `pick-*` temp file is left in the cache.
+- **A46:** after ✕, reopening the concert opens on the page it was left on. Then Home, `am kill` (pid gone), relaunch: Stage comes back on that page. Both are screenshot-equal to the page before. The same Stage steps on main's APK gave the same screenshots.
+  - Noted, not changed: the first time I ended a run on the "Interval" card, reopening started at the top. That is not WIN01:
+    - StageScreen (commonMain, untouched) reports every page as the position, the card included.
+    - The Stage view model (untouched) resolves it on open.
+    - App's position lines (`posKey`, `decodeStagePosition`, `onPositionChange`) are textually identical before and after.
+    - So main does the same. I did not re-run that case on main. Possibly worth a small ticket: resume after leaving on an interval card.
+
+**Coordination with WIN02 (9c):**
+- The build file now calls `applyDefaultHierarchyTemplate()` explicitly, right after the iOS targets. The manual `dependsOn` edges would otherwise switch the implicit template off. `iosMain` is unchanged and both iOS compiles are green.
+- The desktop wiring is two lines: `desktopMain.dependsOn(jvmSharedMain)` and `desktopTest.dependsOn(jvmSharedTest)`.
+- WIN01 does not move `unpackBundle`/`rawInflate`. 9c and I agree that collapsing WIN02's copy of them is a separate refactor.
+- Whoever has the GO first lands, and each of us pings the other before pushing.
+
+**Also in the commits:**
+- androidApp drops the ktor dependencies, since they come with `:shared`.
+- `FileBundleFiles` (out of AndroidImageDecoder.kt) and `brandTitle` (out of StudioBrowseScreen.kt) move to jvmSharedMain.
+- 27 imports `MainActivity.kt` carried without using them are gone (commit 2).
+
+**Still owed (unchanged):** A93 and the toolbar fix on VLL's 11" tablet, once he unlocks it.
