@@ -82,7 +82,7 @@ sealed interface Presence {
  * cross-origin guard — whose wrong answer silently LEAKS a session to another server — is unit-testable
  * off the device with a fake secret map.
  */
-internal fun sessionCookieFor(getSecret: (String) -> String?, url: String): String? {
+fun sessionCookieFor(getSecret: (String) -> String?, url: String): String? {
     val cookie = getSecret(SESSION_COOKIE_KEY)?.takeIf { it.isNotEmpty() } ?: return null
     val origin = getSecret(SESSION_ORIGIN_KEY).orEmpty()
     return if (origin.isNotEmpty() && origin == originOf(url)) cookie else null
@@ -93,7 +93,7 @@ internal fun sessionCookieFor(getSecret: (String) -> String?, url: String): Stri
  * stored session AND the WebView's cookie jar so nothing from the old server survives against the new
  * one. Defense-in-depth alongside [sessionCookieFor] (which already refuses a cross-origin replay).
  */
-internal fun dropSessionIfOriginChanged(storage: Storage, newUrl: String) {
+fun dropSessionIfOriginChanged(storage: Storage, newUrl: String) {
     if (originOf(newUrl) != storage.getSecret(SESSION_ORIGIN_KEY).orEmpty()) {
         clearSession(storage::putSecret)              // A38 review: consolidated onto the tested helper
         storage.putSecret(LAST_USERNAME_KEY, "")      // A41: the remembered username belongs to a server

@@ -80,6 +80,9 @@ kotlin {
             isStatic = false
         }
     }
+    // WIN01: the default hierarchy (iosMain over the two iOS targets), applied explicitly because jvmSharedMain below
+    // adds a dependsOn edge by hand, and an implicit template would then be skipped.
+    applyDefaultHierarchyTemplate()
 
     sourceSets {
         commonMain { kotlin.srcDir(generateBuildInfo) } // A84: BuildInfo.kt (the task runs before any compile)
@@ -98,6 +101,25 @@ kotlin {
             implementation(kotlin("test"))  // shared unit tests (bundle loader, …); run on androidUnitTest
             implementation(libs.kotlinx.coroutines.test)  // runTest for the coroutine-based downloader (B03)
         }
+
+        // WIN01 — the app itself (App(), its screens, the ktor transport): shared by the JVM platforms, Android now and
+        // the Windows desktop target (WIN02) next; iOS compiles none of it (the iOS hoist stays deferred). Platform
+        // specifics reach it through ONE interface, AppPlatform (DI, not a fourth seam).
+        // ⚠ Until a second JVM target compiles it, only Android does, so the compiler accepts Android APIs here: hold
+        // the line by hand (WIN01's guard grep). The desktop target's source set must dependsOn(jvmSharedMain).
+        val jvmSharedMain by creating {
+            dependsOn(commonMain.get())
+            dependencies {
+                // B03 distribution transport — the ktor impl of the ManifestTransport (app DI, not a seam).
+                implementation(libs.ktor.client.core)
+                implementation(libs.ktor.client.okhttp)
+                implementation(libs.ktor.client.content.negotiation)
+                implementation(libs.ktor.serialization.kotlinx.json)
+            }
+        }
+        val jvmSharedTest by creating { dependsOn(commonTest.get()) }
+        androidMain.get().dependsOn(jvmSharedMain)
+        getByName("androidUnitTest").dependsOn(jvmSharedTest)
 
         androidMain.dependencies {
             // SEAM ACTUALS ONLY (I15) — nothing here that could be shared:
