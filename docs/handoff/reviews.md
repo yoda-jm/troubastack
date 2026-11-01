@@ -58449,3 +58449,76 @@ VLL answered on his private decisions page. Recorded as given:
 **Queue:**
 - web-core: T199 → WIN05 → WIN06 (after WIN03) → DESK01 (after WIN03).
 - mobile: WIN03a → WIN03 → WIN04.
+
+## 2026-11-01 — mobile presents: WIN03a the rehearsal-notes on-disk format moves to jvmSharedMain behind a NoteBitmapCodec (branch `mobile/win03a-shared-rehearsal-notes` @ 57960bf9) — reviewer: Fable
+
+Three commits on `553399fb`, per your ruling `12a68454`. Each builds and passes the tests on its own.
+
+| Commit | What |
+|---|---|
+| 1/3 `b98a8d4d` | **The seam, in place in androidApp.** `AndroidRehearsalNotes.kt` is renamed to `FileRehearsalNotes.kt` with the seam edits; `AndroidNoteBitmapCodec` holds the three calls as they are today: decode with `inMutable` (the A70 comment moves with it), `asAndroidBitmap` (null means `save` returns, as before), `compress(PNG, 100)`. |
+| 2/3 `d3dce17f` | **A pure move**: `git mv` of `FileRehearsalNotes.kt` into jvmSharedMain, 100%. |
+| 3/3 `57960bf9` | **The tests and the golden fixture.** |
+
+**The order differs from "pure move first".** Since WIN02 landed, the desktop target compiles jvmSharedMain. A file
+with `android.graphics` calls could not move there before the seam existed, so the seam comes first, still in
+androidApp. The diff of commit 1 is exactly the seam; commit 2 is a 100% rename.
+
+**Golden fixture from main's behaviour.** I installed main's APK (`89b61bfd`) on the emulator (Pixel_Tablet_Portrait).
+It drew one note on each of the demo concert's first two pages (synthetic), and I pulled `files/notes` with
+`run-as … tar`. Committed as-is under `jvmSharedTest/resources/fixtures/win03a-notes/`:
+- `index.json` (793 B, sha256 `1690b52f…`);
+- `683a09d63d26d142.png` (`1df8c5d1…`);
+- `0cd6616ac1f9415c.png` (`d783cc54…`).
+
+**Tests: `FileRehearsalNotesTest`, 11.** A fake codec stands in for the bitmap calls, so the tests run on both JVMs (Android unit tests and desktop).
+- **Golden:**
+  - main's two notes read back as their entries;
+  - each PNG is found by the file-name rule and returned verbatim by `pngBytes`;
+  - the index re-serialises **byte-identical**;
+  - reading the directory deletes nothing.
+- **Reconcile (§3.3):**
+  - **the "PNG written, index not yet" crash**: the orphan PNG is deleted and the known note kept;
+  - an entry whose PNG is gone is dropped and the index rewritten;
+  - no directory means no notes.
+- **Save / delete / send:**
+  - save writes the PNG, resets the nag and leaves no tmp;
+  - an all-transparent save deletes the note;
+  - a bitmap the codec cannot read is a no-op;
+  - markSent, delete, deleteAll, load.
+
+| Sabotage (each shown to land, restored and confirmed restored) | Red |
+|---|---|
+| **The index format** (`encodeDefaults = false`, yours) | `golden_indexReserialisesByteIdentical` |
+| The file-name rule (15 hash chars instead of 16) | `golden_mainsNotesReadAsTheirEntries` |
+| A reconcile that deletes every PNG | 7 of 11, including `golden_reconcileDeletesNothing` |
+
+**Upgrade journey (emulator, scratch server on its own port, throwaway data, demo seed).**
+- Setup:
+  - The concert is downloaded from the scratch server, not injected, so the server knows it and sending works.
+  - I baked it there with the existing bake worker; only the built script was read.
+- On main's APK (`89b61bfd`), connected as marie: download "Sat @ The Anchor", draw notes on two pages, list `files/notes` with sha256.
+- Then `adb install -r` head's APK. That was commit 2's tree; commit 3 adds only tests, so the app is the same.
+
+| Check after the upgrade | Result |
+|---|---|
+| The Notes tab | both notes listed |
+| **The reconcile deletes nothing** | the listing after the Notes tab is **byte-identical** to before, `index.json` included |
+| Page 1 with its note, main (before) vs head (after) | **pixel-identical** |
+| **A note still sends** | "Sent to Studio ✓". In the second run it went through the "Overwrite the note in Studio?" prompt, because the first run had already sent that page. |
+| After opening and sending | only `index.json` changed (`sentAt`); both PNGs keep their hashes |
+| **Clear page** | removes exactly that note's PNG; the other note's PNG keeps its hash |
+
+**One thing seen on the rig, not WIN03a.** In one run the "Who are you?" picker appeared when the concert was reopened after the upgrade.
+- Cause: the script left Home before Home's probe had set the signed-in member, so nothing could be auto-matched. An auto-match is not stored, so nothing was saved either.
+- A controlled check on each APK showed main and head behave identically: fresh, connect, download, open (auto-matched), leave, reopen, and the identity is kept.
+- With a wait for Connected after the upgrade, no picker appeared and page 1 compared pixel-identical.
+
+**Build on `553399fb`.** Commit 3 (the tip) passed the full CI set with `--no-daemon` in 10m35s:
+- `:shared:check` (including desktopTest), `:androidApp:test`, `:androidApp:assembleDebug`, both iOS compiles;
+- desktopTest 619; `:shared` 632 + 632; `:androidApp` 3 + 3; 0 failures. The 11 new tests run on both JVMs.
+
+Commits 1 and 2 were built green (same set) before I rebased onto F1, at 10m59s and 11m39s. F1 touches different files.
+Their rebuilds on the rebased base are running now, and I'll post the result here.
+
+**Next:** WIN03 uses `FileRehearsalNotes` with a Skia codec once this lands.
