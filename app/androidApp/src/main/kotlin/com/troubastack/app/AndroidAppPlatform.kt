@@ -34,7 +34,7 @@ class AndroidAppPlatform(private val activity: MainActivity) : AppPlatform {
 
     override fun imageDecoder(dir: String): ImageDecoder = AndroidImageDecoder(File(dir))
 
-    override fun rehearsalNotes(notesDir: String): RehearsalNotesStore = AndroidRehearsalNotes(notesDir)
+    override fun rehearsalNotes(notesDir: String): RehearsalNotesStore = FileRehearsalNotes(notesDir, AndroidNoteBitmapCodec)
 
     override val bundlePicker: BundlePicker = object : BundlePicker {
         @Composable

@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose.compiler)
-    alias(libs.plugins.kotlin.serialization)  // @Serializable index/release files (AndroidRehearsalNotes, AppUpdater)
+    alias(libs.plugins.kotlin.serialization)  // @Serializable index/release files (FileRehearsalNotes, AppUpdater)
 }
 
 kotlin {

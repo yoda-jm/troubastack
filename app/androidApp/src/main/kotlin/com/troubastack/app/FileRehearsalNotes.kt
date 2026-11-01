@@ -1,16 +1,13 @@
 package com.troubastack.app
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import com.troubastack.shared.stage.notes.NoteEntry
 import com.troubastack.shared.stage.notes.NoteKey
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileOutputStream
+import java.io.OutputStream
 import java.security.MessageDigest
 
 /** The on-disk shape of one concert's note index (§3.3 — the index is the truth about what exists). */
@@ -18,13 +15,29 @@ import java.security.MessageDigest
 private data class NoteIndexFile(val entries: List<NoteEntry> = emptyList())
 
 /**
- * A70 §4.4 — the Android rehearsal-notes host: PNG-encode/decode a per-page bitmap under
+ * WIN03a — the bitmap half of the rehearsal-notes store: the only platform calls it makes. Android: BitmapFactory /
+ * `Bitmap.compress`; desktop: Skia.
+ */
+interface NoteBitmapCodec {
+    /** Decode the PNG at [path] as a MUTABLE bitmap (the pad draws and erases into it), or null. */
+    fun decode(path: String): ImageBitmap?
+
+    /** True iff no pixel has any alpha (nothing drawn, or all erased). Null when [bitmap] cannot be read here. */
+    fun isAllTransparent(bitmap: ImageBitmap): Boolean?
+
+    /** Encode [bitmap] as a PNG into [out]. */
+    fun writePng(bitmap: ImageBitmap, out: OutputStream)
+}
+
+/**
+ * A70 §4.4 — the rehearsal-notes host: PNG-encode/decode a per-page bitmap under
  * `<notesRoot>/<concertId>/`, keyed by `sha256(songId "\n" rasterHash)[..16]`. Write order is PNG-first
  * then index-last, both via tmp+rename, so a crash can only leave a file without an index entry — which
  * [index] reconciles away (§3.3). A save of an all-transparent bitmap DELETES the note (#10). Never throws
  * (a value at every edge, like the rest of the stage host); on any I/O failure it degrades to "no note".
+ * WIN03a: the on-disk format, shared by the JVM platforms; [codec] does the bitmap calls.
  */
-class AndroidRehearsalNotes(private val notesRoot: String) : RehearsalNotesStore {
+class FileRehearsalNotes(private val notesRoot: String, private val codec: NoteBitmapCodec) : RehearsalNotesStore {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     private fun dir(concertId: String) = File(notesRoot, concertId)
@@ -62,22 +75,17 @@ class AndroidRehearsalNotes(private val notesRoot: String) : RehearsalNotesStore
     override fun load(concertId: String, key: NoteKey): ImageBitmap? {
         val f = File(dir(concertId), fileNameFor(key))
         if (!f.exists()) return null
-        // inMutable: a decoded PNG is otherwise IMMUTABLE, and the loaded note becomes the working bitmap the
-        // pad draws/erases into (a Canvas over an immutable bitmap throws). The note always DISPLAYS before it
-        // is edited, so the load happens in display mode and the neutral is reused when note mode is entered —
-        // it must be mutable from the decode, not copied later. (A70 note-edit crash, reload lifecycle.)
-        val opts = BitmapFactory.Options().apply { inMutable = true }
-        return runCatching { BitmapFactory.decodeFile(f.path, opts)?.asImageBitmap() }.getOrNull()
+        return codec.decode(f.path)
     }
 
     override fun save(concertId: String, entry: NoteEntry, bitmap: ImageBitmap) {
-        val android = runCatching { bitmap.asAndroidBitmap() }.getOrNull() ?: return
-        if (isAllTransparent(android)) { delete(concertId, entry.key); return }
+        val blank = codec.isAllTransparent(bitmap) ?: return
+        if (blank) { delete(concertId, entry.key); return }
         val d = dir(concertId).apply { mkdirs() }
         val fname = fileNameFor(entry.key)
         val tmp = File(d, "$fname.tmp")
         val ok = runCatching {
-            FileOutputStream(tmp).use { android.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            FileOutputStream(tmp).use { codec.writePng(bitmap, it) }
             tmp.renameTo(File(d, fname))
         }.getOrDefault(false)
         if (ok != true) { tmp.delete(); return }
@@ -104,19 +112,6 @@ class AndroidRehearsalNotes(private val notesRoot: String) : RehearsalNotesStore
     override fun pngBytes(concertId: String, key: NoteKey): ByteArray? {
         val f = File(dir(concertId), fileNameFor(key))
         return if (f.exists()) runCatching { f.readBytes() }.getOrNull() else null
-    }
-
-    /** True iff no pixel has any alpha — the "nothing was drawn / all erased" case that deletes the note. */
-    private fun isAllTransparent(b: Bitmap): Boolean {
-        if (!b.hasAlpha()) return false
-        val w = b.width; val h = b.height
-        if (w <= 0 || h <= 0) return true
-        val row = IntArray(w)
-        for (y in 0 until h) {
-            b.getPixels(row, 0, w, 0, y, w, 1)
-            for (px in row) if ((px ushr 24) != 0) return false
-        }
-        return true
     }
 
     private fun sha256(s: String): String {
