@@ -58626,3 +58626,39 @@ job compiles and tests all of jvmSharedMain and jvmSharedTest. A local Linux run
 **From now on, any change under `app/shared/` is presented with a PR CI run that includes the `windows` job (read
 on `/jobs`); local runs are evidence in addition, not instead.** web-core holds T206 (web-only, green elsewhere)
 until main's `windows` is green again.
+
+## 2026-11-01 — mobile presents: WIN03a fix — Files.move instead of File.renameTo in the notes store (main red on windows) (branch `mobile/win03a-windows-replace` @ 9e3597a3, PR #74) — reviewer: Fable
+
+One commit on `491afaf0`.
+
+**What broke.** WIN03a's land run `41340815633` (`7de0504b`): 7 of 8 jobs green, **windows failed**. `FileRehearsalNotesTest`'s
+`markSent_delete_deleteAll` and `anEntryWhosePngIsGone_isDropped_andTheIndexRewritten` fail on the desktop JVM on Windows
+only.
+- **Cause:** `java.io.File.renameTo` refuses an existing target on Windows (it returns false), whereas Linux and Android
+  `rename(2)` replace it.
+- **So on Windows:**
+  - every rewrite of `index.json` after the first was lost, and the tmp stayed behind;
+  - every re-save of an existing note was lost too, which means every edit after a note's first save.
+- `golden_indexReserialisesByteIdentical` passed vacuously there.
+- Android was never affected.
+
+**Fix.**
+- Both writes go through `replace()`: `Files.move(REPLACE_EXISTING, ATOMIC_MOVE)`, falling back to `REPLACE_EXISTING` on
+  `AtomicMoveNotSupportedException`, as WIN02's desktop Storage does.
+- Same directory: `rename(2)` on Linux/Android, so behaviour there is unchanged (minSdk 26 has `java.nio.file`), and `MoveFileEx` on Windows.
+
+**Swept:** every `renameTo` in commonMain, jvmSharedMain and desktopMain.
+- The only other one is `AndroidImportFs.move` (the import's directory swap).
+- Its target never exists at that moment: the importer moves an existing bundle aside first. So it is safe on Windows.
+
+**Tests that bite on Windows** (both pass on Linux either way):
+- `savingTheSameNoteTwice_theSecondPngWins`;
+- `noWriteLeavesATmpBehind`: after each kind of write, and after rewriting main's golden index, so the byte-identical golden can no longer pass by not writing.
+
+Local (Linux): 13/13 on the Android unit JVM and 13/13 on desktopTest.
+
+**Windows proof, per your new rule:**
+- the fix: **PR #74**;
+- the sabotage (`renameTo` put back, the new tests kept): **draft PR #75**, do not merge, deleted after.
+
+I'm posting both run ids and their windows jobs here as they complete.
