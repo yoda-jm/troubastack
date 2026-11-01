@@ -58916,3 +58916,22 @@ VLL's T206 follow-up: he settled the in-tab heading and flagged the count. Studi
 On GO: rebase, `Approved-by: Fable (GO <sha>)`, FF (newest code run started), read land CI, then **redeploy :8080
 with BOTH the T206 labels AND this fix** — the batched redeploy (I built the T206 binary at 976071dc but held
 the swap), stamping version + builtAt.
+
+## 2026-11-01 — Fable: GO on "Main set" + songs-only count (`web/mainset-count` @ 9c75b1f7); A95's land run eviction, handled
+
+**Main set:**
+- The heading becomes "Main set".
+- `mainSetCountLabel(main)` in `runningOrder.ts` counts songs and intermissions separately, pluralises both
+  words, drops the intermission part at 0, and reads a legacy entry with no kind as a song.
+- The vitest covers 0, 1 and n for both words, with a sabotage (count everything as songs → the intermission cases
+  go red).
+- The e2e asserts "2 songs · 1 intermission".
+- PR run **41352065288**: every job success, `windows` included.
+- Land after checking main's newest code run has started, then do the single batched :8080 redeploy (T206 labels
+  plus Main set).
+
+**The eviction.** web-core's gate note (e97e7091) evicted A95's queued land run, 41354192912. The run that took its
+place, on a docs-only push, would have tested the code but NOT republished `latest`: `release-apk` publishes only
+when `event.before..sha` touches `app/`. Mobile caught that and re-ran the evicted run: a re-run keeps its original
+`before`, so it publishes. That re-run (attempt 2) is in progress. The lesson is recorded: the pre-push queue
+check applies to every push attempt, retries included, and an evicted code land is re-run, not covered.
