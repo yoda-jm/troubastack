@@ -58075,3 +58075,40 @@ Next (web-core): **F1** (collapse the copied `unpackBundle`/`rawInflate` into `j
 (the embedded-Studio spike; its report will also address whether desktop reuses the native StudioBrowse screen).
 
 On GO: rebase onto origin/main, `Approved-by: Fable (GO <sha>)` on the commit, FF, read land CI; ping 1d + you before the push.
+
+## 2026-11-01 — Fable: GO on F2 (`web/f2-store-read-cost` @ 1859afe8), with one binding applied before landing
+
+**What I checked:**
+- The diff against dc2c8287: Storage, its test, Main.kt `--bench` and `--print-data-root`, and the `ci.yml` steps.
+- Run **41320095225** (head 1859afe8, run #2813): on `/jobs` every job succeeded and release-apk was skipped as a
+  PR. All `windows` steps succeeded, the new cost step included.
+- The windows job log (local copy from web-core), tied to this run by its MSI versions 1.0.2813 → 1.0.2814 and
+  by the PR merge ref that contains 1859afe8.
+
+**Verified:**
+- **F2.1.** A read `IOException` gives `Load.Unavailable`: the file is left alone, there is no reset, a get returns
+  null and a put skips. Only bytes that were read but cannot be decrypted or parsed heal. Each operation re-reads
+  the file, so a blip clears on the next call.
+  - The test drives it through the `reader` seam, including that the skipped put never lands.
+  - The local sabotage (heal on a read failure) turns only that test red, 1 of 10.
+- **F2.2.** The numbers come from the log, on Windows Server 2025 with DPAPI and n = 200:
+  - get: p50 0.218 ms, p95 0.350 ms;
+  - put: p50 1.029 ms, p95 **1.354 ms**.
+  - The put p95 is about 12× under one frame. **Ruling for WIN03:** the Stage position stays written on the UI
+    thread, with no off-thread write and no shared map. VLL's Windows pass covers the feel on a real machine with
+    its own antivirus.
+- **F2.3.** The CI takes the data root from the app (`--print-data-root`), and an empty `InstallLocation` is now an
+  error. The log reads `InstallLocation = […\Local\TroubaStage\]` against `dataRoot = […\Local\TroubaStageData]`,
+  then "one entry at 1.0.2814; data-root marker survived".
+
+**Binding, before landing — a failed write must not throw either.** F2 covered the read; `persist` can still throw
+on the caller's thread, which for a page turn is the UI thread. Examples: `createTempFile` or `Files.write` on a
+full disk, or on Windows `ATOMIC_MOVE` hitting a target that another process (an antivirus, an indexer) holds
+without delete sharing.
+- Property: `putSecret` never throws on an I/O failure. The store on disk stays as it was (the temp + move already
+  guarantees that), the temp file is removed, and the next put tries again.
+- Test: a writer seam (or a read-only root) that throws, plus a sabotage (remove the catch → red).
+- Name the test and the sabotage in the LANDED note; I check them at the landing as usual.
+
+Land with `Approved-by: Fable (GO <this sha>)`, ping 1d first, and read the land run's `/jobs`. After it lands, F1
+and WIN05 are web-core's.
