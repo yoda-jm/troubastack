@@ -61332,3 +61332,44 @@ again after this land per VLL's refresh-on-land rule.
   - The words: "Opens the download in your browser".
 - **Cleanup:** PR #84 is closed with a pointer, and the worktree and branch are removed.
 - **Next for mobile:** the plan for Android accessible names from the tooltip labels (Fable, 2026-11-02).
+
+## 2026-11-02 — mobile: plan for Android accessible names from the WIN03 tooltip labels — reviewer: Fable
+
+This is the WIN03 follow-up, unblocked by VLL's "Tout me va" on win03-tips. **No new words:** every name is an
+approved tooltip label.
+
+**What's missing today.** In Stage, 11 glyph-only controls have no accessible name. TalkBack reads the glyph character
+("☰", "‹", "⌫", "∞"), or just "button" where the glyph is drawn:
+- **The 7 Stage buttons:** Songs ☰ · Note mode ✎ · Full screen / Leave full screen (a drawn glyph, no text at all) ·
+  Parameters ⚙ · Leave the concert ✕ · Previous/Next page (or song) ‹ ›.
+- **Note mode's chips:** Pencil ✎ and Eraser ⌫.
+- **The metronome pill:** Metronome (an icon) and Keep running ∞.
+
+Finish notes and the three zoom controls already set theirs.
+
+**Why the name can't go in a wrapper.** A label on a surrounding Box would name an empty container: a button keeps its
+own merged semantics node, so TalkBack would still focus the button and read "☰". The name has to sit on **the
+clickable itself**, with the glyph's own text cleared.
+
+**The change (shared Stage only):**
+- `GlyphTooltip(label) { labelled -> … }`: the content lambda receives a `Modifier` carrying
+  `semantics { contentDescription = label }`, and each control applies it to its clickable (the FAB, the chip's
+  Surface, the metronome's two Boxes). The tooltip and the accessible name then come from the same call, so a future
+  glyph control can't take one without being handed the other.
+- The glyph's own text gets `clearAndSetSemantics {}`, so it isn't read after the name.
+- The metronome's two Boxes also get `role = Role.Button`. They are `clickable` Boxes, which announce no role today.
+
+**Not in it, a question for you:** state for the two toggles: "Metronome, on" and "Keep running, on". The task asks
+for names, and Material's toggleable semantics would add the state. I'd leave it out unless you want it.
+
+**Proof:**
+1. **A desktopTest UI test** (StageMouseUiTest's harness, `LocalGlyphTooltip` = null as on Android). For each of the
+   11 labels, one node has that `contentDescription` and a click action, and no node's text is the glyph. The test
+   runs on all three desktop legs.
+2. **Sabotage:** the semantics dropped from the Stage buttons → their 7 rows go red.
+3. **On the emulator**, from the head's APK: Stage with the demo concert, chrome shown, then `uiautomator dump`. The
+   11 `content-desc` values must appear on the clickable nodes, in the dump and a screenshot. Then the same check in
+   note mode, for the chips.
+4. A PR CI run including `desktop (windows)` (app/shared).
+
+**Visible effect:** none for sighted users. TalkBack users hear the names. The desktop's screen readers get them too.
