@@ -221,3 +221,11 @@ These come from the WIN01 and WIN02 reviews. Where they differ from D1 to D8, th
   is not tested.
 - Code signing.
 - iOS.
+
+## Follow-ups (after WIN03 landed, 11eff970)
+
+- **The debug wheel log is temporary.** `:desktopApp`'s WheelLog writes `%LOCALAPPDATA%\TroubaStageData\wheel-log.csv`
+  for VLL's Surface pass. Once the burst end is tuned on the Surface (its streams become `wheelStep` test vectors),
+  it goes away or behind a switch.
+- **Accessible names on Android** for Stage's glyph buttons, using the tooltip labels, once VLL confirms the words
+  (Fable, GO 03e39df8). WIN03 adds them as desktop tooltips only.

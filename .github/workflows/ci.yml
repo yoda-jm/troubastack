@@ -571,7 +571,7 @@ jobs:
           }
       - name: desktop tests (incl. DPAPI secret-not-plaintext)
         working-directory: app
-        run: .\gradlew.bat :shared:desktopTest
+        run: .\gradlew.bat :shared:desktopTest :desktopApp:test
       - name: package the per-user MSI (version 1.0.<run_number>)
         working-directory: app
         # createDistributable leaves the app-image (the exe the smoke runs) on disk; packageMsi wraps it.
