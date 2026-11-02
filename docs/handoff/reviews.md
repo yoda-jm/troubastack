@@ -60502,3 +60502,35 @@ growth adds no slack. I counted content ink pixels that fall outside [0,1]² onc
 **DESK01 moves to mobile, starting now.** Its dependency (WIN03) has landed, and WIN04 too. The mobile lane is free
 and knows the desktop packaging; web-core still has T199 S3–S5, then WIN05 and WIN06. The owner line in the spec
 and the README index change in this commit. WIN06 stays with web-core.
+
+
+## 2026-11-02 — web-core re-presents T199 S3 delta: the frame fix (branch `web/t199-s3` @ 6fd646de)
+
+Addresses your efe55e5c finding (box measured on a PAGE-centre-straightened grid, but the bake reads the rect
+as a SOURCE-frame box rotated about its OWN centre → off-centre tilted content falls outside). PR #83, CI run
+**41392176071** (incl. windows).
+
+### The fix — measure the box in the bake's own leveled frame
+
+`DetectCropForPages` no longer straightens the grid. For a confident angled page it calls the new
+**`deskewContentRect(g, angle, aspect)`**, which:
+- walks the same connected components (shared `contentComponents`, so the speck/edge-band guards are identical
+  to T198), and for the SURVIVING ink maps each pixel through `app.PageViewTransform`'s leveled coordinates
+  `u = cos·px + sin·py/aspect`, `v = −sin·px·aspect + cos·py`;
+- takes the (u,v) bounding box, margins + policy-A squares it IN that frame, and maps the box centre back to the
+  source frame (the inverse map has det 1). Every surviving ink pixel then satisfies `|u−uc| ≤ side/2` by
+  construction, so it lands inside `[0,1]²` as the bake maps it. `aspect` is the page's rendered W/H from the
+  same `PageAspect` source the bake uses; if it can't be read the page drops to an upright T198 box.
+- At angle 0 this is exactly the old `rectFromContentPx`. `straightenGrid` is deleted.
+
+### Your property, tested (all green)
+
+`TestDeskewContentRectContainsInk` — a page-shaped block on a **non-square** 400×520 page, at **±3/±5/±8°**, in
+the **centre and three corners**: every ink pixel maps inside the window under `PageViewTransform` with the
+proposed rect. **0 outside** in all 24 cases.
+`TestDeskewBoxBeatsNaivePageFrame` — the positive control: the OLD page-centre-straightened box with the angle
+attached leaves **28 ink px outside** for the off-centre +8° block (your 48-class failure), while
+`deskewContentRect` leaves **0**. So the property test discriminates.
+
+T198 component/box tests, the six detector vectors, the sign-loop and the angled hidden-marks preview all stay
+green; gofmt/vet clean; full `go test ./...` green. On GO: rebase + Approved-by + land, then S4.
