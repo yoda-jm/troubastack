@@ -15,6 +15,8 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.troubastack.shared.bundle.BakedSong
@@ -100,6 +102,33 @@ class StageAccessibleNamesUiTest {
             onNode(keepRunning).performClick()
             mainClock.advanceTimeBy(100)
             onAllNodes(keepRunning and SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, ToggleableState.On)).assertCountEquals(1)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun noteModesZoomChipAndItsMenu_areNamedOnTheirClickables_andTheChipsNameFollowsTheFactor() = runComposeUiTest {
+        val root = Files.createTempDirectory("stage-a11y").toFile()
+        try {
+            val vm = stage(root)
+            vm.requestNoteMode()
+            vm.confirmNoteMode()
+            mainClock.advanceTimeBy(500)
+            assertNamedClickable("Zoom, 1×")
+            // Through its click action: in this 600 dp test window a touch click at the chip's centre did not reach it
+            // (the note bar scrolls horizontally); the menu it opens is what is tested here.
+            onNode(hasContentDescription("Zoom, 1×") and hasClickAction(), useUnmergedTree = true).performSemanticsAction(SemanticsActions.OnClick)
+            mainClock.advanceTimeBy(500)
+            // The menu: − / + / 1:1 (at 1× "Zoom out" and "Zoom to actual size" are disabled, still named and clickable).
+            for (label in listOf("Zoom out", "Zoom in", "Zoom to actual size")) assertNamedClickable(label)
+            assertGlyphsNotRead("−", "+", "1:1", "⌕ 1×")
+            onNode(hasContentDescription("Zoom in") and hasClickAction(), useUnmergedTree = true).performClick()
+            mainClock.advanceTimeBy(500)
+            // TEETH: the chip's NAME carries the factor (it is the only place a screen reader hears it now).
+            assertNamedClickable("Zoom, 1.5×")
+            onAllNodes(hasContentDescription("Zoom, 1×"), useUnmergedTree = true).assertCountEquals(0)
+            assertGlyphsNotRead("⌕ 1.5×")
         } finally {
             root.deleteRecursively()
         }
