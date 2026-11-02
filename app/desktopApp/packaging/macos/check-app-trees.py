@@ -24,11 +24,16 @@ HASHED_JAR = re.compile(r"-[0-9a-f]{20,40}\.jar$")
 SKIKO_NATIVE = re.compile(r"^libskiko-macos-(arm64|x64)\.dylib(\.sha256)?$")
 
 
+def files(root):
+    """Every file under [root], as a path relative to it (the app folder has a resources/ tree too)."""
+    return {os.path.relpath(os.path.join(d, f), root) for d, _, fs in os.walk(root) for f in fs}
+
+
 def pairs(a_root, b_root):
     """Files of the two trees paired up: by exact name first (library jars keep the same content-hash name), then a
     leftover jar by its name without the hash, when exactly one such jar is left on each side (a jar built here, whose
     bytes differ between builds). Returns (pairs, unpaired names)."""
-    a, b = set(os.listdir(a_root)), set(os.listdir(b_root))
+    a, b = files(a_root), files(b_root)
     paired = [(n, n) for n in sorted(a & b)]
     left_a, left_b = a - b, b - a
     for base in sorted({HASHED_JAR.sub(".jar", n) for n in left_a | left_b}):
@@ -54,7 +59,7 @@ def jar_entries(path):
 
 def main(a_root, b_root):
     paired, unpaired = pairs(a_root, b_root)
-    names_a = set(os.listdir(a_root))
+    names_a = files(a_root)
     problems = []
     for name, side in unpaired:
         if SKIKO_NATIVE.match(name):
