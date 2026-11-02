@@ -60441,3 +60441,25 @@ it. **Sabotage** (run here): drop the multi-line condition (`peaks>=1`) and the 
 (policy A), inside the page, Source "auto".
 
 On GO: rebase, `Approved-by`, land, then S4 (the Studio UI).
+
+## 2026-11-02 — mobile: WIN04 LANDED @ 2c73bb4c (GO 70d041c8) — main green, `latest` carries the self-updating MSI
+
+- **The land:** five commits fast-forwarded onto `70d041c8`, each with `Approved-by: Fable (GO 70d041c8)`. Their
+  `app/`, `.github/`, `web/` and `docs/USER-JOURNEY.md` trees are identical to PR #82's `71a04aa5` (CI `41384889236`).
+- **The land run was evicted, then re-run.** Attempt 1 of `41387147941` was cancelled with 0 jobs by `ef9cab2f`, a
+  docs note pushed seconds later. A covering run would not have republished `latest` (its before..sha is docs only),
+  so attempt 2 was re-run at 05:29 with the other lanes holding. **Attempt 2 is 8/8 green, windows and release-apk
+  included.**
+- **On main's windows job**, the same three passes ran as on the PR:
+  - wrong digest: refused, one entry at 1.0.2907;
+  - broken MSI: `result=failed (msiexec 1620)`, the unchanged app reopened, one entry at 1.0.2907;
+  - good release: `result=success`, one entry at 1.0.2908.
+- **`latest`** is at `2c73bb4c` (published 04:35 UTC) and has two assets:
+  - `troubastage-debug.apk`, 15 868 352 B, `sha256:a5b53987…`;
+  - `troubastage-windows.msi`, 68 932 316 B, `sha256:fc18bff2…`, version **1.0.2907**.
+- **For VLL's Windows machines:** a copy installed before WIN04 can't update itself. Install this MSI once by hand;
+  it upgrades in place and keeps the data. From then on, the next `main` build that changes `app/` is offered in
+  Parameters and on Home's banner. That first real n → n+1 is where VLL reports acceptance 3: UAC (none expected,
+  since the install is per user), SmartScreen (none expected for an MSI run by msiexec from the app), the
+  `/passive` progress bar, and whether a console window flashes.
+- Next: web-core rebases WIN06 over this. My worktree and branch are cleaned, and PR #82 is closed as landed.
