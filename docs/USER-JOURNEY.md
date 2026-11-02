@@ -54,15 +54,21 @@ sets up the server, makes accounts happen, and gets everyone in.
   64-bit PCs with glibc 2.35 or newer (built on Ubuntu 22.04; most distributions from 2022
   on). Make it executable and run it, nothing to install; data in
   `~/.local/share/troubastage`. It checks for updates like the others, and **Update** opens
-  the new download in the browser. A macOS app (one download for Apple silicon and Intel)
-  is built by CI and joins the release once it has been tested on a Mac.
+  the new download in the browser.
+- **macOS desktop** (DESK01/DESK02): the same app as one `.dmg` on the `latest` release — a single
+  download for both Apple silicon and Intel Macs — from the site's **download the app** link or the
+  release. Open the `.dmg`, drag the app to Applications and run it. It isn't signed yet, so macOS may refuse to
+  open it the first time; allow it under Privacy & Security in the system settings. Data in
+  `~/Library/Application Support/TroubaStage`. It checks for updates like the others, and **Update** opens
+  the new download in the browser.
 - **Installing on Windows** (WIN03): download the Windows installer (`.msi`) from the site's
   **download the installer** link, or the `latest` release, and run it. Because it isn't signed yet,
   your browser or Windows may warn first — choose to keep or run it anyway. It installs for your user
   only, without asking for administrator rights, then keeps itself up to date as above. Windows can't
   scan the invite QR, so you join through **Connect to your band** → the **Invite** tab → **Paste invite
   link** → **Join** (or **Sign in**). Performing (Stage) is the Windows app's job; editing in Studio isn't
-  there yet — it shows **"Coming soon."**, so open Studio in a browser for now.
+  there yet — it shows **"Coming soon."**, so open Studio in a browser for now. The Linux and Mac apps are the
+  same on both points: no QR scan (join with **Paste invite link**), and Studio shows **"Coming soon."**.
 
 **Gaps:**
 - **Running the server like an adult** — TLS, systemd service, backups, a signed

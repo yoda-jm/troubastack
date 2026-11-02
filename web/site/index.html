@@ -834,7 +834,7 @@ docker compose <span class="k">up -d</span></pre>
           <a class="frame" href="{{APK_URL}}"><img src="assets/qr-apk.svg" alt="QR code linking to the latest Android app (debug APK) on GitHub Releases" width="132" height="132"></a>
           <figcaption><span class="qr-os">Android</span> · scan to download</figcaption>
         </figure>
-        <p class="foot">On the tablet itself, <a href="{{APK_URL}}">tap here to download</a>. On a Windows laptop, <a href="{{MSI_URL}}">download the installer</a> (.msi). The app also opens a concert file with no server at all.</p>
+        <p class="foot">On the tablet itself, <a href="{{APK_URL}}">tap here to download</a>. On a Windows laptop, <a href="{{MSI_URL}}">download the installer</a> (.msi); on a Mac, <a href="{{DMG_URL}}">download the app</a> (.dmg); on Linux, <a href="{{APPIMAGE_URL}}">download the AppImage</a>. The app also opens a concert file with no server at all.</p>
       </article>
       <article class="install">
         <h3>Just trying it?</h3>
@@ -855,11 +855,13 @@ make <span class="k">demo</span>
       (it also checks once a day on its own, never during a concert). The Windows app does the same: it closes,
       installs the new version and opens again. The Windows installer isn’t signed yet, so your browser or Windows
       may warn before running it; choose to keep or run it anyway. It installs for your user only, without asking
-      for administrator rights. Editing in Studio isn’t in the Windows app yet — it shows “Coming soon.” there, so
+      for administrator rights. Editing in Studio isn’t in the desktop apps yet — they show “Coming soon.” there, so
       open Studio in your browser for now. The Linux app is a single file, an <strong>AppImage</strong> for
       64-bit PCs with glibc 2.35 or newer (most distributions from 2022 on): make it executable and run it, nothing
       to install. It checks for updates the same way, and <strong>Update</strong> opens the new download in your
-      browser.
+      browser. The Mac app is one download for both Apple silicon and Intel Macs. It isn’t signed yet, so macOS may
+      refuse to open it the first time; allow it under Privacy &amp; Security in the system settings. As on Linux,
+      <strong>Update</strong> opens the new download in your browser.
     </p>
   </div>
 </section>
