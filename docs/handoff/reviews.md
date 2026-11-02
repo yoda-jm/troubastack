@@ -59764,3 +59764,40 @@ Build S2 and present it with its PR CI run, `windows` included.
 - **Follow-up, presented next:** the debug wheel log, which VLL's Surface pass needs: it records to
   `%LOCALAPPDATA%\TroubaStageData\wheel-log.csv`; after the pass, close TroubaStage and send that file.
 - PR #78 is closed and its branch deleted.
+
+## 2026-11-02 — mobile presents: WIN03 follow-up — the debug wheel log, and :desktopApp:test on the windows job (branch `mobile/win03-wheel-recorder` @ 3b8a0263, PR #80) — reviewer: Fable
+
+One commit on WIN03's `11eff970`. It touches `:desktopApp` and one token of `ci.yml`, and no shared code.
+
+**Your five points:**
+1. **Observe only.** It's an AWT event listener (`Toolkit.addAWTEventListener`, mouse-wheel mask), which sees each event
+   on its way and never consumes or changes it.
+   - Test: a `MouseWheelEvent` dispatched to a real component still reaches that component's listener unconsumed,
+     and is recorded. Sabotage (the listener consumes): red.
+   - Stage's own wheel code is untouched, and StageMouseUiTest runs without the listener as before.
+2. **Replayable.**
+   - **Recorded fields:** `ms` (`MouseWheelEvent.when`), `rotation`, `precise` (`preciseWheelRotation`), `scrollType`,
+     `scrollAmount`, `ctrl`, `shift`.
+   - **The mapping, written down** in `WheelRow.scrollDelta`, from Compose Multiplatform 1.9.0's ui-desktop sources
+     (`ComposeSceneMediator.desktop.kt`, `ComposeScene.onMouseWheelEvent`). With Shift, the precise rotation becomes dx;
+     otherwise it's dy. The time is `when`, and scroll type and amount are not used. On Windows, a horizontal wheel or
+     touchpad swipe reaches AWT as Shift+wheel.
+   - **Test:** a touchpad-shaped stream (precise deltas every 8 ms decaying over about 1 s, then a second swipe) goes
+     through CSV and back, then through the mapping, into `wheelStep`. It turns exactly once per swipe. Shift gives
+     dx. Sabotage (mapping swapped): red.
+3. **Bounded and local.**
+   - The last 20 000 events are kept in memory. **One file,** `<data root>\wheel-log.csv`, is **overwritten** when the
+     JVM exits normally: closing the window, which includes "Close TroubaStage?" → Close, since that calls
+     `exitApplication`.
+   - Nothing is written if no wheel event came. Nothing leaves the machine.
+   - Tests: the ring keeps the LAST events (sabotage keep-first: red); `save` overwrites and writes nothing without
+     events (sabotage append: red).
+4. **Temporary.** This is in its KDoc and in a new "Follow-ups" section of `docs/tasks/WIN03-…`, which also lists your
+   "accessible names on Android after VLL confirms the words": the recorder goes away, or behind a switch, once the
+   burst end is tuned on the Surface.
+5. **VLL's checklist** names the file: **`%LOCALAPPDATA%\TroubaStageData\wheel-log.csv`**. After the Surface pass, close
+   TroubaStage and send that file.
+
+**CI: :desktopApp:test now runs on the windows job.** PR #80 run **`41371114692`**: success on every job. The **windows** job's log shows `> Task :desktopApp:compileTestKotlin`, `> Task :desktopApp:testClasses`, then **`> Task :desktopApp:test`, executed** (not UP-TO-DATE, not FROM-CACHE), before `:shared:desktopTest`. A desktopApp test that passed only on Linux would now be red there.
+- That covers WindowPlacementTest (6), DesktopDefaultsTest (B1) and WheelLogTest (4); before this, no job ran them.
+- Locally: :desktopApp:test 11/11.
