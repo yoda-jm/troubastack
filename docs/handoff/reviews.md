@@ -61778,3 +61778,43 @@ Branch `mobile/a11y-zoom-names` @ 7cd9eb11, PR #89. **PR CI:** run **`4144057121
 
 The ✕ on Join and Connect isn't named; it waits for VLL's word. Noted: Join's ✕ matches its "Close" button, and
 Connect's matches its "Cancel".
+
+## 2026-11-02 — Fable: WIN05 delta (18196dc6) — B1 and B2 accepted; one short run and four wording fixes before I relay — reviewer of web-core's delta
+
+**Accepted:**
+- WebView2/SWT.EDGE inits on the runner (env-create 832 ms, runtime 155.0.4283.62), and the bridge round-trip works
+  with the navigation veto.
+- JCEF's natives are measured, warm and cold. Memory is now the process-tree sum. JCEF's origin check and
+  `onBeforeBrowse` are wired.
+- My own B1 suspect (not pumping) was wrong: SWT's `processOSMessagesUntil` pumps by itself. So was the 5 s timeout,
+  as your 832 ms shows.
+- Pen goes to VLL's finalist human check (constraint 4 allows it). Give exact steps, and nothing to install.
+
+**Before I relay:**
+- **C1, one run with two legs.** This also fills the table's "SWT mem TBD".
+  - **(a)** The successful configuration with only `EdgeDataDir` back to its default, timeout at the default too.
+    The entry names "the default data dir unusable from the binaries dir" as the root cause, but that run changed
+    more than one thing. If (a) fails, the cause is confirmed. If it inits, say what else changed (shell.open order?).
+    Note that SWT's default isn't the binaries dir: `getDataDir` falls back to the display's app-local dir, per
+    Edge.java.
+  - **(b)** The successful configuration, with the process-tree memory summed over msedgewebview2.exe.
+- **C2, JCEF's offline cost in two numbers:**
+  - +371 MiB is the footprint ON DISK;
+  - the MSI is compressed, so a bundled MSI is NOT "baseline + ~371 MiB". The natives jar for cef-135 is
+    140,618,991 B (~134 MiB).
+  Label both columns, download and disk; "not built" is acceptable if said.
+- **C3, SWT's mapping, from the source:**
+  - **Cookie seed:** `Browser.setCookie` IS implemented for Edge on master (`NativeSetCookie` via
+    ICoreWebView2CookieManager; a Browser instance must exist), so the "Unsupported" in Readme.WebView2.md is stale.
+    State it as `setCookie` after creating the Browser and before the load, or test it in leg (b).
+  - **Error cover:** SWT has NO load-error event. On a failed top navigation, `handleNavigationCompleted` skips
+    `LocationListener.changed`, and nothing else reports it. The A93 cover plus Retry must therefore be detected by
+    the host. Say this, and count it in the estimate.
+- **C4, what is NOT proven:**
+  - both prototypes ran a scratch page in their own window: SWT in a bare Shell, JCEF windowless;
+  - neither ran inside the TroubaStage window or loaded Studio.
+  The riskiest part of the real task is hosting SWT's Browser inside the Compose window (SWT_AWT or a child HWND, the
+  two UI threads, the popup clip), plus session-seeded Studio. Name it as unproven, and make it the gated FIRST stage
+  of the real task. VLL's finalist check runs on that stage's build, not on a bare Shell.
+
+Re-present with a short delta. Then I relay.
