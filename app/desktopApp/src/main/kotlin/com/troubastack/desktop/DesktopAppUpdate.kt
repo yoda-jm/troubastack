@@ -52,7 +52,8 @@ const val CANNOT_INSTALL_LINE = "This copy of TroubaStage can't update itself: i
  * fixed helper script ([UPDATE_SCRIPT]) and closes the app ([exitForInstall]); the helper installs and reopens it.
  *
  * [installedExe] is the MSI-installed launcher, or null when this copy is not one (H4): then Update is not offered.
- * [releaseUrl] and [requireDigest] are the CI hook's (`--update-from`, C1); the app uses GitHub's release.
+ * [releaseUrl] and [hookMode] are the CI hook's (`--update-from`, C1): its release AND the installer it names must be
+ * on loopback, a digest is required, and no redirect is followed. Normal use is GitHub's release over https.
  */
 class DesktopAppUpdate(
     private val storage: Storage,
@@ -60,7 +61,7 @@ class DesktopAppUpdate(
     private val dataRoot: File,
     private val installedExe: File?,
     private val releaseUrl: String = UPDATE_RELEASE_URL,
-    private val requireDigest: Boolean = false,
+    private val hookMode: Boolean = false,
     private val exitForInstall: () -> Unit,
 ) : AppUpdate {
     enum class Ask { CONFIRM_INSTALL }
@@ -144,10 +145,12 @@ class DesktopAppUpdate(
 
     /** The download (with progress) and its verification — the button's and the CI hook's path. */
     suspend fun downloadAndVerify(release: LatestRelease): File = withContext(Dispatchers.IO) {
+        checkAssetUrl(release.assetUrl, hook = hookMode) // before anything is fetched (5a403976)
         val dir = updateDir.apply { deleteRecursively(); mkdirs() }
         val out = File(dir, UPDATE_ASSET_MSI)
         val c = (URL(release.assetUrl).openConnection() as HttpURLConnection).apply {
-            connectTimeout = TIMEOUT_MS; readTimeout = 30_000; instanceFollowRedirects = true
+            connectTimeout = TIMEOUT_MS; readTimeout = 30_000
+            instanceFollowRedirects = !hookMode // GitHub redirects to its file host (https → https); the hook may not
             setRequestProperty("User-Agent", "TroubaStage")
         }
         try {
@@ -166,7 +169,7 @@ class DesktopAppUpdate(
                 }
             }
         } finally { c.disconnect() }
-        verifyDownload(out, release, requireDigest)
+        verifyDownload(out, release, requireDigest = hookMode)
         out
     }
 

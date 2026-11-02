@@ -35,6 +35,20 @@ class UpdateHandoffTest {
     }
 
     @Test
+    fun theInstallersAddress_isHttpsInNormalUse_andLoopbackForTheHook() {
+        // TEETH (5a403976): checking only the release URL let a loopback release send the app to any host for the MSI,
+        // and plain http with no digest would have been checked by size alone.
+        checkAssetUrl("https://github.com/yoda-jm/troubastack/releases/download/latest/troubastage-windows.msi", hook = false)
+        assertFailsWith<UpdateRefused>("plain http in normal use") { checkAssetUrl("http://github.com/x/troubastage-windows.msi", hook = false) }
+        assertFailsWith<UpdateRefused>("no host") { checkAssetUrl("https:///x.msi", hook = false) }
+        checkAssetUrl("http://127.0.0.1:18765/troubastage-windows.msi", hook = true)
+        checkAssetUrl("http://[::1]:18765/troubastage-windows.msi", hook = true)
+        for (bad in listOf("https://github.com/x/troubastage-windows.msi", "http://10.0.0.5/x.msi", "http://127.0.0.1.example.com/x.msi", "file:///C:/x.msi")) {
+            assertFailsWith<UpdateRefused>("hook: $bad") { checkAssetUrl(bad, hook = true) }
+        }
+    }
+
+    @Test
     fun theDownload_isRefusedOnSizeOrDigest_andTheHookRequiresADigest() {
         val f = Files.createTempFile("msi", ".msi").toFile()
         try {
@@ -81,6 +95,17 @@ class UpdateHandoffTest {
         val notClosed = lines.dropWhile { it != ":notclosed" }.takeWhile { it != ":closed" }
         assertTrue(notClosed.none { "msiexec" in it || "start" in it }, "H2: no install and no reopen when the app did not close")
         assertEquals(1, lines.count { "--after-update" in it })
-        assertTrue(lines.single { "--after-update" in it }.startsWith("if \"%TS_CODE%\"==\"0\" "), "H3: only code 0 reopens")
+        assertTrue(lines.single { "--after-update" in it }.startsWith("if \"%TS_CODE%\"==\"0\" "), "H3: only code 0 reopens the new build")
+        // TEETH (5a403976): a failed install must not leave the performer without the app — any other code reopens the
+        // unchanged build, AFTER the exits for 0 (already reopened) and 3010 (finishes at reboot).
+        val closed = lines.dropWhile { it != ":closed" }
+        val plainReopen = closed.indexOfFirst { it == "start \"\" \"%TS_EXE%\"" }
+        assertTrue(plainReopen > 0, "a failed install reopens the unchanged build, with no flag")
+        assertTrue(closed.indexOfFirst { it == "if \"%TS_CODE%\"==\"0\" exit /b 0" } in 0 until plainReopen, "code 0 exits before the plain reopen")
+        assertTrue(closed.indexOfFirst { it == "if \"%TS_CODE%\"==\"3010\" exit /b 0" } in 0 until plainReopen, "3010 exits before the plain reopen")
+        for (tool in listOf("tasklist", "find", "ping", "msiexec")) {
+            assertTrue(lines.filter { Regex("""\b$tool(\.exe)?\b""").containsMatchIn(it) && !it.startsWith("rem ") }
+                .all { "%SystemRoot%\\System32\\$tool.exe" in it }, "$tool by full path (cmd searches the working directory first)")
+        }
     }
 }

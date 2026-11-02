@@ -174,7 +174,7 @@ private fun runUpdateNow(releaseUrl: String) {
     val storage = Storage()
     val u = DesktopAppUpdate(
         storage, CoroutineScope(Dispatchers.Default), dataRoot = File(desktopDataRoot()), installedExe = installedMsiExe(),
-        releaseUrl = releaseUrl, requireDigest = true, exitForInstall = { Runtime.getRuntime().halt(0) },
+        releaseUrl = releaseUrl, hookMode = true, exitForInstall = { Runtime.getRuntime().halt(0) },
     )
     runBlocking {
         val release = when (val v = u.checkNow(manual = true)) {
