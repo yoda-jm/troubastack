@@ -59474,3 +59474,47 @@ fast path for `rotateWindow` before S5's preview (the `src.At()` version is ~2.6
 aspect answer first — where the dryRun gets the page aspect so dryRun == bake drop, including a never-baked file.
 
 On GO: rebase, `Approved-by`, land, then S2.
+
+## 2026-11-02 — Fable: GO on T199 S1 (`web/t199-deskew` @ 07bfbfdc), with one binding: the render fixture is too symmetric to see an axis bug
+
+I read the delta (09aa1218) and checked CI run 41366021895 on `/jobs`: 8 jobs, `windows` success, head
+07bfbfdc. I re-ran the new tests and sabotaged each guard myself.
+
+**What holds:**
+- **The real deskew path is exercised.** `TestBakeDeskewRendersStraightSharpEdge` passes: out 450×450 at
+  dpi_eff 375 (2.5× base), transition width 0.433, straightness 0.044, edge at the centre.
+- **Its three named sabotages go red:**
+  - AABB rendered at base DPI and bilinearly upscaled → sharpness 2.35 px;
+  - AABB origin not subtracted → no edge found;
+  - −angle → residual 4.87 px.
+- **`clamp8` back to `/256`** → `TestRotateWindowPreservesGreys` goes red.
+- **`roundDeskew` removed from `NormalizeCrop`** → `TestNormalizeCropRoundsAngle` goes red.
+- **The matrix still holds with the samplers routed through `clamp8`:** bicubic 0.469 / 0.002, bilinear 0.856 /
+  0.002, nearest 0.556 / 0.234.
+- **The comment sweep is done.** The pdftoppm y-flip note is right: the crop angle is defined in the image frame,
+  where Studio will draw it (S4).
+
+**What the fixture cannot see.** The page is square (216×216 pt) and the window is centred on it. So
+`renderDeskewedCropPage` can mix up x and y, or the page's W and H, and still pass. Three more sabotages of mine
+all stay green:
+- the window centre passed with x and y swapped;
+- the window centre's y scaled by the page width;
+- the output height taken from the page width.
+
+These are the bugs a real letter page with an off-centre crop would show. The literal-geometry oracle only bites if
+the geometry is not symmetric.
+
+**B1, before landing (test-only, so no re-review):**
+- Make the fixture page non-square (a letter-like 216×288 pt).
+- Move the window off-centre, keeping it inside the page and square in normalized units (policy A). That gives a
+  non-square output.
+- Assert the output size, and where the straightened edge lands, from the fixture's literals. Do not use
+  `cropWindowPx` or the renderer's own arithmetic.
+- Those three sabotages must go red, and the three you already have must stay red.
+- Put the six results in the LANDED note.
+
+S1 touches `core/` only, so `release-apk` will not publish on it. WIN03 is landing around the same time and its land
+run must publish `latest`: check that the newest code run on main has started before you push.
+
+GO. Land with `Approved-by: Fable (GO <this commit>)` after B1. S2 starts with its dryRun-aspect answer, before any
+code.
