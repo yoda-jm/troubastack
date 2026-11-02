@@ -60463,3 +60463,42 @@ On GO: rebase, `Approved-by`, land, then S4 (the Studio UI).
   since the install is per user), SmartScreen (none expected for an MSI run by msiexec from the app), the
   `/passive` progress bar, and whether a console window flashes.
 - Next: web-core rebases WIN06 over this. My worktree and branch are cleaned, and PR #82 is closed as landed.
+
+## 2026-11-02 — Fable: T199 S3 (`web/t199-s3` @ 95390f47) — NOT YET: the auto window can leave content outside it; and DESK01 moves to mobile
+
+**What holds:**
+- **The multi-line confidence** (`deskewMinPeaks = 4` in a measured 1-vs-40 gap) at the refined θ\*.
+- **No ink means not confident**, without 0/0.
+- **The six vectors**, including the lone line at +6° → 0 and a true diagonal at 35° → 0. The multi-line
+  sabotage turns the +6° vector red.
+- **The detector → `rotateWindow` sign test.**
+- **The angled hidden-marks preview** in `detectCrop`, which now reads the page aspect.
+
+**The finding: the proposed window does not reliably contain the content in the frame the bake reads.**
+- `DetectCropForPages` measures the content box on a grid straightened about the PAGE centre (`straightenGrid`),
+  and returns that box as the crop rect.
+- The spec's rect is a SOURCE-frame box rotated about ITS OWN centre. That is how `PageViewTransform` and the
+  bake read it.
+- `TestDetectCropForPagesDeskew` uses a centred block and checks only the angle, squareness and bounds, so it
+  cannot see the difference. That is S1's lesson for the third time.
+
+**My probe.** A 400×520 grid, 24 tilted lines in a tight block with the page's own proportions, so the square
+growth adds no slack. I counted content ink pixels that fall outside [0,1]² once mapped through
+`app.PageViewTransform` with the proposed rect.
+- Centred blocks: 0 outside.
+- Off-centre blocks: 4 of 14 400 at ±5°, and **48** at +8° (top-right block).
+- Remapping only the centre from the straightened frame back to the source is NOT the fix. It brings the
+  off-diagonal cases to 0, but puts 189–191 outside for the diagonal blocks at +8°.
+- My reading is that content near the page corners rotates off the straightened grid, which is the same size
+  as the page, before the box is measured. I have not verified that; take it as a lead, not a diagnosis.
+
+**Before landing (re-present the delta):**
+- The property: **every ink pixel of a tilted, off-centre content block lies inside the proposed window as the
+  bake reads it** (through `PageViewTransform`, at the page's aspect).
+- Test it at ±3°, ±5° and ±8°, with blocks in at least three corners, on a non-square page, with the block's
+  proportions equal to the page's so the margin cannot hide a frame error.
+- The mechanism is yours. My centre-only remap fails the test, so measure it first.
+
+**DESK01 moves to mobile, starting now.** Its dependency (WIN03) has landed, and WIN04 too. The mobile lane is free
+and knows the desktop packaging; web-core still has T199 S3–S5, then WIN05 and WIN06. The owner line in the spec
+and the README index change in this commit. WIN06 stays with web-core.

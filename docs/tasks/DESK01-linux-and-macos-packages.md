@@ -1,6 +1,6 @@
 # DESK01 — Linux (AppImage) and macOS (unsigned DMG) packages, from the same CI matrix as Windows
 
-Owner: **web-core** (packaging and CI, as in WIN02). Starts when **WIN03 has landed**. Spec: Fable, 2026-11-01.
+Owner: **mobile** (moved from web-core on 2026-11-02: WIN03 and WIN04 have landed, the mobile lane is free and built the desktop app and its updater, while web-core is mid-T199). Starts now. Spec: Fable, 2026-11-01.
 Size: M.
 
 ## Why (VLL, 2026-11-01, on the decisions page)
