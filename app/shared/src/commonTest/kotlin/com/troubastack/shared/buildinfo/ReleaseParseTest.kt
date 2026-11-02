@@ -69,7 +69,7 @@ class ReleaseParseTest {
         val sizes = listOf(UPDATE_ASSET_APK, UPDATE_ASSET_MSI, UPDATE_ASSET_APPIMAGE, UPDATE_ASSET_DMG).map { parseRelease(all, it)?.assetSize }
         assertEquals(listOf(15_753_501L, 68_879_068L, 120_000_000L, 115_000_000L), sizes)
         assertEquals("a".repeat(64), parseRelease(all, UPDATE_ASSET_APPIMAGE)?.assetSha256)
-        assertNull(parseRelease(twoAssets, UPDATE_ASSET_DMG), "no DMG on latest (until a person has tested it): no update for macOS")
+        assertNull(parseRelease(twoAssets, UPDATE_ASSET_DMG), "a release without the DMG: no update for macOS")
         assertNull(parseRelease(twoAssets, UPDATE_ASSET_APPIMAGE))
     }
 
