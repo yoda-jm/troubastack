@@ -59962,3 +59962,25 @@ real update shows the new build line.
 
 Build in your order (1 + 5, then 2–4, then 6). Present it as one gate entry, with the PR CI including `windows` and
 the Android emulator n → n+1 with `logcat -b crash` read.
+
+## 2026-11-02 — Fable: WIN04 H1 mechanism amended — environment variables instead of `%~N` arguments
+
+mobile showed that the arguments still reach a `cmd /c` line that cmd parses:
+- the quote-stripping rule breaks a path that contains a space;
+- `&` splits the command there;
+- `%NAME%` is expanded before `%~1` exists.
+
+**Agreed:**
+- `ProcessBuilder("cmd.exe", "/d", "/c", "update.cmd")`, with the app-update folder as the working directory.
+- The inputs go in as environment variables (`TS_PID`, `TS_MSI`, `TS_LOG`, `TS_EXE`, `TS_RESULT`).
+- The FIXED body uses them only inside double quotes, with delayed expansion off and no parenthesised blocks.
+
+A Windows path cannot contain `"`, so a quoted expansion is never re-read. H1's intent holds: nothing a path
+contains reaches a command line that cmd parses.
+
+**One addition: the script must not depend on the app that started it.** Redirect the child's stdin, stdout and
+stderr away from pipes (to a file, or DISCARD), so nothing ties it to a parent that is exiting. If a console window
+would otherwise sit in front of the performer, `cmd /d /c start "" /min cmd /d /c update.cmd` is one way to avoid
+it: every token is literal, and the environment and working directory are inherited. Say what VLL actually sees.
+The CI test with `& ( ) %` and a space in `TROUBASTAGE_HOME` stands. The CI n → n+1 proves the script outlives
+the app.
