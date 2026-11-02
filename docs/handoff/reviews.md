@@ -59135,3 +59135,82 @@ app: `TestValidateCropRect` (angle bounds), `TestImportCrop` (B1a rounding + out
 bake: `TestRasterKeyAngle` (B2 + independent T198 key), `TestDeskewEdgeSharpnessAndStraightness`, `TestDeskewThinLineAcceptance`, `TestDeskewSignConvention` (+θ levels, −θ doubles tilt), `TestDeskewWindowSpills` (B1b geometry incl. an aspect-sensitivity case that reds a normalized-space sabotage), `TestBakeDeskewClampWarning` (B1b end-to-end + a centred-no-warn control). Existing crop/byte-identity tests unchanged and green.
 
 On GO: rebase, `Approved-by`, land, then S2 (the shared rotate-then-crop mark transform).
+
+## 2026-11-02 — Fable: T199 S1 (`web/t199-deskew` @ b3b210e2) — NOT YET: no test runs the real deskew render. The metric deviation is ACCEPTED.
+
+I read the gate note (ed08cb13) and the diff, and checked CI run 41362326043 on `/jobs`: 8 jobs, `windows`
+success, head b3b210e2.
+
+**What holds.** I re-ran every guard and sabotaged each one myself:
+- The quality numbers reproduce:
+
+  | Resampler | Sharpness | Straightness |
+  |---|---|---|
+  | bicubic | 0.463 | 0.002 |
+  | bilinear | 0.850 | 0.002 |
+  | nearest | 0.556 | 0.234 |
+
+- Production kernel swapped for a tent (bilinear): the bicubic row goes red on sharpness (0.838).
+- Production kernel swapped for a box (nearest): red on straightness (0.232), and `TestDeskewSignConvention` goes
+  red too.
+- B2, always appending the angle: `TestRasterKeyAngle` goes red.
+- B1b, dropping the warnings append: `TestBakeDeskewClampWarning` goes red.
+- B1b, rotating in normalized space: `TestDeskewWindowSpills` goes red on the 3:1 page.
+- B1a, importing without rounding: `TestImportCrop` goes red.
+
+**The deviation is accepted: edge sharpness replaces thickness as the bilinear check.** I don't want a
+thickness-fails-bilinear assertion. There is no honest regime for one. The spec was wrong at the same spot, and
+wrong about nearest-neighbour too: under my box-kernel sabotage `TestDeskewThinLineAcceptance` still passes, so
+that check fails neither wrong resampler. This commit amends the spec's §Quality.
+
+**My B1a premise was wrong.** I wrote that the rotated-corner check runs "at the next save, where the dimensions
+are known". The save path has no page dimensions; `CropHidesMark` takes none. The check lives in Studio (S4) and
+in the bake's visible clamp (B1b). Accepted as built.
+
+**Fix before landing, then re-present the delta:**
+1. **No test runs the deskew bake path.** Coverage of `renderDeskewedCropPage` is 0.0 %.
+   - Every quality test calls `rotateWindow` directly. The bake test uses a fake raster that ignores the crop.
+   - So nothing guards the AABB, the margin, the origin offset or the DPI of the real render. The spec's "a
+     150-dpi-then-rotate implementation must fail, show it" is not shown.
+   - Add a T198-style test like `TestCropOffCentreMatchesDirectRender`:
+     - a PDF generated in the test, with an edge tilted by θ;
+     - baked through `Rasterize` + `withPageCrops` at angle θ, with the real pdftoppm;
+     - an oracle taken from the fixture's literal geometry: output size, where the edge lands, and that it is
+       sharp and straight.
+   - Use a crop narrow enough that `dpi_eff` is at least 2× the base DPI. At `w = 1`, the low-DPI sabotage
+     changes nothing.
+   - Three sabotages must turn it red:
+     - render the AABB at the base DPI and upscale;
+     - drop the AABB origin from the centre passed to `rotateWindow`;
+     - pass `-angle`.
+2. **`clamp8` shifts tones.** `v/256 + 0.5` maps 16-bit back to 8-bit one level too high for 128 to 254. I
+   probed it with uniform grey through `rotateWindow` at 0.05°:
+
+   | In | 0 | 60 | 127 | 128 | 200 | 240 | 254 | 255 |
+   |---|---|---|---|---|---|---|---|---|
+   | Out | 0 | 60 | 127 | 129 | 201 | 241 | 255 | 255 |
+
+   So every deskewed page has lighter paper and lighter greys than the same page at angle 0. Fix it with
+   `v/257 + 0.5`. Test that all 256 uniform greys come back unchanged; the old line must turn it red.
+3. **The rounding on save is untested.** Removing `roundDeskew` from `NormalizeCrop` leaves `app`, `httpapi` and
+   `bake` all green. Add a save test (2.37 → 2.35) that the same sabotage turns red.
+4. **Sweep the stale claims:**
+   - the header of `deskew_test.go` still says bilinear fails thickness and nearest passes it;
+   - `TestDeskewThinLineAcceptance` should say that all three resamplers pass it;
+   - the doc comment above `lum` describes `inkRows`;
+   - `straighten` says the kernel is the ONLY difference, but its samplers truncate with `/256` while
+     production rounds. After fix 2, route them through `clamp8`, re-measure, and update the numbers;
+   - the `importCrop` comment says "left to the next save"; it is left to Studio and the bake clamp.
+
+**Not blocking, for later stages:**
+- `rasterKey` prints the angle with `%.2f`. That is injective only on the 0.05° grid, so S3's autodetect must write
+  through `roundDeskew`. The alternative is a key in `%.6f`.
+- `rotateWindow` reads its 16 taps through `src.At()`: 2.6 s for one letter page at 150 dpi on this host. That is
+  fine at bake time, since it is cached. Before S5's on-demand preview, add a direct `Pix` path for
+  `*image.RGBA`, and show before/after times at that gate.
+- **S2: bring the answer before writing code.** The mark transform rotates in physical units, and the dryRun must
+  equal what the bake drops. But the save/dryRun path has no page aspect. The S2 plan must say where the dryRun
+  gets it, in a way that also works for a file that was never baked.
+
+Re-present S1 as a delta, with its PR CI including `windows`. I will re-check the four items and re-run the
+sabotages.

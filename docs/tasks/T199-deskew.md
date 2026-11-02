@@ -124,7 +124,16 @@ This goes into T198's crop tool, not a second tool.
   - deskewing by +3° gives a line whose vertical thickness (rows above 50% ink) is ≤ the thickness of the same
     line rendered unrotated at the same `dpi_eff` + 1 px;
   - its row profile has a single peak.
-  - A nearest-neighbour or 150-dpi-then-rotate implementation must fail this. Show it.
+  - ~~A nearest-neighbour or 150-dpi-then-rotate implementation must fail this. Show it.~~
+- **Amended at the S1 gate (2026-11-02).** web-core measured it and Fable re-ran it: the thin-line check above
+  separates nothing. Bicubic, bilinear and nearest-neighbour all pass it. It stays as an acceptance check. The
+  two checks that DO discriminate, on a straightened step edge:
+  - **Sharpness:** the 20→80 % transition width. Bicubic ≈0.46 px, bilinear ≈0.85 px; bound ≤0.70 px.
+    Bilinear fails.
+  - **Straightness:** the RMS residual of the edge's 50 % crossing per row. Bicubic ≈0.002 px, nearest ≈0.23 px;
+    bound ≤0.05 px. Nearest-neighbour fails.
+  - Bicubic passes both. A 150-dpi-then-rotate implementation must fail one of them **on the real bake path**
+    (pdftoppm, rotate, cut), not only in a resampler unit test. Show it.
 - Angle 0 is byte-identical to T198's output (P1).
 - An overlay mark drawn on a source-frame note head lands on the same note head in the straightened bake. Use
   a synthetic page with a dot, and check that the overlay's dot centre is within 1 px of the raster dot centre.
