@@ -3,11 +3,17 @@ package bake
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"image"
+	"image/draw"
+	"image/png"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"testing"
 
@@ -222,8 +228,8 @@ func TestCropOffCentreMatchesDirectRender(t *testing.T) {
 func TestRasterKeyIncludesCrop(t *testing.T) {
 	pdf := []byte("%PDF-1.4 fixture")
 	base := rasterKey(pdf, 150, "poppler-x", nil)
-	c1 := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {0.1, 0.1, 0.8, 0.8}})
-	c2 := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {0.2, 0.1, 0.8, 0.8}})
+	c1 := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8}})
+	c2 := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.2, y: 0.1, w: 0.8, h: 0.8}})
 	if base == c1 {
 		t.Error("a crop must change the raster cache key (else a crop serves stale cached pixels)")
 	}
@@ -231,8 +237,56 @@ func TestRasterKeyIncludesCrop(t *testing.T) {
 		t.Error("different crops must produce different keys")
 	}
 	// Deterministic: same crop, same key.
-	if c1 != rasterKey(pdf, 150, "poppler-x", pageCrops{0: {0.1, 0.1, 0.8, 0.8}}) {
+	if c1 != rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8}}) {
 		t.Error("the same crop must hash to the same key")
+	}
+}
+
+// t198RasterKey recomputes the PRE-T199 raster key format independently of the production code, so the test
+// below can prove a T199 angle-0 key is byte-identical to what T198 produced (B2) — not merely equal to
+// itself. If rasterKey ever appends an angle term for a zero angle, this reference diverges and the test reds.
+func t198RasterKey(pdf []byte, dpi int, popplerVer string, crops pageCrops) string {
+	h := sha256.New()
+	h.Write(pdf)
+	fmt.Fprintf(h, "\x00dpi=%d\x00poppler=%s\x00enc=%s", dpi, popplerVer, rasterEncoding)
+	if len(crops) > 0 {
+		idxs := make([]int, 0, len(crops))
+		for i := range crops {
+			idxs = append(idxs, i)
+		}
+		sort.Ints(idxs)
+		for _, i := range idxs {
+			c := crops[i]
+			fmt.Fprintf(h, "\x00crop[%d]=%.6f,%.6f,%.6f,%.6f", i, c.x, c.y, c.w, c.h)
+		}
+	}
+	return "r" + hex.EncodeToString(h.Sum(nil))
+}
+
+// TestRasterKeyAngle covers T199 B2: the deskew angle enters the key ONLY when non-zero (like omitempty), so
+// an uncropped-or-angle-0 page keeps EXACTLY its T198 key and nothing re-rasterizes on deploy; a non-zero
+// angle, and a change to only the angle, both produce a distinct key.
+func TestRasterKeyAngle(t *testing.T) {
+	pdf := []byte("%PDF-1.4 fixture")
+	// Angle 0 (and an absent angle) must hash to the independently computed T198 key, byte for byte.
+	for _, crops := range []pageCrops{
+		{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8}},
+		{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8, angle: 0}},
+	} {
+		if got, want := rasterKey(pdf, 150, "poppler-x", crops), t198RasterKey(pdf, 150, "poppler-x", crops); got != want {
+			t.Fatalf("angle-0 raster key must equal the T198 key\n got=%s\nwant=%s", got, want)
+		}
+	}
+	// A non-zero angle must change the key (else a deskew serves stale cached pixels)...
+	zero := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8}})
+	tilt := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8, angle: 2.5}})
+	if zero == tilt {
+		t.Error("a non-zero deskew angle must change the raster key")
+	}
+	// ...and a change to ONLY the angle must change it too.
+	tilt2 := rasterKey(pdf, 150, "poppler-x", pageCrops{0: {x: 0.1, y: 0.1, w: 0.8, h: 0.8, angle: -2.5}})
+	if tilt == tilt2 {
+		t.Error("changing only the deskew angle must change the raster key")
 	}
 }
 
@@ -357,5 +411,128 @@ func TestMarkIntersectsCrop(t *testing.T) {
 	empty := docObject{Type: "rect", Style: docStyle{Width: 0.01}, Points: nil}
 	if !markIntersectsCrop(empty, crop) {
 		t.Error("an empty-points mark must be KEPT, not dropped")
+	}
+}
+
+// tiltedEdgePDF builds a minimal one-page PDF (216×216 pt) whose only content is a straight BLACK/WHITE step
+// edge through the page centre, tilted by angleDeg — a rotation-matrix (cm) around the centre then a huge
+// filled rectangle covering one side. Baked and deskewed by the same angle, the edge must come back vertical.
+func tiltedEdgePDF(wPt, hPt, cxPt, cyPt, angleDeg float64) []byte {
+	// A black/white step edge through (cxPt,cyPt) PDF points, tilted by angleDeg, on a wPt×hPt page. pdftoppm
+	// flips PDF space (y-up) to image space (y-down), which negates the rotation, and the crop angle is defined
+	// in the image, so the PDF is rotated by −angleDeg to tilt the edge +angleDeg there. The fill covers the
+	// WHITE side's complement: `re` from x=0 rightward in the rotated frame, so x<0 (one side of the edge line
+	// through the centre) stays white.
+	th := -angleDeg * math.Pi / 180
+	cos, sin := math.Cos(th), math.Sin(th)
+	content := fmt.Sprintf("q %.6f %.6f %.6f %.6f %.3f %.3f cm 0 -2000 2000 4000 re f Q\n", cos, sin, -sin, cos, cxPt, cyPt)
+	return []byte("%PDF-1.4\n" +
+		"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+		"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
+		fmt.Sprintf("3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 %.0f %.0f]/Contents 4 0 R>>endobj\n", wPt, hPt) +
+		fmt.Sprintf("4 0 obj<</Length %d>>stream\n%sendstream endobj\n", len(content), content) +
+		"trailer<</Root 1 0 R>>\n%%EOF\n")
+}
+
+func decodeRGBA(t *testing.T, b []byte) *image.RGBA {
+	t.Helper()
+	im, err := png.Decode(bytes.NewReader(b))
+	if err != nil {
+		t.Fatalf("decode png: %v", err)
+	}
+	rgba := image.NewRGBA(im.Bounds())
+	draw.Draw(rgba, rgba.Bounds(), im, im.Bounds().Min, draw.Src)
+	return rgba
+}
+
+// edgeMeanX is the mean column of the first ink (lum<=128) crossing per row — where the straightened edge sits.
+func edgeMeanX(img *image.RGBA, y0, y1 int) float64 {
+	w := img.Bounds().Dx()
+	var xs []float64
+	for y := y0; y < y1; y++ {
+		for x := 1; x < w; x++ {
+			if lum(img, x, y) <= 128 {
+				xs = append(xs, float64(x))
+				break
+			}
+		}
+	}
+	if len(xs) == 0 {
+		return -1
+	}
+	var m float64
+	for _, v := range xs {
+		m += v
+	}
+	return m / float64(len(xs))
+}
+
+// TestBakeDeskewRendersStraightSharpEdge exercises the REAL renderDeskewedCropPage path (pdftoppm → rotate →
+// cut) end to end: a PDF with a 4°-tilted edge, baked with a centred crop at angle 4° and dpi_eff ≥ 2× base,
+// must come back as an upright window with a SHARP, STRAIGHT, CENTRED edge — white left, black right. The
+// oracle is the fixture's literal geometry (output size, edge at the centre, sharpness + straightness). Three
+// production sabotages must red it: AABB rendered at base DPI then upscaled; the AABB origin not subtracted
+// from the window centre; and −angle.
+func TestBakeDeskewRendersStraightSharpEdge(t *testing.T) {
+	const angle = 4.0
+	r := popplerRasterizer{bin: "pdftoppm", imagesBin: "pdfimages", dpi: 150}
+	// NON-SQUARE page (216×288 pt ⇒ 450×600 px at 150 dpi) with an OFF-CENTRE window, square in NORMALIZED
+	// units (policy A) ⇒ a NON-SQUARE output. A square page + centred window would let an x/y or W/H mix-up in
+	// renderDeskewedCropPage pass; this diverges on any of them.
+	const wPt, hPt = 216.0, 288.0
+	rect := cropRect{x: 0.2, y: 0.15, w: 0.5, h: 0.5, angle: angle}
+	cxN, cyN := rect.x+rect.w/2, rect.y+rect.h/2 // window centre, normalized, y top-down: (0.45, 0.40)
+	// Put the edge THROUGH the window centre so, straightened, it lands at the output centre column (PDF y is
+	// bottom-up, so the point's PDF y is hPt·(1−cyN)).
+	pdf := tiltedEdgePDF(wPt, hPt, cxN*wPt, hPt*(1-cyN), angle)
+	full, err := r.Rasterize(context.Background(), pdf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bw, bh := dims(t, full[0])
+	eff := effectiveCropDPI(150, bw, bh, rect, 0)
+	if eff < 2*150 {
+		t.Fatalf("need dpi_eff ≥ 2× base for the low-DPI sabotage to bite, got %d", eff)
+	}
+	got, err := r.Rasterize(withPageCrops(context.Background(), pageCrops{0: rect}), pdf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := decodeRGBA(t, got[0])
+	ow, oh := out.Bounds().Dx(), out.Bounds().Dy()
+
+	// Oracle from the fixture's LITERALS (page px from the full render, not cropWindowPx or the renderer's
+	// arithmetic): the window is w×h of the full-at-eff page, so WIDTH uses the page WIDTH and HEIGHT the page
+	// HEIGHT — a W/H swap diverges here.
+	fullW := math.Round(float64(bw) * float64(eff) / 150)
+	fullH := math.Round(float64(bh) * float64(eff) / 150)
+	wantW := int(math.Round(rect.w * fullW))
+	wantH := int(math.Round(rect.h * fullH))
+	y0, y1 := oh/2-60, oh/2+60
+	t.Logf("base=%dx%d eff=%d out=%dx%d want=%dx%d  tw=%.3f straight=%.3f edgeX=%.1f (centre %d) wL=%.0f bR=%.0f",
+		bw, bh, eff, ow, oh, wantW, wantH, edgeTransitionWidth(out, y0, y1), edgeStraightness(out, y0, y1), edgeMeanX(out, y0, y1), ow/2, lum(out, 15, oh/2), lum(out, ow-15, oh/2))
+
+	if ow == oh {
+		t.Fatalf("test misconfigured: output must be NON-square to catch W/H swaps, got %dx%d", ow, oh)
+	}
+	if ow != wantW || oh != wantH {
+		t.Errorf("deskewed output %dx%d, want %dx%d from literals (page %dx%d @ eff %d, window %.2f×%.2f) — a W/H mix-up reds here", ow, oh, wantW, wantH, bw, bh, eff, rect.w, rect.h)
+	}
+	if tw := edgeTransitionWidth(out, y0, y1); tw > 1.0 {
+		t.Errorf("edge not sharp: transitionWidth=%.3f px (>1.0) — a base-DPI-then-upscale render reds here", tw)
+	}
+	if st := edgeStraightness(out, y0, y1); st > 0.6 {
+		t.Errorf("edge not straight: residual=%.3f px (>0.6) — a wrong-direction (−angle) deskew reds here", st)
+	}
+	// The edge sits through the window centre, so straightened it lands at the output centre column. A wrong
+	// window centre (an x/y swap, cyF using fullW, or the AABB origin not subtracted) shifts it.
+	if mx := edgeMeanX(out, y0, y1); mx < float64(ow/2)-4 || mx > float64(ow/2)+4 {
+		t.Errorf("straightened edge at x=%.1f, want ≈centre %d — a wrong window centre/origin reds here", mx, ow/2)
+	}
+	if l := lum(out, 15, oh/2); l < 200 {
+		t.Errorf("left of the straightened edge must be white, got lum=%.0f", l)
+	}
+	if rr := lum(out, ow-15, oh/2); rr > 55 {
+		t.Errorf("right of the straightened edge must be black, got lum=%.0f", rr)
 	}
 }

@@ -15,18 +15,28 @@ func TestValidateCropRect(t *testing.T) {
 	if err := ValidateCropRect(CropRect{X: 0, Y: 0, W: 1, H: 1, Source: "auto"}); err != nil {
 		t.Fatalf("full-page rect rejected: %v", err)
 	}
+	// T199: a small deskew angle within ±10° is valid, boundaries included.
+	for _, a := range []float64{3.25, 10, -10, 0} {
+		if err := ValidateCropRect(CropRect{X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: a, Source: "manual"}); err != nil {
+			t.Fatalf("valid deskew angle %.2f rejected: %v", a, err)
+		}
+	}
 	inf := math.Inf(1)
 	nan := math.NaN()
 	bad := map[string]CropRect{
-		"negative x":  {X: -0.01, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
-		"too small w": {X: 0.1, Y: 0.1, W: 0.19, H: 0.5, Source: "manual"},
-		"too small h": {X: 0.1, Y: 0.1, W: 0.5, H: 0.1, Source: "manual"},
-		"x+w over 1":  {X: 0.6, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
-		"y+h over 1":  {X: 0.1, Y: 0.7, W: 0.5, H: 0.5, Source: "manual"},
-		"bad source":  {X: 0.1, Y: 0.1, W: 0.5, H: 0.5, Source: "pink"},
-		"NaN x":       {X: nan, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
-		"Inf w":       {X: 0.1, Y: 0.1, W: inf, H: 0.5, Source: "manual"},
-		"-Inf y":      {X: 0.1, Y: math.Inf(-1), W: 0.5, H: 0.5, Source: "manual"},
+		"negative x":      {X: -0.01, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
+		"too small w":     {X: 0.1, Y: 0.1, W: 0.19, H: 0.5, Source: "manual"},
+		"too small h":     {X: 0.1, Y: 0.1, W: 0.5, H: 0.1, Source: "manual"},
+		"x+w over 1":      {X: 0.6, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
+		"y+h over 1":      {X: 0.1, Y: 0.7, W: 0.5, H: 0.5, Source: "manual"},
+		"bad source":      {X: 0.1, Y: 0.1, W: 0.5, H: 0.5, Source: "pink"},
+		"NaN x":           {X: nan, Y: 0.1, W: 0.5, H: 0.5, Source: "manual"},
+		"Inf w":           {X: 0.1, Y: 0.1, W: inf, H: 0.5, Source: "manual"},
+		"-Inf y":          {X: 0.1, Y: math.Inf(-1), W: 0.5, H: 0.5, Source: "manual"},
+		"angle over +10":  {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: 10.5, Source: "manual"}, // T199
+		"angle under -10": {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: -11, Source: "manual"},
+		"NaN angle":       {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: nan, Source: "manual"},
+		"Inf angle":       {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: inf, Source: "manual"},
 	}
 	for name, r := range bad {
 		err := ValidateCropRect(r)
@@ -35,6 +45,19 @@ func TestValidateCropRect(t *testing.T) {
 		} else if !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("%s: error does not wrap ErrInvalidInput: %v", name, err)
 		}
+	}
+}
+
+// TestNormalizeCropRoundsAngle guards the SAVE-side 0.05° rounding (B1a's save half): a crop saved with an
+// off-grid angle is snapped, so a save and an import of the "same" angle can't differ by float noise. Reds if
+// roundDeskew is dropped from NormalizeCrop — which app/httpapi/bake tests otherwise leave green.
+func TestNormalizeCropRoundsAngle(t *testing.T) {
+	crop := Crop{Pages: map[string]CropRect{"0": {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: 2.37, Source: "manual"}}}
+	if err := NormalizeCrop(&crop); err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	if a := crop.Pages["0"].Angle; math.Abs(a-2.35) > 1e-9 {
+		t.Fatalf("save must round the deskew angle to 0.05° (2.37→2.35), got %v", a)
 	}
 }
 

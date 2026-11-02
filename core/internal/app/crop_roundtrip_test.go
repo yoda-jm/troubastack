@@ -17,7 +17,7 @@ func TestBandV2_RoundTripsFileCrop(t *testing.T) {
 
 	// Square rects: SetFileCrop forces policy A (lockAR), which requires w == h.
 	crop := app.Crop{Pages: map[string]app.CropRect{
-		"0": {X: 0.1, Y: 0.12, W: 0.8, H: 0.8},
+		"0": {X: 0.1, Y: 0.12, W: 0.8, H: 0.8, Angle: 2.35}, // T199: a deskew angle must round-trip too
 		"2": {X: 0.0, Y: 0.0, W: 0.5, H: 0.5},
 	}}
 	if _, err := src.svc.SetFileCrop(admin, bandID, songID, file1, crop); err != nil {
@@ -73,7 +73,7 @@ func TestBandV2_RoundTripsFileCrop(t *testing.T) {
 		if !ok {
 			t.Fatalf("page %q crop lost", key)
 		}
-		if g.X != want.X || g.Y != want.Y || g.W != want.W || g.H != want.H {
+		if g.X != want.X || g.Y != want.Y || g.W != want.W || g.H != want.H || g.Angle != want.Angle {
 			t.Fatalf("page %q crop changed: got %+v want %+v", key, g, want)
 		}
 		if g.Source != "manual" {

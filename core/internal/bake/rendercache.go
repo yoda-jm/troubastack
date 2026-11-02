@@ -182,6 +182,12 @@ func rasterKey(pdf []byte, dpi int, popplerVer string, crops pageCrops) string {
 		for _, i := range idxs {
 			c := crops[i]
 			fmt.Fprintf(h, "\x00crop[%d]=%.6f,%.6f,%.6f,%.6f", i, c.x, c.y, c.w, c.h)
+			// T199 (B2): append the deskew angle ONLY when it is non-zero, like a JSON omitempty. An uncropped
+			// or angle-0 crop therefore hashes to EXACTLY the T198 key, so nothing re-rasterizes on deploy; a
+			// page that carries an angle gets a distinct key so a crop that changes only its angle invalidates.
+			if c.angle != 0 {
+				fmt.Fprintf(h, "@%.2f", c.angle)
+			}
 		}
 	}
 	return "r" + hex.EncodeToString(h.Sum(nil))

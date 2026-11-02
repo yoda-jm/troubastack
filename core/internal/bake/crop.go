@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/png"
 	"math"
 	"os"
 	"os/exec"
@@ -29,7 +30,7 @@ func pageCropsFor(file app.SongFile) pageCrops {
 		if err != nil || idx < 0 {
 			continue
 		}
-		out[idx] = cropRect{x: r.X, y: r.Y, w: r.W, h: r.H}
+		out[idx] = cropRect{x: r.X, y: r.Y, w: r.W, h: r.H, angle: r.Angle}
 	}
 	return out
 }
@@ -39,8 +40,13 @@ func pageCropsFor(file app.SongFile) pageCrops {
 // the context (like the cache mode) so the Rasterizer interface is unchanged: an uncropped file renders
 // exactly as before, byte-for-byte (P1 — Reset is a byte-identical bake).
 
-// cropRect is one page's bake area in the SOURCE page frame, normalized [0,1], origin top-left.
-type cropRect struct{ x, y, w, h float64 }
+// cropRect is one page's bake area in the SOURCE page frame, normalized [0,1], origin top-left. angle (T199,
+// degrees, + = counter-clockwise correction) rotates the window about its own centre; 0 ⇒ no rotation and the
+// byte-identical T198 path.
+type cropRect struct {
+	x, y, w, h float64
+	angle      float64
+}
 
 // pageCrops maps a 0-based page index to its bake area. A page absent from the map renders whole.
 type pageCrops map[int]cropRect
@@ -66,6 +72,36 @@ func pageCropsFromContext(ctx context.Context) pageCrops {
 // maxCropSidePx bounds a cropped page's longest side, so a very small crop (large dpi_eff) can't produce a
 // giant raster. Applies to vector pages (no native-ppi cap) and as a backstop everywhere.
 const maxCropSidePx = 4096
+
+// deskewWindowSpills (T199, B1b) reports whether the rotated crop window reaches past the page edge, given the
+// page's pixel size (for its aspect). The rotation is about the window centre in PHYSICAL units: a normalized
+// offset (dx,dy) becomes (dx·W, dy·H) before rotating, so a non-square page doesn't shear. The server save
+// path has no page dims (it can't run this), and Studio clamps the window client-side, so this fires only for
+// a crop that reached the bake un-clamped — e.g. one imported past the dimension-free sanitizer. When it does,
+// renderDeskewedCropPage clamps the render to the page and fills the rest with white; the caller warns so the
+// clamp is never silent. angle 0 or a degenerate page ⇒ never spills.
+func deskewWindowSpills(r cropRect, pageW, pageH int) bool {
+	if r.angle == 0 || pageW <= 0 || pageH <= 0 {
+		return false
+	}
+	aspect := float64(pageW) / float64(pageH)
+	cx, cy := r.x+r.w/2, r.y+r.h/2
+	theta := r.angle * math.Pi / 180
+	sin, cos := math.Sin(theta), math.Cos(theta)
+	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {1, 1}, {-1, 1}} {
+		dx, dy := s[0]*r.w/2, s[1]*r.h/2
+		nx := cx + dx*cos - dy*sin/aspect
+		ny := cy + dx*aspect*sin + dy*cos
+		if nx < -cropEpsBake || nx > 1+cropEpsBake || ny < -cropEpsBake || ny > 1+cropEpsBake {
+			return true
+		}
+	}
+	return false
+}
+
+// cropEpsBake mirrors app.cropEps: absorb a float round-trip so a window whose rotated corner lands exactly on
+// the page edge isn't reported as spilling by a 1e-15 overshoot.
+const cropEpsBake = 1e-6
 
 // effectiveCropDPI computes the DPI to render a crop at: bring the cropped region to ≈ the pixel width the
 // WHOLE page gets at baseDPI (dpi_eff = baseDPI / w). Then two caps and a FLOOR:
@@ -202,11 +238,20 @@ func (pr popplerRasterizer) renderPageFull(ctx context.Context, in string, idx, 
 }
 
 func (pr popplerRasterizer) renderCropPage(ctx context.Context, in string, idx int, r cropRect, baseW, baseH, effDPI int) ([]byte, error) {
+	if r.angle != 0 {
+		return pr.renderDeskewedCropPage(ctx, in, idx, r, baseW, baseH, effDPI) // T199
+	}
 	x, y, w, h := cropWindowPx(baseW, baseH, pr.dpi, effDPI, r)
 	if w < 1 || h < 1 {
 		return nil, fmt.Errorf("crop of page %d degenerates to %dx%d px", idx, w, h)
 	}
+	return pr.rasterizeRegion(ctx, in, idx, x, y, w, h, effDPI)
+}
 
+// rasterizeRegion renders ONE page's pixel sub-window (x,y + w×h, pixels at dpi) via pdftoppm -x -y -W -H,
+// returning the PNG. Shared by the axis-aligned crop (angle 0) and the T199 deskew AABB render, so both drive
+// pdftoppm identically — the angle-0 crop is byte-for-byte what T198 produced.
+func (pr popplerRasterizer) rasterizeRegion(ctx context.Context, in string, idx, x, y, w, h, dpi int) ([]byte, error) {
 	dir, err := os.MkdirTemp("", "trouba-crop-")
 	if err != nil {
 		return nil, err
@@ -215,7 +260,7 @@ func (pr popplerRasterizer) renderCropPage(ctx context.Context, in string, idx i
 	prefix := filepath.Join(dir, "crop")
 	page := strconv.Itoa(idx + 1) // pdftoppm pages are 1-based
 	cmd := exec.CommandContext(ctx, pr.bin,
-		"-png", "-f", page, "-l", page, "-singlefile", "-r", strconv.Itoa(effDPI),
+		"-png", "-f", page, "-l", page, "-singlefile", "-r", strconv.Itoa(dpi),
 		"-x", strconv.Itoa(x), "-y", strconv.Itoa(y), "-W", strconv.Itoa(w), "-H", strconv.Itoa(h),
 		in, prefix)
 	var stderr bytes.Buffer
@@ -228,6 +273,65 @@ func (pr popplerRasterizer) renderCropPage(ctx context.Context, in string, idx i
 		return nil, fmt.Errorf("crop of page %d produced no output: %w", idx, err)
 	}
 	return out, nil
+}
+
+// renderDeskewedCropPage (T199) bakes a page whose crop carries an angle: render the axis-aligned bounding box
+// of the ROTATED window from the PDF at effDPI (plus a few px of kernel margin), rotate it straight with the
+// bicubic resampler, and cut the exact upright window. All geometry is in page pixels at effDPI, the same
+// frame cropWindowPx uses. A window whose rotated AABB reaches past the page is clamped to the page here (the
+// resampler fills the uncovered area with paper-white); stageFile independently warns when that happens (B1b).
+func (pr popplerRasterizer) renderDeskewedCropPage(ctx context.Context, in string, idx int, r cropRect, baseW, baseH, effDPI int) ([]byte, error) {
+	scale := float64(effDPI) / float64(pr.dpi)
+	fullW := math.Round(float64(baseW) * scale)
+	fullH := math.Round(float64(baseH) * scale)
+	outW := int(math.Round(r.w * fullW))
+	outH := int(math.Round(r.h * fullH))
+	if outW < 1 || outH < 1 {
+		return nil, fmt.Errorf("crop of page %d degenerates to %dx%d px", idx, outW, outH)
+	}
+	// Window centre in page px, and the rotated window's AABB half-extents.
+	cxF := (r.x + r.w/2) * fullW
+	cyF := (r.y + r.h/2) * fullH
+	theta := r.angle * math.Pi / 180
+	sin, cos := math.Abs(math.Sin(theta)), math.Abs(math.Cos(theta))
+	halfW := float64(outW)/2*cos + float64(outH)/2*sin
+	halfH := float64(outW)/2*sin + float64(outH)/2*cos
+	const margin = 3 // the 4×4 bicubic kernel reads ±2 px around the sample; a little slack on top
+	ax := int(math.Floor(cxF - halfW - margin))
+	ay := int(math.Floor(cyF - halfH - margin))
+	bx := int(math.Ceil(cxF + halfW + margin))
+	by := int(math.Ceil(cyF + halfH + margin))
+	if ax < 0 {
+		ax = 0
+	}
+	if ay < 0 {
+		ay = 0
+	}
+	if bx > int(fullW) {
+		bx = int(fullW)
+	}
+	if by > int(fullH) {
+		by = int(fullH)
+	}
+	aw, ah := bx-ax, by-ay
+	if aw < 1 || ah < 1 {
+		return nil, fmt.Errorf("deskew of page %d degenerates to %dx%d px", idx, aw, ah)
+	}
+	aabbPNG, err := pr.rasterizeRegion(ctx, in, idx, ax, ay, aw, ah, effDPI)
+	if err != nil {
+		return nil, err
+	}
+	aabb, err := png.Decode(bytes.NewReader(aabbPNG))
+	if err != nil {
+		return nil, fmt.Errorf("decode deskew AABB of page %d: %w", idx, err)
+	}
+	// The AABB raster's (0,0) is page px (ax,ay), so the window centre in AABB coords is (cxF-ax, cyF-ay).
+	up := rotateWindow(aabb, outW, outH, cxF-float64(ax), cyF-float64(ay), r.angle)
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, up); err != nil {
+		return nil, fmt.Errorf("encode deskew of page %d: %w", idx, err)
+	}
+	return buf.Bytes(), nil
 }
 
 // nativePPIForPage reads the native resolution (ppi) of a scan image that COVERS page idx (0-based), via

@@ -376,12 +376,19 @@ type Crop struct {
 	Pages map[string]CropRect `json:"pages,omitempty"`
 }
 
-// CropRect is one page's bake area in the source page frame, normalized [0,1], origin top-left.
+// CropRect is one page's bake area in the source page frame, normalized [0,1], origin top-left. X,Y,W,H
+// describe the window's UNROTATED box; Angle (T199) rotates that box about its own centre so a crooked scan
+// bakes straight. The bake straightens the content and cuts the upright window.
 type CropRect struct {
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
-	W      float64 `json:"w"`
-	H      float64 `json:"h"`
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	W float64 `json:"w"`
+	H float64 `json:"h"`
+	// Angle (T199) is the per-page deskew in degrees, + = counter-clockwise correction; 0 or absent ⇒ no
+	// rotation, which bakes byte-identically to T198 for that page (P1). Rounded to 0.05° on save and import
+	// so tiny float noise can't mint a new raster hash; |angle| ≤ 10 (small-skew only — a quarter-turn is the
+	// musician's job, out of scope).
+	Angle  float64 `json:"angle,omitempty"`
 	Source string  `json:"source"` // "manual" (user-drawn, never auto-overwritten) | "auto" (detected)
 }
 
