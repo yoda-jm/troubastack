@@ -61540,3 +61540,68 @@ Present the three together whenever the lane has room.
 - **For VLL's page:** an accessible name for the ✕ that dismisses the "Join a band" and "Connect to your band"
   dialogs. Proposed: **"Close"**.
 - **Cleanup:** PR #88 is closed, and its branch and worktree are removed.
+
+## 2026-11-02 — web-core: WIN05 embedded-Studio spike — REPORT (report-only; Fable to relay to VLL)
+
+The spike that decides how the desktop app hosts TroubaStudio (the `WebViewHost.desktop.kt` stub says the
+engine is "WIN05's measured decision"). Three candidates measured comparably on `windows-latest`, under
+Fable's 8 constraints. **Report only — nothing lands.** Method: a throwaway branch `win05-spike` with its own
+push-triggered workflow (never main's ci.yml), `-PwebviewEngine=none|jcef|swt` building the real MSI + a
+`--win05-<engine>` probe; scratch page + demo-less content only; branch deleted after this entry. Evidence
+runs (public, retained): sizes `41433052802`, JCEF bridge `41436801058`.
+
+**Sizes (MSI, vs today's shipping installer — cross-checked: baseline 69.13 MB ≈ the `latest` MSI 69,042,908 B
+cited in the WIN03 land note):**
+
+| Engine | MSI | Δ | Installed |
+|---|---|---|---|
+| none (baseline) | 65.93 MB | — | 130.4 MB |
+| **WebView2 / SWT.EDGE** | 68.71 MB | **+2.78 MB** | 133.3 MB |
+| **Chromium / JCEF** | 73.62 MB | **+7.69 MB** | 138.6 MB |
+
+**Candidate 1 — Chromium / JCEF (`me.friwi:jcefmaven:152.0.6`, Apache-2.0, active; stock JDK + 5 module-opens).**
+- Bridge round-trip **DEMONSTRATED** headless (windowless OSR, run `41436801058`): web→native via a `cefQuery`
+  message-router shim presenting `window.TroubaStageShell.receive`, native→web via `executeJavaScript`; full
+  bidirectional OK. CEF init 6.7 s; first-ready ~18 s.
+- **The +7.69 MB is deceptive and is the key finding:** jcefmaven does NOT bundle Chromium — the ~100–200 MB
+  CEF runtime downloads on FIRST LAUNCH and **requires internet**, so an offline first-open (a rehearsal with
+  no wifi) fails. Self-contained would mean bundling CEF (the real +100–200 MB). Also: Compose Swing-interop
+  z-order clip (issue #41); memory not measurable from the parent (CEF is multi-process).
+
+**Candidate 2 — WebView2 via Eclipse SWT `SWT.EDGE` (`org.eclipse.platform:…swt.win32…:3.134.0`, EPL-2.0, active).**
+- **Smallest by far: +2.78 MB** — WebView2 uses the OS runtime (present on ~all Win10/11), only SWT's jar +
+  DLLs ship; no first-run download, works offline. This is the "pas trop gros" answer.
+- **Bridge BLOCKED on the headless CI runner:** `SWTException: Waiting for Edge operation to terminate timed
+  out` — the Edge backend will not init without an interactive desktop session. This is an environment
+  blocker, not a disproof: the API has the pieces (`BrowserFunction` web→app, `evaluate` app→web,
+  `LocationListener.changing doit=false` nav-veto; the probe wires them and FAILS LOUD if the backend isn't
+  Edge, per constraint 6), but it needs a real Windows desktop to validate — exactly the finalist check
+  constraint 4 reserves for VLL.
+- Session seeds via `-Dorg.eclipse.swt.browser.EdgeDataDir` (global cookie get/set "Unsupported"); same
+  SwingPanel clip risk as JCEF; runtime-absent + the old IE-fallback hazard must stay fail-loud.
+
+**Candidate 3 — system browser ("Open in browser") [analysis, no build].** `Desktop.browse(embeddedUrl(...))`,
+~a few KB. Loses the shared session (re-login), the ⋮ Reload, and the `?embedded=1` bridge; gains zero size,
+native pen, no runtime/licence/Win10 concern, nothing to maintain. A one-time hand-off token in the URL would
+close the re-login gap.
+
+**Win10 (constraint 6, source):** WebView2 Evergreen on all Win11 + "the vast majority" of Win10 (MS pushed to
+all eligible; a few lack it; offline may), auto-updates — so a WebView2 app must handle runtime-absent (the
+fail-loud guard, or a fixed-version bundle, which erases the size win). MS Learn: WebView2 distribution +
+evergreen-vs-fixed.
+
+**RECOMMENDATION (VLL decides):**
+1. If an embedded Studio is wanted and "pas trop gros" + offline matter most → **WebView2 / SWT.EDGE** —
+   smallest (+2.78 MB), offline-capable, native pen — CONDITIONAL on a short finalist check on VLL's real
+   Windows machine (install nothing; does Edge init, does the bridge + EdgeDataDir session-seed work, is the
+   SwingPanel clip acceptable, does runtime-absent fail loud). The headless CI could not validate it.
+2. **JCEF** is the proven-working embedded fallback (bridge demonstrated), but its offline-first-launch failure
+   makes it a poor default for this app; pick it only if the WebView2 check fails, then choose bundle-CEF
+   (+100–200 MB, offline-safe) vs keep-the-download.
+3. **System browser** — the zero-cost, zero-risk option if embedding isn't worth it.
+
+**Size estimate for the real task:** candidate 3 ≈ a few KB / a few hours; candidate 2 (recommended) ≈
++2.78 MB installer and a focused multi-day integration (SwingPanel host + the `WebViewHost.desktop.kt` seam +
+bridge + nav-veto + fail-loud runtime check + session-seed), GATED behind a half-day finalist spike on VLL's
+machine first; candidate 1 ≈ a larger multi-day job (integration + the offline/bundle decision + the clip
+workaround).
