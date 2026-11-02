@@ -61605,3 +61605,64 @@ evergreen-vs-fixed.
 bridge + nav-veto + fail-loud runtime check + session-seed), GATED behind a half-day finalist spike on VLL's
 machine first; candidate 1 ≈ a larger multi-day job (integration + the offline/bundle decision + the clip
 workaround).
+
+## 2026-11-02 — Fable: WIN05 report (cccafaec) NOT YET relayed to VLL — the WebView2 blocker is undiagnosed, and JCEF's offline size is a range — reviewer of web-core's entry above
+
+The method holds:
+- a throwaway branch with its own workflow;
+- the three engines built from one flag into the real MSI;
+- the evidence runs are public;
+- candidate 3 is analysed;
+- the Win10 source is given.
+
+The two facts the recommendation rests on are not established yet, so I'm not relaying it.
+
+**B1 — "the Edge backend will not init without an interactive desktop session" is contradicted by our own CI.** Main's
+`desktop (windows)` leg runs on the same `windows-latest` image. It starts the packaged TroubaStage.exe, and the
+smoke exits 0 only once the real window has drawn (ci.yml, "launch smoke"). So that runner draws real windows.
+- The SWT timeout ("Waiting for Edge operation to terminate timed out") is a symptom; diagnose it. Find out what
+  blocks the Edge operation in your probe: the SWT display thread not pumping while the WebView2 environment is
+  created, the COM apartment, the user-data folder, or the runtime version on the image.
+- One discriminator is a pure-SWT probe on the runner (Display + Shell + `Browser(SWT.EDGE)`, a readAndDispatch
+  loop, no AWT):
+  - if it's green, the blocker is the AWT/Compose embedding. That is a real finding, and the one that matters for
+    the host.
+  - if it's red, the log plus the image's WebView2 runtime version is the evidence.
+- Don't send VLL to a "finalist check" on an undiagnosed blocker. Paste me the SWT probe source and the timeout's
+  log lines; job logs need admin rights, so I can't read them.
+
+**B2 — JCEF's offline-safe size must be measured, not a range.** The natives ship as a Maven artifact,
+`me.friwi:jcef-natives-windows-amd64`. I fetched its size: **140,618,991 B** for cef-135. Maven Central's newest is
+cef-132/135; say where the 152.0.6 natives come from.
+- Bundle them and measure the MSI delta, and the cold start with the natives present (no download).
+- Say whether "first-ready ~18 s" included the download.
+- The table must not show +7.69 MB for JCEF without the offline-safe number next to it. For a rehearsal app that
+  must open offline, that number IS the candidate.
+
+**B3 — constraints 3, 4 and 5 for the candidate that loads (JCEF now, SWT if B1 clears):**
+- **Memory:** "not measurable from the parent" doesn't hold. Sum the working set or private bytes over the process
+  tree (walk Win32_Process by ParentProcessId: the jcef helpers, or msedgewebview2.exe).
+- **Pen (constraint 4):** pointer events/sec and frame times during a scripted drag in the editor, against Edge on
+  the same runner.
+  - You used windowless OSR because you thought the runner was headless. Per B1 it isn't, so measure the mode that
+    would ship (windowed), or say why OSR.
+  - OSR's input path is not the one users would get.
+- **Bridge security (constraint 5):** you covered it for SWT, but not for JCEF. Say how the bridge is restricted to
+  the Studio origin (check the frame URL in the router handler) and how navigation away is vetoed
+  (`CefRequestHandler.onBeforeBrowse`).
+
+**B4 — the report items from the spec, one line each per candidate:**
+- **What was loaded:** the spec says Studio against a scratch core, with the session seeded and `?embedded=1`. The
+  entry says "scratch page". Say exactly which.
+- **The mapping:** for JCEF too, how the cookie (CefCookieManager), the bridge, the error cover with Retry, and
+  Reload each map.
+- **Licence AND redistribution obligations:** not only the names. EPL-2.0's source notice for SWT, and CEF/Chromium's
+  bundled third-party notices.
+- **Units:** the table's 65.93 matches the latest MSI only as MiB (69,042,908 B is 65.84 MiB, or 69.04 MB). Label
+  the units, and keep one unit throughout.
+
+**Budget:** B1 and B2 first; they decide the recommendation. Then B3 and B4. Stay in the time box. If B1's diagnosis
+eats more than about half a session, stop and report what was tried, with the logs. Re-present with a delta entry.
+Then I relay it to VLL in French.
+
+Meanwhile, WIN06 can fill the runner waits.
