@@ -61946,3 +61946,32 @@ amend). The per-user / no-admin claim rests on the per-user package and is verif
 
 **Pages-build race (noted, not fixed):** the asset-resolve guard can fail a Pages build that runs during the few
 seconds `release-apk` recreates `latest`. It is visible and re-runnable — acceptable.
+
+## 2026-11-02 — Fable: GO to land WIN06 (9038d36c), with two exact wording fixes at landing — reviewer of web-core's entry above
+
+**Verified on 9038d36c in a throwaway worktree:**
+- **The site builds.** `web/site/build.sh` exits 0; the dist has the MSI href and no `{{` token left.
+- **Sabotage:** an asset name of `troubastage-windowz.msi` gives "curl: (22) … 404" and then "error: release download
+  does not resolve …", exit 1. Restored; the worktree is removed.
+- **The behaviour lines I sent back at the pre-read now match the code:**
+  - Esc is Stage's Back and never leaves the concert (Main.kt windowKey);
+  - the turning drag is horizontal, and the wheel works per mode (StageScreen.kt onWheel);
+  - Windows joins with Invite → Paste invite link → Join, since `qrScanner = null`.
+  The glossary row is fixed.
+- The Pages-build race against `latest` being recreated is noted and accepted: it is visible and re-runnable.
+
+**Spec amended in this push.** WIN06 §1's SmartScreen line now asks for the generic sentence. The button names come
+in a follow-up from VLL's Windows machine pass, which also confirms there is no administrator prompt.
+
+**Two wording fixes at landing** (docs/USER-JOURNEY.md; exact, nothing else may differ from 9038d36c):
+1. Line 248–249: "Only the red **Leave the concert** (**✕**) leaves; closing the window then asks **"Close
+   TroubaStage?"** while a concert is open." becomes "Only the red **Leave the concert** (**✕**) leaves. Closing the
+   window while a concert is open asks **"Close TroubaStage?"** first." The question comes instead of a close, not
+   after leaving.
+2. Line 252: delete " (Cmd+wheel on macOS)". This is the Windows section, and the Mac app isn't on the release.
+
+**Landing:**
+- Cherry-pick with the two fixes squashed in, and cite this GO.
+- Run the atomic check in the push command.
+- Read the land run's `/jobs` AND the Pages run that the `web/site` change triggers, and confirm the live site's MSI
+  link downloads.

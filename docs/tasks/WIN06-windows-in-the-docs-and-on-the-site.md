@@ -26,9 +26,11 @@ lands.
      `{{APK_URL}}`, to the stable asset name WIN03 chose (for example `troubastage-windows.msi`).
    - A link to an asset that is missing must fail the site build, not ship a dead link.
    - The section title must not say tablets only.
-   - In "Where packaging stands", one sentence: the Windows installer is not signed, so Windows SmartScreen asks
-     before running it ("More info", then "Run anyway"); it installs for the current user without an admin
-     prompt. Copy the button names from WIN03/WIN04's own screenshots, not from memory.
+   - In "Where packaging stands", one sentence: the Windows installer is not signed yet, so the browser or
+     Windows may warn before running it (keep it, or run it anyway); it installs for the current user without an
+     admin prompt. **Amended at the WIN06 gate (Fable, 2026-11-02):** no screenshot of the site download exists, so
+     no button names are quoted. They come in a one-line follow-up from VLL's Windows machine pass, which also
+     confirms that no administrator prompt appears (CI can't prove that, because its runner is an administrator).
    - Studio on Windows: the app shows "Coming soon" there, and Studio is used in the browser. Write exactly what
      WIN05's outcome makes true at landing time.
 2. **User docs** (`docs/USER-JOURNEY.md`):
