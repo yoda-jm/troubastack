@@ -31,6 +31,9 @@ dependencies {
     implementation(libs.jna)                   // WIN03: SetThreadExecutionState, GetTickCount64 (already :shared's)
     implementation(libs.jna.platform)
     testImplementation(kotlin("test"))
+    // The real desktop tooltip over Stage (DesktopTooltipUiTest); :shared uses the same library, opted in the same way.
+    @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+    testImplementation(compose.uiTest)
 }
 
 // WIN02 D3 — the MSI version MUST increase on every build or Windows will not upgrade in place. CI passes
