@@ -62224,3 +62224,43 @@ Fixes verified on main: index.html "isn’t in the desktop apps yet — they sho
 PR #91 closed; branch `desk02-stage2` + worktrees deleted. No `:8080` redeploy (public site + docs only).
 **DESK02 is complete** (stage 1 @ 0da84cba, stage 2 @ 6e260883). Still out of scope by the spec: signing/
 notarisation, an in-place Mac update, and the exact first-launch button names (a one-line follow-up after VLL's pass).
+
+## 2026-11-03 — web-core: WIN07 (Windows desktop tests: no shared Skiko unpack) — REQUESTING GO — PR #92 @ a80a3262
+
+Spec `docs/tasks/WIN07-windows-tests-no-shared-skiko-unpack.md` @ 47f073c5 (VLL: "ok, fix it"). Three files, no
+product code.
+
+**The fix (commit a80a3262)**
+- `app/shared/build.gradle.kts` + `app/desktopApp/build.gradle.kts`: every desktop `Test` task now sets
+  `systemProperty("skiko.data.path", <buildDir>/skiko)` and `testLogging { exceptionFormat = FULL }`. Two desktop
+  test JVMs (`:shared:desktopTest`, `:desktopApp:test`) run concurrently under the configuration cache and, with no
+  isolation, race Skiko's unpack into the shared `~/.skiko/<hash>/`; on Windows the loser's `ATOMIC_MOVE` lands on a
+  DLL the winner already `System.load`-ed → `AccessDeniedException` (POSIX rename is silent → Linux/macOS immune).
+  One dir per task; a comment notes a per-FORK dir would be needed only if a task ever set `maxParallelForks > 1`
+  (both run one fork). Same idiom as the existing `TROUBASTAGE_HOME` isolation.
+- `.github/workflows/ci.yml`: a guard after the desktop-test step on all three legs (windows / linux / desktop-macos),
+  `if: always()`, that asks the test JVM for its `user.home` (on Unix the JVM may read the passwd entry, not `$HOME`,
+  which setup overrides — so it checks both), asserts no `.skiko` there, and lists each build's `skiko/<hash>/`.
+
+**Acceptance**
+1. **exceptionFormat FULL** on both desktop test tasks — present in both build files; the FULL cause chain shows in
+   the stress logs.
+2. **Positive control** (throwaway branch `win07-poscontrol`, `win07-skiko-stress.yml`, windows-latest):
+   - **fixed: 16/16 GREEN** (runs `41540011527` 8× + `41543299261` 8×), guard GREEN both times.
+   - **baseline (no isolation): 38/38 GREEN** (8× + 30×) — the live `AccessDeniedException` did NOT reproduce. Stated
+     plainly: the race is a sub-second collision window and 38 iterations did not hit it (the real flake hit ~2 of
+     dozens of runs). CC-parallelism was active ("Reusing configuration cache") and the guard confirmed Skiko DID
+     unpack to the shared home, so the control is faithful — the window just didn't collide. **The diagnosis stays
+     strongly-supported-but-not-live-reproduced; the fix lands on criteria 1/3/4 per the spec's fallback.**
+   - What the control DID confirm: the shared folder is exactly `C:\Users\runneradmin\.skiko\<hash>\`, holding
+     `skiko-windows-x64.dll` (12.6 MB) + `icudtl.dat` — exactly the DLL and path the diagnosis names.
+3. **Guard stays in CI**, all three OSes. **Sabotage PROVEN:** on both stress runs the baseline guard (no
+   `skiko.data.path`) went **RED** — `::error::WIN07: Skiko unpacked into the shared C:\Users\runneradmin\.skiko` —
+   while the fixed guard went **GREEN** ("no .skiko under the JVM user.home"). Same guard, opposite verdicts.
+4. **PR #92 run `41540046482`: GREEN on every job** — go, web, proto, android, e2e, image, **desktop (windows)**,
+   **desktop (linux)**, **desktop (macos)**; release-apk correctly skipped (PR event, not a main push).
+
+**Local (Linux can't repro the race — POSIX rename):** with the fix a desktop test unpacks Skiko into
+`app/shared/build/skiko/<hash>/libskiko-linux-x64.so` and leaves `~/.skiko` untouched; the configuration cache stores.
+
+The throwaway `win07-poscontrol` branch is **never landed**; only the three-file fix (a80a3262) lands on GO.
