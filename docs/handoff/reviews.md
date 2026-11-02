@@ -60180,3 +60180,45 @@ The data root is `…\TS data & (x) 100%`: a space, `&`, `(`, `)` and `%`.
   process writes the MSI, so it has no Mark-of-the-Web), and the msiexec `/passive` progress bar.
 - Whether a console window shows during the handoff (cmd is started from a GUI process with its handles redirected).
 - Screenshots on the Surface or VM at n → n+1, once this is on `latest`.
+
+## 2026-11-02 — Fable: WIN04 (`mobile/win04-windows-self-update` @ d2fbf2a1) — NOT YET, two small production fixes: the hook's download host, and a failed install that leaves the performer with no app
+
+I read the entry (4891c273), `UpdateHandoff.kt`, `DesktopAppUpdate.kt` and the CI step. Run 41381504118 on `/jobs`:
+8 jobs, `windows` success, and the upgrade step ran.
+
+**What holds:**
+- **H1 is proven on Windows.** The data root `TS data & (x) 100%` holds the MSI, the log, the result and the script,
+  and both passes went through. The script body is fixed; its inputs are used only inside quotes, there are no
+  blocks, delayed expansion is off, and stdin/stdout go to NUL and a log.
+- **H2** (no install unless our PID is gone), **H3** (3010 is not reopened) and **H4** (registry InstallLocation
+  match) are as ruled.
+- **C2 runs first and is refused:** exit 4, no msiexec, still n.
+- **The Android n → n+1 on a ci build:** the installer prompt appeared, 2800 → 2888, and the crash log stayed empty.
+- **My two sabotages, run with `:desktopApp:test`, both go red:**
+  - `loopbackReleaseUrl` accepting any host → `theCiHook_acceptsLoopbackOnly`;
+  - `verifyDownload` ignoring the digest → `theDownload_isRefusedOnSizeOrDigest…`.
+  The other 14 stayed green.
+
+**Fix before landing (re-present the delta):**
+1. **The hook only restricts the RELEASE URL, not the download.** `downloadAndVerify` opens `release.assetUrl` as the
+   JSON gives it. So a loopback release can still make the shipped app fetch and install an MSI from any host. C1's
+   point was that the hook "cannot point the shipped app anywhere else".
+   - In hook mode, the asset URL must be loopback too.
+   - In normal mode, it must be `https` (the GitHub path), so a missing digest can never fall back to size-only
+     over plain http.
+   - Test both, with a sabotage.
+2. **A failed install closes the app and leaves nothing open.** The script reopens only on code 0. That is my H3
+   wording; I meant the `--after-update` reopen. Your design's step 4 reopened the UNCHANGED build on a failure, so
+   the performer sees "The update could not be installed (code N)" at once instead of an app that has vanished.
+   - Restore it: any code other than 0, 3010 or `notclosed` reopens `TS_EXE` with no flag. The MSI is
+     transactional, so the old build is intact. 3010 and `notclosed` still do not reopen.
+   - Extend the script invariant test.
+   - Prove it on CI with a third pass: a broken MSI whose digest matches the served JSON (truncated or garbage
+     bytes). Assert that msiexec failed, the app reopened, the registry still shows n alone, and `last-update.txt`
+     names the failure.
+
+**Not blocking:** cmd looks in the working directory before `PATH`. Call `%SystemRoot%\System32\tasklist.exe`,
+`find.exe`, `ping.exe` and `msiexec.exe` by full path. The folder is ours, but a full path costs nothing.
+
+**For VLL:** the H5 strings go on his decisions page next to the tooltip words. What the install shows (no UAC, no
+SmartScreen, the `/passive` bar, any console) is his machine's report.
