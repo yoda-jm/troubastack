@@ -61896,3 +61896,53 @@ on disk, ~310–350 MiB RAM). System browser the zero option.
 
 **Landing:** cherry-pick 0e5a48ee and 7cd9eb11 and cite this GO on both. Run the atomic check in the push command,
 then read the land run's `/jobs`, release-apk included.
+
+## 2026-11-02 — web-core: WIN06 (Windows in the docs and on the site) — REQUESTING GO — branch `win06` @ 9038d36c
+
+Rebased over WIN04's site + USER-JOURNEY lines and DESK01's Linux line (no duplication). No `app/` code. Four
+files: `web/site/build.sh`, `web/site/index.html`, `docs/USER-JOURNEY.md`, `README.md`, `docs/glossary.md`.
+
+**Changes**
+- **Site** (`index.html` + `build.sh`): section title `2 · The tablets` → `2 · The tablets and computers`; a
+  plain Windows **download the installer** (.msi) href (no QR) via `build.sh` `{{MSI_URL}}` →
+  `troubastage-windows.msi`. `build.sh` now verifies BOTH release downloads RESOLVE against the real `latest`
+  release and FAILS the build on a missing asset. "Where packaging stands" gains the unsigned-installer
+  sentence and the Studio `Coming soon.` line. The sub-line no longer claims Windows scans a QR.
+- **USER-JOURNEY**: an "Installing on Windows" step (download, unsigned warning, per-user, join via Connect →
+  Invite → Paste invite link → Join, Studio Coming soon.) and a "Stage with a mouse and a keyboard" section.
+- **README**: packaging status += the Windows MSI + the `desktop (windows)` CI job that builds it.
+- **Glossary**: TroubaStage row no longer says "the mobile app" (now "the performing app: Android tablets, and
+  the desktop app on Windows and Linux"); macOS kept out until the DMG is on the release.
+
+**SmartScreen**: per Fable's WIN06 ruling — generic wording ("your browser or Windows may warn before running
+it; choose to keep or run it anyway. It installs for your user only, without asking for administrator rights"),
+NO quoted button names, since VLL's machine screenshot is still owed. I did not edit the spec line (Fable's
+amend). The per-user / no-admin claim rests on the per-user package and is verified by VLL's machine pass.
+
+**Acceptance**
+1. `build.sh` builds (exit 0; both links resolve). **Sabotage PROVEN:** a wrong MSI asset name → `curl` 404 →
+   "release download does not resolve" → exit 1.
+2. **Every quoted UI label, grepped from the shared strings (definition lines):** `Note mode`/`✎`
+   StageScreen.kt:972; `Full screen`/`Leave full screen` :975; `Full screen when performing` SettingsScreen.kt:148;
+   `Leave the concert`/`✕` StageScreen.kt:977; `Page`/`Width`/`Scroll` StageScreen.kt:1597; `Pencil` :2309;
+   `Lock swipe` :1612; `Notes: switch to Page or Width` StageViewModel.kt:252; `The mouse will draw, not turn
+   pages. Pages still turn with a pedal or the keyboard.` StageScreen.kt:1271; `Foot pedal` SettingsScreen.kt:155;
+   `Learn` :323; `That key can't be learned — F11 and Esc control the window.` :338; `Connect to your band`
+   ConnectScreen.kt:106; tabs `Sign in`/`Invite` :122; `Paste invite link` :142; `Join` :149 (ConnectScreen.kt in
+   `app/shared/src/jvmSharedMain`). `Coming soon.` DesktopAppPlatform.kt:175 and `Close TroubaStage?` Main.kt:270
+   are Windows-only labels, so they live in `app/desktopApp/src`, not `app/shared`.
+3. Rendered site (light + dark, phone width) + the edited docs: for the gate read. Text-only changes within
+   existing classes/elements; no CSS touched.
+4. Nothing stated before it landed.
+
+**Behaviour lines corrected after Fable's pre-read (verified against the code):**
+- Esc never leaves a concert — it is Stage's Back (drawer, then full screen, never the concert); only `✕` leaves;
+  the window close asks `Close TroubaStage?` (Main.kt:300/306, :270).
+- The drag is a HORIZONTAL swipe (Page/Width); the wheel is per-mode (Page ≤1 page/gesture; Width scrolls, turns
+  at the edge on a fresh gesture; Scroll never; note mode: plain wheel nothing, Ctrl+wheel zooms); `Lock swipe`
+  locks both (StageScreen.kt ~699–735, :1612).
+- Windows can't scan the invite QR (`qrScanner = null`, DesktopAppPlatform.kt:85) → join via Connect/Invite/
+  Paste invite link/Join; fixed on the site and in USER-JOURNEY.
+
+**Pages-build race (noted, not fixed):** the asset-resolve guard can fail a Pages build that runs during the few
+seconds `release-apk` recreates `latest`. It is visible and re-runnable — acceptable.
