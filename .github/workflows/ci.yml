@@ -295,8 +295,10 @@ jobs:
   # (least privilege). Guarded to pushes on `main`; on PRs the `if:` skips it entirely.
   # WIN03 D8: the Windows MSI rides the same release, built by the `windows` job: one release, two assets, recreated
   # together (so the APK now also waits for the windows job, and a red windows job publishes neither).
+  # DESK01 D4: that job is now the `desktop` matrix; its linux leg adds the AppImage (three assets). The macOS DMG is
+  # NOT published until a person has tested it on a Mac.
   release-apk:
-    needs: [android, windows]
+    needs: [android, desktop]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -340,6 +342,12 @@ jobs:
         with:
           name: troubastage-windows-msi
           path: windows-msi
+      - name: fetch the AppImage the desktop (linux) job built
+        if: steps.gate.outputs.publish == 'true'
+        uses: actions/download-artifact@v7
+        with:
+          name: troubastage-linux-appimage
+          path: linux-appimage
       - name: publish it on the rolling `latest` release
         if: steps.gate.outputs.publish == 'true'
         env:
@@ -351,6 +359,9 @@ jobs:
           msis=(windows-msi/troubastage-*.msi)
           [ "${#msis[@]}" -eq 1 ] && [ -f "${msis[0]}" ] || { echo "::error::expected one MSI, found: ${msis[*]}"; exit 1; }
           mv "${msis[0]}" troubastage-windows.msi
+          # DESK01 D4: the AppImage, already under its stable name. Exactly one, or stop.
+          [ -s linux-appimage/troubastage-linux-x86_64.AppImage ] || { echo "::error::no AppImage from the desktop (linux) job"; exit 1; }
+          mv linux-appimage/troubastage-linux-x86_64.AppImage .
           # Finding 1 (Fable): a rolling tag must not lie. `--clobber` would replace the asset but
           # leave the tag at an old commit, and versionName is a static 0.1.0 that cannot say which
           # build this is. So recreate the release+tag at THIS commit every publish and state the
@@ -375,9 +386,10 @@ jobs:
             else echo "Signed with a throwaway key ($SIGNER): it cannot update an app installed from another build in place."; fi
             echo
             echo "Windows: troubastage-windows.msi — a per-user install (no administrator rights), same commit."
+            echo "Linux: troubastage-linux-x86_64.AppImage — no installation: make it executable and run it, same commit."
           } > notes.md
           gh release delete latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
-          gh release create latest troubastage-debug.apk troubastage-windows.msi \
+          gh release create latest troubastage-debug.apk troubastage-windows.msi troubastage-linux-x86_64.AppImage \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --prerelease \
@@ -547,9 +559,21 @@ jobs:
   # tests (incl. the DPAPI secret protection), the per-user MSI, a launch smoke that renders one frame, and an
   # upgrade-in-place proof (MSI n → n+1 leaves ONE entry). Hard-gating. The MSI + the smoke PNG are uploaded.
   # (The desktop tests ALSO run on Linux in the `android` job's :shared:check — D4, both JVMs agree.)
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 30
+  # DESK01 D1 — one desktop job, matrixed per OS: each packages its native installer from the same code and runs the
+  # same launch smoke (B5: exit 0 only after the real window drew). The Windows steps are WIN02–WIN04's, unchanged.
+  desktop:
+    name: desktop (${{ matrix.leg }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: windows
+            os: windows-latest
+          # The oldest Ubuntu runner left, so the AppImage does not ask for a newer glibc than it must.
+          - leg: linux
+            os: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -560,6 +584,7 @@ jobs:
       # jpackage builds the MSI with WiX 3 (candle/light). It ships on the windows-latest image; fail with a
       # clear message here if it ever stops being on PATH, rather than deep inside a Gradle stack trace.
       - name: check WiX 3 is available (jpackage MSI needs it)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
@@ -570,13 +595,16 @@ jobs:
             Write-Host "WiX found: $((Get-Command candle.exe).Source)"
           }
       - name: desktop tests (incl. DPAPI secret-not-plaintext)
+        if: runner.os == 'Windows'
         working-directory: app
         run: .\gradlew.bat :shared:desktopTest :desktopApp:test
       - name: package the per-user MSI (version 1.0.<run_number>)
+        if: runner.os == 'Windows'
         working-directory: app
         # createDistributable leaves the app-image (the exe the smoke runs) on disk; packageMsi wraps it.
         run: .\gradlew.bat :desktopApp:createDistributable :desktopApp:packageMsi "-PdesktopVersion=1.0.${{ github.run_number }}"
       - name: keep the artifact MSI aside (before building n+1)
+        if: runner.os == 'Windows'
         working-directory: app
         shell: pwsh
         run: |
@@ -585,6 +613,7 @@ jobs:
           Copy-Item $msi.FullName "troubastage-1.0.${{ github.run_number }}.msi"
           Write-Host "artifact MSI: $($msi.Name)"
       - name: launch smoke — the packaged app performs the demo concert in Stage (WIN03 acceptance 1)
+        if: runner.os == 'Windows'
         working-directory: app
         shell: pwsh
         run: |
@@ -607,6 +636,7 @@ jobs:
             Write-Host "smoke OK — $png $((Get-Item $png).Length) bytes"
           }
       - name: secret store cost — DPAPI get/put p50/p95 (F2)
+        if: runner.os == 'Windows'
         working-directory: app
         shell: pwsh
         run: |
@@ -618,6 +648,7 @@ jobs:
           if (-not (Test-Path bench.txt)) { Write-Error "bench wrote no report"; exit 1 }
           Get-Content bench.txt | Write-Host   # p50/p95 land in the job log (and the artifact)
       - name: prove upgrade-in-place (one entry at n, upgrade to n+1, data survives, install disjoint from data)
+        if: runner.os == 'Windows'
         working-directory: app
         shell: pwsh
         run: |
@@ -769,7 +800,7 @@ jobs:
           if (-not (Test-Path $marker)) { Write-Error "data-root marker did NOT survive the upgrade (data root ~ install dir?)"; exit 1 }
           Write-Host "upgrade-in-place proven THROUGH THE APP: refused a wrong digest; a broken MSI failed and reopened n; then one entry at $n1, reopened ($($lu -replace "`n", ' | ')); data-root marker survived; install dir disjoint from data root"
       - name: upload MSI + smoke PNG
-        if: always()
+        if: always() && runner.os == 'Windows'
         uses: actions/upload-artifact@v7
         with:
           name: troubastage-windows-msi
@@ -777,3 +808,53 @@ jobs:
             app/troubastage-*.msi
             app/smoke-*.png
             app/bench.txt
+      # ---- Linux (DESK01 D2): the app image, wrapped as one AppImage, smoked under Xvfb ----
+      - name: desktop tests (Linux)
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: ./gradlew :shared:desktopTest :desktopApp:test
+      - name: package the Linux app image (version 1.0.<run_number>)
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: ./gradlew :desktopApp:createDistributable "-PdesktopVersion=1.0.${{ github.run_number }}"
+      - name: wrap it as one AppImage (appimagetool 1.9.1 + type2-runtime 20251108, pinned by sha256)
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/appimage-tools"; mkdir -p "$tools"
+          curl -fsSL -o "$tools/appimagetool" https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          curl -fsSL -o "$tools/runtime-x86_64" https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $tools/appimagetool" | sha256sum -c -
+          echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  $tools/runtime-x86_64" | sha256sum -c -
+          chmod +x "$tools/appimagetool"
+          desktopApp/packaging/linux/make-appimage.sh desktopApp/build/compose/binaries/main/app/TroubaStage \
+            "$PWD/troubastage-linux-x86_64.AppImage" "$tools/appimagetool" "$tools/runtime-x86_64"
+      - name: launch smoke — the AppImage performs the demo concert in Stage, under Xvfb
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: |
+          set -euo pipefail
+          command -v xvfb-run >/dev/null || { sudo apt-get update -q; sudo apt-get install -y -q xvfb; }
+          # The AppImage mounts itself with FUSE; a machine without it can still extract-and-run (said in the log).
+          if [ -e /dev/fuse ] && { command -v fusermount3 || command -v fusermount; } >/dev/null; then echo "running the AppImage through FUSE"
+          else echo "::warning::no FUSE on this runner — extract-and-run"; export APPIMAGE_EXTRACT_AND_RUN=1; fi
+          export TROUBASTAGE_HOME="$RUNNER_TEMP/smoke-home"
+          timeout 150 xvfb-run -a -s "-screen 0 1920x1080x24" ./troubastage-linux-x86_64.AppImage \
+            --smoke smoke.png --smoke-concert "$GITHUB_WORKSPACE/docs/demo/demo-concert.tstage"
+          for png in smoke-1920x1080.png smoke-800x600.png; do
+            [ -s "$png" ] || { echo "::error::smoke wrote no $png"; exit 1; }
+            echo "smoke OK — $png $(stat -c %s "$png") bytes"
+          done
+          unset TROUBASTAGE_HOME
+          root=$(./troubastage-linux-x86_64.AppImage --print-data-root)
+          [ "$root" = "$HOME/.local/share/troubastage" ] || { echo "::error::data root is [$root], expected XDG's"; exit 1; }
+          echo "data root (no override): $root"
+      - name: upload AppImage + smoke PNG
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: troubastage-linux-appimage
+          path: |
+            app/troubastage-linux-x86_64.AppImage
+            app/smoke-*.png
