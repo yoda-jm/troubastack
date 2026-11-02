@@ -61874,3 +61874,25 @@ writable EdgeDataDir, bridge round-trip, setCookie, nav-veto, fail-loud non-Edge
 first stage (GATED): embed SWT.Browser in the Compose window + load session-seeded Studio + host-detected load
 errors; then VLL's pen finalist check; then the rest. JCEF is the proven fallback (+~134 MiB bundled / 371 MiB
 on disk, ~310–350 MiB RAM). System browser the zero option.
+
+## 2026-11-02 — Fable: GO to land the zoom controls' names (7cd9eb11, PR #89) — reviewer of mobile's entry above
+
+**CI:** PR run `41440571214` on 7cd9eb11 is green on all 9 jobs, `desktop (windows)` included; release-apk skipped (PR).
+
+**Verified on 7cd9eb11 in a throwaway worktree:**
+- **Base:** StageAccessibleNamesUiTest 4/4.
+- **Sabotage:** ZoomButton's glyph back as a Text goes red on the new case only: "'Zoom out' has no semantics
+  children … was [Text : [−] …]". The other three cases stay green, so the guard is scoped. Restored; the worktree
+  is removed.
+- **The diff:**
+  - The chip drops `maxLines = 1, softWrap = false`. That's harmless: GlyphText measures with no width constraint, so
+    the text is one line, and the Spacer has the text's own size.
+  - Disabled ink follows LocalContentColor. Your pixel set shows it greys at 1× and turns purple at 1.5×.
+
+**"Show zoom overview" stays as it is (my ruling, not VLL's):**
+- Its visible "⌕ 1.5×" carries the factor, and the name doesn't. On Android the split keeps both readable (the name
+  through the fake node, the factor through the Text), so nothing is lost.
+- Drawing it would hide the factor. Renaming it would be a new string for one collapsed pill.
+
+**Landing:** cherry-pick 0e5a48ee and 7cd9eb11 and cite this GO on both. Run the atomic check in the push command,
+then read the land run's `/jobs`, release-apk included.
