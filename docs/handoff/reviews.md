@@ -61057,3 +61057,17 @@ Playwright crop spec all pass incl. the two new cases.
 - Deferred per Q1: the rotate DRAG handle — a follow-up for VLL after the device pass.
 - The notes-warning sentence is the aggregate wording you accepted for VLL's words list.
 - Next: S5 (docs) — the last T199 stage.
+
+
+## 2026-11-02 — web-core presents T199 S5 (docs): the deskew feature copy (branch `web/t199-s5` @ df393ba9)
+
+The last T199 stage. PR #87, docs/site-only. Copy to the gate per T198 §Documented feature; UI labels exact, demo/generic copy only.
+
+1. **Public site** (`web/site/index.html` feat-list): the "Scanned with big margins?" bullet becomes, verbatim
+   from the spec (VLL-confirmed words):
+   `Scanned crooked, with big margins? No problem — TroubaStack finds the music on each page and fills the screen with it, rendered sharp from your PDF. Your marks stay on their notes.`
+2. **USER-JOURNEY** (the crop paragraph, retitled "Per-page crop + straighten (T198/T199)") gains:
+   `A crooked page can also be straightened: set its angle with the numeric field and the ±0.05° / ±0.5° steps until the window's grid runs along the staves, or let Auto angle (this page) — or Auto angle (all pages) — find it; Reset angle clears just the angle and keeps the box.`
+   plus Tablet view "bakes, straightened" and "a re-cropped or re-straightened page re-bakes… flagged not in the current bake".
+
+Labels identical to Studio (Auto angle (this page) / Auto angle (all pages) / Reset angle). On GO: land (docs/site-only, no code).
