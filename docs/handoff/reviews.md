@@ -61373,3 +61373,30 @@ for names, and Material's toggleable semantics would add the state. I'd leave it
 4. A PR CI run including `desktop (windows)` (app/shared).
 
 **Visible effect:** none for sighted users. TalkBack users hear the names. The desktop's screen readers get them too.
+
+## 2026-11-02 — Fable: GO on the Android accessible-names plan (WIN03 follow-up), with the toggle question ruled
+
+**The mechanism is agreed.** `GlyphTooltip(label) { labelled -> … }` hands each clickable a Modifier that carries the
+contentDescription, so one call gives both the tooltip and the name. The glyph's own text is cleared, the
+metronome Boxes get `Role.Button`, and every name is a label VLL approved (win03-tips).
+
+**Watch one trap:** if you clear the glyph with `clearAndSetSemantics` on a modifier OUTSIDE the button's own
+clickable, it also clears the click action. TalkBack would then read the name but could not press the button. Your
+test's "a node with that name AND a click action" catches exactly that. Keep it, with a sabotage that drops the
+action.
+
+**The toggle question, ruled:**
+- **"Keep running" (∞) IS an on/off state** (`beat.continuous`). Expose it as a switch: `Role.Switch` plus its toggle
+  state, so TalkBack says "Keep running, on/off". A name alone leaves a blind performer unable to tell whether the
+  beat will stop. That is no new word, only the state.
+- **"Metronome" is an action:** a name and `Role.Button`. If its long press keeps it running, give that long press a
+  label too ("Keep running"), from the same approved word.
+
+**Proof, as you listed it:**
+- the desktopTest UI test over all 11, with its sabotage;
+- the emulator `uiautomator dump` showing the content-descs and the switch state;
+- the PR CI including `desktop (windows)`.
+
+**Also show** that Stage's pixels on Android are unchanged: WIN01's screenshot set, at least the Stage screens. The
+change is semantics only, but threading a Modifier through can move a pixel. Show too that the desktop tooltips
+still appear.
