@@ -71,37 +71,75 @@ jobs:
           PY
           python3 "$RUNNER_TEMP/compare.py" "$RUNNER_TEMP/arm64/TroubaStage.app" "$RUNNER_TEMP/x64/TroubaStage.app" | tee "$RUNNER_TEMP/compare.txt" | grep -v '^MACHO' || true
           echo "--- Mach-O lines: $(grep -c '^MACHO' "$RUNNER_TEMP/compare.txt")"; grep '^MACHO' "$RUNNER_TEMP/compare.txt" | head -12
-      - name: if lib/modules differs, which entries
+      - name: do the jars and the cfg really differ? (entry name + CRC + size per jar)
         run: |
-          m=Contents/runtime/Contents/Home/lib/modules
-          if cmp -s "$RUNNER_TEMP/arm64/TroubaStage.app/$m" "$RUNNER_TEMP/x64/TroubaStage.app/$m"; then echo "lib/modules identical"; exit 0; fi
-          for x in arm64 x64; do mkdir -p "$RUNNER_TEMP/jm-$x"; "$JAVA_HOME/bin/jimage" extract --dir "$RUNNER_TEMP/jm-$x" "$RUNNER_TEMP/$x/TroubaStage.app/$m"; done
-          diff -rq "$RUNNER_TEMP/jm-arm64" "$RUNNER_TEMP/jm-x64" | sed "s#$RUNNER_TEMP/##g" | head -40
-          echo "differing entries: $(diff -rq "$RUNNER_TEMP/jm-arm64" "$RUNNER_TEMP/jm-x64" | wc -l)"
-          diff "$RUNNER_TEMP/arm64/TroubaStage.app/Contents/runtime/Contents/Home/release" "$RUNNER_TEMP/x64/TroubaStage.app/Contents/runtime/Contents/Home/release" || true
-      - name: try the merge (arm64 copy for each differing non-Mach-O file) + ad-hoc sign
+          cat > "$RUNNER_TEMP/jars.py" <<'PY'
+          import os, sys, zipfile
+          a, b = sys.argv[1], sys.argv[2]
+          for f in sorted(os.listdir(a)):
+              if not f.endswith(".jar") or not os.path.exists(os.path.join(b, f)): continue
+              ea = {i.filename: (i.CRC, i.file_size) for i in zipfile.ZipFile(os.path.join(a, f)).infolist()}
+              eb = {i.filename: (i.CRC, i.file_size) for i in zipfile.ZipFile(os.path.join(b, f)).infolist()}
+              if ea == eb: continue
+              print("CONTENT DIFFERS:", f)
+              for n in sorted(set(ea) | set(eb)):
+                  if ea.get(n) != eb.get(n): print("    ", n, ea.get(n), eb.get(n))
+          print("jar check done")
+          PY
+          python3 "$RUNNER_TEMP/jars.py" "$RUNNER_TEMP/arm64/TroubaStage.app/Contents/app" "$RUNNER_TEMP/x64/TroubaStage.app/Contents/app" | head -40
+          diff "$RUNNER_TEMP/arm64/TroubaStage.app/Contents/app/TroubaStage.cfg" "$RUNNER_TEMP/x64/TroubaStage.app/Contents/app/TroubaStage.cfg" || true
+          ls "$RUNNER_TEMP/arm64/TroubaStage.app/Contents/runtime/Contents/Home/lib/server/"; cat "$RUNNER_TEMP/arm64/TroubaStage.app/Contents/runtime/Contents/Home/release" 2>/dev/null | head -5 || echo "(no release file)"
+      - name: layout A — lipo-merged single runtime (spec D3), Skiko union, ad-hoc signed
         run: |
-          U="$RUNNER_TEMP/universal/TroubaStage.app"; mkdir -p "$(dirname "$U")"; ditto "$RUNNER_TEMP/arm64/TroubaStage.app" "$U"
+          U="$RUNNER_TEMP/A/TroubaStage.app"; mkdir -p "$(dirname "$U")"; ditto "$RUNNER_TEMP/arm64/TroubaStage.app" "$U"
           grep '^MACHO' "$RUNNER_TEMP/compare.txt" | awk '{print $2}' | while read -r rel; do
             lipo -create "$RUNNER_TEMP/arm64/TroubaStage.app/$rel" "$RUNNER_TEMP/x64/TroubaStage.app/$rel" -output "$U/$rel"
           done
-          echo "took the arm64 copy of:"; cat "$RUNNER_TEMP/other.txt"; echo
-          codesign --force --deep --sign - "$U"
-          codesign --verify --deep --strict "$U" && echo "codesign verify OK"
-          codesign -dv "$U" 2>&1 | grep -E 'Signature|Format'
-          lipo -archs "$U/Contents/MacOS/TroubaStage"; lipo -archs "$U/Contents/runtime/Contents/Home/lib/server/libjvm.dylib"
-      - name: smoke — thin arm64, merged native, merged under Rosetta, thin x64 under Rosetta
+          cp "$RUNNER_TEMP/x64/TroubaStage.app/Contents/app/libskiko-macos-x64.dylib"* "$U/Contents/app/"
+          codesign --force --deep --sign - "$U" && codesign --verify --deep --strict "$U" && echo "A: codesign verify OK"
+      - name: layout B — two runtimes + a universal stub that execs the per-arch launcher, ad-hoc signed
         run: |
+          U="$RUNNER_TEMP/B/TroubaStage.app"; mkdir -p "$(dirname "$U")"; ditto "$RUNNER_TEMP/arm64/TroubaStage.app" "$U"
+          rm -rf "$U/Contents/runtime" "$U/Contents/_CodeSignature"
+          ditto "$RUNNER_TEMP/arm64/TroubaStage.app/Contents/runtime" "$U/Contents/runtime-arm64"
+          ditto "$RUNNER_TEMP/x64/TroubaStage.app/Contents/runtime" "$U/Contents/runtime-x86_64"
+          mv "$U/Contents/MacOS/TroubaStage" "$U/Contents/MacOS/TroubaStage-arm64"
+          cp "$RUNNER_TEMP/x64/TroubaStage.app/Contents/MacOS/TroubaStage" "$U/Contents/MacOS/TroubaStage-x86_64"
+          cp "$RUNNER_TEMP/x64/TroubaStage.app/Contents/app/libskiko-macos-x64.dylib"* "$U/Contents/app/"
+          for a in arm64 x86_64; do { echo "[Application]"; echo "app.runtime=\$ROOTDIR/runtime-$a"; tail -n +2 "$U/Contents/app/TroubaStage.cfg"; } > "$U/Contents/app/TroubaStage-$a.cfg"; done
+          rm "$U/Contents/app/TroubaStage.cfg"; head -3 "$U/Contents/app/TroubaStage-x86_64.cfg"
+          clang -arch arm64 -arch x86_64 -O2 -mmacosx-version-min=11.0 -o "$U/Contents/MacOS/TroubaStage" app/desktopApp/packaging/macos/universal-launcher.c
+          lipo -archs "$U/Contents/MacOS/TroubaStage"
+          for r in arm64 x86_64; do codesign --force --sign - "$U/Contents/runtime-$r"; done
+          codesign --force --deep --sign - "$U" && codesign --verify --deep --strict "$U" && echo "B: codesign verify OK"
+          codesign -dv "$U" 2>&1 | grep -E 'Signature|Format'
+      - name: smoke both layouts — native and under Rosetta (which runtime is loaded, via lsof)
+        run: |
+          set +e
           run() { label=$1; shift; export TROUBASTAGE_HOME="$RUNNER_TEMP/home-$label"; rm -rf "$TROUBASTAGE_HOME"
             ( "$@" --smoke "$RUNNER_TEMP/smoke-$label.png" --smoke-concert "$GITHUB_WORKSPACE/docs/demo/demo-concert.tstage" > "$RUNNER_TEMP/smoke-$label.log" 2>&1 ) & pid=$!
-            for i in $(seq 1 150); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+            seen=""
+            for i in $(seq 1 150); do
+              kill -0 $pid 2>/dev/null || break
+              seen="$seen $(lsof -c TroubaStag 2>/dev/null | grep -E 'libjvm.dylib|libskiko' | awk '{print $NF}')"
+              sleep 1
+            done
             if kill -0 $pid 2>/dev/null; then kill -9 $pid; echo "$label: HUNG"; else wait $pid; echo "$label: exit $?"; fi
-            grep -E 'render API|os.arch|smoke' "$RUNNER_TEMP/smoke-$label.log" | head -6; ls -la "$RUNNER_TEMP"/smoke-$label*.png 2>/dev/null || echo "  (no PNG)"; }
-          run thin-arm64 "$RUNNER_TEMP/arm64/TroubaStage.app/Contents/MacOS/TroubaStage"
-          run merged-native "$RUNNER_TEMP/universal/TroubaStage.app/Contents/MacOS/TroubaStage"
-          run merged-rosetta arch -x86_64 "$RUNNER_TEMP/universal/TroubaStage.app/Contents/MacOS/TroubaStage"
-          run thin-x64-rosetta arch -x86_64 "$RUNNER_TEMP/x64/TroubaStage.app/Contents/MacOS/TroubaStage"
-          tail -20 "$RUNNER_TEMP/smoke-merged-rosetta.log"
+            echo "   loaded: $(echo $seen | tr ' ' '\n' | sort -u | grep . | sed "s#$RUNNER_TEMP/##" | tr '\n' ' ')"
+            grep -E 'render API|smoke: OK|Exception|Error' "$RUNNER_TEMP/smoke-$label.log" | head -4; }
+          run A-native "$RUNNER_TEMP/A/TroubaStage.app/Contents/MacOS/TroubaStage"
+          run A-rosetta arch -x86_64 "$RUNNER_TEMP/A/TroubaStage.app/Contents/MacOS/TroubaStage"
+          run B-native "$RUNNER_TEMP/B/TroubaStage.app/Contents/MacOS/TroubaStage"
+          run B-rosetta arch -x86_64 "$RUNNER_TEMP/B/TroubaStage.app/Contents/MacOS/TroubaStage"
+          echo "--- open (LaunchServices) layout B, 20 s:"; TROUBASTAGE_HOME="$RUNNER_TEMP/home-open" open -n "$RUNNER_TEMP/B/TroubaStage.app" --args --print-data-root; sleep 5; pgrep -lf TroubaStage-arm64 || echo "(not running — print-data-root exits at once)"
+      - name: DMG sizes
+        run: |
+          for L in A B; do
+            d="$RUNNER_TEMP/dmg-$L"; mkdir -p "$d"; ditto "$RUNNER_TEMP/$L/TroubaStage.app" "$d/TroubaStage.app"; ln -s /Applications "$d/Applications"
+            hdiutil create -quiet -volname TroubaStage -srcfolder "$d" -ov -format UDZO "$RUNNER_TEMP/TroubaStage-$L.dmg"
+            echo "$L: app $(du -sh "$RUNNER_TEMP/$L/TroubaStage.app" | cut -f1), dmg $(du -h "$RUNNER_TEMP/TroubaStage-$L.dmg" | cut -f1)"
+          done
+          echo "thin arm64 app: $(du -sh "$RUNNER_TEMP/arm64/TroubaStage.app" | cut -f1)"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
