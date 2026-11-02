@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CropRect } from "../../api";
-import { type Rect, squareAt, moveRect, clamp01 } from "./cropGeometry";
+import { type Rect, squareAt, moveRect, clamp01, MAX_ANGLE } from "./cropGeometry";
 
 // CropOverlay (T198) draws a page's bake area: a TRANSPARENT window at the page's aspect ratio (policy A — a
 // square in page fractions, a pure zoom), with the area OUTSIDE it under a light grey veil hatched at 45°.
@@ -47,14 +47,26 @@ export type CropOverlayProps = {
   onRestore: (rect: CropRect) => void;
   /** Autodetect THIS page's crop (server proposal merged into the draft). */
   onAuto: () => void;
+  /** T199: autodetect THIS page's crop AND its straightening angle (deskew opt-in). */
+  onAutoAngle: () => void;
+  /** T199: set THIS page's deskew angle in degrees (Viewer snaps + clamps it). 0 clears the angle. */
+  onAngleChange: (deg: number) => void;
   /** An autodetect request is in flight (disables the Auto buttons). */
   autoBusy: boolean;
   page: number;
 };
 
+// Fine / coarse angle nudges (§Studio UI: ±0.05° / ±0.5°). The field sits between the minus and plus pairs.
+const ANGLE_STEPS = [
+  { d: -0.5, id: "dec-coarse", label: "−0.5" },
+  { d: -0.05, id: "dec-fine", label: "−0.05" },
+  { d: 0.05, id: "inc-fine", label: "+0.05" },
+  { d: 0.5, id: "inc-coarse", label: "+0.5" },
+];
+
 const GRID_LINES = [1, 2, 3]; // the inner lines of a 4×4 alignment grid (quarters)
 
-export default function CropOverlay({ rect, interactive, onChange, onReset, onRestore, onAuto, autoBusy, page }: CropOverlayProps) {
+export default function CropOverlay({ rect, interactive, onChange, onReset, onRestore, onAuto, onAutoAngle, onAngleChange, autoBusy, page }: CropOverlayProps) {
   const ref = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -67,6 +79,16 @@ export default function CropOverlay({ rect, interactive, onChange, onReset, onRe
   }, []);
 
   const current: Rect | null = rect ? { x: rect.x, y: rect.y, w: rect.w, h: rect.h } : null;
+  // T199: the deskew angle. CSS rotate(+θ) is clockwise on a y-down screen — the bake's R(θ) — applied about
+  // the window's own centre (transform-origin default), so the grid + handles (children) rotate with it.
+  const angleDeg = rect?.angle ?? 0;
+  // The numeric field keeps its own text so typing "2.3" isn't snapped away mid-keystroke; it commits on blur /
+  // Enter and reflects angle changes from the step buttons or autodetect.
+  const [angleText, setAngleText] = useState(() => String(angleDeg));
+  useEffect(() => {
+    setAngleText(String(angleDeg));
+  }, [angleDeg]);
+  const commitAngle = useCallback(() => onAngleChange(parseFloat(angleText) || 0), [onAngleChange, angleText]);
 
   const endGesture = useCallback(() => {
     gestureRef.current = null;
@@ -183,6 +205,95 @@ export default function CropOverlay({ rect, interactive, onChange, onReset, onRe
           Auto
         </button>
       )}
+      {interactive && (
+        // T199 angle controls — OUTSIDE the window so they don't rotate. Per-page: Auto angle, ±0.05/±0.5
+        // steps, a numeric field, and Reset angle (shown only when an angle is set).
+        <div
+          className="crop-angle-bar"
+          data-testid={`crop-angle-${page}`}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="crop-angle-auto"
+            data-testid={`crop-auto-angle-${page}`}
+            disabled={autoBusy}
+            title="Autodetect this page's content and straightening angle"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAutoAngle();
+            }}
+          >
+            Auto angle (this page)
+          </button>
+          {ANGLE_STEPS.slice(0, 2).map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className="crop-angle-step"
+              data-testid={`crop-angle-${s.id}-${page}`}
+              title={`${s.d}°`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAngleChange(angleDeg + s.d);
+              }}
+            >
+              {s.label}
+            </button>
+          ))}
+          <input
+            type="number"
+            className="crop-angle-field"
+            data-testid={`crop-angle-input-${page}`}
+            step={0.05}
+            min={-MAX_ANGLE}
+            max={MAX_ANGLE}
+            value={angleText}
+            aria-label="Deskew angle, degrees"
+            onPointerDown={(e) => e.stopPropagation()}
+            onChange={(e) => setAngleText(e.target.value)}
+            onBlur={commitAngle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitAngle();
+              }
+            }}
+          />
+          <span className="crop-angle-unit" aria-hidden="true">
+            °
+          </span>
+          {ANGLE_STEPS.slice(2).map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className="crop-angle-step"
+              data-testid={`crop-angle-${s.id}-${page}`}
+              title={`+${s.d}°`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAngleChange(angleDeg + s.d);
+              }}
+            >
+              {s.label}
+            </button>
+          ))}
+          {angleDeg !== 0 && (
+            <button
+              type="button"
+              className="crop-angle-reset"
+              data-testid={`crop-reset-angle-${page}`}
+              title="Reset the angle (keep the crop box)"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAngleChange(0);
+              }}
+            >
+              Reset angle
+            </button>
+          )}
+        </div>
+      )}
       {current && (
         <>
           {/* The hatched grey veil over the four bands OUTSIDE the window. */}
@@ -192,7 +303,11 @@ export default function CropOverlay({ rect, interactive, onChange, onReset, onRe
           <div className="crop-dim" style={{ left: `${(current.x + current.w) * 100}%`, top: `${current.y * 100}%`, right: 0, height: `${current.h * 100}%` }} />
 
           {/* The transparent window. Alignment grid + handles + affordances + buttons only when interactive. */}
-          <div className="crop-rect" data-testid={`crop-rect-${page}`} style={pct(current)}>
+          <div
+            className="crop-rect"
+            data-testid={`crop-rect-${page}`}
+            style={{ ...pct(current), transform: angleDeg ? `rotate(${angleDeg}deg)` : undefined }}
+          >
             {interactive && (
               <>
                 {/* Alignment grid (~4×4): thin, semi-transparent lines to level the staves. It moves + scales

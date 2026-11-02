@@ -428,3 +428,93 @@ test("crop: Tablet view re-renders after an annotation edit (cache not stale)", 
   await expect(page.getByTestId("tablet-preview-0").locator("img")).toBeVisible();
   await expect.poll(() => requests).toBe(2);
 });
+
+// T199 — the deskew angle control: a step button rotates the window the RIGHT way, the field tracks it, the
+// angle SURVIVES a save + reload (the user's core flow), and Reset angle returns it upright. The e2e core has
+// no bake toolchain, so an angled crop's DRY RUN can't read the page aspect — stub JUST the dry-run
+// (dryRun:true → no hidden marks); the real save (dryRun:false) and the GETs hit the core, so the angle
+// genuinely persists.
+test("crop: a deskew angle rotates the window the right way and survives a save + reload", async ({ page }) => {
+  await openPdf(page);
+  await page.route(`**/songs/*/files/*/crop`, async (route) => {
+    const body = route.request().method() === "PUT" ? route.request().postDataJSON() : null;
+    if (body?.dryRun === true) return route.fulfill({ json: { hiddenMarks: [] } });
+    return route.continue(); // the real save (dryRun:false) + any GET persist against the core
+  });
+  await page.getByTestId("tool-crop").click();
+  await dragCrop(page, 0, 0.2, 0.2, 0.7, 0.7);
+  await expect(page.getByTestId("crop-rect-0")).toBeVisible();
+
+  // Angle 0: the window is NOT rotated (no transform) and the field reads 0.
+  await expect(page.getByTestId("crop-rect-0")).toHaveCSS("transform", "none");
+  await expect(page.getByTestId("crop-angle-input-0")).toHaveValue("0");
+
+  // The SIGN matters: +θ must rotate clockwise on the y-down screen (the bake's R(θ)), or the user lines the
+  // grid to the staves and the bake DOUBLES the tilt. The computed transform is matrix(cos,sin,-sin,cos,…); at
+  // +1° the second component (sin) must be POSITIVE. rotate(-θ) would make it negative — this is the guard.
+  const sinOf = (tid: string) =>
+    page.getByTestId(tid).evaluate((el) => {
+      const m = getComputedStyle(el).transform.match(/matrix\(([^)]+)\)/);
+      return m ? parseFloat(m[1].split(",")[1].trim()) : 0;
+    });
+
+  // +0.5 twice → 1°: the window rotates clockwise (sin > 0) and the field reads 1.
+  await page.getByTestId("crop-angle-inc-coarse-0").click();
+  await page.getByTestId("crop-angle-inc-coarse-0").click();
+  await expect(page.getByTestId("crop-angle-input-0")).toHaveValue("1");
+  expect(await sinOf("crop-rect-0")).toBeGreaterThan(0.005); // sin(1°) ≈ 0.0175 > 0 — CW, the bake's sense
+
+  // Save the angled crop → badge; reload → the angle persisted (field 1, still rotated the SAME way).
+  await page.getByTestId("crop-save").click();
+  await expect(page.getByTestId("file-tab-cropped").first()).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("pdf-page").first()).toBeVisible();
+  await page.getByTestId("tool-crop").click();
+  await expect(page.getByTestId("crop-angle-input-0")).toHaveValue("1");
+  expect(await sinOf("crop-rect-0")).toBeGreaterThan(0.005);
+
+  // Reset angle returns the window to upright (field 0, no transform), keeping the crop box.
+  await page.getByTestId("crop-reset-angle-0").click();
+  await expect(page.getByTestId("crop-angle-input-0")).toHaveValue("0");
+  await expect(page.getByTestId("crop-rect-0")).toHaveCSS("transform", "none");
+});
+
+// T199 — the pre-save warning counts rehearsal notes a crop change would push to "page changed". The e2e core
+// has no bake, so notes never RESOLVE (no fileId) — stub the notes list with one resolved note on page 0 of the
+// open file, then make an angle-only change and assert the warning. (Sabotage: have Viewer pass the draft as
+// both draft and saved to notesNewlyChanged → sameRect is always true → the warning never shows → red.)
+test("crop: an angle-only change warns about rehearsal notes that would go 'page changed'", async ({ page }) => {
+  await register(page, `crop_${stamp()}`);
+  const band = await createBandAndOpen(page, `CropBand ${stamp()}`);
+  const songId = await createSongAndOpen(page, `CropSong ${stamp()}`);
+  await uploadPdf(page);
+  const { files } = await page.request.get(`/api/bands/${band.id}/songs/${songId}/files`).then((r) => r.json());
+  const fileId = files[0].id;
+  // One RESOLVED note on page 0 of the open file, not yet page-changed.
+  await page.route(`**/songs/${songId}/rehearsal-notes`, async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    await route.fulfill({
+      json: {
+        notes: [
+          {
+            id: "n1", bandId: band.id, songId, pageInSong: 0, rasterHash: "h", concertId: "c", concertRev: 1,
+            takenAs: "drawn", blobHash: "b", width: 8, height: 8, uploadedAt: "", pageChanged: false,
+            fileId, filePage: 0,
+          },
+        ],
+      },
+    });
+  });
+  await page.reload();
+  await expect(page.getByTestId("pdf-page").first()).toBeVisible();
+  await page.getByTestId("tool-crop").click();
+
+  // Save a crop (box, no angle) so the SAVED state has it. No annotations → no Keep/Cancel step.
+  await dragCrop(page, 0, 0.2, 0.2, 0.7, 0.7);
+  await page.getByTestId("crop-save").click();
+  await expect(page.getByTestId("file-tab-cropped").first()).toBeVisible();
+
+  // An ANGLE-only change makes page 0's rect differ from the saved one → the note would go "page changed".
+  await page.getByTestId("crop-angle-inc-coarse-0").click();
+  await expect(page.getByTestId("crop-notes-warning")).toContainText("1 rehearsal note");
+});

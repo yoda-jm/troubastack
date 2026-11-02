@@ -42,6 +42,7 @@ import {
 } from "../../editor";
 import { EditorToolbar } from "./Toolbar";
 import CropOverlay from "./CropOverlay";
+import { applyPageAngle, notesNewlyChanged } from "./cropGeometry";
 import TabletPreview from "./TabletPreview";
 import { FilePdfButton } from "./FilePdfButton";
 import { backTarget } from "./backTarget";
@@ -382,6 +383,7 @@ export function Viewer({
   const [cropDraft, setCropDraftRaw] = useState<Record<string, CropRect>>({});
   const [cropHidden, setCropHidden] = useState<HiddenMark[]>([]);
   const [cropWarnError, setCropWarnError] = useState(false); // the live dry run failed → never imply "nothing hidden"
+  const [cropWarnMsg, setCropWarnMsg] = useState<string | null>(null); // T199: the server's reason (e.g. can't check a straightened page), shown as itself
   const [cropSaving, setCropSaving] = useState(false);
   const [cropError, setCropError] = useState<string | null>(null);
   const [cropConfirmReset, setCropConfirmReset] = useState(false);
@@ -433,6 +435,7 @@ export function Viewer({
     cropResetIntentRef.current = false;
     setCropHidden([]);
     setCropWarnError(false);
+    setCropWarnMsg(null);
     setCropError(null);
     setCropConfirmReset(false);
     setCropConfirm(null);
@@ -458,6 +461,12 @@ export function Viewer({
     [cropDraft, persistedPages],
   );
   const buildCrop = useCallback((): Crop => ({ lockAR: true, pages: cropDraft }), [cropDraft]);
+  // T199: how many of MY rehearsal notes this unsaved crop edit would newly mark "page changed" (resolved notes
+  // on the cropped file whose page's rect — angle included — differs from the saved crop, not already changed).
+  const cropNotesChanged = useMemo(
+    () => (selectedFileId == null ? 0 : notesNewlyChanged(rehearsalNotes, selectedFileId, cropDraft, persistedPages ?? {})),
+    [rehearsalNotes, selectedFileId, cropDraft, persistedPages],
+  );
 
   // Debounced dry run → the live warning reflects the UNSAVED draft. A failure sets cropWarnError so the UI
   // shows "couldn't check", never a misleading "nothing hidden".
@@ -469,10 +478,14 @@ export function Viewer({
         .then((h) => {
           setCropHidden(h);
           setCropWarnError(false);
+          setCropWarnMsg(null);
         })
-        .catch(() => {
+        .catch((e) => {
+          // T199: surface the server's reason as itself (e.g. "can't check a straightened page") — not a
+          // generic failure — so a deskew whose aspect can't be read is legible.
           setCropHidden([]);
           setCropWarnError(true);
+          setCropWarnMsg(e instanceof ApiError ? e.message : null);
         });
     }, 300);
     return () => window.clearTimeout(id);
@@ -481,7 +494,28 @@ export function Viewer({
   const setPageCrop = useCallback(
     (page: number, r: { x: number; y: number; w: number; h: number }) => {
       cropResetIntentRef.current = false; // adding a rect is not a wipe
-      setCropDraft((d) => ({ ...d, [String(page)]: { ...r, source: "manual" } }));
+      setCropDraft((d) => {
+        const prev = d[String(page)];
+        // T199: a box edit must KEEP any deskew angle the page already carries (the angle lives on the rect).
+        return { ...d, [String(page)]: { ...r, ...(prev?.angle ? { angle: prev.angle } : {}), source: "manual" } };
+      });
+    },
+    [setCropDraft],
+  );
+  // T199: set a page's deskew angle, snapped to the server's grid. The angle rides on the rect, so a page with
+  // no crop yet gets a full-page window (0,0,1,1) — straightening only; 0 clears the angle. Keeps the box + its
+  // source otherwise.
+  const setPageAngle = useCallback(
+    (page: number, deg: number) => {
+      cropResetIntentRef.current = false;
+      setCropDraft((d) => {
+        const key = String(page);
+        const next = applyPageAngle(d[key], (persistedPagesRef.current ?? {})[key], deg);
+        const n = { ...d };
+        if (next == null) delete n[key]; // drop a synthetic full-page crop when the angle clears
+        else n[key] = next;
+        return n;
+      });
     },
     [setCropDraft],
   );
@@ -501,7 +535,7 @@ export function Viewer({
   // draft, NEVER over a manual rect (ruling A: Auto fills pages with no rect or an auto one). The user then
   // Saves as usual. {all:true} does every page; {pages:[i]} a single one.
   const runAuto = useCallback(
-    async (sel: { pages?: number[]; all?: boolean }) => {
+    async (sel: { pages?: number[]; all?: boolean; deskew?: boolean }) => {
       const fileId = selectedFileId; // bind the file NOW; the result may return after a file switch
       if (fileId == null) return;
       setCropAutoBusy(true);
@@ -519,11 +553,15 @@ export function Viewer({
         const merged = { ...base };
         let applied = 0;
         let keptManual = 0;
+        let angledManual = 0; // T199: Auto angle on a hand-cropped page — angle taken, box + source kept (ruling A)
         for (const [key, rect] of Object.entries(res.pages)) {
           const existing = merged[key];
           if (!existing || existing.source === "auto") {
             merged[key] = rect;
             applied++;
+          } else if (sel.deskew && rect.angle) {
+            merged[key] = { ...existing, angle: rect.angle };
+            angledManual++;
           } else {
             keptManual++;
           }
@@ -532,13 +570,17 @@ export function Viewer({
         const stillOpen = selectedFileIdRef.current === fileId;
         if (stillOpen) {
           setCropDraftRaw(merged);
+          const verb = sel.deskew ? "Auto-straightened" : "Auto-cropped";
           // Tell the user when an explicit Auto changed nothing, or what it skipped.
           if (sel.pages && sel.pages.length === 1) {
             const key = String(sel.pages[0]);
-            if (!res.pages[key]) setCropNotice("No content detected on this page — crop unchanged.");
+            if (!res.pages[key])
+              setCropNotice(sel.deskew ? "No clear angle detected on this page — unchanged." : "No content detected on this page — crop unchanged.");
+            else if (angledManual > 0) setCropNotice("Set the straightening angle on this page — kept your crop box.");
             else if (applied === 0 && keptManual > 0) setCropNotice("That page already has a crop you drew — kept it.");
           } else {
-            const parts = [`Auto-cropped ${applied} page${applied === 1 ? "" : "s"}.`];
+            const parts = [`${verb} ${applied} page${applied === 1 ? "" : "s"}.`];
+            if (angledManual > 0) parts.push(`Set the angle on ${angledManual} you'd cropped.`);
             if (keptManual > 0) parts.push(`Kept your crop on ${keptManual}.`);
             const noContent = numPagesRef.current - Object.keys(res.pages).length;
             if (noContent > 0) parts.push(`No content found on ${noContent}.`);
@@ -2045,6 +2087,16 @@ export function Viewer({
           </button>
           <button
             type="button"
+            className="btn-sm"
+            data-testid="crop-auto-angle-all"
+            disabled={cropAutoBusy}
+            onClick={() => runAuto({ all: true, deskew: true })}
+            title="Detect each page's content and its straightening angle (your hand-drawn boxes are kept, the angle applied)"
+          >
+            {cropAutoBusy ? "Detecting…" : "Auto angle (all pages)"}
+          </button>
+          <button
+            type="button"
             className={`btn-sm${tabletView ? " primary" : ""}`}
             data-testid="crop-tablet-view"
             aria-pressed={tabletView}
@@ -2060,7 +2112,7 @@ export function Viewer({
           )}
           {cropWarnError ? (
             <span className="crop-panel-warn" data-testid="crop-warning" role="alert">
-              Couldn't check which annotations fall outside — try again.
+              {cropWarnMsg ?? "Couldn't check which annotations fall outside — try again."}
             </span>
           ) : (
             cropHidden.length > 0 && (
@@ -2069,6 +2121,12 @@ export function Viewer({
                 won't show on the tablet.
               </span>
             )
+          )}
+          {cropNotesChanged > 0 && (
+            <span className="crop-panel-warn" data-testid="crop-notes-warning" role="status">
+              {cropNotesChanged === 1 ? "1 rehearsal note" : `${cropNotesChanged} rehearsal notes`} on pages you
+              changed will show as "page changed" and no longer appear on the tablet.
+            </span>
           )}
           {cropError && (
             <span className="crop-panel-warn" data-testid="crop-error" role="alert">
@@ -2276,6 +2334,8 @@ export function Viewer({
                       onReset={() => resetPageCrop(i)}
                       onRestore={(r) => setCropDraft((d) => ({ ...d, [String(i)]: r }))}
                       onAuto={() => runAuto({ pages: [i] })}
+                      onAutoAngle={() => runAuto({ pages: [i], deskew: true })}
+                      onAngleChange={(deg) => setPageAngle(i, deg)}
                       autoBusy={cropAutoBusy}
                     />
                   );

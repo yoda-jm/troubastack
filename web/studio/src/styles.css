@@ -1468,6 +1468,7 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   position: absolute; box-sizing: border-box;
   border: 1.5px solid var(--accent);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
+  transform-origin: 50% 50%; /* T199: the inline rotate() turns about the window centre, matching the bake */
 }
 .crop-overlay.interactive .crop-rect { cursor: move; }
 /* faint move cross at the window centre (static affordance). */
@@ -1520,6 +1521,27 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   background: var(--surface); color: var(--fg);
   border: 1px solid var(--accent); border-radius: 3px;
 }
+/* T199 per-page angle controls — a small bar at the bottom-centre of the overlay, OUTSIDE the window, so it
+   does not rotate with it. */
+.crop-angle-bar {
+  position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); z-index: 3;
+  display: flex; align-items: center; gap: 3px;
+  padding: 2px 5px; font-size: 12px; border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.crop-angle-bar button {
+  padding: 1px 5px; font-size: 12px; cursor: pointer;
+  background: var(--surface); color: var(--fg);
+  border: 1px solid var(--accent); border-radius: 4px;
+}
+.crop-angle-bar button:disabled { opacity: .6; cursor: default; }
+.crop-angle-field {
+  width: 3.6em; text-align: right; font-size: 12px; padding: 1px 3px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--fg);
+}
+.crop-angle-unit { opacity: .7; margin-left: -2px; }
 /* The crop controls + the Keep/Cancel dialog float BELOW the top chrome (like .ctx-bar), centred, so they
    never sit under the top-bar pills. The bar is pass-through glass; only its controls capture pointers. */
 .crop-panel {
