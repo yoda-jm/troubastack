@@ -61024,3 +61024,36 @@ list with the rest:
 
 Fold the three in, show their sabotages and the green PR CI in the LANDED note, and land. No re-review needed; I
 check it on the landed tree.
+
+
+## 2026-11-02 — T199 S4 LANDED (4c273f7d), Approved-by: Fable (GO e277bc3a)
+
+Studio deskew UI, landed with all three e277bc3a bindings. PR #85 CI run **41402966686** green incl. windows. Full
+`go`-side unaffected (client-only); studio tsc + vite build clean; vitest (via the esbuild shim) 19 pass;
+Playwright crop spec all pass incl. the two new cases.
+
+### The three bindings (with their sabotages)
+1. **Rotation SIGN pinned.** The angle e2e now reads the computed `matrix(cos,sin,…)` and asserts the sin
+   component **> 0** at +1° — CSS rotate(+θ) clockwise = the bake's R(θ). **Sabotage run:** flip the window to
+   `rotate(-angleDeg)` → the e2e reds (sin goes negative). (Previously it only checked transform ≠ none, which
+   rotate(−θ) would pass — the "bake doubles the tilt" bug.)
+2. **Notes warning wire-tested.** A Playwright case stubs the rehearsal-notes list (`page.route`) with one
+   RESOLVED note on page 0 of the open file, then makes an angle-only change and asserts "1 rehearsal note …"
+   appears (the e2e core has no bake, so a real note never resolves). **Sabotage run:** have Viewer pass the
+   draft as BOTH draft and saved to `notesNewlyChanged` → the warning never shows → the e2e reds. (Both
+   sabotages were run together: 2 failed, then reverted.)
+3. **No leftover synthetic crop.** `setPageAngle` on an uncropped page makes a 0,0,1,1 straighten-only window,
+   but clearing the angle back to 0 on that synthetic box — when the page had no SAVED crop — now DROPS the
+   entry (pure `applyPageAngle` returns null), so the page bakes whole and its notes aren't pushed to "page
+   changed" for a crop that trims nothing. vitest covers straighten-only, drop-on-clear, keep-a-real-crop, and
+   keep-a-saved-0,0,1,1.
+
+### Also
+- **e2e no-bake stub:** the first CI run red'd on the angle e2e — the studio e2e core has no bake toolchain, so
+  an angled crop's save-time DRY RUN can't read the page aspect and the save was (correctly, B1) blocked. Fixed
+  without dropping the core flow: `page.route` stubs ONLY the dry-run (`dryRun:true` → `{hiddenMarks:[]}`) while
+  the real save (`dryRun:false`) and the GETs hit the core — so the angle e2e still saves, reloads, and
+  confirms the angle + its sign persisted. (Recorded in memory `studio-e2e-core-has-no-bake`.)
+- Deferred per Q1: the rotate DRAG handle — a follow-up for VLL after the device pass.
+- The notes-warning sentence is the aggregate wording you accepted for VLL's words list.
+- Next: S5 (docs) — the last T199 stage.
