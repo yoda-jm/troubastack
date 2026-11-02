@@ -178,6 +178,19 @@ kotlin {
     }
 }
 
+// WIN07 — give every desktop Test JVM its OWN Skiko unpack dir under this module's build dir, never the shared
+// per-user ~/.skiko. :shared:desktopTest and :desktopApp:test run concurrently under the configuration cache
+// (app/gradle.properties), and on a fresh runner both can clear Skiko's `!file.exists()` check before either moves
+// its copy into place; the loser's ATOMIC_MOVE (MoveFileEx) then lands on a DLL the winner already System.load-ed,
+// which Windows refuses with AccessDeniedException (POSIX rename replaces a mapped .so silently, so Linux/macOS are
+// immune). Two JVMs pointed at two dirs never collide. This isolates the dir the same way TROUBASTAGE_HOME already is
+// in :desktopApp (build.gradle.kts). Both desktop test tasks run a single fork today; a per-FORK dir would be needed
+// only if one ever set maxParallelForks > 1. exceptionFormat = FULL so the next failure of any kind carries its path.
+tasks.withType<Test>().configureEach {
+    systemProperty("skiko.data.path", layout.buildDirectory.dir("skiko").get().asFile.path)
+    testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
+}
+
 android {
     namespace = "com.troubastack.shared"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
