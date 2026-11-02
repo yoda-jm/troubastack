@@ -34,7 +34,11 @@ import com.troubastack.app.SkiaImageDecoder
 import com.troubastack.app.SkiaNoteBitmapCodec
 import com.troubastack.app.StudioHost
 import com.troubastack.shared.distribution.ServerDiscovery
+import com.troubastack.shared.buildinfo.UPDATE_RELEASE_URL
 import com.troubastack.shared.seams.Storage
+import com.troubastack.shared.seams.desktopDataRoot
+import com.sun.jna.platform.win32.Advapi32Util
+import com.sun.jna.platform.win32.WinReg
 import com.troubastack.shared.stage.ImageDecoder
 import com.troubastack.shared.stage.PageTurn
 import com.troubastack.shared.stage.PointerKind
@@ -103,7 +107,23 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
         override fun clearCookies() {} // no Studio web view, so no cookies
     }
 
-    override val appUpdate: ((Storage, CoroutineScope) -> AppUpdate)? = null // WIN04
+    /** WIN04 — closes the app for an update's install (the entrypoint sets it: exitApplication). */
+    var exitForInstall: () -> Unit = {}
+
+    /** WIN04 — the CI hook's release (`--update-from`, loopback only, digest required), else GitHub's. */
+    var updateFrom: String? = null
+
+    /** The app's update, made once per App(); it reports the last handoff's result as it is made. */
+    var update: DesktopAppUpdate? = null
+        private set
+
+    override val appUpdate: ((Storage, CoroutineScope) -> AppUpdate)? = { s, scope ->
+        DesktopAppUpdate(
+            s, scope, dataRoot = File(desktopDataRoot()), installedExe = installedMsiExe(),
+            releaseUrl = updateFrom ?: UPDATE_RELEASE_URL, requireDigest = updateFrom != null,
+            exitForInstall = { exitForInstall() },
+        ).also { it.reportLastHandoff(); update = it }
+    }
     override val pedal: (() -> PedalLink)? = null
 
     @Composable
@@ -198,4 +218,32 @@ private fun copyToTemp(storage: Storage, picked: File): String {
     val temp = File(storage.tempDir(), "pick-${UUID.randomUUID()}.tstage")
     picked.copyTo(temp)
     return temp.path
+}
+
+/**
+ * WIN04 (H4) — the running launcher when it is the MSI-installed TroubaStage (jpackage names it in `jpackage.app-path`;
+ * the uninstall entries say where the MSI put it), else null: a `:desktopApp:run` or a copied folder cannot update itself.
+ */
+internal fun installedMsiExe(): File? {
+    if (!isWindows()) return null
+    // jpackage's launcher names itself; else the process image (the launcher hosts the JVM in-process).
+    val exe = (System.getProperty("jpackage.app-path") ?: ProcessHandle.current().info().command().orElse(null)?.takeIf { it.endsWith("TroubaStage.exe", ignoreCase = true) })
+        ?.let(::File) ?: return null
+    return exe.takeIf { isMsiInstalled(it, runCatching { uninstallEntries() }.getOrDefault(emptyList())) }
+}
+
+/** DisplayName to InstallLocation of every uninstall entry, per-user and machine-wide (as the CI upgrade check reads them). */
+private fun uninstallEntries(): List<Pair<String, String>> {
+    val keys = listOf(
+        WinReg.HKEY_CURRENT_USER to "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        WinReg.HKEY_LOCAL_MACHINE to "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        WinReg.HKEY_LOCAL_MACHINE to "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+    )
+    return keys.flatMap { (root, base) ->
+        runCatching { Advapi32Util.registryGetKeys(root, base).toList() }.getOrDefault(emptyList()).mapNotNull { k ->
+            val path = "$base\\$k"
+            val name = runCatching { Advapi32Util.registryGetStringValue(root, path, "DisplayName") }.getOrNull() ?: return@mapNotNull null
+            name to (runCatching { Advapi32Util.registryGetStringValue(root, path, "InstallLocation") }.getOrNull() ?: "")
+        }
+    }
 }

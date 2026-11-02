@@ -95,6 +95,8 @@ fun SettingsScreen(
     onUpdateApp: (() -> Unit)? = null,
     autoChecks: Boolean = false,
     onAutoChecks: (Boolean) -> Unit = {},
+    // WIN04 (H4) — a plain line under the latest-release row when this copy cannot install updates (null: none).
+    updateNote: String? = null,
     // WIN03 D4 — keys the platform's window keeps (F11, Esc on a desktop): Learn refuses them. Android: none.
     reservedKeys: Set<Key> = emptySet(),
     // WIN03 D2 — "Full screen when performing": null ⇒ no window modes ⇒ no switch (Android).
@@ -184,6 +186,7 @@ fun SettingsScreen(
                         if (onUpdateApp != null) Button(onClick = onUpdateApp) { Text("Update") }
                         TextButton(onClick = onCheckForUpdates, enabled = !checkingForUpdates) { Text("Check for updates") }
                     }
+                    updateNote?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Automatic checks (once a day, never during a concert)", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         Switch(checked = autoChecks, onCheckedChange = onAutoChecks)

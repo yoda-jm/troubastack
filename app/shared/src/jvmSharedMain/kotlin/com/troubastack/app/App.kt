@@ -235,12 +235,13 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
             latestLine = appUpdate?.let { com.troubastack.shared.buildinfo.latestLine(it.verdict, it.failed) } ?: "",
             checkingForUpdates = appUpdate?.checking ?: false,
             onCheckForUpdates = appUpdate?.let { u -> { u.check(manual = true) } },
-            onUpdateApp = when (appUpdate?.verdict) {
+            onUpdateApp = if (appUpdate?.installNote != null) null else when (appUpdate?.verdict) {
                 is com.troubastack.shared.buildinfo.UpdateVerdict.Available, is com.troubastack.shared.buildinfo.UpdateVerdict.Dismissed -> ({ appUpdate?.update() })
                 else -> null
             },
             autoChecks = appUpdate?.autoChecks ?: false,
             onAutoChecks = { appUpdate?.chooseAutoChecks(it) },
+            updateNote = appUpdate?.installNote, // WIN04 (H4): a copy that cannot install says so instead of Update
             // WIN03 — a desktop window: its reserved keys, and "Full screen when performing" (null hides it).
             reservedKeys = platform.window?.reservedKeys ?: emptySet(),
             fullScreenWhenPerforming = platform.window?.fullScreenWhenPerforming,

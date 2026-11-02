@@ -43,7 +43,11 @@ import com.troubastack.shared.stage.LocalStagePointerIcons
 import com.troubastack.shared.ui.LocalMaxContentWidth
 import com.troubastack.shared.ui.ThemePref
 import com.troubastack.shared.ui.TroubaTheme
+import com.troubastack.shared.buildinfo.UpdateVerdict
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.collectLatest
 import java.awt.Dimension
 import java.awt.GraphicsEnvironment
@@ -141,6 +145,15 @@ fun main(args: Array<String>) {
         if (concert != null) runStageSmoke(out.removeSuffix(".png"), File(concert)) else runSmoke(File(out))
         return
     }
+    // WIN04 (C1) — the CI hook: a release on the loopback interface (refused otherwise), digest required.
+    val updateFrom = args.indexOf("--update-from").takeIf { it >= 0 }?.let { i ->
+        val raw = args.getOrNull(i + 1) ?: run { System.err.println("--update-from needs a URL"); exitProcess(2) }
+        runCatching { loopbackReleaseUrl(raw) }.getOrElse { System.err.println(it.message); exitProcess(2) }
+    }
+    if ("--update-now" in args) {
+        runUpdateNow(updateFrom ?: run { System.err.println("--update-now needs --update-from"); exitProcess(2) })
+        return
+    }
     // D1: the file dialog in the system's look (Windows' own), not Swing's default.
     if (isWindows()) runCatching { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()) }
     // D2: one app per data root; a second launch brings this one forward and exits.
@@ -149,14 +162,43 @@ fun main(args: Array<String>) {
         ?: exitProcess(0)
     // Acceptance 6: the debug wheel log — this run's wheel events, written to the data root on exit (VLL's Surface).
     WheelLog().apply { install(); saveOnExit(File(desktopDataRoot())) }
-    runApp(onWindow = { bringToFront = it })
+    runApp(updateFrom, onWindow = { bringToFront = it })
+}
+
+/**
+ * WIN04 — CI only (`--update-from <loopback URL> --update-now`): the Update button's path without the window — the
+ * check (manual), the download and its verification, then the handoff to the helper, which installs and reopens the
+ * app. Exit codes: 3 no update offered, 4 refused (nothing installed, no helper started).
+ */
+private fun runUpdateNow(releaseUrl: String) {
+    val storage = Storage()
+    val u = DesktopAppUpdate(
+        storage, CoroutineScope(Dispatchers.Default), dataRoot = File(desktopDataRoot()), installedExe = installedMsiExe(),
+        releaseUrl = releaseUrl, requireDigest = true, exitForInstall = { Runtime.getRuntime().halt(0) },
+    )
+    runBlocking {
+        val release = when (val v = u.checkNow(manual = true)) {
+            is UpdateVerdict.Available -> v.release
+            is UpdateVerdict.Dismissed -> v.release
+            else -> { System.err.println("update-now: no update offered ($v, failed=${u.failed})"); exitProcess(3) }
+        }
+        if (installedMsiExe() == null) { System.err.println("update-now: $CANNOT_INSTALL_LINE"); exitProcess(4) }
+        val msi = try {
+            u.downloadAndVerify(release)
+        } catch (e: UpdateRefused) {
+            System.err.println("update-now: refused: ${e.message}"); exitProcess(4)
+        }
+        println("update-now: verified ${msi.name}; handing off")
+        System.out.flush()
+        u.install(msi)
+    }
 }
 
 /** This launch's single-instance claim, held (lock and port) for the app's lifetime. */
 private var instanceClaim: SingleInstance? = null
 
 @OptIn(ExperimentalComposeUiApi::class)
-private fun runApp(onWindow: (bringToFront: () -> Unit) -> Unit) = application {
+private fun runApp(updateFrom: String?, onWindow: (bringToFront: () -> Unit) -> Unit) = application {
     val storage = remember { Storage() }
     val opening = remember { openingPlacement(parsePlacement(storage.getSecret(WINDOW_PLACEMENT_KEY)), screens(), primaryScreen()) }
     // D2: windowed at launch (maximized if it was), at the remembered place.
@@ -165,7 +207,7 @@ private fun runApp(onWindow: (bringToFront: () -> Unit) -> Unit) = application {
         position = WindowPosition(opening.bounds.x.dp, opening.bounds.y.dp),
         size = DpSize(opening.bounds.width.dp, opening.bounds.height.dp),
     )
-    val platform = remember { DesktopAppPlatform(storage, windowState) }
+    val platform = remember { DesktopAppPlatform(storage, windowState).apply { this.updateFrom = updateFrom; exitForInstall = ::exitApplication } }
     var themePref by remember { mutableStateOf(ThemePref.parse(storage.getSecret(ThemePref.KEY))) }
     var askClose by remember { mutableStateOf(false) }
     Window(

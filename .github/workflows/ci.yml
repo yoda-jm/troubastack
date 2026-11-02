@@ -622,6 +622,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          # WIN04 (H1): the data root's folder name holds a space, &, (, ) and %, so the update helper's paths are tested
+          # with every character cmd could misread. The installed app and its helper inherit it.
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "TS data & (x) 100%"
           $n   = "1.0.${{ github.run_number }}"
           $n1  = "1.0.$([int]${{ github.run_number }} + 1)"
           # F2.3 nit — the data root comes FROM THE APP (--print-data-root), not a hard-coded folder name, so CI
@@ -660,18 +663,74 @@ jobs:
           New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
           $marker = Join-Path $dataRoot "marker.txt"; "keep me" | Set-Content $marker
 
-          # Build + install n+1, checking its exit code too.
+          # WIN04 — n → n+1 through the APP's own update path (the Update button's code, driven by --update-now), not msiexec.
+          # A local release on 127.0.0.1 offers the n+1 MSI; the installed n checks, downloads, verifies the SHA-256, hands
+          # off to its helper and exits; the helper installs n+1 and reopens it, which records last-update.txt.
           .\gradlew.bat :desktopApp:packageMsi "-PdesktopVersion=$n1"
           $msiN1 = (Get-ChildItem desktopApp\build\compose\binaries\main\msi\*.msi | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
-          $p2 = Start-Process msiexec.exe -ArgumentList @("/i","`"$msiN1`"","/qn","/norestart","/l*v","$env:RUNNER_TEMP\msi-n1.log") -Wait -PassThru
-          if ($p2.ExitCode -ne 0) { Write-Error "install n+1 (msiexec) failed: exit $($p2.ExitCode)"; exit 1 }
+          $sha = (Get-FileHash -Algorithm SHA256 $msiN1).Hash.ToLower()
+          $size = (Get-Item $msiN1).Length
+          $port = 18765
+          $modeFile = Join-Path $env:RUNNER_TEMP "release-mode.txt"
+          "bad" | Set-Content $modeFile
+          $server = Start-Job -ScriptBlock {
+            param($port, $msi, $sha, $size, $modeFile)
+            $l = [System.Net.HttpListener]::new(); $l.Prefixes.Add("http://127.0.0.1:$port/"); $l.Start()
+            while ($true) {
+              $ctx = $l.GetContext(); $res = $ctx.Response
+              switch ($ctx.Request.Url.AbsolutePath) {
+                "/release.json" {
+                  $digest = if ((Get-Content $modeFile -Raw).Trim() -eq "bad") { "sha256:" + ("0" * 64) } else { "sha256:$sha" }
+                  $json = @{ target_commitish = ("f" * 40); published_at = (Get-Date).ToUniversalTime().AddHours(1).ToString("yyyy-MM-ddTHH:mm:ssZ"); body = "";
+                    assets = @(@{ name = "troubastage-windows.msi"; size = $size; digest = $digest; browser_download_url = "http://127.0.0.1:$port/troubastage-windows.msi" }) } | ConvertTo-Json -Depth 5
+                  $b = [Text.Encoding]::UTF8.GetBytes($json); $res.ContentType = "application/json"; $res.OutputStream.Write($b, 0, $b.Length)
+                }
+                "/troubastage-windows.msi" { $b = [IO.File]::ReadAllBytes($msi); $res.ContentLength64 = $b.Length; $res.OutputStream.Write($b, 0, $b.Length) }
+                default { $res.StatusCode = 404 }
+              }
+              $res.Close()
+            }
+          } -ArgumentList $port, $msiN1, $sha, $size, $modeFile
+          Start-Sleep -Seconds 3
+          $installedExe = Join-Path $install "TroubaStage.exe"
+          if (-not (Test-Path $installedExe)) { Write-Error "installed exe not found at $installedExe"; exit 1 }
+          $release = "http://127.0.0.1:$port/release.json"
+          $updDir = Join-Path $dataRoot "tmp\app-update"
+
+          # C2 — the negative pass first: a wrong SHA-256. The app must refuse (exit 4), msiexec must never run, n stays alone.
+          $bad = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -Wait -PassThru
+          Write-Host "wrong-digest pass: exit $($bad.ExitCode)"
+          if ($bad.ExitCode -ne 4) { Write-Error "the app did not refuse a wrong SHA-256 (exit $($bad.ExitCode), expected 4)"; exit 1 }
+          if ((Test-Path (Join-Path $updDir "msiexec.log")) -or (Test-Path (Join-Path $updDir "result.txt"))) { Write-Error "msiexec ran on a refused update"; exit 1 }
+          $stillN = @(Entries)
+          if ($stillN.Count -ne 1 -or $stillN[0].DisplayVersion -ne $n) { Write-Error "after the refused update: expected ONE entry at $n"; exit 1 }
+          if (-not (Test-Path $marker)) { Write-Error "data-root marker lost on a refused update"; exit 1 }
+          Write-Host "wrong-digest pass OK: refused, no msiexec, one entry at $n, data intact"
+
+          # The good release: the same path, through to the helper, msiexec and the reopen.
+          "good" | Set-Content $modeFile
+          $lastUpdate = Join-Path $dataRoot "last-update.txt"
+          Remove-Item $lastUpdate -ErrorAction SilentlyContinue
+          $good = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -Wait -PassThru
+          Write-Host "good pass: exit $($good.ExitCode)"
+          if ($good.ExitCode -ne 0) { Write-Error "the app did not hand off the update (exit $($good.ExitCode))"; exit 1 }
+          $deadline = (Get-Date).AddSeconds(240)
+          while (-not (Test-Path $lastUpdate) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 3 }
+          Get-ChildItem $updDir -ErrorAction SilentlyContinue | Format-Table Name, Length | Out-String | Write-Host
+          if (Test-Path (Join-Path $updDir "script.log")) { Get-Content (Join-Path $updDir "script.log") | Write-Host }
+          if (-not (Test-Path $lastUpdate)) { Write-Error "no last-update.txt: the helper did not install and reopen n+1 within 240 s"; exit 1 }
+          $lu = Get-Content $lastUpdate -Raw
+          Write-Host "last-update.txt:`n$lu"
+          Get-Process -Name TroubaStage -ErrorAction SilentlyContinue | Stop-Process -Force   # the reopened n+1 (CI runner)
+          Stop-Job $server; Remove-Job $server -Force
+          if ($lu -notmatch "result=success") { Write-Error "the reopened app did not record a successful update"; exit 1 }
 
           $afterUpg = @(Entries)
           $afterUpg | Select-Object DisplayName, DisplayVersion, InstallLocation | Format-Table | Out-String | Write-Host
           if ($afterUpg.Count -ne 1) { Write-Error "expected ONE TroubaStage entry after upgrade, found $($afterUpg.Count)"; exit 1 }
           if ($afterUpg[0].DisplayVersion -ne $n1) { Write-Error "upgraded entry is $($afterUpg[0].DisplayVersion), expected $n1"; exit 1 }
           if (-not (Test-Path $marker)) { Write-Error "data-root marker did NOT survive the upgrade (data root ~ install dir?)"; exit 1 }
-          Write-Host "upgrade-in-place proven: one entry at $n1; data-root marker survived; install dir disjoint from data root"
+          Write-Host "upgrade-in-place proven THROUGH THE APP: refused a wrong digest; then one entry at $n1, reopened ($($lu -replace "`n", ' | ')); data-root marker survived; install dir disjoint from data root"
       - name: upload MSI + smoke PNG
         if: always()
         uses: actions/upload-artifact@v7

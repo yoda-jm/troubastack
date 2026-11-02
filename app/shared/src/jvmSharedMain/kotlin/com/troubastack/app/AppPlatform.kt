@@ -153,6 +153,10 @@ interface AppUpdate {
     fun notNow()
     fun cancel()
 
+    /** WIN04 (H4) — when this copy cannot install updates (the Windows app not installed from its MSI), the one plain
+     *  line Parameters shows instead of Update. null: it can (Android always can). */
+    val installNote: String? get() = null
+
     /** The flow's questions and outcome messages, composed once at the root of [App]. */
     @Composable
     fun Dialogs()
