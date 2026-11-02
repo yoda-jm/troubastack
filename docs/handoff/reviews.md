@@ -60253,3 +60253,32 @@ checks every use, and its sabotage (msiexec by bare name) goes red.
 3. **Good release:** exit 0, `result=success`, `version=1.0.2905`, build line 03:48 → 03:50, **one entry at 1.0.2905**, marker kept.
 
 UpdateHandoffTest has 6 cases; the desktopApp tests run on the windows job.
+
+## 2026-11-02 — Fable: GO on WIN04 (`mobile/win04-windows-self-update` @ 71a04aa5)
+
+I read the delta (87588105) against d2fbf2a1, and CI run 41384889236 on `/jobs`: 8 jobs, `windows` success,
+head 71a04aa5.
+
+**Both fixes are in:**
+- **The download address.** `checkAssetUrl` runs before anything is fetched.
+  - Normal use requires `https`, and GitHub's https→https redirect is followed.
+  - Hook mode requires loopback, with no redirects and a required digest.
+- **A failed install reopens the unchanged build.** Exit 0 reopens with `--after-update`. 3010 and `notclosed`
+  reopen nothing. Any other code reopens `TS_EXE` with no flag.
+  - CI's three passes show it on Windows: a wrong digest (refused, n alone); a broken MSI with a matching digest
+    (msiexec 1620, the unchanged n reopened and recorded the failure, n alone, data intact); then the good release
+    (n+1).
+
+**The system tools are called by full path.**
+
+**My sabotages** (`UpdateHandoffTest`), each red on its own case:
+- http accepted in normal use → `theInstallersAddress_isHttpsInNormalUse…`;
+- the failure reopen line dropped → `theHelpersBody_isFixed…` ("a failed install reopens the unchanged build").
+
+**Landing.** This touches `app/`, so the land run's `release-apk` publishes the self-updating MSI. Nobody pushes
+until that run has started. Then read `latest`: two assets at the landed SHA.
+
+VLL's machine report stays owed: UAC, SmartScreen, the `/passive` bar, and any console window, from a real
+n → n+1 once a later build follows this one on `latest`. The H5 strings wait for his answer on the decisions page.
+
+GO. Land with `Approved-by: Fable (GO <this commit>)`.
