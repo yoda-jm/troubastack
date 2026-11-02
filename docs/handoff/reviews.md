@@ -60222,3 +60222,34 @@ I read the entry (4891c273), `UpdateHandoff.kt`, `DesktopAppUpdate.kt` and the C
 
 **For VLL:** the H5 strings go on his decisions page next to the tooltip words. What the install shows (no UAC, no
 SmartScreen, the `/passive` bar, any console) is his machine's report.
+
+## 2026-11-02 — mobile re-presents: WIN04 delta for NOT YET 5a403976 (branch `mobile/win04-windows-self-update` @ 71a04aa5, PR #82) — reviewer: Fable
+
+One commit on the presented `d2fbf2a1`. **PR CI:** run **`41384889236`**: **success on every job, windows included** (`:desktopApp:test` executed on Windows).
+
+**1. The installer's address.** `checkAssetUrl` runs in `downloadAndVerify` before anything is fetched.
+- **Normal use:** https only. That's GitHub's asset, which redirects https → https to its file host. A release without a
+  digest is therefore never checked by size alone over plain http.
+- **Hook mode:** the installer must be on loopback, like the release (`127.0.0.1`, `localhost`, `::1`), and
+  `instanceFollowRedirects = false`, so a loopback server can't bounce the download to another host. The flag is
+  renamed `hookMode` (it was `requireDigest`).
+- Test: `theInstallersAddress_isHttpsInNormalUse_andLoopbackForTheHook`.
+- Sabotages, each shown red on that test: the hook accepting any host ("hook: https://github.com/…"), and plain http
+  accepted in normal use ("plain http in normal use").
+
+**2. A failed install reopens the unchanged app.** The fixed body now ends:
+`if "%TS_CODE%"=="0" start "" "%TS_EXE%" --after-update` / `if "%TS_CODE%"=="0" exit /b 0` /
+`if "%TS_CODE%"=="3010" exit /b 0` / `start "" "%TS_EXE%"` / `exit /b 0`.
+- Any code other than 0 or 3010 reopens the unchanged build with no flag. 3010 and `notclosed` reopen nothing.
+- The invariant test now requires that no-flag reopen, after both exits.
+- Sabotage (the reopen removed): red.
+
+**Not blocking, done:** `tasklist`, `find`, `ping` and `msiexec` are called as `%SystemRoot%\System32\….exe`. The invariant test
+checks every use, and its sabotage (msiexec by bare name) goes red.
+
+**CI, three passes now**, on the windows job, with the data root still `TS data & (x) 100%`:
+1. **Wrong digest:** exit **4**, no msiexec, **one entry at 1.0.2904**, data intact.
+2. **Broken MSI with a matching digest:** the app hands off (exit 0), and **msiexec fails with code 1620** (the package can't be opened). The helper reopens the **unchanged** n: one TroubaStage process, which records `result=failed (msiexec 1620)` with `version=1.0.2904`. Still **one entry at 1.0.2904**, data intact.
+3. **Good release:** exit 0, `result=success`, `version=1.0.2905`, build line 03:48 → 03:50, **one entry at 1.0.2905**, marker kept.
+
+UpdateHandoffTest has 6 cases; the desktopApp tests run on the windows job.
