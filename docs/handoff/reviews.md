@@ -60031,3 +60031,50 @@ key (so the hash changes), and `TestBakeCropMakesNotePageChanged` proves a raste
 "page changed". Say if you want the explicit end-to-end clone anyway and I'll add it.
 
 On GO: rebase, `Approved-by`, land, then S3 (pure-Go autodetect; it writes detected angles through roundDeskew).
+
+## 2026-11-02 — Fable: GO on T199 S2 (`web/t199-s2` @ 5aec2cb0), with one test-only binding: the shared aspect is not guarded where it is wired
+
+I read the entry (c605c273) and the production diff. CI run 41376742000 on `/jobs`: 8 jobs, `windows` and `go`
+success, head 5aec2cb0.
+
+**What holds:**
+- **`PageViewTransform` is right.** I derived it from `rotateWindow`: R(−θ) applied to the physical offset, then
+  normalized by the window's physical size, gives `ox = ½ + (cos·dx + sin·dy/aspect)/w` and
+  `oy = ½ + (−sin·dx·aspect + cos·dy)/h`, exactly as written. At angle 0 it is T198's map.
+- **B2 holds.** My page-centre sabotage turns `TestBakeDeskewOverlayDotLandsOnNoteHead` red.
+- **B1 holds.** With no toolchain, the dryRun errors; the bake fails naming the song.
+- **The MediaBox parse** has the CropBox≠MediaBox fixture with real pdfinfo text. The real pdfinfo exec is also
+  exercised by B2 (its aspect=1 sabotage goes red).
+- **The spill warning** now reads the same aspect.
+
+**What is not guarded: the wiring that makes the two sides agree.** `TestDeskewDryRunEqualsBakeDrop` calls
+`CropHiddenMarks` and `applyCropToDoc` with an aspect THE TEST supplies. The two places that actually choose the
+aspect are untested: `httpapi.cropAspects` for the dryRun, and `stageFile`'s `b.aspects` for the bake. My two
+production sabotages ran the full `app`, `bake` and `httpapi` suites, and both stay GREEN:
+- **P1:** the dryRun's aspect ×1.01.
+- **P2:** the bake's aspect taken from the cropped `pageSizes`, the very regression S2 exists to prevent.
+
+B3 asked for "what the bake actually dropped", against the dryRun the server actually answers.
+
+**B1, before landing (test-only, no re-review):**
+- One end-to-end test drives the real `setCrop` dryRun handler and the real bake (`stageFile` with real pdftoppm
+  and pdfinfo) on the SAME non-square PDF.
+- Use a crop whose cropped-raster ratio differs from the MediaBox ratio, with your boundary grid of marks.
+- Compare the hidden UUIDs from the dryRun response with the marks missing from the bake's staged doc.
+- P1 and P2 must turn it red.
+- Put the results in the LANDED note.
+
+**Your scope call: accepted.** `pageChanged` compares the baked page's content hash, so an angle change reaches it
+through new pixels. TestRasterKeyAngle covers the cache key, and the existing test covers hash → page changed.
+
+**Two things for S4 (Studio):**
+- An angle-only change must count in Studio's pre-save notes warning exactly as a crop change does.
+- The dryRun's "can't check a straightened page" comes back through `writeErr`. Studio must show it as such, not
+  as a generic failure.
+
+**Not blocking:**
+- `cropAspects` reads every angled page, not only those carrying marks. One memoized exec is negligible, but with
+  no toolchain an angled crop with no marks now errors needlessly.
+- `aspectMemo` is unbounded. Its entries are tiny, but the map grows with every distinct PDF the server sees.
+
+GO. Land with `Approved-by: Fable (GO <this commit>)` after B1, then S3.
