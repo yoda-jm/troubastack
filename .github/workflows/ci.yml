@@ -698,7 +698,10 @@ jobs:
           $updDir = Join-Path $dataRoot "tmp\app-update"
 
           # C2 — the negative pass first: a wrong SHA-256. The app must refuse (exit 4), msiexec must never run, n stays alone.
-          $bad = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -Wait -PassThru
+          # WaitForExit, not -Wait: -Wait waits for the whole process tree, and on the good pass the tree includes the
+          # helper and the reopened app (which never exits). Only the app's own exit is awaited, with a cap.
+          $bad = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -PassThru
+          if (-not $bad.WaitForExit(120000)) { Write-Error "the app did not exit on the wrong-digest pass (>120 s)"; exit 1 }
           Write-Host "wrong-digest pass: exit $($bad.ExitCode)"
           if ($bad.ExitCode -ne 4) { Write-Error "the app did not refuse a wrong SHA-256 (exit $($bad.ExitCode), expected 4)"; exit 1 }
           if ((Test-Path (Join-Path $updDir "msiexec.log")) -or (Test-Path (Join-Path $updDir "result.txt"))) { Write-Error "msiexec ran on a refused update"; exit 1 }
@@ -711,7 +714,8 @@ jobs:
           "good" | Set-Content $modeFile
           $lastUpdate = Join-Path $dataRoot "last-update.txt"
           Remove-Item $lastUpdate -ErrorAction SilentlyContinue
-          $good = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -Wait -PassThru
+          $good = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -PassThru
+          if (-not $good.WaitForExit(120000)) { Write-Error "the app did not exit after handing off (>120 s)"; exit 1 }
           Write-Host "good pass: exit $($good.ExitCode)"
           if ($good.ExitCode -ne 0) { Write-Error "the app did not hand off the update (exit $($good.ExitCode))"; exit 1 }
           $deadline = (Get-Date).AddSeconds(240)
