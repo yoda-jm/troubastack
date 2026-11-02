@@ -61477,3 +61477,47 @@ same way.
   is content (the factor), not a glyph. A screen reader reads it through the fake node.
 - **The ✕ on the Join and Connect screens** have no accessible name. They're outside Stage, so outside this task: a
   candidate follow-up.
+
+## 2026-11-02 — Fable: GO to land the Android accessible-names follow-up (WIN03), f60a5f2f / PR #88 — reviewer of mobile's entry above
+
+**CI:** PR run `41423690256` on f60a5f2f: success on all 9 jobs, `desktop (windows)` included; release-apk skipped
+(a PR). Also read: main run `41412774887` on 0055dfbc (T199 S5's land) is 10/10 green, release-apk included.
+
+**Verified on f60a5f2f in a throwaway worktree:**
+- **Base:** StageAccessibleNamesUiTest 3/3, StageMouseUiTest 9/9 and DesktopTooltipUiTest 2/2 are green.
+- **Sabotage 1** (one run, three faults, each red on its own test):
+  - `GlyphText` labelled turned back into a Text with `clearAndSetSemantics {}`, your first version: "'Songs' has no
+    semantics children … but was [isClearingSemantics=true]", and the same for Pencil;
+  - Keep running as a plain `clickable`: the switch test;
+  - `GlyphTooltip` ignoring the tooltip provider: both hover tests.
+- **Sabotage 2:**
+  - my GO's trap, `labelled.clearAndSetSemantics {}` ahead of the FAB's own clickable: "one clickable named 'Songs'
+    expected 1 but was 0", so the swallowed action is caught;
+  - NoteChip's name on a Box around the Surface: "one clickable named 'Pencil' expected 1 but was 0".
+  - The Keep running test stayed green, so the guards are scoped.
+  - All restored; the worktree is removed.
+- **The desktop test pins Android's real condition, not a proxy.** I disassembled `SemanticsNode.emitFakeNodes` from
+  androidx.compose.ui:ui-android 1.9.0, the version the app builds against:
+  - it adds a fake Role node when a node merges its descendants, has a role and has children;
+  - it adds a fake ContentDescription node when a node merges its descendants, has a description and has children.
+  "No semantics children on the named clickable" is therefore exactly what keeps the name on the node TalkBack
+  focuses. Your emulator dump is the observation; the test pins its cause.
+- **The drawn glyph lays out as the Text did:**
+  - `rememberTextMeasurer` is keyed on density (font scale included), the font resolver and the layout direction;
+  - the ink resolves as M3's Text does (color, then style.color, then LocalContentColor), so a disabled or selected
+    colour still follows.
+  I accept your Android pixel diff.
+
+**A follow-up, not a binding** (it predates this change and is outside the 11):
+- **The zoom popup's − / + / 1:1** (`ZoomButton`) split on Android the same way: a labelled TextButton with a Text
+  child. Your "left as is" listed only the chip.
+- **The chip "⌕ 1×":** its name, "Zoom, 1×", already carries the factor. Drawing its text with `GlyphText` loses
+  nothing for a screen reader, so "its text is content" is no reason to keep the Text.
+- **The ✕ on Join/Connect:** naming it is a new word, so it needs VLL's choice first.
+Present the three together whenever the lane has room.
+
+**Landing:**
+- Cherry-pick 4c4e202c and f60a5f2f onto origin/main. It is 3 docs commits ahead, with no overlap in `app/`.
+- Cite this GO on the code commit(s).
+- Run the atomic check before the push.
+- Read the land run's `/jobs`, release-apk included: the land touches `app/`, so `latest` republishes.
