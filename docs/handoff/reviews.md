@@ -61666,3 +61666,65 @@ eats more than about half a session, stop and report what was tried, with the lo
 Then I relay it to VLL in French.
 
 Meanwhile, WIN06 can fill the runner waits.
+
+## 2026-11-02 — web-core: WIN05 DELTA — B1/B2 measured; the recommendation flips to WebView2 (Fable's holds answered)
+
+Corrects the WIN05 report entry (cccafaec) per Fable's holds (b54f6f69). Report-only; throwaway branch
+`win05-spike`, runner `41441125572`; branch deleted after. **Units: MiB throughout.**
+
+**B1 — WebView2 / SWT.EDGE WORKS on the runner. My earlier "needs an interactive desktop" was WRONG.**
+With a writable `EdgeDataDir` (a temp dir) the Edge/WebView2 environment is created in **832 ms**, `browserType
+== "edge"`, and the bridge round-trip completes in 4.2 s (web→native via `BrowserFunction`, native→web via
+`evaluate`, nav-veto via `LocationListener.changing doit=false`). WebView2 runtime on windows-latest:
+`155.0.4283.62`.
+- **Cause, honestly:** NOT the interactive desktop (main's own smoke draws a window on this image), and NOT
+  the 5 s env-create timeout Fable found in Edge.java — env-create was sub-second (832 ms) once the data dir
+  was writable. The root cause was the DEFAULT WebView2 user-data-dir location being unusable for an app run
+  from the CI binaries dir; it stalled until SWT's 5 s wait fired ("Waiting for Edge operation to terminate
+  timed out"). **Real-task fix: set a writable `EdgeDataDir`** (I also raised the timeout, but 832 ms shows
+  that wasn't the binding constraint — keep it only as insurance for a genuinely slow first launch). An
+  isolating run (EdgeDataDir-only, default timeout) can confirm if you want certainty; the 832 ms is already
+  strong evidence.
+
+**B2 — JCEF offline footprint measured (not a range).** jcefmaven downloads the CEF natives on FIRST launch:
+**371 MiB** (389,303,767 B) into the install dir (0 B on the warm run — confirmed download-once). The 152
+natives come from jcefmaven's own jcefbuild release, NOT Maven Central (Central tops at cef-132/135). So:
+- MSI carries only the jcefmaven jars (+7.69 MiB) — but the **real offline cost is +371 MiB** (bundle it, or
+  download at first run and REQUIRE internet). A bundled offline MSI ≈ baseline + ~371 MiB.
+- Cold start WITH download: init 12.7 s, first-ready 18.6 s. **Cold start WITHOUT download (warm): init 236 ms,
+  first-ready 7.8 s.** So the earlier "~18 s" DID include the download.
+- **Memory (process-tree sum by PPID):** ~310–350 MiB (cold 349.96, warm 310.59) — the real multi-process
+  figure (my earlier 7.7 MiB was parent-only, wrong).
+- Bridge round-trip still OK; security wired: router accepts only our-origin frames, `onBeforeBrowse` cancels
+  navigation away from the origin.
+
+**Sizes, restated in MiB (vs the shipping `latest` MSI 69,042,908 B = 65.85 MiB):**
+| Engine | MSI | installer Δ | real offline Δ | bridge | memory |
+|---|---|---|---|---|---|
+| none (baseline) | 65.93 MiB | — | — | — | — |
+| **WebView2 / SWT.EDGE** | 68.71 MiB | **+2.78 MiB** | **+2.78 MiB** (OS runtime) | OK (4.2 s) | (SWT mem TBD) |
+| Chromium / JCEF | 73.62 MiB | +7.69 MiB | **+371 MiB** (download/bundle) | OK | ~310–350 MiB |
+
+**B4 answers:**
+- **It was a scratch PAGE, not real Studio.** A loopback HTTP page running the exact bridge.ts handshake —
+  isolates the engine's web↔native channel. NOT Studio against a scratch core with the session seeded +
+  `?embedded=1` (that's the next layer; the bridge mechanism is what the spike needed to settle).
+- **JCEF host mapping (for the real task):** cookie seed = `CefCookieManager.setCookie(origin, …)`; bridge =
+  `CefMessageRouter`/cefQuery (web→app) + `executeJavaScript` (app→web); error cover + Retry =
+  `CefLoadHandler.onLoadError` → the app error surface, Retry re-loads `reloadUrl(current, entry)`; Reload =
+  `CefBrowser.reload()`. (SWT equivalents: Edge cookies via the user-data dir / per-view API, `BrowserFunction`
+  + `evaluate`, `ProgressListener`/`StatusTextListener` for errors, `Browser.refresh()`.)
+- **Redistribution obligations (not just names):** Eclipse SWT is EPL-2.0 → ship the EPL text AND the written
+  offer / source-availability notice for the SWT binary. CEF is BSD → ship the CEF licence AND Chromium's
+  third-party notices (chrome://credits content). Both are licence obligations the real task must satisfy.
+
+**Remaining B3 (owed, not blocking the recommendation):** SWT process-tree memory (one quick SWT-only run),
+and pen = pointer-events/sec + frame times in a scripted drag vs Edge. Proposal: pen is VLL's finalist human
+check per constraint 4 (I'll give exact steps for his machine), and a CI pen number is lower-value now that the
+recommendation is settled — say if you still want the CI measurement and I'll build the CDP harness.
+
+**REVISED RECOMMENDATION:** **WebView2 via SWT.EDGE** — now both the smallest (+2.78 MiB, OS runtime,
+offline-ok) AND demonstrated working on the runner (env-create 832 ms, bridge round-trip, fail-loud non-Edge
+guard, nav-veto) — the clear choice, with the real-task caveat "set a writable EdgeDataDir + handle
+runtime-absent." JCEF is the proven fallback but +371 MiB and ~310–350 MiB RAM. System browser remains the
+zero-cost option. Size estimate unchanged except: candidate 1's offline cost is now a measured +371 MiB.
