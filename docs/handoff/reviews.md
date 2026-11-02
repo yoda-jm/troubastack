@@ -60756,3 +60756,57 @@ for both Macs" without that problem. Everything else follows the spec, apart fro
 CI run is on it now), then D3, D4 and D5.
 One entry, with the PR CI green on all three legs and the sabotages: a throwing draw goes red on each OS, and a wrong
 data-root branch goes red.
+
+
+## T199 S4 plan — Studio UI for the deskew angle (web-core)
+
+Adds the angle to T198's crop tool (`web/studio/src/pages/song-editor/{CropOverlay,Viewer}.tsx`, `api.ts`), per
+§Studio UI + your S4 notes. `CropRect.angle` and the "rotate handle mounts here" seams are already on main. No
+core/Go change — S1–S3 cover the server; this is the client.
+
+### Work items
+
+1. **Per-page angle control** (in `CropOverlay`, beside Auto/Reset): a numeric degree field + four step buttons
+   −0.5 / −0.05 / +0.05 / +0.5. Bound to a new `setPageAngle(page, deg)` in Viewer that clamps |deg| ≤ 10 and
+   snaps to 0.05° (the server rounds identically; this keeps the field honest). Reads `cropDraft[page].angle`.
+2. **The window + grid rotate.** Apply `transform: rotate()` about the window centre to `.crop-rect`
+   (`styles.css`), so the interior grid + handles rotate with it (they're children) — the user turns the angle
+   until the grid's horizontals run along the staves (§Studio UI; no separate guide lines). Transform-origin =
+   centre, matching the bake's rotation about the window centre. **Sign:** pinned so the overlay matches the
+   straightened "Tablet view" preview and the spec's +θ-levels-+θ test; I'll verify it visually against the
+   preview and lock it in an e2e.
+3. **Auto-angle buttons:** "Auto angle (this page)" + "Auto angle (all pages)", calling `runAuto` with
+   `deskew: true` (extend `runAuto`'s `sel` + `api.cropDetect` to forward it — B1's opt-in). The existing Auto
+   buttons stay `deskew`-less (upright, T198). The merge already copies whole rects, so the returned angle flows
+   into the draft. A distinct notice ("Auto-straightened N page(s)").
+4. **Preserve the angle on a box edit.** `setPageCrop` currently spreads only `{x,y,w,h}` + stamps
+   `source:"manual"`, dropping any angle; fix it to keep the existing `angle`. (A drag after setting an angle
+   must not wipe the angle.)
+5. **Surface the no-aspect error as itself.** The dry-run `.catch` discards the error and sets a bare
+   `cropWarnError=true` → generic "couldn't check". Capture the `ApiError.message` so the B1 "can't check a
+   straightened page" error shows as itself.
+6. **Reset angle.** Keep Reset (clears box+angle together); add a small "Reset angle" (angle→0, keep box) since
+   the control makes it natural (§Studio UI allows either).
+7. **Pre-save warning already counts the angle** (`cropDirty` + both dry-runs key on the full rect, and the
+   server computes hidden marks with the angle, S2). No new client wiring — I'll confirm it end-to-end and add an
+   e2e that an angle-only change changes the "N annotations outside this crop" warning.
+8. **Preview is free:** `TabletPreview` sends the rect (angle included) to crop-preview and keys its cache on it;
+   the server renders straightened (S1). No client change.
+
+cropGeometry stays angle-0 (the amended §Data model clamps only the UNROTATED box), so its clamp/square math is
+untouched.
+
+### Tests
+- **vitest** (`test/crop-geometry.test.ts` or a new `crop-angle.test.ts`): `setPageAngle` clamps |deg|≤10 and
+  snaps to 0.05°; `setPageCrop` preserves an existing angle; a sabotage (drop the preserve) reds it.
+- **Playwright** (`e2e/editor-crop.spec.ts`): set an angle via the field/steps → Save → the persisted crop carries
+  it; Auto-angle on a crooked page → the proposal's rect has a non-zero angle; the window's `transform` reflects
+  the angle; an angle-only change updates the outside-crop warning; the no-aspect error surfaces its own text.
+
+### Open questions for you
+- **Rotate drag handle:** §Studio UI requires only the numeric control; the seam for a drag handle exists. I plan
+  numeric field + step buttons for S4 and would DEFER a drag handle. OK, or do you want the handle in S4?
+- **Auto vs Auto-angle:** I keep BOTH — Auto = box only (upright, B1), Auto-angle = box + straighten. Confirm.
+- Anything you want from the §Rehearsal-notes "page changed" count beyond the existing outside-crop warning?
+
+On GO: build in a fresh worktree off origin/main, present with a PR CI run (studio e2e + unit; no app/ so windows isn't required, but the PR run includes it).
