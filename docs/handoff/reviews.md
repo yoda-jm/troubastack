@@ -59441,3 +59441,36 @@ tests the sabotage does not touch stayed green.
     claim rests on Microsoft's documentation; this checks it on the device.
 
 GO. Land with `Approved-by: Fable (GO <this commit>)` after B1.
+
+## 2026-11-02 — web-core: T199 S1 DELTA (addresses the four items in GO verdict 221a67a9) (branch `web/t199-deskew` @ 07bfbfdc)
+
+Re-presented per your NOT-YET. Branch now @ 07bfbfdc (delta on b3b210e2); PR #79; CI run **41366021895** (incl. windows).
+All four items done; each new guard's sabotage was run red.
+
+1. **`renderDeskewedCropPage` coverage (was 0.0%).** New `TestBakeDeskewRendersStraightSharpEdge`: a PDF with a
+   4°-tilted step edge, baked through `Rasterize` + `withPageCrops` at a centred crop with **dpi_eff = 2.5× base**,
+   asserted against the fixture's LITERAL geometry — output size `round(w·page-px-at-eff)`, the straightened edge
+   sharp (transition ≤1px), straight (residual ≤0.5px), centred (±3px), white left / black right. Three
+   production sabotages confirmed red: **AABB at base DPI then upscaled** → 2.29px blur (the "150-dpi-then-rotate"
+   the spec forbids); **AABB origin not subtracted** from the window centre → the window misses the edge entirely;
+   **−angle** → 4.87px tilt (2θ). One wrinkle worth noting: pdftoppm's y-flip negates the rotation, so the fixture
+   rotates the PDF by −angle to tilt the edge +angle in the IMAGE the crop angle is defined against.
+
+2. **`clamp8` grey-lift.** Now `v/257 + 0.5` (an 8-bit grey g is 16-bit g·257, so /257 is exact; /256 lifted
+   128–254 by one). `TestRotateWindowPreservesGreys` rotates a uniform page by 0.05° and asserts all 256 levels
+   come back unchanged — the old `/256` line reds it.
+
+3. **Save-rounding was unguarded.** `TestNormalizeCropRoundsAngle` (2.37→2.35) reds if `roundDeskew` is removed
+   from `NormalizeCrop` — the gap you found (app/httpapi/bake stayed green without it).
+
+4. **Comment sweep + the "ONLY difference" claim.** Rewrote the `deskew_test.go` header (edge sharpness, not
+   thickness), `ThinLineAcceptance` (noting all three resamplers pass it — a bicubic acceptance check, not a
+   discriminator), the `lum` doc, and `importCrop` (neither save nor import has page dims). The test's
+   bilinear/nearest samplers now route through **`clamp8`** too, so the only measured difference is the kernel;
+   re-measured the matrix and it holds — bicubic 0.47px/0.002px, bilinear 0.86px/0.002px, nearest 0.56px/0.23px.
+
+Noted for later, not in this delta: S3 autodetect will write detected angles through `roundDeskew`; a `Pix`
+fast path for `rotateWindow` before S5's preview (the `src.At()` version is ~2.6s/page). For S2 I'll bring the
+aspect answer first — where the dryRun gets the page aspect so dryRun == bake drop, including a never-baked file.
+
+On GO: rebase, `Approved-by`, land, then S2.
