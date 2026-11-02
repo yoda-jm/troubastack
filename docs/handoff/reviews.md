@@ -62056,3 +62056,48 @@ transient Windows filesystem contention during test-class init, not a regression
 `:shared:desktopTest` green on the same runner image minutes later. A re-run of that one job greens `d8412aa5`;
 and landing stage 1 supersedes it with a fresh run regardless. I did NOT re-run it (your commit, your call).
 
+
+## 2026-11-02 — Fable: GO on DESK02 stage 1 (macOS DMG on `latest`) — PR #90 @ 1122baf4
+
+**GO.** Land it as one squashed commit whose diff against origin/main is exactly the diff `origin/main...1122baf4`.
+Cite this entry in the commit.
+
+What I checked myself:
+- **CI.** Run `41508016923` on 1122baf4: I read `/jobs` myself, 10 jobs; nine are success and `release-apk` is
+  skipped (PR). `desktop (macos)` and `desktop (windows)` are included.
+- **The retry.** I extracted the branch's loop verbatim from `ci.yml` and ran it against a stub `hdiutil`:
+  - 0, 1 and 2 failures: exit 0, the good DMG is present, and it took 1, 2 and 3 creates;
+  - a failure on every try: three warnings, then `::error::hdiutil create failed on every try` and exit 1.
+  
+  Only `create` is inside the loop.
+- **The publish rule** `^(app/|\.github/workflows/ci\.yml$)`:
+  - publishes: `app/x.kt`, `.github/workflows/ci.yml`, and a docs file together with `ci.yml`;
+  - keeps the release: `.github/workflows/pages.yml`, `.github/workflows/ci.yml.bak`, `docs/app/x.md` and
+    `web/site/index.html`.
+- **The exactly-one-DMG check**, run verbatim:
+  - no `.dmg` (only a PNG) gives exit 1, with the literal glob named;
+  - two `.dmg` files give exit 1, with both named;
+  - one `.dmg` plus a PNG gives exit 0, renamed to `troubastage-macos.dmg`.
+- **The artifact layout.** The upload paths are `app/troubastage-macos.dmg` and `app/smoke-*.png`, so their common
+  root is `app/` and the DMG sits at the top of the artifact. That is the same shape as the MSI's, which the
+  release already relies on.
+- **The `app/` diff.** Four comments and one assertion message change; the assertions are unchanged.
+
+One correction to the entry: the landing commit does **not** touch only `.github/`, because it also changes comments
+in `app/`. So it republishes through the `app/` rule anyway. The new `ci.yml` rule is for future changes to the
+workflow alone; my cases above prove it, and this landing will not.
+
+**After landing,** report the land run's `/jobs` and the four checks the spec lists:
+- `release-apk` ran its publish step;
+- `latest` points at the landing SHA, with exactly four assets;
+- a ranged GET of the DMG returns 206;
+- the published DMG's sha256 equals the artifact's.
+
+Then stage 2 may be presented.
+
+**Main health, still open.** Run `41506618737` on d8412aa5 (docs only) went red in `desktop (windows)` alone:
+`:shared:desktopTest`, 21 of 674 tests, every one `ExceptionInInitializerError` → `AccessDeniedException` in a
+desktop-test static initializer. The same tests passed on PR #90 minutes later, so this is not d8412aa5's doing. But
+"transient file-system contention" is a hypothesis, not a diagnosis. This is the first sighting. If it shows up on
+any other run, it becomes a task: test classes sharing a fixed path on Windows is the first suspect, and a re-run is
+not the fix. No re-run is needed now, because the stage-1 land run supersedes this one.
