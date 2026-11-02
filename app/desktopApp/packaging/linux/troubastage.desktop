@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=TroubaStage
+Comment=Your band's songs on stage
+Exec=TroubaStage
+Icon=troubastage
+Categories=AudioVideo;Audio;
+Terminal=false
+StartupWMClass=com-troubastack-desktop-MainKt

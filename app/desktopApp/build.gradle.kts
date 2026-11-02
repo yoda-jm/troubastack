@@ -1,4 +1,4 @@
-// TroubaStage :desktopApp — the thin desktop (Windows) entrypoint (WIN02), the analog of :androidApp.
+// TroubaStage :desktopApp — the thin desktop (Windows, Linux, macOS) entrypoint (WIN02, DESK01), the analog of :androidApp.
 // Compose for Desktop application{} + a per-user MSI via nativeDistributions. Holds no logic of its own:
 // a skeleton window (title + build line) now; WIN03 puts the Stage app in it. Depends only on :shared (I14).
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
@@ -19,7 +19,14 @@ kotlin {
 
 dependencies {
     implementation(project(":shared"))
-    implementation(compose.desktop.currentOs) // Compose for Desktop runtime (skiko) for this OS
+    // Compose for Desktop runtime (skiko) for this OS — on macOS for BOTH Mac architectures (DESK01 D3): the universal
+    // app's two builds then carry the same app/ folder, and Skiko picks its own runtime by os.arch at launch.
+    if (System.getProperty("os.name").startsWith("Mac")) {
+        implementation(compose.desktop.macos_arm64)
+        implementation(compose.desktop.macos_x64)
+    } else {
+        implementation(compose.desktop.currentOs)
+    }
     implementation(compose.material3)         // currentOs bundles Material 2; the app uses Material 3
     implementation(libs.jna)                   // WIN03: SetThreadExecutionState, GetTickCount64 (already :shared's)
     implementation(libs.jna.platform)
@@ -30,6 +37,11 @@ dependencies {
 // -PdesktopVersion=1.0.<run_number> (monotonic per repo, mirrors :androidApp's versionCode); a local build
 // stays 1.0.0. MSI ProductVersion fields cap at 255.255.65535, which 1.0.<run_number> clears for a long time.
 val desktopVersion: String = (findProperty("desktopVersion") as String?) ?: "1.0.0"
+
+// DESK01 — the brand mark as the window's icon (Main.kt's appIcon), from the same file the Linux packages use.
+tasks.processResources {
+    from("icons") { include("troubastage.png") }
+}
 
 // WIN03 — tests that build the desktop platform open a Storage(): point its data root at the build dir, never a profile.
 tasks.withType<Test>().configureEach {
@@ -60,6 +72,15 @@ compose.desktop {
                 // No dirChooser: a per-user install must not let the user pick an admin-only folder.
                 // The brand mark as a multi-size .ico (see icons/README.md for the exact build command).
                 iconFile.set(project.file("icons/troubastage.ico"))
+            }
+            // DESK01 D2 — the Linux app image (wrapped as an AppImage by packaging/linux/make-appimage.sh).
+            linux {
+                iconFile.set(project.file("icons/troubastage.png"))
+            }
+            // DESK01 D3 — each Mac build (arm64, x86_64); packaging/macos/make-universal.sh joins the two into one app.
+            macOS {
+                bundleID = "com.troubastack.troubastage"
+                iconFile.set(project.file("icons/troubastage.icns"))
             }
         }
     }

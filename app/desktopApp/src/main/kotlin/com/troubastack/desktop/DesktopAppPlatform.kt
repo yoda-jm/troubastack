@@ -21,7 +21,6 @@ import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.WindowState
 import com.sun.jna.platform.win32.Kernel32
-import com.sun.jna.platform.win32.WinBase
 import com.troubastack.app.AppPlatform
 import com.troubastack.app.AppUpdate
 import com.troubastack.app.BackDispatcher
@@ -35,7 +34,9 @@ import com.troubastack.app.SkiaNoteBitmapCodec
 import com.troubastack.app.StudioHost
 import com.troubastack.shared.distribution.ServerDiscovery
 import com.troubastack.shared.buildinfo.UPDATE_RELEASE_URL
+import com.troubastack.shared.seams.HostOs
 import com.troubastack.shared.seams.Storage
+import com.troubastack.shared.seams.hostOs
 import com.troubastack.shared.seams.desktopDataRoot
 import com.sun.jna.platform.win32.Advapi32Util
 import com.sun.jna.platform.win32.WinReg
@@ -121,6 +122,9 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
         DesktopAppUpdate(
             s, scope, dataRoot = File(desktopDataRoot()), installedExe = installedMsiExe(),
             releaseUrl = updateFrom ?: UPDATE_RELEASE_URL, hookMode = updateFrom != null,
+            // DESK01: Windows installs its MSI (WIN04); Linux and macOS open their download in the browser.
+            assetName = updateAssetFor(hostOs),
+            openInBrowser = if (hostOs == HostOs.WINDOWS) null else ::openUrl,
             exitForInstall = { exitForInstall() },
         ).also { it.reportLastHandoff(); update = it }
     }
@@ -189,18 +193,32 @@ internal fun isWindows(): Boolean = System.getProperty("os.name").orEmpty().star
 /**
  * T147's chrono contract: a monotonic clock that keeps counting through sleep. On Windows that is GetTickCount64
  * (documented to include sleep and hibernation; QueryPerformanceCounter, behind System.nanoTime, is not documented
- * either way). Elsewhere System.nanoTime, which on Linux is CLOCK_MONOTONIC and does NOT count a suspend: the Linux
- * desktop is a developer run, not a target.
+ * either way). On Linux (DESK01) CLOCK_BOOTTIME: System.nanoTime there is CLOCK_MONOTONIC, which stops during a
+ * suspend; on macOS CLOCK_MONOTONIC through clock_gettime_nsec_np, which counts sleep (nanoTime there does not).
+ * Chosen once, so the clock never switches source mid-run; System.nanoTime only if none is available.
  */
-private fun monotonicMs(): Long =
-    if (isWindows()) Kernel32.INSTANCE.GetTickCount64() else System.nanoTime() / 1_000_000
+private val monotonicMs: () -> Long by lazy {
+    when {
+        isWindows() -> { -> Kernel32.INSTANCE.GetTickCount64() }
+        isLinux() && linuxBootTimeMs() != null -> { -> linuxBootTimeMs() ?: (System.nanoTime() / 1_000_000) }
+        macMonotonicMs() != null -> { -> macMonotonicMs() ?: (System.nanoTime() / 1_000_000) }
+        else -> { -> System.nanoTime() / 1_000_000 }
+    }
+}
 
-/** SetThreadExecutionState holds for the calling thread; Compose calls this on the AWT event thread, which lives as
- *  long as the app. A no-op off Windows. */
-private fun keepDisplayOn(on: Boolean) {
-    if (!isWindows()) return
-    val flags = if (on) WinBase.ES_CONTINUOUS or WinBase.ES_DISPLAY_REQUIRED or WinBase.ES_SYSTEM_REQUIRED else WinBase.ES_CONTINUOUS
-    Kernel32.INSTANCE.SetThreadExecutionState(flags)
+private val displaySleep: DisplaySleep by lazy { displaySleepForThisOs() }
+
+/** Stage's hold on the display (see [DisplaySleep]); never throws. */
+private fun keepDisplayOn(on: Boolean) = runCatching { displaySleep.hold(on) }.let { }
+
+/** DESK01 — an https address in the default browser: AWT's Desktop where it can, else the system's opener. */
+internal fun openUrl(url: String) {
+    val desktop = runCatching { java.awt.Desktop.getDesktop() }.getOrNull()
+    if (desktop?.isSupported(java.awt.Desktop.Action.BROWSE) == true) {
+        desktop.browse(java.net.URI(url))
+    } else {
+        ProcessBuilder(if (hostOs == HostOs.MACOS) "/usr/bin/open" else "xdg-open", url).start()
+    }
 }
 
 /** The system file dialog, filtered to `.tstage` with the "All files" fallback (D1). Null when cancelled. */

@@ -18,6 +18,12 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import org.jetbrains.skia.Image as SkiaImage
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerButton
@@ -39,6 +45,8 @@ import com.troubastack.shared.stage.StageScreen
 import com.troubastack.shared.stage.StageViewModel
 import androidx.compose.material3.lightColorScheme
 import com.troubastack.shared.stage.LocalGlyphTooltip
+import com.troubastack.shared.stage.CommandModifier
+import com.troubastack.shared.stage.LocalCommandModifier
 import com.troubastack.shared.stage.LocalStagePointerIcons
 import com.troubastack.shared.ui.LocalMaxContentWidth
 import com.troubastack.shared.ui.ThemePref
@@ -78,7 +86,9 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.troubastack.shared.buildinfo.appBuildLine
+import com.troubastack.shared.seams.HostOs
 import com.troubastack.shared.seams.Storage
+import com.troubastack.shared.seams.hostOs
 import com.troubastack.shared.seams.desktopDataRoot
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
@@ -210,10 +220,19 @@ private fun runApp(updateFrom: String?, onWindow: (bringToFront: () -> Unit) -> 
     val platform = remember { DesktopAppPlatform(storage, windowState).apply { this.updateFrom = updateFrom; exitForInstall = ::exitApplication } }
     var themePref by remember { mutableStateOf(ThemePref.parse(storage.getSecret(ThemePref.KEY))) }
     var askClose by remember { mutableStateOf(false) }
+    // D2: closing mid-concert asks first (an accidental close is A79's failure again).
+    val requestClose = { if (platform.inConcert) askClose = true else exitApplication() }
+    // DESK01 D3: Cmd+Q (and the app menu's and the Dock's Quit) take the window's close path, question included,
+    // instead of the JDK's default System.exit.
+    LaunchedEffect(Unit) {
+        if (hostOs == HostOs.MACOS) runCatching {
+            java.awt.Desktop.getDesktop().setQuitHandler { _, response -> response.cancelQuit(); requestClose() }
+        }
+    }
     Window(
-        // D2: closing mid-concert asks first (an accidental close is A79's failure again).
-        onCloseRequest = { if (platform.inConcert) askClose = true else exitApplication() },
+        onCloseRequest = requestClose,
         title = "TroubaStage",
+        icon = appIcon,
         state = windowState,
         onKeyEvent = { e -> windowKey(e, platform) },
     ) {
@@ -232,6 +251,7 @@ private fun runApp(updateFrom: String?, onWindow: (bringToFront: () -> Unit) -> 
             // D7: list screens keep a readable width on a big window (Android leaves it full width).
             CompositionLocalProvider(
                 LocalStagePointerIcons provides stagePointer,
+                LocalCommandModifier provides if (hostOs == HostOs.MACOS) CommandModifier.META else CommandModifier.CTRL,
                 LocalGlyphTooltip provides desktopGlyphTooltip,
                 LocalMaxContentWidth provides 960.dp,
             ) {
@@ -257,19 +277,43 @@ private fun runApp(updateFrom: String?, onWindow: (bringToFront: () -> Unit) -> 
     }
 }
 
+/** D2/D4 — what a key does to the window, whatever screen has the focus. */
+internal enum class WindowAction { TOGGLE_FULL_SCREEN, ESCAPE, BACK }
+
 /**
- * D2/D4 — the window's own keys, after the focused screen has had them (a dialog closes on its own Esc first):
- * F11 toggles full screen everywhere; Esc is Back (in a concert, stageBackAction: the drawer, then full screen,
- * never the concert); Alt+Left is Back outside a concert. Where nothing handles Back, Esc leaves full screen.
+ * D2/D4 — the window's own keys, per OS (DESK01 D3), after the focused screen has had them (a dialog closes on its own
+ * Esc first). Full screen: F11 on Windows and Linux, Ctrl+Cmd+F on macOS (F11 is the system's there). Esc everywhere.
+ * Back outside a concert: Alt+Left; on macOS Cmd+[ and Cmd+Left, as in its browsers. Pure, for the per-OS tests.
  */
+internal fun windowAction(os: HostOs, key: Key, ctrl: Boolean, alt: Boolean, meta: Boolean, inConcert: Boolean): WindowAction? = when {
+    key == Key.Escape -> WindowAction.ESCAPE
+    os == HostOs.MACOS -> when {
+        key == Key.F && ctrl && meta -> WindowAction.TOGGLE_FULL_SCREEN
+        meta && !ctrl && !alt && (key == Key.LeftBracket || key == Key.DirectionLeft) && !inConcert -> WindowAction.BACK
+        else -> null
+    }
+    key == Key.F11 -> WindowAction.TOGGLE_FULL_SCREEN
+    key == Key.DirectionLeft && alt && !inConcert -> WindowAction.BACK
+    else -> null
+}
+
+/** Esc is Back (in a concert, stageBackAction: the drawer, then full screen, never the concert); where nothing
+ *  handles Back, it leaves full screen. */
 private fun windowKey(e: KeyEvent, platform: DesktopAppPlatform): Boolean {
     if (e.type != KeyEventType.KeyDown) return false
-    return when {
-        e.key == Key.F11 -> { platform.window.toggleFullScreen(); true }
-        e.key == Key.Escape -> platform.back.dispatch() || (platform.window.fullScreen && run { platform.window.toggleFullScreen(); true })
-        e.key == Key.DirectionLeft && e.isAltPressed && !platform.inConcert -> platform.back.dispatch()
-        else -> false
+    return when (windowAction(hostOs, e.key, e.isCtrlPressed, e.isAltPressed, e.isMetaPressed, platform.inConcert)) {
+        WindowAction.TOGGLE_FULL_SCREEN -> { platform.window.toggleFullScreen(); true }
+        WindowAction.ESCAPE -> platform.back.dispatch() || (platform.window.fullScreen && run { platform.window.toggleFullScreen(); true })
+        WindowAction.BACK -> platform.back.dispatch()
+        null -> false
     }
+}
+
+/** DESK01 — the brand mark as the window's icon (the title bar and task bar on Windows and Linux; Java's cup before). */
+private val appIcon: Painter? by lazy {
+    runCatching {
+        WindowAction::class.java.getResourceAsStream("/troubastage.png")?.use { BitmapPainter(SkiaImage.makeFromEncoded(it.readBytes()).toComposeImageBitmap()) }
+    }.getOrNull()
 }
 
 /** D2 — save the windowed bounds and the maximized state as they change (not full screen, which is never restored
@@ -415,6 +459,9 @@ private fun runStageSmoke(prefix: String, tstage: File) {
                 val ok = rendered.isSuccess && pngs.all { it.isFile && it.length() > 0 } && windowDrew
                 if (ok) println("smoke: OK — Stage drew in the window after $frames frame ticks; PNGs ${pngs.map { "${it.name} ${it.length()} B" }}")
                 else System.err.println("smoke: FAILED — rendered=${rendered.isSuccess} windowDrew=$windowDrew pngs=${pngs.map { it.length() }}")
+                // DESK01 — the PNGs are rendered off-screen BEFORE the window is checked, so they are no proof; this file is,
+                // written only here, once the real window drew (for a launch whose exit code is not seen: LaunchServices).
+                if (ok) File("$prefix-ok.txt").writeText("drew after $frames frame ticks\n")
                 System.out.flush()
                 System.err.flush()
                 Runtime.getRuntime().halt(if (ok) 0 else 1)

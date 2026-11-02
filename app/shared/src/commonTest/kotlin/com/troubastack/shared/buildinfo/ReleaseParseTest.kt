@@ -58,6 +58,22 @@ class ReleaseParseTest {
     }
 
     @Test
+    fun with_every_platforms_asset_each_platform_gets_its_own() {
+        // DESK01 D4 — the release with the AppImage (and, once published, the DMG): each OS picks its asset by name.
+        val all = twoAssets.replace(
+            "\"assets\":[",
+            "\"assets\":[{\"name\":\"$UPDATE_ASSET_DMG\",\"size\":115000000,\"browser_download_url\":\"https://github.com/yoda-jm/troubastack/releases/download/latest/$UPDATE_ASSET_DMG\"}," +
+                "{\"name\":\"$UPDATE_ASSET_APPIMAGE\",\"size\":120000000,\"digest\":\"sha256:${"a".repeat(64)}\"," +
+                "\"browser_download_url\":\"https://github.com/yoda-jm/troubastack/releases/download/latest/$UPDATE_ASSET_APPIMAGE\"},",
+        )
+        val sizes = listOf(UPDATE_ASSET_APK, UPDATE_ASSET_MSI, UPDATE_ASSET_APPIMAGE, UPDATE_ASSET_DMG).map { parseRelease(all, it)?.assetSize }
+        assertEquals(listOf(15_753_501L, 68_879_068L, 120_000_000L, 115_000_000L), sizes)
+        assertEquals("a".repeat(64), parseRelease(all, UPDATE_ASSET_APPIMAGE)?.assetSha256)
+        assertNull(parseRelease(twoAssets, UPDATE_ASSET_DMG), "no DMG on latest (until a person has tested it): no update for macOS")
+        assertNull(parseRelease(twoAssets, UPDATE_ASSET_APPIMAGE))
+    }
+
+    @Test
     fun a_release_with_only_the_apk_is_no_update_for_windows_not_an_error() {
         assertNull(parseRelease(real, UPDATE_ASSET_MSI))
     }

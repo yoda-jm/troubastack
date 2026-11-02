@@ -9,6 +9,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.troubastack.app.AppUpdate
 import com.troubastack.shared.buildinfo.LatestRelease
+import com.troubastack.shared.buildinfo.UPDATE_ASSET_APPIMAGE
+import com.troubastack.shared.buildinfo.UPDATE_ASSET_DMG
 import com.troubastack.shared.buildinfo.UPDATE_ASSET_MSI
 import com.troubastack.shared.buildinfo.UPDATE_RELEASE_URL
 import com.troubastack.shared.buildinfo.UpdateVerdict
@@ -20,6 +22,7 @@ import com.troubastack.shared.buildinfo.parseRelease
 import com.troubastack.shared.buildinfo.shouldAutoCheck
 import com.troubastack.shared.buildinfo.updateVerdict
 import com.troubastack.shared.buildinfo.utcMinute
+import com.troubastack.shared.seams.HostOs
 import com.troubastack.shared.seams.Storage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -43,6 +46,16 @@ private const val TIMEOUT_MS = 10_000
 /** H4 — the line a copy that cannot install shows instead of Update. */
 const val CANNOT_INSTALL_LINE = "This copy of TroubaStage can't update itself: install it from the MSI on the latest release."
 
+/** DESK01 (link mode, Linux and macOS) — the line under Update, which opens the download instead of installing. */
+const val OPENS_DOWNLOAD_LINE = "Opens the download in your browser"
+
+/** DESK01 D4 — the `latest` asset that is this OS's app. */
+fun updateAssetFor(os: HostOs): String = when (os) {
+    HostOs.WINDOWS -> UPDATE_ASSET_MSI
+    HostOs.LINUX -> UPDATE_ASSET_APPIMAGE
+    HostOs.MACOS -> UPDATE_ASSET_DMG
+}
+
 /**
  * WIN04 — the Windows app's update (A88's twin): the shared decisions (updateVerdict, shouldAutoCheck), the same
  * surfaces and words (Home's banner, Parameters' rows), the MSI from the `latest` release.
@@ -54,6 +67,9 @@ const val CANNOT_INSTALL_LINE = "This copy of TroubaStage can't update itself: i
  * [installedExe] is the MSI-installed launcher, or null when this copy is not one (H4): then Update is not offered.
  * [releaseUrl] and [hookMode] are the CI hook's (`--update-from`, C1): its release AND the installer it names must be
  * on loopback, a digest is required, and no redirect is followed. Normal use is GitHub's release over https.
+ *
+ * DESK01 — [openInBrowser] set is the LINK mode (Linux, macOS): the same check, banner and rows for [assetName], and
+ * Update opens the asset's https download in the browser instead of installing it ([OPENS_DOWNLOAD_LINE] says so).
  */
 class DesktopAppUpdate(
     private val storage: Storage,
@@ -62,8 +78,11 @@ class DesktopAppUpdate(
     private val installedExe: File?,
     private val releaseUrl: String = UPDATE_RELEASE_URL,
     private val hookMode: Boolean = false,
+    private val assetName: String = UPDATE_ASSET_MSI,
+    private val openInBrowser: ((String) -> Unit)? = null,
     private val exitForInstall: () -> Unit,
 ) : AppUpdate {
+    private val linkMode: Boolean get() = openInBrowser != null
     enum class Ask { CONFIRM_INSTALL }
 
     override var verdict by mutableStateOf<UpdateVerdict?>(null); private set
@@ -80,10 +99,12 @@ class DesktopAppUpdate(
 
     private val updateDir: File get() = File(dataRoot, "tmp/app-update")
 
-    override val installNote: String? get() = if (installedExe == null) CANNOT_INSTALL_LINE else null
+    override val installNote: String? get() = if (!linkMode && installedExe == null) CANNOT_INSTALL_LINE else null
+
+    override val actionNote: String? get() = if (linkMode) OPENS_DOWNLOAD_LINE else null
 
     override val bannerText: String?
-        get() = if (installedExe == null) null
+        get() = if (!linkMode && installedExe == null) null
         else (verdict as? UpdateVerdict.Available)?.let { "App update available · built " + (utcMinute(it.release.publishedAt) ?: it.release.publishedAt) }
 
     override fun maybeAutoCheck() {
@@ -101,9 +122,10 @@ class DesktopAppUpdate(
     /** The check itself (the button's and the CI hook's): the release, then the shared verdict. */
     suspend fun checkNow(manual: Boolean): UpdateVerdict? {
         storage.putSecret(K_LAST_CHECK, System.currentTimeMillis().toString()) // a failure counts: try again tomorrow
-        val release = fetchLatest()
-        failed = release == null
-        verdict = release?.let { updateVerdict(appBuildGit, appBuildBuiltAt, it, storage.getSecret(K_DISMISSED), manual) }
+        val fetched = fetchLatest()
+        failed = fetched == null
+        // A release without this OS's asset is no update here, not a failure (macOS until its DMG is published).
+        verdict = fetched?.release?.let { updateVerdict(appBuildGit, appBuildBuiltAt, it, storage.getSecret(K_DISMISSED), manual) }
         return verdict
     }
 
@@ -116,6 +138,11 @@ class DesktopAppUpdate(
     /** Update: download and verify the MSI, then ask once before closing to install it. */
     override fun update() {
         val release = when (val v = verdict) { is UpdateVerdict.Available -> v.release; is UpdateVerdict.Dismissed -> v.release; else -> return }
+        openInBrowser?.let { open ->
+            message = runCatching { checkAssetUrl(release.assetUrl, hook = false); open(release.assetUrl) }
+                .exceptionOrNull()?.let { (it as? UpdateRefused)?.message ?: "The download page could not be opened." }
+            return
+        }
         if (installedExe == null) { message = CANNOT_INSTALL_LINE; return }
         if (job != null) return
         progress = 0f
@@ -219,7 +246,11 @@ class DesktopAppUpdate(
         }
     }
 
-    private suspend fun fetchLatest(): LatestRelease? = withContext(Dispatchers.IO) {
+    /** The release as fetched: [release] is null when it has no asset for this OS. */
+    private class Fetched(val release: LatestRelease?)
+
+    /** null: the check failed (network, HTTP, unreadable JSON). */
+    private suspend fun fetchLatest(): Fetched? = withContext(Dispatchers.IO) {
         runCatching {
             val c = (URL(releaseUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = TIMEOUT_MS; readTimeout = TIMEOUT_MS
@@ -228,7 +259,7 @@ class DesktopAppUpdate(
             }
             try {
                 if (c.responseCode != 200) return@runCatching null
-                parseRelease(c.inputStream.bufferedReader().use { it.readText() }, UPDATE_ASSET_MSI)
+                Fetched(parseRelease(c.inputStream.bufferedReader().use { it.readText() }, assetName))
             } finally { c.disconnect() }
         }.getOrNull()
     }

@@ -3,6 +3,9 @@ package com.troubastack.shared.stage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.PointerKeyboardModifiers
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
 import kotlin.math.abs
 
 /** WIN03 D3 — a wheel gesture has ended after this long without a wheel event. */
@@ -61,6 +64,19 @@ fun stageCursorHidden(idleMs: Long, noteMode: Boolean, overChrome: Boolean, over
 class StagePointerIcons(val hidden: PointerIcon, val pen: PointerIcon = PointerIcon.Crosshair)
 
 val LocalStagePointerIcons = staticCompositionLocalOf<StagePointerIcons?> { null }
+
+/** DESK01 D3 — the modifier that turns the wheel into note mode's zoom: Ctrl (Windows, Linux, and Android's default,
+ *  unchanged), Cmd on macOS, where Ctrl+scroll is the system's own accessibility zoom. */
+enum class CommandModifier {
+    CTRL, META;
+
+    fun isHeld(keys: PointerKeyboardModifiers): Boolean = when (this) {
+        CTRL -> keys.isCtrlPressed
+        META -> keys.isMetaPressed
+    }
+}
+
+val LocalCommandModifier = staticCompositionLocalOf { CommandModifier.CTRL }
 
 /** WIN03 D3 — shows a glyph-only Stage button's label on hover. null (Android, iOS): no tooltips. */
 val LocalGlyphTooltip = staticCompositionLocalOf<(@Composable (label: String, content: @Composable () -> Unit) -> Unit)?> { null }

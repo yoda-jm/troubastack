@@ -34,16 +34,24 @@ val buildChannel: String = run {
     if (inCi && !gitDescribe.endsWith("-dirty") && gitDescribe != "unknown") "ci" else "dev"
 }
 
+// DESK01 — `-PbuiltAt=2026-11-02T06:03:00Z` stamps a given minute instead of now: the macOS universal app is two builds
+// (arm64, x86_64) that must carry ONE build identity, as the update check compares it.
+val builtAtOverride: String? = (findProperty("builtAt") as String?)?.also {
+    require(Regex("""^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00Z$""").matches(it)) { "-PbuiltAt must be an ISO-8601 UTC minute, e.g. 2026-11-02T06:03:00Z: [$it]" }
+}
+
 val generateBuildInfo by tasks.registering {
     val out = layout.buildDirectory.dir("generated/buildinfo/commonMain/kotlin")
     val hash = gitDescribe
     val channel = buildChannel
+    val fixedBuiltAt = builtAtOverride
     inputs.property("hash", hash)
     inputs.property("channel", channel)
+    inputs.property("builtAt", fixedBuiltAt ?: "now")
     outputs.dir(out)
     outputs.upToDateWhen { false } // the build time is part of the output
     doLast {
-        val builtAt = Instant.now().truncatedTo(ChronoUnit.MINUTES).toString()
+        val builtAt = fixedBuiltAt ?: Instant.now().truncatedTo(ChronoUnit.MINUTES).toString()
         val dir = out.get().asFile.resolve("com/troubastack/shared/buildinfo")
         dir.mkdirs()
         dir.resolve("BuildInfo.kt").writeText(

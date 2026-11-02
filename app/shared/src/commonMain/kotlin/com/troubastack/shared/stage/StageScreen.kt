@@ -141,7 +141,6 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -693,14 +692,15 @@ private fun Performing(
         // WIN03 D3 — the mouse wheel and touchpad (touch never sends wheel events). One gesture turns at most one page
         // (wheelStep). Page and two-up turn on a new gesture; width mode scrolls natively and turns only on a new gesture
         // at the edge, and a gesture that turned is swallowed to its end; scroll mode is the column's own scroll and never
-        // turns. In note mode the plain wheel does nothing and Ctrl+wheel zooms one A86 step per gesture; outside it
-        // Ctrl+wheel does nothing. Lock swipe locks the wheel's turns, as it does the drag's.
+        // turns. In note mode the plain wheel does nothing and Ctrl+wheel (Cmd+wheel on macOS, LocalCommandModifier) zooms
+        // one A86 step per gesture; outside it that wheel does nothing. Lock swipe locks the wheel's turns, as it does the
+        // drag's.
         val wheel = remember { WheelState() }
-        val onWheel = rememberUpdatedState { dx: Float, dy: Float, ctrl: Boolean, atMs: Long ->
+        val onWheel = rememberUpdatedState { dx: Float, dy: Float, command: Boolean, atMs: Long ->
             when {
                 scrollMode -> false
                 state.noteMode -> {
-                    if (ctrl) {
+                    if (command) {
                         val z = wheelStep(wheel.zoom, dx, dy, atMs) { true }
                         wheel.zoom = z.gesture
                         when (z.turn) {
@@ -711,7 +711,7 @@ private fun Performing(
                     }
                     true
                 }
-                ctrl -> true
+                command -> true
                 else -> {
                     val widthEdges = activeWidthScroll.takeIf { state.fitMode == FitMode.FIT_WIDTH && !currentIsIntermission }
                     val step = wheelStep(wheel.turns, dx, dy, atMs) { turn ->
@@ -784,7 +784,7 @@ private fun Performing(
                     if (scrollMode || state.swipeLocked || state.noteMode) Modifier
                     else Modifier.pointerInputSwipe(twoUp, latestPrev, latestNext)
                 )
-                .stageWheel(onWheel)
+                .stageWheel(onWheel, LocalCommandModifier.current)
                 .then(pointerMod),
         ) {
             when {
@@ -1350,14 +1350,17 @@ private class WheelState {
 
 /** WIN03 D3 — wheel events on their way down (the Initial pass, before a width page's own scroll sees them), handed to
  *  [onWheel] with the event's time; true consumes the event. */
-private fun Modifier.stageWheel(onWheel: State<(dx: Float, dy: Float, ctrl: Boolean, atMs: Long) -> Boolean>): Modifier =
-    pointerInput(Unit) {
+private fun Modifier.stageWheel(
+    onWheel: State<(dx: Float, dy: Float, command: Boolean, atMs: Long) -> Boolean>,
+    command: CommandModifier,
+): Modifier =
+    pointerInput(command) {
         awaitPointerEventScope {
             while (true) {
                 val e = awaitPointerEvent(PointerEventPass.Initial)
                 if (e.type != PointerEventType.Scroll) continue
                 val c = e.changes.firstOrNull() ?: continue
-                if (onWheel.value(c.scrollDelta.x, c.scrollDelta.y, e.keyboardModifiers.isCtrlPressed, c.uptimeMillis)) e.changes.forEach { it.consume() }
+                if (onWheel.value(c.scrollDelta.x, c.scrollDelta.y, command.isHeld(e.keyboardModifiers), c.uptimeMillis)) e.changes.forEach { it.consume() }
             }
         }
     }
