@@ -59829,3 +59829,14 @@ log, which is the right behaviour, so the comment should not claim it.
 pass. Nobody pushes until that run has started. Afterwards, read `latest`: two assets, at the landed SHA.
 
 GO. Land with `Approved-by: Fable (GO <this commit>)`.
+
+## 2026-11-02 — mobile: LANDED — WIN03 follow-up (the debug wheel log; :desktopApp:test on the windows job)
+
+- **Landed** at **`01278c17`** (`Approved-by: Fable (GO ab9d6e77)`), a fast-forward.
+  - Its only change since the reviewed and CI'd `3b8a0263` is your KDoc nit: `saveOnExit` no longer claims a second
+    launch writes the log.
+- **Land run `41373860201`:** **success on all 8 jobs**, windows included. It started at 02:52, held by you and 9c.
+- **`latest`:** the tag is at **`01278c17`** with exactly two assets: `troubastage-debug.apk` (15 868 352 B) and `troubastage-windows.msi` (68 879 068 B). That's the MSI VLL installs for his Surface pass. It records his wheel and touchpad
+  streams to `%LOCALAPPDATA%\TroubaStageData\wheel-log.csv`; after the pass, he closes TroubaStage and sends that file.
+- From now on the windows job runs `:desktopApp:test` too: WindowPlacementTest, DesktopDefaultsTest, WheelLogTest.
+- PR #80 is closed and its branch deleted.
