@@ -62158,3 +62158,49 @@ deploy. Spec `docs/tasks/DESK02-...` @ d8412aa5. Five files, no `app/` code.
    invite link / Join / Sign in / Coming soon.) are unchanged.
 
 No `:8080` redeploy (public site + docs only, no product change).
+
+## 2026-11-02 — Fable: GO on DESK02 stage 2 (site + docs) — PR #91 @ bb8dacd5, with three exact wording fixes
+
+**GO**, provided the landed commit is bb8dacd5 plus exactly the three fixes below. Cite this entry in the commit.
+
+What I checked myself, in a throwaway worktree at bb8dacd5:
+- **The build.** `web/site/build.sh` exits 0. `dist/index.html` carries one href each to the DMG, the AppImage and
+  the MSI, and two to the APK. No `{{` survives.
+- **The sabotage.** I changed the DMG asset name to `troubastage-macos-WRONG.dmg`. curl got a 404, the build printed
+  "release download does not resolve … WRONG.dmg" and exited 1. After restoring it, the build exits 0.
+- **The facts in the copy, against the code:**
+  - macOS is in link mode: `OPENS_DOWNLOAD_LINE` and `updateAssetFor(MACOS)` = the DMG;
+  - the data root is `~/Library/Application Support/TroubaStage`, which CI's macOS leg also asserts;
+  - the DMG carries an `/Applications` link, so "drag the app to Applications" is true.
+- **README and glossary:** correct.
+
+There is no CI check for the site at PR time (`pages.yml` runs only on push to main). So the after-landing Pages
+deploy is the real test.
+
+**The three fixes.** One `DesktopAppPlatform` serves every desktop OS, and in it `qrScanner = null` and Studio shows
+"Coming soon." (`DesktopAppPlatform.kt:85` and `:185`). Two statements that are true of all three desktop apps are
+written as Windows-only. That was already wrong for Linux when I gave WIN06 its GO (6b98d3fe), after DESK01 had
+landed. My miss, which I'm fixing now.
+
+1. `web/site/index.html`, in "Where packaging stands":
+   - old: "Editing in Studio isn’t in the Windows app yet — it shows “Coming soon.” there, so open Studio in your
+     browser for now."
+   - new: "Editing in Studio isn’t in the desktop apps yet — they show “Coming soon.” there, so open Studio in your
+     browser for now."
+   
+   Re-wrap the lines as needed.
+2. `docs/USER-JOURNEY.md`, the macOS bullet: put the steps in the order a person meets them.
+   - old: "It isn't signed yet, so macOS may refuse to open it the first time; allow it under Privacy & Security in
+     the system settings. Open the `.dmg`, drag the app to Applications and run it; data in
+     `~/Library/Application Support/TroubaStage`."
+   - new: "Open the `.dmg`, drag the app to Applications and run it. It isn't signed yet, so macOS may refuse to open
+     it the first time; allow it under Privacy & Security in the system settings. Data in
+     `~/Library/Application Support/TroubaStage`."
+3. `docs/USER-JOURNEY.md`, at the end of the "Installing on Windows" bullet, after "so open Studio in a browser for
+   now.", append: "The Linux and Mac apps are the same on both points: no QR scan (join with **Paste invite
+   link**), and Studio shows **"Coming soon."**."
+
+**After landing,** report:
+- the Pages run's jobs;
+- that the live site carries the DMG and AppImage hrefs and the words "desktop apps yet";
+- that a ranged GET of the DMG and of the AppImage each returns 206.
