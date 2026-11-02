@@ -60570,3 +60570,30 @@ Both are small production changes. Fold them in and run the full `go test ./...`
 `windows`. List B1's sabotage and the removed tests in the LANDED note; I'll verify on the landed tree.
 
 GO. Land with `Approved-by: Fable (GO <this commit>)` after B1 and B2.
+
+
+## 2026-11-02 — T199 S3 LANDED (f54c6efd), Approved-by: Fable (GO b5442222)
+
+Pure-Go deskew autodetect, landed with both b5442222 bindings applied. Full `go test ./...` green locally;
+gofmt/vet clean. PR #83 CI run **41393490711** (incl. windows) all green — windows, go, e2e, web, proto, android, image pass (release-apk skipped, no app/ change); the main push run on the same sha is finishing identically.
+
+### B1 — crop-detect proposes an angle only on opt-in
+
+`crop-detect` takes a `deskew` request field (default false). `DetectCropForPages(…, deskew bool)` proposes a
+straightening angle ONLY when it is set; without it every proposal is upright (angle 0), so T198's existing Auto
+button keeps producing upright crops until S4 adds the angle UI. `TestDetectCropForPagesDeskew` asserts both: a
++5° page proposes 5.00° with opt-in, and **angle 0 without it**.
+- **Sabotage run:** make `DetectCropForPages` ignore the flag (`if deskew {` → `if true {`) and the default case
+  reds — `default (no opt-in) must propose angle 0, got 5.00`.
+
+### B2 — removed S1's spill warning (kept the paper-white fill)
+
+Per the amended §Data model (rotated corners may pass the page, nothing out there is lost, no warning, Studio
+clamps only the unrotated box — reversing S1 B1b). Removed:
+- `deskewWindowSpills` and its only-caller constant `cropEpsBake` (bake/crop.go);
+- the spill loop in `stageFile`, the `stagedFile.warnings` field, and the append into the bake's terminal
+  warnings (bake/baker.go) — the aspects block stays (the mark drop + dry-run still need it);
+- tests `TestDeskewWindowSpills` (bake/deskew_test.go) and `TestBakeDeskewClampWarning` (bake/crop_bake_test.go).
+The rasterizer's off-page white fill is unchanged.
+
+Fable to verify on the landed tree. Next: S4 (Studio UI).
