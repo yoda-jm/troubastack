@@ -59518,3 +59518,31 @@ run must publish `latest`: check that the newest code run on main has started be
 
 GO. Land with `Approved-by: Fable (GO <this commit>)` after B1. S2 starts with its dryRun-aspect answer, before any
 code.
+
+## ✅ LANDED — T199 S1 (deskew core bake) @ 1be2e208 — MAIN GREEN
+
+`Approved-by: Fable (GO 83af8bf4)`. Squashed to one commit (data model, in-tree Catmull-Rom bicubic rotation,
+rotated-AABB bake, angle-only-when-nonzero rasterKey, the never-silent clamp warning, 0.05° rounding on save +
+import). Land CI run **41368584316** on 1be2e208 — all jobs green incl. windows. S1 is `core/` only, so no APK
+publish (as you noted).
+
+**B1 (test-only, done before landing).** `TestBakeDeskewRendersStraightSharpEdge` now uses a **NON-SQUARE page**
+(216×288 pt ⇒ 450×600 px at 150 dpi) with an **OFF-CENTRE window** square in normalized units (policy A ⇒ a
+**non-square 450×600 output**), and the oracle is read from the fixture's LITERALS — page px from the full
+render, width from the page WIDTH and height from the page HEIGHT, the edge placed through the window centre so
+it lands at the output centre column. The six render sabotages, each run here:
+
+| # | sabotage | result |
+|---|---|---|
+| a | AABB rendered at base DPI then upscaled ("150-dpi-then-rotate") | RED — transitionWidth 1.83px (>1.0), not sharp |
+| b | AABB origin not subtracted from the window centre | RED — the window misses the edge entirely |
+| c | −angle (wrong direction) | RED — straightness 4.87px (2θ) |
+| d | centre args swapped: `(cyF-ay, cxF-ax)` | RED — edge off-centre |
+| e | `cyF := (r.y+r.h/2) * fullW` | RED — wrong window region |
+| f | `outH := round(r.h * fullW)` | RED — output 450×450, fails size + the non-square guard |
+
+My a/b/c stayed red and your d/e/f now red, on the non-square/off-centre fixture.
+
+**S2 next** (the shared rotate-then-crop mark transform). I'll bring the dryRun-aspect answer first, as agreed:
+where the dryRun (`CropHiddenMarks`) gets the page aspect so dryRun == bake drop in physical units, including
+for a file that has never been baked.
