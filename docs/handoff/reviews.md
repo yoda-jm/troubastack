@@ -59617,3 +59617,81 @@ line / text-anchor / two-point shapes — the overlay-dot-within-1px acceptance,
 - a `/Rotate 90` page.
 
 Bring the full S2 plan on this basis.
+
+## 2026-11-02 — web-core: T199 S2 full plan (the shared rotate-then-crop mark transform) — for sign-off, no code yet
+
+Builds on landed S1. One question to settle first (centre of rotation), then the mechanism, callers, cases, tests.
+
+### Q — centre of rotation (please rule)
+
+S1's bake (`renderDeskewedCropPage`) straightens by rotating about the **WINDOW centre** (cxF,cyF), and you
+GO'd + sabotaged it. §Annotations says the mark view transform is "rotate about the **page** centre, then crop".
+For marks to land on the baked content they MUST rotate about the SAME centre the raster did — the window centre.
+**I'll implement window-centre** (it also reduces to T198's exact map at angle 0). Flagging in case §Annotations'
+"page centre" was meant literally — then S1's bake centre would need revisiting too, which I don't think you want.
+
+### Aspect source (settled with you): `pageAspect(pdf, page)`
+
+- `pdfinfo -f N -l N -box`, parse the **`MediaBox:`** line (x2−x1, y2−y1) — NOT "Page size" (that's the CropBox;
+  the bake's `pdftoppm` renders the MediaBox). Swap W/H for `Page rot:` ∈ {90,270}. aspect = W/H, exact (points).
+- New `infoBin` on `popplerRasterizer` (render.go) + `Pdfinfo` on `bake.Config`, wired at main.go/config.go
+  (`TROUBA_PDFINFO`)/bakecli PATH-check/mkbaked. Method beside `nativePPIForPage`, same degrade-on-error shape.
+- **ONE source for all three** so dryRun == bake drop exactly: the bake drop (`applyCropToDoc`), S1's spill
+  warning (`deskewWindowSpills`, **moved off the cropped `pageSizes`** — its ratio rounds and moves with the
+  crop), and the dryRun (`CropHiddenMarks`). The bake has `pdf` in `stageFile`, so it calls `pageAspect` too —
+  not `pageSizes`.
+- **Cost:** one `pdfinfo` metadata exec per ANGLED page per bake, even on a raster-cache hit (the mark drop runs
+  in `assembleSong` every bake); no render. Memoize by (pdf sha, page) if it shows. Un-angled crop ⇒ never called.
+- **Unreadable aspect ⇒ error** surfaced to Studio (dryRun) / fails the bake loudly — never a silent "0 hidden".
+
+### The transform — `app.PageViewTransform` (pure)
+
+One function in the app pkg (so both `app.CropHidesMark` and `bake.applyCropToDoc` call it):
+`PageViewTransform(px, py float64, r CropRect, aspect float64) (ox, oy float64)` — offset from the window
+centre, rotate by the deskew in PHYSICAL units (scale x by aspect), straighten, then crop-normalize to the
+window. At angle 0 it is exactly T198's `(p.X−c.x)/c.w, (p.Y−c.y)/c.h`. The rotation SIGN matches S1's
+`rotateWindow` (pinned by the overlay-dot test below).
+
+Callers routed through it:
+- `applyCropToDoc` (bake coord map, crop.go:459-466) → per point. Stroke width ÷ w and font size ÷ h unchanged
+  by the rotation (lengths), as today.
+- `app.CropHidesMark` (crop.go:145-180) → transform the mark's points to the output frame, build the
+  extent-box THERE (stroke half-width and the text run padded in output units), test intersection with [0,1]².
+  Stays keep-biased. `markIntersectsCrop` (bake) and `CropHiddenMarks` (dryRun) both already call it — they get
+  angle+aspect threaded in.
+- `preview.go` `CropPreviewPage` also threads aspect into `applyCropToDoc`.
+
+### Per-shape (spec §Annotations), all are `[]docPoint`
+
+- freehand / line: rotate every point.
+- text: the single anchor rotates; glyphs stay horizontal; extent runs right/down from the anchor as today.
+- two-point shapes (rect / ellipse / highlight): rotate BOTH corners, then re-take the axis-aligned box.
+- icon: anchor rotates (treated as a point).
+- Angle 0 ⇒ byte-identical mark output to T198 (the transform reduces exactly).
+
+### dryRun wiring
+
+`setCrop`'s dryRun branch (httpapi/crop.go:38-54) mirrors the `detectCrop` baker pattern: resolve the PDF
+(`CropDetectSource`, same gate), call a new `Baker.PageAspect(ctx, pdf, page)` for each angled page that carries
+marks, and pass an aspect-by-page map into `PreviewFileCrop → CropHiddenMarks`. `baker == nil` (no poppler):
+the dryRun degrades to the angle-0 box (no rotation) rather than 503, so a crop-save warning still works.
+
+### Rehearsal pageChanged
+
+Already handled by S1's rasterKey (angle in the key ⇒ raster hash changes ⇒ note reads "page changed"). Add an
+`Angle:` variant to `TestBakeCropMakesNotePageChanged`.
+
+### Tests (each with a sabotage)
+
+- `pageAspect`: MediaBox not "Page size" (**CropBox≠MediaBox fixture** — a Page-size reading reds); `/Rotate 90`
+  swap; unreadable ⇒ error.
+- `PageViewTransform` pure: angle 0 == T198 map; a hand-computed rotated point; round-trip invertibility.
+- **`dryRun == bake drop` across a rotated boundary** — a mark placed just inside and just outside the rotated
+  window, `CropHiddenMarks` vs the bake drop agree, on your three cases: (i) a **rounding-divergent crop**
+  (cropped-raster ratio ≠ page ratio — a `pageSizes`-based bake reds, both numbers shown); (ii) a **raster-cache-hit
+  bake**; (iii) a **`/Rotate 90`** page. Plus the CropBox≠MediaBox case.
+- overlay-dot-within-1px: a dot on a synthetic note-head lands within 1px of the same note-head in the
+  straightened bake (pins the rotation sign + the window-centre choice).
+- two-point shape re-AABB; text-anchor rotation.
+
+On sign-off I build S2 on `web/t199-s2` and present with a PR CI run (incl. windows).
