@@ -61728,3 +61728,53 @@ offline-ok) AND demonstrated working on the runner (env-create 832 ms, bridge ro
 guard, nav-veto) — the clear choice, with the real-task caveat "set a writable EdgeDataDir + handle
 runtime-absent." JCEF is the proven fallback but +371 MiB and ~310–350 MiB RAM. System browser remains the
 zero-cost option. Size estimate unchanged except: candidate 1's offline cost is now a measured +371 MiB.
+
+## 2026-11-02 — mobile presents: the zoom controls named on their clickables (follow-up to GO 1c339669) — reviewer: Fable
+
+Branch `mobile/a11y-zoom-names` @ 7cd9eb11, PR #89. **PR CI:** run **`41440571214`**: **success on every job**: `desktop (windows)`, `desktop (linux)`, `desktop (macos)`, android, web, e2e, go, proto and image. release-apk is skipped on a PR.
+
+### As built
+
+- **The zoom chip and its menu.** Note mode's chip "⌕ 1×" and its menu's −, + and 1:1 draw their text with
+  `GlyphText`, the mechanism you GO'd. The chip's name "Zoom, 1×" already carries the factor.
+- **A sweep found one more, which I fixed.** I swept Stage for every hand-named control (`semantics {
+  contentDescription = "…" }`) for the same split. Besides these, it found the A86 overview's two:
+  - **"Hide zoom overview"**: a TextButton with a "–" Text child. The emulator dump showed its name on a non-clickable
+    node. Its "–" is now drawn, and the test checks it once zoomed.
+  - **"Show zoom overview"**, the collapsed overview with text "⌕ 1.5×", **is left as is.** Its name doesn't carry the
+    factor, so drawing its text would take "1.5×" away from a screen reader. Fixing it would mean a name such as
+    "Show zoom overview, 1.5×", which is a wording question for you or VLL.
+- **Consumers:** no desktop test finds these controls by text. The grep is positive-controlled: it finds the
+  `NoteZoom` tests and the 3 existing `onNodeWithText` uses, and nothing on −, +, 1:1 or ⌕.
+
+### Proof
+
+- **`StageAccessibleNamesUiTest`, a new case.** In note mode, the chip is one named clickable with no semantics
+  children. Then in its open menu:
+  - "Zoom out", "Zoom in" and "Zoom to actual size" each pass `assertNamedClickable`. At 1× the disabled two keep
+    OnClick, flagged Disabled.
+  - "−", "+", "1:1" and "⌕ 1×" are never read.
+  - After one zoom-in, the chip is named **"Zoom, 1.5×"**, and no node is still named "Zoom, 1×".
+  - "Hide zoom overview" is one named clickable, and "–" isn't read.
+
+  The menu is opened through the chip's click action: in the 600 dp test window, a touch click at the chip's centre
+  didn't reach it, because the note bar scrolls. The desktop and shared suites (704 tests) pass.
+- **Sabotage:** the menu's buttons back as a Text → red on "'Zoom out' has no semantics children (Android would split
+  its name off)". The other cases stay green. Restored.
+- **The emulator's dump of the head's APK:**
+  - In the open menu at 1×, each control is **ONE Button node with its name, `clickable=true`, `children=0`**. "Zoom
+    out" and "Zoom to actual size" are `enabled=false`, "Zoom in" is enabled, and "1×" between them is plain text.
+  - The note bar at 1.5×: **"Zoom, 1.5×"** is a Button, clickable, `children=0`, and so is **"Hide zoom overview"**.
+    Pencil, Eraser and Finish notes are unchanged.
+- **Pixels: `main`'s APK twice against the head's**, with the same journey from a fresh state each time. The note bar,
+  the open menu at 1×, and the menu after one zoom-in are all **identical** (PIL bbox None; main vs main is None too).
+  - The controls *do* change between 1× and 1.5×, and the drawn ink follows:
+    - at 1× the drawn "−" and "1:1" take the **disabled grey**, and at 1.5× they turn the enabled purple;
+    - the chip's drawn text goes from "⌕ 1×" to "⌕ 1.5×".
+  - The overview's drawn "–" is on screen at 1.5×, identical to `main`.
+- **CI:** a PR run with `desktop (windows)`, as above.
+
+### The ✕
+
+The ✕ on Join and Connect isn't named; it waits for VLL's word. Noted: Join's ✕ matches its "Close" button, and
+Connect's matches its "Cancel".
