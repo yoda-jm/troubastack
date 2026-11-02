@@ -147,6 +147,8 @@ fun main(args: Array<String>) {
     var bringToFront: () -> Unit = {}
     instanceClaim = SingleInstance.claim(File(desktopDataRoot())) { SwingUtilities.invokeLater { bringToFront() } }
         ?: exitProcess(0)
+    // Acceptance 6: the debug wheel log — this run's wheel events, written to the data root on exit (VLL's Surface).
+    WheelLog().apply { install(); saveOnExit(File(desktopDataRoot())) }
     runApp(onWindow = { bringToFront = it })
 }
 
