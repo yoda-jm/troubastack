@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 class AppUpdateTest {
     private val rel = LatestRelease(
         commit = "b52113a0d26812808b2c7a22cba1c7cc4a09f007", publishedAt = "2026-10-12T19:40:11Z",
-        apkUrl = "https://github.com/x/releases/download/latest/troubastage-debug.apk", apkSize = 15_753_501,
+        assetUrl = "https://github.com/x/releases/download/latest/troubastage-debug.apk", assetSize = 15_753_501,
     )
 
     @Test

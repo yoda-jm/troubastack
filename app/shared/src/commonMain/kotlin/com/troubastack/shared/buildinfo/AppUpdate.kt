@@ -4,17 +4,54 @@
 // build never asks on its own (VLL: "so I am not bothered with it while developing").
 package com.troubastack.shared.buildinfo
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+
 /** The repository whose `latest` release carries the APK — the ONE place it is named (A88 §1). */
 const val UPDATE_REPOSITORY = "yoda-jm/troubastack"
 
 /** The API endpoint for that release (public, unauthenticated, 60 requests/hour). */
 const val UPDATE_RELEASE_URL = "https://api.github.com/repos/$UPDATE_REPOSITORY/releases/tags/latest"
 
-/** The release asset that is the app. */
-const val UPDATE_ASSET_NAME = "troubastage-debug.apk"
+/** The release asset that is the Android app. */
+const val UPDATE_ASSET_APK = "troubastage-debug.apk"
 
-/** What the `latest` release offers: its commit, when it was published (ISO-8601 UTC), and the APK asset. */
-data class LatestRelease(val commit: String, val publishedAt: String, val apkUrl: String, val apkSize: Long)
+/** WIN04 — the release asset that is the Windows app (WIN03 D8 publishes it next to the APK). */
+const val UPDATE_ASSET_MSI = "troubastage-windows.msi"
+
+/**
+ * What the `latest` release offers this platform: its commit, when it was published (ISO-8601 UTC), and the platform's
+ * asset — its URL, its size, and its SHA-256 when GitHub gives one (`"digest": "sha256:…"`, lowercase hex).
+ */
+data class LatestRelease(
+    val commit: String,
+    val publishedAt: String,
+    val assetUrl: String,
+    val assetSize: Long,
+    val assetSha256: String? = null,
+)
+
+/**
+ * A88/WIN04 — the release JSON → [LatestRelease] for the platform's [assetName]: the tag's target commit (release-apk
+ * creates it `--target <sha>`), else the body's `Commit:` line; `published_at`; the named asset. null when any of it is
+ * missing — a release without this platform's asset is "no update" for that platform, never an error.
+ */
+fun parseRelease(json: String, assetName: String): LatestRelease? {
+    val o = Json.parseToJsonElement(json).jsonObject
+    val sha = Regex("^[0-9a-f]{40}$")
+    val target = o["target_commitish"]?.jsonPrimitive?.content?.takeIf { sha.matches(it) }
+    val fromBody = o["body"]?.jsonPrimitive?.content?.let { Regex("""Commit:\s*([0-9a-f]{40})""").find(it)?.groupValues?.get(1) }
+    val commit = target ?: fromBody ?: return null
+    val published = o["published_at"]?.jsonPrimitive?.content ?: return null
+    val asset = o["assets"]?.jsonArray?.map { it.jsonObject }?.firstOrNull { it["name"]?.jsonPrimitive?.content == assetName } ?: return null
+    val url = asset["browser_download_url"]?.jsonPrimitive?.content ?: return null
+    val size = asset["size"]?.jsonPrimitive?.longOrNull ?: return null
+    val sha256 = asset["digest"]?.jsonPrimitive?.content?.takeIf { it.startsWith("sha256:") }?.removePrefix("sha256:")?.lowercase()
+    return LatestRelease(commit, published, url, size, sha256)
+}
 
 /** What the app should say about [LatestRelease] against the installed build. */
 sealed interface UpdateVerdict {
