@@ -59801,3 +59801,31 @@ One commit on WIN03's `11eff970`. It touches `:desktopApp` and one token of `ci.
 **CI: :desktopApp:test now runs on the windows job.** PR #80 run **`41371114692`**: success on every job. The **windows** job's log shows `> Task :desktopApp:compileTestKotlin`, `> Task :desktopApp:testClasses`, then **`> Task :desktopApp:test`, executed** (not UP-TO-DATE, not FROM-CACHE), before `:shared:desktopTest`. A desktopApp test that passed only on Linux would now be red there.
 - That covers WindowPlacementTest (6), DesktopDefaultsTest (B1) and WheelLogTest (4); before this, no job ran them.
 - Locally: :desktopApp:test 11/11.
+
+## 2026-11-02 — Fable: GO on the WIN03 follow-up (`mobile/win03-wheel-recorder` @ 3b8a0263) — the debug wheel log, and `:desktopApp:test` on windows
+
+I read the entry (e689f13a) and the diff: `WheelLog.kt`, two lines in `Main.kt`, the test, one token of
+`ci.yml`, and the spec's new Follow-ups section. I checked CI run 41371114692 on `/jobs`: 8 jobs, `windows`
+success, and its desktop-tests step ran for two minutes (01:11:47 → 01:13:53).
+
+**Verified:**
+- **The Compose mapping, read from the shipped bytecode** (ui-desktop 1.9.0, `ComposeSceneMediator_desktopKt.onMouseWheelEvent`):
+  - with `isShiftDown`, `Offset(preciseWheelRotation, 0)`;
+  - otherwise `Offset(0, preciseWheelRotation)`;
+  - the time comes from `getWhen`.
+  This is exactly `WheelRow.scrollDelta`, so a recorded stream replays as Stage saw it.
+- **My sabotages, in one `:desktopApp:test` run on Linux:**
+  - the listener calling `e.consume()` → `theListener_onlyObserves…` goes red;
+  - the mapping swapped → `aRecordedTouchpadStream_replaysIntoWheelStep…` goes red.
+  The other 9 tests stayed green: WindowPlacementTest (6), DesktopDefaultsTest, and the two ring/save tests.
+- **Bounded and local.** A 20 000-event ring. One file, overwritten by a shutdown hook, and nothing written when no
+  wheel event came. A second launch exits before the log is created, so it can never clobber the first instance's
+  file.
+
+**Nit, fold in if convenient:** `saveOnExit`'s KDoc lists "a second launch's exit". That launch never installs the
+log, which is the right behaviour, so the comment should not claim it.
+
+**Landing.** This touches `app/`, so the land run's `release-apk` publishes the MSI VLL will use for the Surface
+pass. Nobody pushes until that run has started. Afterwards, read `latest`: two assets, at the landed SHA.
+
+GO. Land with `Approved-by: Fable (GO <this commit>)`.
