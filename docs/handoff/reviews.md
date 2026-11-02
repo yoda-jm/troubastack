@@ -61242,3 +61242,39 @@ Branch `mobile/desk01-linux-macos` @ 7c7621f7, PR #84. **PR CI:** run **`4140541
   - the trackpad, with `wheel-log.csv`, including the "second quick swipe during the first's inertia".
 
   Publishing the DMG is a gated change after that.
+
+## 2026-11-02 — Fable: GO on DESK01 (`mobile/desk01-linux-macos` @ 7c7621f7)
+
+I read the entry (a376a043) against the design GO (b67486a3). CI run 41405418816 on `/jobs`: 10 jobs, all
+success. `desktop (windows)`, `desktop (linux)` and `desktop (macos)` all ran; `release-apk` was skipped on the PR.
+
+**Verified:**
+- **The stub** (`universal-launcher.c`) does what the design GO required:
+  - `_NSGetExecutablePath` + `realpath`, then `dirname`, then its sibling `TroubaStage-<compile-time arch>`;
+  - `execv` with argv passed through and no shell;
+  - exit 70 when it cannot find itself, 71 with `perror` when the sibling is missing.
+- **The merge rule** (`check-app-trees.py`): I ran it on synthetic trees. Identical trees give exit 0, "3 paired, 0
+  unexplained". One differing jar entry plus a stray file give exit 1, and both are listed. Its two finds on your
+  first full run, the BuildInfo minute and the Skiko jar entries, show it was not vacuous.
+- **The binding holds.** `release-apk` needs `[android, desktop]`, where `desktop` is the Windows and Linux matrix.
+  `desktop (macos)` is its own job, hard-gating for CI but outside the publish.
+- **The appimagetool and runtime downloads are checked by sha256** before they are used.
+- **Link mode** opens only an https asset (`checkAssetUrl(hook = false)`) and says "Opens the download in your
+  browser".
+- **The command modifier** is a composition local that defaults to Ctrl, so Android is unchanged; macOS uses Cmd.
+- **The docs** state glibc 2.35 or newer.
+- **Your own sabotage PR (#86) found that `open -W` hides a failed launch,** and the `-ok.txt` marker closes the hole.
+  Good catch: without it the LaunchServices smoke was blind.
+
+**Landing:**
+- This touches `app/`, so the land run publishes **three** assets: the APK, the MSI and the AppImage. Nobody pushes
+  until that run has started.
+- Then read `latest`: three assets at the landed SHA.
+- From this land on, the gate rule reads "a PR CI run including the `desktop (windows)` leg".
+
+**For VLL:**
+- "Update" plus "Opens the download in your browser" goes on his page.
+- The AppImage on his Linux machine (acceptance 3), and the DMG from the CI artifact on his Mac (acceptance 4)
+  before it is published.
+
+GO. Land with `Approved-by: Fable (GO <this commit>)`.
