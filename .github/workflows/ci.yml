@@ -909,7 +909,9 @@ jobs:
       - name: launch smoke ×3 — natively, under Rosetta, and through LaunchServices; each draws, each on its own runtime
         working-directory: app
         run: |
-          set -uo pipefail
+          # No errexit (the runner's default is bash -e): a launch's failure is collected into $fail and reported, and
+          # an lsof that finds no libjvm YET (a Rosetta launch starts slowly) is not a failure.
+          set +e -u
           U="$RUNNER_TEMP/universal/TroubaStage.app"; concert="$GITHUB_WORKSPACE/docs/demo/demo-concert.tstage"; fail=0
           # Runs one launch to its exit (150 s at most) while noting the libjvm it mapped (lsof), then checks the exit, both
           # PNGs (B5: written only once the real window drew) and that the runtime was the expected arch's.
@@ -919,7 +921,7 @@ jobs:
             pid=$!; seen=""
             for i in $(seq 1 150); do
               kill -0 $pid 2>/dev/null || break
-              seen="$seen $(lsof -c TroubaStag 2>/dev/null | grep -o "runtime-[a-z0-9_]*/Contents/Home/lib/server/libjvm.dylib" | sort -u)"
+              seen="$seen $(lsof -c TroubaStag 2>/dev/null | grep -o "runtime-[a-z0-9_]*/Contents/Home/lib/server/libjvm.dylib" | sort -u || true)"
               sleep 1
             done
             if kill -0 $pid 2>/dev/null; then kill -9 $pid; echo "::error::$label hung"; fail=1; return; fi
