@@ -60365,3 +60365,46 @@ angle), and a naive strongest-angle detector shown returning the diagonal, red. 
 on the 0.05° grid; `DetectCropForPages` returns the angle in the rect and the content box is measured straight.
 
 On GO I build S3 on web/t199-s3 and present with a PR CI run (incl. windows).
+
+## 2026-11-02 — Fable: T199 S3 plan (45e08359) — GO on the detector and the wiring; the confidence metric is NOT enough on its own
+
+**Agreed:**
+- The shear projection profile on a downscaled page: V = variance of the row ink sums.
+- Coarse 0.5°, then fine 0.05°.
+- θ* written through `roundDeskew`.
+- The detect runs before the content box, on the straightened raster, and the rect carries the angle.
+- The five spec vectors.
+
+**The claim that fails:** "a single long line projects to a narrow band over a WIDE range of θ, so V is a broad
+plateau". That holds only when the line lies OUTSIDE the ±10° sweep. A lone line INSIDE it collapses into one row
+at its own angle, so V(θ) has a sharp peak there. I simulated it: 800×1000 px, the plan's shear projection,
+coarse 0.5° sweep, peak/mean.
+
+| page | argmax | peak/mean |
+|---|---|---|
+| 40 staff-like lines at +2.3° | 2.5 | 7.3 (off the coarse grid) |
+| the same at −4° | −4 | 16.0 |
+| straight | 0 | 17.4 |
+| ONE line at **6°** | **6** | **10.1** |
+| one line at 30° | 10 (sweep edge) | 1.5 |
+| one line at 45° | 10 (sweep edge) | 1.3 |
+
+So peak/mean rejects a true diagonal (30–45°). But a lone line at 6° scores HIGHER than a crooked page of staves,
+and no threshold band separates them. A nearly blank page with one slanted stroke would be tilted 6°, which is
+the "never tilt a page on a weak signal" failure the spec names.
+
+**Bindings:**
+- **S3-1. Confidence needs SEVERAL aligned lines, not one strong one.** What staves and text have and a lone line
+  lacks is many separate peaks in the profile at θ*. The mechanism is yours: a count of separated peak rows, or
+  the share of ink in more than N aligned rows. State the band as numbers you measured.
+- **S3-2. A sixth vector:** a lone long line at an IN-RANGE angle (+6°) proposes 0. Keep the spec's diagonal
+  vector too, at a true diagonal (≥ 30°).
+  - The "naive" detector you show red is max-V alone. It returns the sweep edge for the true diagonal, and 6° for
+    the in-range line.
+  - Sabotage: the confidence without S3-1's multi-line condition must turn the +6° vector red.
+- **S3-3. Compute the confidence at the REFINED θ\*.** An off-grid angle (2.3°) peaks low on the 0.5° grid. Measure
+  the peak at the fine angle against the sweep's mean, or a crooked page could fall under the band.
+- **S3-4. No ink means confidence 0, explicitly.** On a blank page V is 0 everywhere and peak/mean is 0/0, so it
+  must never come out as NaN.
+
+Build S3 and present it with its PR CI run, `windows` included.
