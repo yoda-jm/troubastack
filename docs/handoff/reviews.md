@@ -59984,3 +59984,50 @@ would otherwise sit in front of the performer, `cmd /d /c start "" /min cmd /d /
 it: every token is literal, and the environment and working directory are inherited. Say what VLL actually sees.
 The CI test with `& ( ) %` and a space in `TROUBASTAGE_HOME` stands. The CI n → n+1 proves the script outlives
 the app.
+
+## 2026-11-02 — web-core presents T199 S2 (the shared rotate-then-crop mark transform) (branch `web/t199-s2` @ 5aec2cb0)
+
+Stage 2 on the GO'd plan (b35e81ef), window-centre confirmed. PR #81, CI run **41376742000** (incl. windows).
+All three bindings addressed; each guard's sabotage demonstrated.
+
+### What's in S2
+
+- **`pageAspect(pdf, page)`** — one source of truth for the deskew view transform, used by the bake drop, the
+  crop dryRun AND S1's spill warning (moved off the cropped `pageSizes`). `pdfinfo -f 1 -l N -box`, parsing the
+  **MediaBox** line (what pdftoppm renders — NOT "Page size", which is the CropBox) and swapping W/H for
+  `/Rotate` 90/270. One exec per file, memoized by PDF sha (so a raster-cache-hit bake still has it, cheaply).
+  `Pdfinfo` wired into `bake.Config` + `TROUBA_PDFINFO` + the bakecli PATH check. **B1 — no silent degrade:**
+  unreadable aspect ⇒ the dryRun errors (Studio shows it), the bake fails naming the song+page; never the
+  angle-0 box.
+- **`app.PageViewTransform(px,py, x,y,w,h, angle, aspect)`** — pure: offset from the WINDOW centre, rotate in
+  physical units, straighten, crop-normalize. The ONE transform shared by `applyCropToDoc` (bake coord map) and
+  `CropHidesMark` (containment, keep-biased AABB of the rotated extent box). At angle 0 it is EXACTLY T198's
+  map. The sign matches S1's `rotateWindow` (pinned by B2).
+- **Per-shape:** freehand/line points rotate; a two-point shape's (rect/ellipse/highlight) corners both rotate
+  and re-AABB; text/icon anchor rotates (text stays horizontal); stroke width ÷w and font ÷h unchanged by the
+  rotation, as T198. The preview (`CropPreviewPage`) deskews too.
+
+### Tests (all green; gofmt/vet clean)
+
+- `parsePageAspects`: **MediaBox not "Page size"** (a CropBox≠MediaBox fixture reds a Page-size reading);
+  `/Rotate 90` swap; unreadable ⇒ error.
+- `PageViewTransform` pure: angle 0 == T198; centre→centre; a hand-computed 90° case; aspect scales the cross-term.
+- **B2 overlay-dot on the REAL bake** (`TestBakeDeskewOverlayDotLandsOnNoteHead`): a dot on a NON-SQUARE page,
+  baked through an OFF-CENTRE deskewed window, lands **0.7px** from where `PageViewTransform` predicts. The three
+  wrong transforms miss by **127px (page-centre), 3.0px (aspect=1), 21.6px (−angle)** — all red past the 1.5px bar.
+- **B3 dryRun == drop on the two REAL paths** (`TestDeskewDryRunEqualsBakeDrop`): a 40×40 grid of marks straddling
+  a rotated window — `app.CropHiddenMarks` (dryRun) names exactly what `applyCropToDoc` (bake) drops, at every
+  aspect. **Sabotage:** feeding the bake a divergent (pageSizes-style) aspect while the dryRun uses the true one
+  flips a boundary mark, so the sets differ — this is why the one shared `pageAspect` is load-bearing.
+- **B1** (`TestCropEndpoint_DryRunDeskewNeedsAspect`): an angled dry run with no bake toolchain errors and
+  returns NO hiddenMarks list; an un-angled dry run still works.
+- Existing T198/S1 crop tests adapted to the new signatures and green (angle 0 byte-identical).
+
+### One scope call to confirm
+
+pageChanged-on-angle: I did NOT add a fresh end-to-end clone of `TestBakeCropMakesNotePageChanged` with an angle,
+because it is already covered by composition — S1's `TestRasterKeyAngle` proves a non-zero angle enters the raster
+key (so the hash changes), and `TestBakeCropMakesNotePageChanged` proves a raster-hash change makes the note read
+"page changed". Say if you want the explicit end-to-end clone anyway and I'll add it.
+
+On GO: rebase, `Approved-by`, land, then S3 (pure-Go autodetect; it writes detected angles through roundDeskew).
