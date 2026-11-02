@@ -61818,3 +61818,59 @@ Connect's matches its "Cancel".
   of the real task. VLL's finalist check runs on that stage's build, not on a bare Shell.
 
 Re-present with a short delta. Then I relay.
+
+## 2026-11-02 — web-core: WIN05 delta 2 — C1–C4 answered (ready to relay)
+
+Answers Fable's C1–C4 (on 18196dc6). Report-only; runner `41443342422` (SWT-only isolation, no CEF download);
+branch `win05-spike` kept until relay. MiB throughout.
+
+**C1 — isolation PROVES the fix is the writable EdgeDataDir, not the timeout. Three legs, one build:**
+| leg | EdgeDataDir | timeout | result | env-create |
+|---|---|---|---|---|
+| default | SWT default | default 5 s | **FAILS** (orig. error) | — |
+| datadir | writable temp | **default 5 s** | **OK**, bridge round-trip | 80 ms |
+| full | writable temp | 60 s | OK | 71 ms |
+
+- `datadir` succeeds with the DEFAULT 5 s timeout → the timeout was never the binding constraint; the writable
+  `EdgeDataDir` alone fixes it. The real task sets `org.eclipse.swt.browser.EdgeDataDir`; no timeout change needed.
+- **Root cause, corrected (Fable's point):** NOT "the binaries dir". The stack trace shows the hang is in
+  `BrowserFunction.<init> → Edge.getWebViewWrapper → processOSMessagesUntil` — the WebView2 ENVIRONMENT never
+  finishes creating when SWT uses its default data dir (Edge.java `getDataDir` → the display's app-local dir)
+  in the CI account, so the 5 s wait fires. A writable explicit dir creates the env in ~80 ms.
+- **C1(b) memory (summed):** WebView2 process-tree peak **289 MiB**, of which msedgewebview2.exe **199 MiB**.
+  `Browser.setCookie(...)` returned **true** — cookie seeding works for the Edge backend (C3 confirmed).
+
+**C2 — JCEF cost, two numbers, labelled (bundled MSI NOT built):**
+- **On disk:** the CEF natives jcefmaven installs are **371 MiB** (389,303,767 B, measured, cef-152), downloaded
+  at first launch (0 on warm).
+- **Compressed:** a bundled MSI adds the COMPRESSED natives, not 371 MiB. I did not build the bundled MSI;
+  the only compressed figure I have is the cef-135 natives jar, **~134 MiB** (140,618,991 B, Fable) as a proxy —
+  cef-152's compressed size is unmeasured (jcefmaven fetches 152 from its jcefbuild release, not Central).
+- So JCEF offline ≈ baseline + ~134 MiB (bundled, estimated) or +371 MiB on disk; vs WebView2's +2.78 MiB.
+
+**C3 — SWT mapping, corrected from Edge.java:**
+- **Cookie:** `Browser.setCookie` IS implemented for Edge (proven true above); the Readme's "Unsupported" is stale.
+- **Load errors:** SWT has NO load-error event — a failed top navigation just skips `LocationListener.changed`.
+  So the A93 error cover + Retry must be HOST-detected (e.g. a watchdog / `ProgressListener` heuristic), not an
+  SWT event. This is extra work — counted in the first-stage estimate below.
+
+**C4 — what is NOT proven (and the gated first stage):**
+- Both prototypes ran a SCRATCH PAGE in their OWN window (SWT in a bare `Shell`; JCEF windowless OSR). Neither
+  ran inside the TroubaStage (Compose) window, and neither loaded real Studio with a seeded session + `?embedded=1`.
+- **Riskiest, unproven, and therefore the GATED FIRST STAGE of the real task:** hosting SWT's `Browser` inside
+  the Compose window (`SWT_AWT` or a child HWND — two UI threads), the popup/z-order clip, and session-seeded
+  Studio actually loading. VLL's finalist check runs on THAT stage's build.
+
+**Pen — VLL's finalist check (nothing to install; WebView2 is already on his Win10/11):**
+1. Open Studio's editor for a demo song in **Microsoft Edge** on the Windows machine (Edge = the same WebView2
+   engine the embedded SWT.EDGE uses), full-screen.
+2. Draw freehand over the sheet with the pen; feel the latency and whether strokes keep up with fast motion.
+3. Compare the same drawing in Chrome. This gauges the ENGINE's native pen feel today. The true EMBEDDED feel
+   (inside the app window, through SWT_AWT) can only be judged on the first-stage build above — so the formal
+   finalist check waits for that build; this browser A/B is the no-install preview.
+
+**Recommendation stands: WebView2 via SWT.EDGE** — smallest (+2.78 MiB), demonstrated (env-create <100 ms with a
+writable EdgeDataDir, bridge round-trip, setCookie, nav-veto, fail-loud non-Edge guard), ~289 MiB RAM. Real-task
+first stage (GATED): embed SWT.Browser in the Compose window + load session-seeded Studio + host-detected load
+errors; then VLL's pen finalist check; then the rest. JCEF is the proven fallback (+~134 MiB bundled / 371 MiB
+on disk, ~310–350 MiB RAM). System browser the zero option.
