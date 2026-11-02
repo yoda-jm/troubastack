@@ -459,6 +459,9 @@ private fun runStageSmoke(prefix: String, tstage: File) {
                 val ok = rendered.isSuccess && pngs.all { it.isFile && it.length() > 0 } && windowDrew
                 if (ok) println("smoke: OK — Stage drew in the window after $frames frame ticks; PNGs ${pngs.map { "${it.name} ${it.length()} B" }}")
                 else System.err.println("smoke: FAILED — rendered=${rendered.isSuccess} windowDrew=$windowDrew pngs=${pngs.map { it.length() }}")
+                // DESK01 — the PNGs are rendered off-screen BEFORE the window is checked, so they are no proof; this file is,
+                // written only here, once the real window drew (for a launch whose exit code is not seen: LaunchServices).
+                if (ok) File("$prefix-ok.txt").writeText("drew after $frames frame ticks\n")
                 System.out.flush()
                 System.err.flush()
                 Runtime.getRuntime().halt(if (ok) 0 else 1)

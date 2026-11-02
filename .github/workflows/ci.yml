@@ -914,7 +914,8 @@ jobs:
           set +e -u
           U="$RUNNER_TEMP/universal/TroubaStage.app"; concert="$GITHUB_WORKSPACE/docs/demo/demo-concert.tstage"; fail=0
           # Runs one launch to its exit (150 s at most) while noting the libjvm it mapped (lsof), then checks the exit, both
-          # PNGs (B5: written only once the real window drew) and that the runtime was the expected arch's.
+          # PNGs, the -ok.txt marker the smoke writes only once the REAL window drew (B5; the PNGs are rendered off-screen
+          # first, and `open -W` exits 0 whatever the app does), and that the runtime was the expected arch's.
           check() { label=$1 want=$2; shift 2
             export TROUBASTAGE_HOME="$RUNNER_TEMP/home-$label"
             "$@" &
@@ -930,6 +931,7 @@ jobs:
             echo "$label: exit $code, runtime mapped: $jvm"
             [ $code -eq 0 ] || { echo "::error::$label exited $code"; fail=1; }
             for s in 1920x1080 800x600; do [ -s "smoke-$label-$s.png" ] || { echo "::error::$label wrote no $s PNG"; fail=1; }; done
+            [ -s "smoke-$label-ok.txt" ] || { echo "::error::$label: the real window never drew (no smoke-$label-ok.txt)"; fail=1; }
             [ "$jvm" = "runtime-$want/Contents/Home/lib/server/libjvm.dylib " ] || { echo "::error::$label ran on [$jvm], expected runtime-$want"; fail=1; }
           }
           check native arm64 "$U/Contents/MacOS/TroubaStage" --smoke smoke-native.png --smoke-concert "$concert"
