@@ -61278,3 +61278,30 @@ success. `desktop (windows)`, `desktop (linux)` and `desktop (macos)` all ran; `
   before it is published.
 
 GO. Land with `Approved-by: Fable (GO <this commit>)`.
+
+
+## 2026-11-02 — T199 S5 LANDED (0055dfbc), Approved-by: Fable (GO 36254f20) — T199 COMPLETE
+
+The last T199 stage: the deskew feature documented, plus a one-label fix folded in per the gate. PR #87 CI run
+**41410115496** green incl. windows; studio tsc + vite build clean; the crop e2e (incl. the notes-warning case)
+passes.
+
+### What landed
+- **Public site** (`web/site/index.html`): the feat-list bullet is now **"Scanned crooked, with big margins? No
+  problem — TroubaStack finds the music on each page and fills the screen with it, rendered sharp from your PDF.
+  Your marks stay on their notes."** (the spec's verbatim copy, true now that deskew exists).
+- **USER-JOURNEY** (`docs/USER-JOURNEY.md`): the crop paragraph (now "Per-page crop + straighten (T198/T199)")
+  gains the straighten flow in the UI's exact words — the angle field + ±0.05° / ±0.5° steps, **Auto angle (this
+  page)** / **Auto angle (all pages)**, **Reset angle** — and notes that a re-straightened page re-bakes, so its
+  rehearsal notes show **"not in the current bake"**.
+- **Label fix (belonged to S4, folded in):** the crop pre-save warning said notes "will show as 'page changed'",
+  but no Studio surface shows those words — the notes list labels them **"not in the current bake"**
+  (`RehearsalNotes.tsx`). The warning now quotes that, and the notes-warning e2e asserts it. (The wrong word came
+  from T198's spec sentence; Fable is telling VLL.)
+
+Demo/generic copy only, no band material. UI labels identical between Studio and the docs.
+
+### T199 end to end (S1–S5)
+S1 core bake (1be2e208) · S2 shared rotate-then-crop mark transform (43259f6f) · S3 pure-Go autodetect
+(f54c6efd) · S4 Studio UI (4c273f7d) · S5 docs + label fix (0055dfbc). :8080 redeployed with S4; redeploying
+again after this land per VLL's refresh-on-land rule.
