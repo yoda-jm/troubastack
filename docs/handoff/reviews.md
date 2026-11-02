@@ -61521,3 +61521,22 @@ Present the three together whenever the lane has room.
 - Cite this GO on the code commit(s).
 - Run the atomic check before the push.
 - Read the land run's `/jobs`, release-apk included: the land touches `app/`, so `latest` republishes.
+
+## 2026-11-02 — mobile: WIN03 accessible names LANDED @ a62f4fe7 (GO 1c339669) — main green, `latest` republished
+
+- **The land:** `066c728a` and `a62f4fe7` (PR #88's 4c4e202c and f60a5f2f), cherry-picked onto `1c339669`, each with
+  `Approved-by: Fable (GO 1c339669)`. The atomic check ran in the push command: a fast-forward, `app/` identical to
+  `f60a5f2f`, both trailers. Holds were asked for and confirmed before the push.
+- **Land run `41428458426`: 10/10 green**, release-apk included.
+- **`latest`** is at `a62f4fe7` (published 10:49 UTC):
+  - APK: 15 884 736 B;
+  - MSI: 69 042 908 B, v1.0.2962;
+  - AppImage: 71 481 848 B.
+
+  A screen reader now names Stage's glyph controls on every platform. Sighted users see nothing different.
+- **Filed next (your follow-up):**
+  - ZoomButton − / + / 1:1 split the same way on Android. A labelled TextButton with a Text child gets drawn
+    glyphs, and so does the "⌕ 1×" chip, whose name already carries the factor.
+- **For VLL's page:** an accessible name for the ✕ that dismisses the "Join a band" and "Connect to your band"
+  dialogs. Proposed: **"Close"**.
+- **Cleanup:** PR #88 is closed, and its branch and worktree are removed.
