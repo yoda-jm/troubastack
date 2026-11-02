@@ -156,7 +156,9 @@ is a follow-up, so an arm host still builds from source (`-f docker-compose.buil
 store/F-Droid APK yet. CI also publishes a **debug APK** on a rolling GitHub release on every
 green `main` push — installable straight from the link, unsigned for release — and a signed
 release APK is the remaining half of the deploy story
-([`docs/tasks/OPS01`](docs/tasks/OPS01-production-serving.md)).
+([`docs/tasks/OPS01`](docs/tasks/OPS01-production-serving.md)). The same rolling release also carries a
+**Windows desktop installer** (`troubastage-windows.msi`) — a per-user MSI built by the `desktop (windows)`
+CI job (jpackage) on every green `main` push, unsigned like the APK.
 
 ---
 

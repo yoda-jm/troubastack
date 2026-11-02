@@ -30,6 +30,9 @@ SITE_URL="${SITE_URL:-https://yoda-jm.github.io/troubastack}"
 # sign-in, no zip. The explicit-tag URL is stable across rolling builds (fixed tag + asset
 # name), and survives the release being a prerelease (the /latest/ shortcut would not).
 APK_URL="https://github.com/yoda-jm/troubastack/releases/download/latest/troubastage-debug.apk"
+# The Windows desktop installer (WIN03), same rolling `latest` release, same stable asset name the release
+# job writes. A plain browser download (no QR): on the tablet the APK is tapped; the MSI is downloaded on a PC.
+MSI_URL="https://github.com/yoda-jm/troubastack/releases/download/latest/troubastage-windows.msi"
 # Google Search Console ownership token. NOT a secret — it is SERVED publicly at
 # $SITE_URL/$GSC_TOKEN.html, which is the whole mechanism, and Google's own instructions are to
 # leave it in place forever ("don't remove the file, even after verification succeeds"). So do
@@ -55,6 +58,21 @@ sed -i "s|{{APK_URL}}|$APK_URL|g" "$OUT/index.html"
 if grep -q '{{APK_URL}}' "$OUT/index.html"; then
   echo "error: {{APK_URL}} survived substitution in dist/index.html" >&2; exit 1
 fi
+# WIN06 — the Windows installer link, same treatment (a plain href, no QR). Same no-stale-token guard.
+sed -i "s|{{MSI_URL}}|$MSI_URL|g" "$OUT/index.html"
+if grep -q '{{MSI_URL}}' "$OUT/index.html"; then
+  echo "error: {{MSI_URL}} survived substitution in dist/index.html" >&2; exit 1
+fi
+# WIN06 — both download links must RESOLVE against the real `latest` release: a wrong or missing asset name is
+# a dead link discovered by a visitor, so fail the build here instead of shipping it. A ranged GET (first byte)
+# follows GitHub's redirect to storage and 404s a missing asset; -f turns that 404 into a non-zero exit. This
+# needs network, as fetching any release asset would; the Pages workflow has it.
+for dl in "$APK_URL" "$MSI_URL"; do
+  if ! curl -fsSL --retry 2 -r 0-0 -o /dev/null "$dl"; then
+    echo "error: release download does not resolve (wrong asset name, or the release has not published it yet): $dl" >&2
+    exit 1
+  fi
+done
 grep -q "<meta property=\"og:image\" content=\"$SITE_URL/assets/" "$OUT/index.html" || {
   echo "error: og:image is not absolute under $SITE_URL" >&2; exit 1; }
 echo "  site url: $SITE_URL"

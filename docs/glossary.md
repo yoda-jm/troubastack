@@ -20,7 +20,7 @@ The brand names come from the troubadours: *trobar* (Occitan, "to compose verse"
 | **TroubaStack** | the monorepo and product family | `@troubastack/*` packages, the OCI image |
 | **TroubaCore** / **Core** | the Go server (`core/`) | source of truth, sync hub, bake orchestration, blob store; binary `troubacore` |
 | **TroubaStudio** / **Studio** | the web editor SPA (`web/studio`); also a section of the app via WebView | where you compose and annotate |
-| **TroubaStage** / **Stage** | the offline concert presenter — the mobile app's performing surface (`app/`) | the app as shipped is called TroubaStage everywhere but this file's scaffold version, which said *TroubaShare*; see D1 |
+| **TroubaStage** / **Stage** | the offline concert presenter — the performing app: Android tablets, and the desktop app on Windows and Linux (`app/`) | the app as shipped is called TroubaStage everywhere but this file's scaffold version, which said *TroubaShare*; see D1 |
 | **ink** (`web/ink`, `@troubastack/ink`) | the ONE stroke renderer + glyph geometry package | consumed by Studio (dry), the bake worker, and the app (geometry only, via the generated mirror) |
 | **bake worker** (`web/bake`, `troubabake`) | the Node process Core shells out to render overlays | also called "the overlay worker"; Core draws nothing itself |
 | **presenter** | Stage's compositor + pager | "pure image compositor + pager"; no annotation-model logic on the tablet (I12) |

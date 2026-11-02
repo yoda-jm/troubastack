@@ -828,13 +828,13 @@ docker compose <span class="k">up -d</span></pre>
         <p class="foot">Open your domain, create your account, then your band — you are its admin. The image is on <a href="https://hub.docker.com/r/vincentleligeour/troubastack">Docker Hub</a>; on a home network without a domain, one <code>docker run</code> is enough (see the <a href="https://github.com/yoda-jm/troubastack#or-pull-the-image-directly">README</a>).</p>
       </article>
       <article class="install" id="app">
-        <h3>2 · The tablets</h3>
-        <p class="sub">Each player installs the Android app, then scans the band’s invite QR code to join.</p>
+        <h3>2 · The tablets and computers</h3>
+        <p class="sub">Each player installs the app and joins the band — scan the invite QR on an Android tablet, or paste the invite link in the Windows app on a laptop.</p>
         <figure class="qr qr-light">
           <a class="frame" href="{{APK_URL}}"><img src="assets/qr-apk.svg" alt="QR code linking to the latest Android app (debug APK) on GitHub Releases" width="132" height="132"></a>
           <figcaption><span class="qr-os">Android</span> · scan to download</figcaption>
         </figure>
-        <p class="foot">On the tablet itself, <a href="{{APK_URL}}">tap here to download</a>. The app also opens a concert file with no server at all.</p>
+        <p class="foot">On the tablet itself, <a href="{{APK_URL}}">tap here to download</a>. On a Windows laptop, <a href="{{MSI_URL}}">download the installer</a> (.msi). The app also opens a concert file with no server at all.</p>
       </article>
       <article class="install">
         <h3>Just trying it?</h3>
@@ -853,7 +853,10 @@ make <span class="k">demo</span>
       from GitHub, so Android will ask you to allow installing it. Once installed, the app keeps itself up to date
       from the same release: Parameters → About → <strong>Check for updates</strong>, then <strong>Update</strong>
       (it also checks once a day on its own, never during a concert). The Windows app does the same: it closes,
-      installs the new version and opens again. The Linux app is a single file, an <strong>AppImage</strong> for
+      installs the new version and opens again. The Windows installer isn’t signed yet, so your browser or Windows
+      may warn before running it; choose to keep or run it anyway. It installs for your user only, without asking
+      for administrator rights. Editing in Studio isn’t in the Windows app yet — it shows “Coming soon.” there, so
+      open Studio in your browser for now. The Linux app is a single file, an <strong>AppImage</strong> for
       64-bit PCs with glibc 2.35 or newer (most distributions from 2022 on): make it executable and run it, nothing
       to install. It checks for updates the same way, and <strong>Update</strong> opens the new download in your
       browser.

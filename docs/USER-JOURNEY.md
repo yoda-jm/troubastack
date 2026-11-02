@@ -56,6 +56,13 @@ sets up the server, makes accounts happen, and gets everyone in.
   `~/.local/share/troubastage`. It checks for updates like the others, and **Update** opens
   the new download in the browser. A macOS app (one download for Apple silicon and Intel)
   is built by CI and joins the release once it has been tested on a Mac.
+- **Installing on Windows** (WIN03): download the Windows installer (`.msi`) from the site's
+  **download the installer** link, or the `latest` release, and run it. Because it isn't signed yet,
+  your browser or Windows may warn first — choose to keep or run it anyway. It installs for your user
+  only, without asking for administrator rights, then keeps itself up to date as above. Windows can't
+  scan the invite QR, so you join through **Connect to your band** → the **Invite** tab → **Paste invite
+  link** → **Join** (or **Sign in**). Performing (Stage) is the Windows app's job; editing in Studio isn't
+  there yet — it shows **"Coming soon."**, so open Studio in a browser for now.
 
 **Gaps:**
 - **Running the server like an adult** — TLS, systemd service, backups, a signed
@@ -225,6 +232,28 @@ surprises: page turns, role-appropriate layers, and nothing else.
   concert/device (no account, I12 held). The bundle already carries the roster +
   per-member cues + owner-tagged layers (Stage 1/2 ✅); the app-side filter is the
   remaining piece. The printed PDF (T57) already implements the identical rule server-side.
+
+**Stage with a mouse and a keyboard (the Windows app, WIN03).** The same presenter, driven without a touch
+screen:
+- **Click** anywhere to show the controls, click again to hide them; the cursor hides itself while you play.
+- A horizontal **drag** (left button) turns the page like a swipe, in **Page** and **Width** modes. The
+  **mouse wheel** depends on the mode: in **Page** (and two-up) one gesture turns at most one page; in **Width**
+  the wheel scrolls and turns only on a fresh gesture at the edge; in **Scroll** it never turns. ("Lock swipe"
+  locks both the drag and the wheel's turns.) For a deliberate turn, use the on-screen **‹ ›**, a foot pedal, or
+  the keyboard.
+- Reading mode is the same **Page** / **Width** / **Scroll** as on a tablet.
+- **F11** or the **Full screen** button goes full screen (**Leave full screen** comes back); whether a concert
+  opens full screen follows Parameters' **Full screen when performing**.
+- **Esc** never leaves a concert: it is Stage's Back — it closes the song drawer (and the like), and with
+  nothing left to close it leaves full screen. Only the red **Leave the concert** (**✕**) leaves. Closing the
+  window while a concert is open asks **"Close TroubaStage?"** first.
+- **Note mode** (**✎**) draws with the mouse, using the **Pencil** tool. While it is on, the mouse draws
+  instead of turning pages (**"The mouse will draw, not turn pages. Pages still turn with a pedal or the
+  keyboard."**), the plain wheel does nothing, and **Ctrl+wheel** zooms. Note mode needs
+  Page or Width; in Scroll it says **"Notes: switch to Page or Width"**.
+- A **Foot pedal** turns pages too: Parameters → **Foot pedal** → **Learn** a button, then press it. Two keys
+  cannot be learned — **F11** and **Esc** — because they control the window (**"That key can't be learned —
+  F11 and Esc control the window."**).
 
 ## Phase 5 — The day after, and the months after
 
