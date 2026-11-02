@@ -459,6 +459,7 @@ func bakeConfig(cfg config.Config) bake.Config {
 		BakesDir:  filepath.Join(cfg.Storage.DataDir, "bakes"),
 		Pdftoppm:  cfg.Bake.Pdftoppm,
 		Pdfimages: cfg.Bake.Pdfimages,
+		Pdfinfo:   cfg.Bake.Pdfinfo,
 		Node:      cfg.Bake.Node,
 		BakeCLI:   filepath.FromSlash(cli),
 		CacheDir:  cacheDir,

@@ -138,7 +138,7 @@ func TestCropHiddenMarks(t *testing.T) {
 		},
 	}
 	crop := app.Crop{Pages: map[string]app.CropRect{"0": {X: 0.25, Y: 0.25, W: 0.5, H: 0.5, Source: "manual"}}}
-	hidden := app.CropHiddenMarks(snap, "F1", crop)
+	hidden := app.CropHiddenMarks(snap, "F1", crop, nil)
 	if len(hidden) != 1 || hidden[0].UUID != "outside" {
 		t.Fatalf("hidden marks = %+v, want just [outside] (empty-points mark must not be reported hidden)", hidden)
 	}

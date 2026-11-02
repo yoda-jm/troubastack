@@ -1,7 +1,10 @@
 package httpapi
 
 import (
+	"context"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"troubastack/core/internal/app"
 )
@@ -41,7 +44,15 @@ func (a *AnnotationsAPI) setCrop(w http.ResponseWriter, r *http.Request, u app.U
 			writeErr(w, err)
 			return
 		}
-		hidden, err := a.svc.PreviewFileCrop(u, bandID, song.ID, fileID, in.Crop, snap)
+		// T199: a deskewed page's hidden-marks need its true aspect, from the SAME pageAspect source the bake
+		// drop uses (so dryRun == drop). An angled page whose aspect can't be read is an error Studio shows —
+		// never a silent "0 hidden" (B1). An un-angled crop needs no aspect.
+		aspects, aerr := a.cropAspects(r.Context(), u, bandID, song.ID, fileID, in.Crop)
+		if aerr != nil {
+			writeErr(w, aerr)
+			return
+		}
+		hidden, err := a.svc.PreviewFileCrop(u, bandID, song.ID, fileID, in.Crop, snap, aspects)
 		if err != nil {
 			writeErr(w, err)
 			return
@@ -114,7 +125,8 @@ func (a *AnnotationsAPI) detectCrop(w http.ResponseWriter, r *http.Request, u ap
 		writeErr(w, err)
 		return
 	}
-	hidden, err := a.svc.PreviewFileCrop(u, bandID, song.ID, fileID, app.Crop{LockAR: true, Pages: rects}, snap)
+	// T198/S2 autodetect proposals carry no angle (deskew autodetect is S3), so no aspect is needed here.
+	hidden, err := a.svc.PreviewFileCrop(u, bandID, song.ID, fileID, app.Crop{LockAR: true, Pages: rects}, snap, map[int]float64{})
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -168,4 +180,41 @@ func (a *AnnotationsAPI) previewCrop(w http.ResponseWriter, r *http.Request, u a
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(png)
+}
+
+// cropAspects returns the rendered aspect (W/H) of each ANGLED page of a proposed crop, read from the bake's
+// pageAspect (pdfinfo MediaBox) — the SAME source the bake drop uses, so the crop dry-run's hidden-marks list
+// matches what a bake would actually drop (T199). An un-angled crop needs no aspect and returns an empty map.
+// An angled crop is an ERROR when the bake toolchain is absent or a page's aspect can't be read: the dry-run
+// must tell Studio it couldn't check a straightened page, never fall back to the angle-0 box (B1 — no silent
+// degrade). page keys that NormalizeCrop would drop (non-canonical) are ignored here.
+func (a *AnnotationsAPI) cropAspects(ctx context.Context, u app.User, bandID, songID, fileID string, crop app.Crop) (map[int]float64, error) {
+	angled := map[int]bool{}
+	for key, r := range crop.Pages {
+		if r.Angle == 0 {
+			continue
+		}
+		if idx, err := strconv.Atoi(key); err == nil && idx >= 0 {
+			angled[idx] = true
+		}
+	}
+	out := map[int]float64{}
+	if len(angled) == 0 {
+		return out, nil
+	}
+	if a.baker == nil {
+		return nil, fmt.Errorf("can't check a straightened page: this server has no bake toolchain")
+	}
+	pdf, err := a.svc.CropDetectSource(u, bandID, songID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	for idx := range angled {
+		asp, aerr := a.baker.PageAspect(ctx, pdf, idx)
+		if aerr != nil {
+			return nil, fmt.Errorf("can't check a straightened page: %w", aerr)
+		}
+		out[idx] = asp
+	}
+	return out, nil
 }

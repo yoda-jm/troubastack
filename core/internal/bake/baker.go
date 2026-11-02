@@ -30,6 +30,7 @@ type Config struct {
 	BakesDir  string // where bundles are written (default <data>/bakes)
 	Pdftoppm  string // pdftoppm binary
 	Pdfimages string // pdfimages binary (T198 crop native-ppi cap)
+	Pdfinfo   string // pdfinfo binary (T199 deskew page-aspect lookup)
 	Node      string // node binary
 	BakeCLI   string // path to web/bake/dist/cli.js
 	DPI       int    // raster DPI (default 150)
@@ -44,6 +45,12 @@ type Config struct {
 	Overlays OverlayRenderer
 	// Preview injects the T198 single-page preview renderer (nil ⇒ the real poppler). Tests use it.
 	Preview pagePreviewer
+	// Aspecter injects the T199 page-aspect source (nil ⇒ the real poppler/pdfinfo). Tests use it.
+	Aspecter pageAsper
+	// OnStagedMarks, if set, is called per staged file with the UUIDs of the marks that SURVIVED the crop/
+	// deskew drop (applyCropToDoc's output) — a T199 TEST SEAM (nil in production) letting an end-to-end test
+	// observe exactly what the bake dropped, to pin it against the crop dry-run's hidden list.
+	OnStagedMarks func(fileID string, survivingUUIDs []string)
 }
 
 // Baker turns a setlist into a downloadable .tstage (I11): resolve songs →
@@ -54,6 +61,7 @@ type Baker struct {
 	eng      *engine.Engine
 	raster   Rasterizer
 	preview  pagePreviewer // T198 single-page preview renderer (raw poppler; nil in bare-literal test bakers)
+	aspecter pageAsper     // T199 page-aspect source (raw poppler/pdfinfo; nil ⇒ deskew aspect unavailable)
 	overlays OverlayRenderer
 	cache    *renderCache // T120 render cache (nil ⇒ disabled); held for PurgeCache
 	bakesDir string
@@ -83,6 +91,14 @@ type Baker struct {
 	// populated (works for a bare struct-literal Baker in tests too).
 	deriveMu    sync.Mutex
 	deriveLocks map[string]*sync.Mutex
+
+	// T199: memoized page aspects per PDF (sha256 → aspect per page), so the deskew transform's one pdfinfo
+	// read is reused across the bake drop, the spill warning and repeated bakes of the same file.
+	aspectMu   sync.Mutex
+	aspectMemo map[string][]float64
+
+	// onStagedMarks: T199 test seam (see Config.OnStagedMarks).
+	onStagedMarks func(fileID string, survivingUUIDs []string)
 }
 
 // New builds a Baker with the real poppler + web/bake shell-out steps. A missing
@@ -93,7 +109,7 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 	if dpi == 0 {
 		dpi = 150
 	}
-	poppler := popplerRasterizer{bin: cfg.Pdftoppm, imagesBin: cfg.Pdfimages, dpi: dpi}
+	poppler := popplerRasterizer{bin: cfg.Pdftoppm, imagesBin: cfg.Pdfimages, infoBin: cfg.Pdfinfo, dpi: dpi}
 	var raster Rasterizer = poppler
 	if cfg.Raster != nil {
 		raster = cfg.Raster
@@ -104,6 +120,11 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 	var preview pagePreviewer = poppler
 	if cfg.Preview != nil {
 		preview = cfg.Preview
+	}
+	// T199 page-aspect source (raw poppler/pdfinfo). cfg.Aspecter overrides it in tests.
+	var aspecter pageAsper = poppler
+	if cfg.Aspecter != nil {
+		aspecter = cfg.Aspecter
 	}
 	var overlays OverlayRenderer = nodeOverlayRenderer{node: cfg.Node, cli: cfg.BakeCLI}
 	if cfg.Overlays != nil {
@@ -118,17 +139,19 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 		overlays = cachingOverlayRenderer{inner: overlays, cache: cache, inkVer: inkVersion(cfg.BakeCLI)}
 	}
 	return &Baker{
-		svc:       svc,
-		eng:       eng,
-		raster:    raster,
-		preview:   preview,
-		overlays:  overlays,
-		cache:     cache,
-		bakesDir:  cfg.BakesDir,
-		now:       func() int64 { return time.Now().Unix() },
-		progress:  newProgressRegistry(nil),
-		newBakeID: newBakeID,
-		logf:      log.Printf,
+		svc:           svc,
+		eng:           eng,
+		raster:        raster,
+		preview:       preview,
+		aspecter:      aspecter,
+		onStagedMarks: cfg.OnStagedMarks,
+		overlays:      overlays,
+		cache:         cache,
+		bakesDir:      cfg.BakesDir,
+		now:           func() int64 { return time.Now().Unix() },
+		progress:      newProgressRegistry(nil),
+		newBakeID:     newBakeID,
+		logf:          log.Printf,
 	}
 }
 
@@ -821,13 +844,39 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 		}
 		pageSizes = append(pageSizes, pageSize{Index: i, Width: cfg.Width, Height: cfg.Height})
 	}
-	// T199 (B1b): a deskew whose rotated window reaches past the page is clamped by the rasterizer (white
-	// fill); warn here so the clamp is never silent. The crop is policy A (w == h), so the cropped raster's
-	// own aspect (outW/outH) EQUALS the source page's aspect, which is exactly what the physical-units
-	// rotated-corner test needs — no extra render, and it runs every bake regardless of the raster cache.
+	// T199: the deskew view transform — the spill warning here, the mark drop below, and the crop dry-run —
+	// all need each ANGLED page's true aspect (W/H) from the SAME source (the MediaBox, via pageAspect), so a
+	// never-baked file and a baked file agree exactly. Only angled pages need it; an un-angled crop takes the
+	// unchanged T198 path. If an angled page's aspect can't be read, the bake FAILS loudly (B1), naming the
+	// song and page, rather than guessing an aspect.
+	aspects := map[int]float64{}
+	anyAngle := false
+	for _, rect := range crops {
+		if rect.angle != 0 {
+			anyAngle = true
+			break
+		}
+	}
+	if anyAngle {
+		pa, aerr := b.aspects(ctx, pdf)
+		if aerr != nil {
+			return stagedFile{}, nil, b.fail(fmt.Sprintf("Couldn't straighten %q — a deskewed page's dimensions were unreadable.", item.SongTitle), aerr)
+		}
+		for idx, rect := range crops {
+			if rect.angle == 0 {
+				continue
+			}
+			if idx < 0 || idx >= len(pa) {
+				return stagedFile{}, nil, b.fail(fmt.Sprintf("Couldn't straighten page %d of %q — the file has no such page.", idx+1, item.SongTitle), fmt.Errorf("deskew page %d out of range (%d pages)", idx, len(pa)))
+			}
+			aspects[idx] = pa[idx]
+		}
+	}
+	// B1b: a deskew whose rotated window reaches past the page is clamped by the rasterizer (white fill); warn
+	// here so the clamp is never silent, using the same per-page aspect the mark transform uses.
 	var cropWarnings []string
 	for idx, rect := range crops {
-		if rect.angle != 0 && idx >= 0 && idx < len(pageSizes) && deskewWindowSpills(rect, pageSizes[idx].Width, pageSizes[idx].Height) {
+		if rect.angle != 0 && deskewWindowSpills(rect, aspects[idx]) {
 			cropWarnings = append(cropWarnings, fmt.Sprintf("%q: page %d was straightened past the sheet's edge, so a corner of the baked page is blank — narrow or re-centre the crop window.", item.SongTitle, idx+1))
 		}
 	}
@@ -863,8 +912,15 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 	doc := snapshotToDoc(snap, file.ID, chart)
 	// T198: on a cropped page, transform marks into the cropped frame so they land on the same music (a
 	// bake-time view transform; stored coords never change). Uploaded PDFs only (pageCropsFor skips others).
-	doc = applyCropToDoc(doc, crops)
+	doc = applyCropToDoc(doc, crops, aspects)
 	sf.objects = doc.Objects
+	if b.onStagedMarks != nil { // T199 test seam: the marks that survived the crop/deskew drop
+		uuids := make([]string, 0, len(doc.Objects))
+		for _, o := range doc.Objects {
+			uuids = append(uuids, o.UUID)
+		}
+		b.onStagedMarks(file.ID, uuids)
+	}
 	if len(doc.Objects) == 0 {
 		return sf, nil, nil
 	}

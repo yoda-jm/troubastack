@@ -67,7 +67,7 @@ func (b *Baker) CropPreviewPage(ctx context.Context, bandID, songID, fileID stri
 	crops := pageCrops{}
 	var cr *cropRect
 	if r, ok := draft.Pages[strconv.Itoa(page)]; ok {
-		rc := cropRect{x: r.X, y: r.Y, w: r.W, h: r.H}
+		rc := cropRect{x: r.X, y: r.Y, w: r.W, h: r.H, angle: r.Angle} // T199: the preview deskews too
 		cr = &rc
 		crops[page] = rc
 	}
@@ -85,7 +85,20 @@ func (b *Baker) CropPreviewPage(ctx context.Context, bandID, songID, fileID stri
 	// Overlay for page N only, at the cropped raster's size (OverlayWidth = wN), with the marks transformed
 	// into the cropped frame. A page with no marks skips the worker entirely.
 	doc := snapshotToDoc(snap, fileID, nil) // uploaded PDF: no chart projection
-	doc = applyCropToDoc(doc, crops)
+	// T199: a deskewed page needs its true aspect for the mark transform, from the same pageAspect source the
+	// bake uses. Only when this page carries an angle; unreadable ⇒ fail the preview loudly (B1), not silently.
+	aspects := map[int]float64{}
+	if cr != nil && cr.angle != 0 {
+		pa, aerr := b.aspects(ctx, pdf)
+		if aerr != nil {
+			return nil, fmt.Errorf("deskew preview of page %d: %w", page, aerr)
+		}
+		if page >= len(pa) {
+			return nil, fmt.Errorf("deskew preview: page %d out of range (%d pages)", page, len(pa))
+		}
+		aspects[page] = pa[page]
+	}
+	doc = applyCropToDoc(doc, crops, aspects)
 	var layers []composeLayer
 	hasPageObjects := false
 	for _, o := range doc.Objects {

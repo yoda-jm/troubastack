@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"troubastack/core/internal/app"
+	"troubastack/core/internal/domain"
 )
 
 // contentPDF is a 200×280pt page with a filled black rectangle covering the CENTRE HALF (frame x 0.25–0.75,
@@ -317,7 +318,7 @@ func TestApplyCropToDoc(t *testing.T) {
 		{UUID: "outside", Page: 0, Points: []docPoint{{X: 0.9, Y: 0.9}}, Style: docStyle{Width: 0.01}},
 		{UUID: "otherpage", Page: 1, Points: []docPoint{{X: 0.5, Y: 0.5}}, Style: docStyle{Width: 0.01}},
 	}}
-	out := applyCropToDoc(doc, pageCrops{0: {x: 0.25, y: 0.25, w: 0.5, h: 0.5}})
+	out := applyCropToDoc(doc, pageCrops{0: {x: 0.25, y: 0.25, w: 0.5, h: 0.5}}, nil)
 
 	byID := map[string]docObject{}
 	for _, o := range out.Objects {
@@ -357,7 +358,7 @@ func TestCropKeepsHighlightSourceWidth(t *testing.T) {
 	doc := annotationsDoc{Objects: []docObject{
 		{UUID: "hl", Type: "line", Page: 0, Points: []docPoint{{X: 0.3, Y: 0.5}, {X: 0.7, Y: 0.5}}, Style: docStyle{Width: srcWidth}},
 	}}
-	out := applyCropToDoc(doc, pageCrops{0: {x: 0.25, y: 0.25, w: cw, h: cw}})
+	out := applyCropToDoc(doc, pageCrops{0: {x: 0.25, y: 0.25, w: cw, h: cw}}, nil)
 	got := out.Objects[0].Style.Width * cw // back to source-width units
 	if math.Abs(got-srcWidth) > 1e-9 {
 		t.Fatalf("highlight width in source units = %.4f, want %.4f (width must scale by 1/cw)", got, srcWidth)
@@ -372,7 +373,7 @@ func TestCropStraddlingStrokeIsKept(t *testing.T) {
 		// crop is x∈[0.25,0.75]; this line ends at 0.76 — 1% past the right edge.
 		{UUID: "straddle", Type: "line", Page: 0, Points: []docPoint{{X: 0.3, Y: 0.5}, {X: 0.76, Y: 0.5}}, Style: docStyle{Width: 0.02}},
 	}}
-	out := applyCropToDoc(doc, pageCrops{0: {x: 0.25, y: 0.25, w: 0.5, h: 0.5}})
+	out := applyCropToDoc(doc, pageCrops{0: {x: 0.25, y: 0.25, w: 0.5, h: 0.5}}, nil)
 	if len(out.Objects) != 1 {
 		t.Fatalf("a stroke straddling the crop edge was dropped; want it kept (clip the overflow): %d objects", len(out.Objects))
 	}
@@ -388,28 +389,28 @@ func TestMarkIntersectsCrop(t *testing.T) {
 	crop := cropRect{x: 0.25, y: 0.25, w: 0.5, h: 0.5} // [0.25,0.75]²
 	// A thick line whose centre sits half-a-width OUTSIDE the left edge: its stroke reaches the edge ⇒ kept.
 	line := docObject{Type: "line", Style: docStyle{Width: 0.04}, Points: []docPoint{{X: 0.23, Y: 0.5}}} // 0.25-0.04/2
-	if !markIntersectsCrop(line, crop) {
+	if !markIntersectsCrop(line, crop, 0) {
 		t.Error("a line 0.5×width outside the edge must be KEPT (pad by half the stroke width)")
 	}
 	// A text anchored 1% LEFT of the left edge: its glyphs run right into the crop ⇒ kept.
 	textLeft := docObject{Type: "text", Text: "lyric line", Style: docStyle{FontSize: 0.03}, Points: []docPoint{{X: 0.24, Y: 0.5}}}
-	if !markIntersectsCrop(textLeft, crop) {
+	if !markIntersectsCrop(textLeft, crop, 0) {
 		t.Error("a text anchored 1% left of the crop must be KEPT (glyphs run right)")
 	}
 	// A text anchored to the RIGHT of the crop: its glyphs run further right, away from the crop ⇒ dropped.
 	textRight := docObject{Type: "text", Text: "lyric line", Style: docStyle{FontSize: 0.03}, Points: []docPoint{{X: 0.80, Y: 0.5}}}
-	if markIntersectsCrop(textRight, crop) {
+	if markIntersectsCrop(textRight, crop, 0) {
 		t.Error("a text anchored right of the crop must be DROPPED (glyphs run away from the crop)")
 	}
 	// A plain point mark far outside stays dropped.
 	far := docObject{Type: "rect", Style: docStyle{Width: 0.01}, Points: []docPoint{{X: 0.95, Y: 0.95}}}
-	if markIntersectsCrop(far, crop) {
+	if markIntersectsCrop(far, crop, 0) {
 		t.Error("a mark far outside the crop must be dropped")
 	}
 	// A mark with NO points is KEPT (no extent to place off the page) — the empty case lives in the shared
 	// predicate so the bake and the dryRun agree.
 	empty := docObject{Type: "rect", Style: docStyle{Width: 0.01}, Points: nil}
-	if !markIntersectsCrop(empty, crop) {
+	if !markIntersectsCrop(empty, crop, 0) {
 		t.Error("an empty-points mark must be KEPT, not dropped")
 	}
 }
@@ -534,5 +535,166 @@ func TestBakeDeskewRendersStraightSharpEdge(t *testing.T) {
 	}
 	if rr := lum(out, ow-15, oh/2); rr > 55 {
 		t.Errorf("right of the straightened edge must be black, got lum=%.0f", rr)
+	}
+}
+
+// dotPDF builds a wPt×hPt PDF with a single small black dot centred at (xPt,yPt) PDF points — a stand-in for a
+// note-head. No page rotation; the dot is a point, and the crop's deskew is what moves it.
+func dotPDF(wPt, hPt, xPt, yPt float64) []byte {
+	content := fmt.Sprintf("q %.3f %.3f 4 4 re f Q\n", xPt-2, yPt-2)
+	return []byte("%PDF-1.4\n" +
+		"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+		"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
+		fmt.Sprintf("3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 %.0f %.0f]/Contents 4 0 R>>endobj\n", wPt, hPt) +
+		fmt.Sprintf("4 0 obj<</Length %d>>stream\n%sendstream endobj\n", len(content), content) +
+		"trailer<</Root 1 0 R>>\n%%EOF\n")
+}
+
+func inkCentroid(img *image.RGBA) (cx, cy float64, found bool) {
+	var sx, sy, sw float64
+	b := img.Bounds()
+	for y := 0; y < b.Dy(); y++ {
+		for x := 0; x < b.Dx(); x++ {
+			if ink := (255 - lum(img, x, y)) / 255; ink > 0.3 {
+				sx += ink * float64(x)
+				sy += ink * float64(y)
+				sw += ink
+			}
+		}
+	}
+	if sw == 0 {
+		return 0, 0, false
+	}
+	return sx / sw, sy / sw, true
+}
+
+// TestBakeDeskewOverlayDotLandsOnNoteHead is T199 B2: an overlay mark on a note-head must land on that same
+// note-head in the straightened bake. A real bake (pdftoppm→rotate→cut) of a dot on a NON-SQUARE page, baked
+// with an OFF-CENTRE deskewed window, places the dot where the shared app.PageViewTransform predicts, within
+// 1px. The three wrong transforms — rotate about the PAGE centre, force aspect=1, and −angle — each miss by
+// well over 1px, so a non-square off-centre fixture discriminates all three (S1's lesson).
+func TestBakeDeskewOverlayDotLandsOnNoteHead(t *testing.T) {
+	const angle = 4.0
+	const wPt, hPt = 216.0, 288.0
+	const dnx, dny = 0.55, 0.30 // dot, source-normalized (y top-down), off the window centre
+	r := popplerRasterizer{bin: "pdftoppm", imagesBin: "pdfimages", infoBin: "pdfinfo", dpi: 150}
+	pdf := dotPDF(wPt, hPt, dnx*wPt, (1-dny)*hPt) // PDF y is bottom-up
+	rect := cropRect{x: 0.2, y: 0.15, w: 0.5, h: 0.5, angle: angle}
+	got, err := r.Rasterize(withPageCrops(context.Background(), pageCrops{0: rect}), pdf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := decodeRGBA(t, got[0])
+	ow, oh := out.Bounds().Dx(), out.Bounds().Dy()
+	gx, gy, found := inkCentroid(out)
+	if !found {
+		t.Fatal("no dot found in the straightened output")
+	}
+	asp, err := r.pageAspects(context.Background(), pdf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aspect := asp[0]
+
+	pvt := func(cx, cy, ang, a float64) (float64, float64) { // test-local, parameterised for the sabotages
+		dx, dy := dnx-cx, dny-cy
+		th := ang * math.Pi / 180
+		sin, cos := math.Sin(th), math.Cos(th)
+		return 0.5 + (cos*dx+sin*dy/a)/rect.w, 0.5 + (-sin*dx*a+cos*dy)/rect.h
+	}
+	px := func(ox, oy float64) (float64, float64) { return ox * float64(ow), oy * float64(oh) }
+	dist := func(ax, ay, bx, by float64) float64 { return math.Hypot(ax-bx, ay-by) }
+
+	// Correct: the production transform (window centre, real aspect, +angle).
+	cox, coy := app.PageViewTransform(dnx, dny, rect.x, rect.y, rect.w, rect.h, angle, aspect)
+	ex, ey := px(cox, coy)
+	wcx, wcy := rect.x+rect.w/2, rect.y+rect.h/2
+	pcx, pcy := px(pvt(0.5, 0.5, angle, aspect))  // sabotage: page-centre rotation
+	a1x, a1y := px(pvt(wcx, wcy, angle, 1))       // sabotage: aspect = 1
+	nax, nay := px(pvt(wcx, wcy, -angle, aspect)) // sabotage: −angle
+	t.Logf("out %dx%d aspect=%.4f  dot=(%.1f,%.1f)  correct=(%.1f,%.1f) d=%.2f | pageCentre d=%.2f aspect1 d=%.2f negAngle d=%.2f",
+		ow, oh, aspect, gx, gy, ex, ey, dist(gx, gy, ex, ey), dist(gx, gy, pcx, pcy), dist(gx, gy, a1x, a1y), dist(gx, gy, nax, nay))
+
+	if d := dist(gx, gy, ex, ey); d > 1.5 {
+		t.Errorf("overlay dot off the note-head by %.2f px (>1.5) — the mark transform disagrees with the raster", d)
+	}
+	for _, s := range []struct {
+		name string
+		x, y float64
+	}{{"page-centre", pcx, pcy}, {"aspect=1", a1x, a1y}, {"−angle", nax, nay}} {
+		if d := dist(gx, gy, s.x, s.y); d <= 1.5 {
+			t.Errorf("%s sabotage only %.2f px off — the fixture should discriminate it (>1.5)", s.name, d)
+		}
+	}
+}
+
+// TestDeskewDryRunEqualsBakeDrop is T199 B3: the crop-save dry-run (app.CropHiddenMarks) and what the bake
+// actually drops (applyCropToDoc) must name the SAME marks — the two are SEPARATE implementations that both
+// funnel through app.CropHidesMark, so this proves they don't diverge in how they build points / filter. A
+// grid of marks straddles a rotated window; with the SAME aspect the hidden set equals the dropped set. The
+// sabotage: feed the bake the pageSizes ratio (a slightly different aspect) while the dry-run uses the true
+// one — a boundary mark flips, so the sets differ (this is why the ONE pageAspect source matters).
+func TestDeskewDryRunEqualsBakeDrop(t *testing.T) {
+	// A 10×10 grid of single-point marks across the page.
+	var doc annotationsDoc
+	snap := domain.Snapshot{Layers: []domain.Layer{{ID: "L1", FileID: "F1"}}}
+	n := 0
+	for i := 1; i <= 40; i++ {
+		for j := 1; j <= 40; j++ {
+			uuid := fmt.Sprintf("m%d", n)
+			n++
+			x, y := float64(i)/41, float64(j)/41
+			doc.Objects = append(doc.Objects, docObject{UUID: uuid, LayerID: "L1", Page: 0, Type: "rect", Points: []docPoint{{X: x, Y: y}}, Style: docStyle{Width: 0.004}})
+			snap.Objects = append(snap.Objects, domain.Object{UUID: uuid, LayerID: "L1", Page: 0, Type: domain.TypeRect, Points: []domain.Point{{X: x, Y: y}}, Style: domain.Style{Width: 0.004}})
+		}
+	}
+	c := cropRect{x: 0.25, y: 0.25, w: 0.5, h: 0.5, angle: 6}
+	bakeDropped := func(aspect float64) map[string]bool {
+		out := applyCropToDoc(doc, pageCrops{0: c}, map[int]float64{0: aspect})
+		survived := map[string]bool{}
+		for _, o := range out.Objects {
+			survived[o.UUID] = true
+		}
+		dropped := map[string]bool{}
+		for _, o := range doc.Objects {
+			if !survived[o.UUID] {
+				dropped[o.UUID] = true
+			}
+		}
+		return dropped
+	}
+	dryHidden := func(aspect float64) map[string]bool {
+		crop := app.Crop{Pages: map[string]app.CropRect{"0": {X: c.x, Y: c.y, W: c.w, H: c.h, Angle: c.angle, Source: "manual"}}}
+		set := map[string]bool{}
+		for _, h := range app.CropHiddenMarks(snap, "F1", crop, map[int]float64{0: aspect}) {
+			set[h.UUID] = true
+		}
+		return set
+	}
+	eq := func(a, b map[string]bool) bool {
+		if len(a) != len(b) {
+			return false
+		}
+		for k := range a {
+			if !b[k] {
+				return false
+			}
+		}
+		return true
+	}
+	// Agreement: same aspect ⇒ the dry-run's hidden set equals the bake's dropped set, across aspects.
+	for _, aspect := range []float64{0.75, 1.0, 1.333} {
+		d, h := bakeDropped(aspect), dryHidden(aspect)
+		t.Logf("aspect=%.3f dropped=%d hidden=%d equal=%v", aspect, len(d), len(h), eq(d, h))
+		if !eq(d, h) {
+			t.Errorf("aspect %.3f: dry-run hidden set != bake dropped set", aspect)
+		}
+	}
+	// Sabotage: the bake on the pageSizes ratio (0.80) while the dry-run uses the true aspect (0.75) — a
+	// boundary mark flips, so the two paths disagree. Proves the ONE shared aspect source is load-bearing.
+	d, h := bakeDropped(0.80), dryHidden(0.75)
+	t.Logf("SABOTAGE bake@0.80 vs dry@0.75: dropped=%d hidden=%d equal=%v", len(d), len(h), eq(d, h))
+	if eq(d, h) {
+		t.Error("a divergent aspect (pageSizes ratio on one side) must break dry-run == drop, but the sets matched")
 	}
 }
