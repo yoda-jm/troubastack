@@ -45,9 +45,10 @@ const (
 // PDF at base DPI through the SAME path a bake uses (b.raster.Rasterize, so detection sees exactly what would
 // bake, and the render cache is shared) and runs detectContentRect per page. `want` selects pages (0-based);
 // when `all` is true every page is considered and `want` is ignored. The result maps a stringified page index
-// to its proposed rect (Source "auto", square per policy A); a page with no worthwhile crop is absent. It
-// writes nothing — no bake, no sidecar, no file mutation.
-func (b *Baker) DetectCropForPages(ctx context.Context, pdf []byte, want map[int]bool, all bool) (map[string]app.CropRect, error) {
+// to its proposed rect (Source "auto", square per policy A); a page with no worthwhile crop is absent. A
+// proposal carries a straightening angle only when `deskew` is set (the caller opts in); otherwise every
+// proposal is upright (angle 0), T198's behaviour. It writes nothing — no bake, no sidecar, no file mutation.
+func (b *Baker) DetectCropForPages(ctx context.Context, pdf []byte, want map[int]bool, all, deskew bool) (map[string]app.CropRect, error) {
 	rasters, err := b.raster.Rasterize(ctx, pdf) // base DPI, uncropped (no crop in context)
 	if err != nil {
 		return nil, err
@@ -57,7 +58,28 @@ func (b *Baker) DetectCropForPages(ctx context.Context, pdf []byte, want map[int
 		if !all && !want[i] {
 			continue
 		}
-		if r, ok := detectContentRect(raster); ok {
+		g, derr := decodePNG(raster)
+		if derr != nil {
+			continue
+		}
+		// T199: propose a deskew angle ONLY when the caller opts in (deskew). Studio's existing Auto button
+		// merges the proposed rect whole and saves it, and there is no angle UI until S4 — so a default detect
+		// must stay angle-0 (T198 behaviour), or the Auto button would silently produce rotated crops that
+		// Studio still draws upright. When opted in, a confident angle is measured in the bake's leveled frame
+		// (deskewContentRect) so the window lines up with how the bake reads the rect; if the page aspect can't
+		// be read, the angle is dropped and the page proposes an upright T198 box.
+		if deskew {
+			angle, confident := detectPageAngle(g)
+			if confident && angle != 0 {
+				if asp, aerr := b.PageAspect(ctx, pdf, i); aerr == nil {
+					if r, ok := deskewContentRect(g, angle, asp); ok {
+						out[strconv.Itoa(i)] = app.CropRect{X: r.x, Y: r.y, W: r.w, H: r.h, Angle: r.angle, Source: "auto"}
+					}
+					continue
+				}
+			}
+		}
+		if r, ok := contentRectOfGrid(g); ok {
 			out[strconv.Itoa(i)] = app.CropRect{X: r.x, Y: r.y, W: r.w, H: r.h, Source: "auto"}
 		}
 	}
@@ -72,15 +94,20 @@ func detectContentRect(rasterPNG []byte) (cropRect, bool) {
 	if err != nil {
 		return cropRect{}, false
 	}
-	w, h := img.w, img.h
-	if w <= 0 || h <= 0 {
+	return contentRectOfGrid(img)
+}
+
+// contentRectOfGrid is detectContentRect on an already-decoded ink grid — so the T199 autodetect can measure
+// the content box on the STRAIGHTENED grid (spec: the bbox is measured after deskew) without re-encoding.
+func contentRectOfGrid(g grid) (cropRect, bool) {
+	if g.w <= 0 || g.h <= 0 {
 		return cropRect{}, false
 	}
-	x0, y0, x1, y1, ok := contentBoxPx(img)
+	x0, y0, x1, y1, ok := contentBoxPx(g)
 	if !ok {
 		return cropRect{}, false
 	}
-	return rectFromContentPx(x0, y0, x1, y1, w, h)
+	return rectFromContentPx(x0, y0, x1, y1, g.w, g.h)
 }
 
 // rectFromContentPx turns a content pixel box into a margined, AR-grown, clamped square crop in fractions.
@@ -176,10 +203,11 @@ func naiveInkBoxPx(g grid) (x0, y0, x1, y1 int, ok bool) {
 	return x0, y0, x1 + 1, y1 + 1, true // half-open box
 }
 
-// contentBoxPx is the guarded content box: the union of the bounding boxes of ink COMPONENTS that are
-// neither specks (too small) nor edge bands (border-touching and spanning most of a page dimension). ok is
-// false when nothing survives.
-func contentBoxPx(g grid) (x0, y0, x1, y1 int, ok bool) {
+// contentComponents runs the connected-component walk and returns a per-pixel label array (0 = no ink) plus
+// the set of labels that are real CONTENT — neither specks (too small) nor edge bands (border-touching and
+// thin perpendicular to that border). Shared by contentBoxPx (the AABB) and deskewContentRect (the leveled
+// box), so both see exactly the same surviving ink.
+func contentComponents(g grid) (labels []int32, survivors map[int32]bool) {
 	minArea := int(autoMinComponentFrac * float64(g.w) * float64(g.h))
 	if minArea < 6 {
 		minArea = 6
@@ -187,9 +215,9 @@ func contentBoxPx(g grid) (x0, y0, x1, y1 int, ok bool) {
 	thickW := int(autoEdgeBandThickFrac * float64(g.w)) // max width of a vertical (left/right) edge band
 	thickH := int(autoEdgeBandThickFrac * float64(g.h)) // max height of a horizontal (top/bottom) edge band
 
-	labels := make([]int32, g.w*g.h) // 0 = unvisited
+	labels = make([]int32, g.w*g.h) // 0 = unvisited
+	survivors = map[int32]bool{}
 	var stack []int
-	x0, y0, x1, y1 = g.w, g.h, -1, -1
 	var cur int32
 	for start := 0; start < len(g.ink); start++ {
 		if !g.ink[start] || labels[start] != 0 {
@@ -257,21 +285,108 @@ func contentBoxPx(g grid) (x0, y0, x1, y1 int, ok bool) {
 		if (touchesLeftRight && bw <= thickW) || (touchesTopBottom && bh <= thickH) {
 			continue // edge band
 		}
-		if cx0 < x0 {
-			x0 = cx0
+		survivors[cur] = true
+	}
+	return labels, survivors
+}
+
+// contentBoxPx is the guarded content box: the pixel bounding box of the surviving (content) components. ok is
+// false when nothing survives.
+func contentBoxPx(g grid) (x0, y0, x1, y1 int, ok bool) {
+	labels, survivors := contentComponents(g)
+	x0, y0, x1, y1 = g.w, g.h, -1, -1
+	for p, lab := range labels {
+		if lab == 0 || !survivors[lab] {
+			continue
 		}
-		if cy0 < y0 {
-			y0 = cy0
+		px := p % g.w
+		py := p / g.w
+		if px < x0 {
+			x0 = px
 		}
-		if cx1 > x1 {
-			x1 = cx1
+		if px > x1 {
+			x1 = px
 		}
-		if cy1 > y1 {
-			y1 = cy1
+		if py < y0 {
+			y0 = py
+		}
+		if py > y1 {
+			y1 = py
 		}
 	}
 	if x1 < 0 {
 		return 0, 0, 0, 0, false
 	}
 	return x0, y0, x1 + 1, y1 + 1, true
+}
+
+// deskewContentRect builds the crop window for a DESKEWED page. The bake reads a crop as a source-frame box
+// rotated about its OWN centre (app.PageViewTransform), so a box measured on a page straightened about some
+// OTHER centre does not line up — off-centre tilted content falls outside the window. Instead we measure the
+// surviving content directly in PageViewTransform's leveled (u,v) frame (u,v are the page point's coordinates
+// with the tilt removed), take that box, and map its centre back to the source frame. Every surviving ink
+// pixel then lies inside the window as the bake maps it, with the tilt gone. aspect is the page's rendered W/H
+// (the same source the bake uses). At angle 0 this is exactly rectFromContentPx. ok is false on no content or
+// a near-full-page box.
+func deskewContentRect(g grid, angleDeg, aspect float64) (cropRect, bool) {
+	if g.w <= 0 || g.h <= 0 || aspect <= 0 {
+		return cropRect{}, false
+	}
+	labels, survivors := contentComponents(g)
+	if len(survivors) == 0 {
+		return cropRect{}, false
+	}
+	th := angleDeg * math.Pi / 180
+	sin, cos := math.Sin(th), math.Cos(th)
+	gw, gh := float64(g.w), float64(g.h)
+	uMin, vMin := math.Inf(1), math.Inf(1)
+	uMax, vMax := math.Inf(-1), math.Inf(-1)
+	for p, lab := range labels {
+		if lab == 0 || !survivors[lab] {
+			continue
+		}
+		px := (float64(p%g.w) + 0.5) / gw // pixel centre, page fractions
+		py := (float64(p/g.w) + 0.5) / gh
+		u := cos*px + sin*py/aspect  // PageViewTransform's leveled coordinates, before the centre offset
+		v := -sin*px*aspect + cos*py // (the forward map; its inverse has det 1, recovered below)
+		if u < uMin {
+			uMin = u
+		}
+		if u > uMax {
+			uMax = u
+		}
+		if v < vMin {
+			vMin = v
+		}
+		if v > vMax {
+			vMax = v
+		}
+	}
+	// Margin + policy-A square, in the leveled frame (a square in u,v is what the bake renders upright).
+	side := math.Max(uMax-uMin, vMax-vMin) + 2*autoMarginFrac
+	if side >= autoMaxCoverFrac {
+		return cropRect{}, false
+	}
+	if side < autoMinSideFrac {
+		side = autoMinSideFrac
+	}
+	// Map the leveled box centre back to the source page frame (inverse of the (u,v) map; det = 1).
+	uc, vc := (uMin+uMax)/2, (vMin+vMax)/2
+	cx := cos*uc - sin*vc/aspect
+	cy := sin*aspect*uc + cos*vc
+	rx, ry := cx-side/2, cy-side/2
+	// Clamp the unrotated box into the page without shrinking it (same as rectFromContentPx).
+	if rx < 0 {
+		rx = 0
+	}
+	if ry < 0 {
+		ry = 0
+	}
+	if rx+side > 1 {
+		rx = 1 - side
+	}
+	if ry+side > 1 {
+		ry = 1 - side
+	}
+	return cropRect{x: rx, y: ry, w: side, h: side, angle: angleDeg}, true
 }

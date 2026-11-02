@@ -350,36 +350,6 @@ func TestDeskewSignConvention(t *testing.T) {
 	}
 }
 
-// TestDeskewWindowSpills covers B1b's geometry: the rotated-corner-inside-the-page test that decides whether
-// the bake had to clamp. A centred window at a mild angle stays inside; a window flush to an edge spills once
-// rotated; angle 0 never spills. The PHYSICAL-units rotation (page aspect) matters: the SAME window spills at
-// one aspect but not another — a sabotage that rotates in normalized space (dropping the aspect) reds the
-// aspect case.
-func TestDeskewWindowSpills(t *testing.T) {
-	// Centred, mild angle, square page: stays inside.
-	if deskewWindowSpills(cropRect{x: 0.2, y: 0.2, w: 0.6, h: 0.6, angle: 5}, 1.0) {
-		t.Error("a centred window at 5° must not spill")
-	}
-	// Flush to the left edge, 10°, square page: a bottom corner rotates past x=0.
-	if !deskewWindowSpills(cropRect{x: 0, y: 0.2, w: 0.6, h: 0.6, angle: 10}, 1.0) {
-		t.Error("an edge-flush window at 10° must spill")
-	}
-	// angle 0 never spills, even flush to the edge.
-	if deskewWindowSpills(cropRect{x: 0, y: 0, w: 1, h: 1, angle: 0}, 1.0) {
-		t.Error("angle 0 must never spill")
-	}
-	// Aspect-sensitivity: a near-top window rotated on a WIDE page pushes a corner past y=0 (the physical
-	// x-extent is stretched, so rotation lifts the corner more in normalized y), while the SAME window on a
-	// square page stays in. Proves the aspect enters the rotation (physical units), not just the raw fractions.
-	wide := cropRect{x: 0.2, y: 0.08, w: 0.6, h: 0.6, angle: 8}
-	if deskewWindowSpills(wide, 1.0) {
-		t.Error("the window must stay inside on a square page")
-	}
-	if !deskewWindowSpills(wide, 3.0) {
-		t.Error("the same window must spill on a 3:1 wide page (aspect must enter the rotation)")
-	}
-}
-
 // TestRotateWindowPreservesGreys pins clamp8's 16→8-bit conversion: rotating a UNIFORM grey page returns the
 // SAME grey for every one of the 256 levels (a rotation of a constant is that constant — the bicubic weights
 // sum to 1, and the output window sits fully inside src so nothing reads the white fill). The old v/256

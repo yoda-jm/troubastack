@@ -148,7 +148,7 @@ func TestDetectCropForPages(t *testing.T) {
 	b := &Baker{raster: pagesRaster{pages: [][]byte{page(pw, ph, contentBlock), page(pw, ph)}}}
 
 	// "this page" = page 0 only.
-	got, err := b.DetectCropForPages(context.Background(), []byte("pdf"), map[int]bool{0: true}, false)
+	got, err := b.DetectCropForPages(context.Background(), []byte("pdf"), map[int]bool{0: true}, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,12 +160,12 @@ func TestDetectCropForPages(t *testing.T) {
 	}
 
 	// A page that was NOT requested yields nothing.
-	if only1, _ := b.DetectCropForPages(context.Background(), []byte("pdf"), map[int]bool{1: true}, false); len(only1) != 0 {
+	if only1, _ := b.DetectCropForPages(context.Background(), []byte("pdf"), map[int]bool{1: true}, false, false); len(only1) != 0 {
 		t.Fatalf("blank page 1 must propose no crop, got %+v", only1)
 	}
 
 	// "all": page 0 proposes, blank page 1 does not.
-	all, _ := b.DetectCropForPages(context.Background(), []byte("pdf"), nil, true)
+	all, _ := b.DetectCropForPages(context.Background(), []byte("pdf"), nil, true, false)
 	if len(all) != 1 || all["0"].Source != "auto" {
 		t.Fatalf("all-pages detect = %+v, want just page 0", all)
 	}

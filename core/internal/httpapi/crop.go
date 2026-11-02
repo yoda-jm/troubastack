@@ -82,7 +82,8 @@ func (a *AnnotationsAPI) setCrop(w http.ResponseWriter, r *http.Request, u app.U
 // normal crop save with source "auto"; a manual rect is never overwritten here. Detection is never a bake.
 //
 //	POST /api/bands/{bandId}/songs/{songId}/files/{fileId}/crop-detect
-//	{ "pages": [0,2] }  — or  { "all": true }
+//	{ "pages": [0,2] }  — or  { "all": true }  — add "deskew": true to opt in to a straightening angle (T199);
+//	without it every proposal is upright (angle 0), T198's behaviour, so the existing Auto button is unchanged.
 //	→ { "pages": {"0": {x,y,w,h,source:"auto"}, …}, "hiddenMarks": [...] }
 func (a *AnnotationsAPI) detectCrop(w http.ResponseWriter, r *http.Request, u app.User) {
 	bandID := r.PathValue("bandId")
@@ -93,8 +94,9 @@ func (a *AnnotationsAPI) detectCrop(w http.ResponseWriter, r *http.Request, u ap
 	}
 	fileID := r.PathValue("fileId")
 	var in struct {
-		Pages []int `json:"pages"`
-		All   bool  `json:"all,omitempty"`
+		Pages  []int `json:"pages"`
+		All    bool  `json:"all,omitempty"`
+		Deskew bool  `json:"deskew,omitempty"` // T199: opt in to a straightening angle; default proposes upright
 	}
 	if !decode(w, r, &in) {
 		return
@@ -113,7 +115,7 @@ func (a *AnnotationsAPI) detectCrop(w http.ResponseWriter, r *http.Request, u ap
 	for _, p := range in.Pages {
 		want[p] = true
 	}
-	rects, err := a.baker.DetectCropForPages(r.Context(), pdf, want, in.All)
+	rects, err := a.baker.DetectCropForPages(r.Context(), pdf, want, in.All, in.Deskew)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -125,8 +127,25 @@ func (a *AnnotationsAPI) detectCrop(w http.ResponseWriter, r *http.Request, u ap
 		writeErr(w, err)
 		return
 	}
-	// T198/S2 autodetect proposals carry no angle (deskew autodetect is S3), so no aspect is needed here.
-	hidden, err := a.svc.PreviewFileCrop(u, bandID, song.ID, fileID, app.Crop{LockAR: true, Pages: rects}, snap, map[int]float64{})
+	// T199 S3: a proposal may carry a deskew angle, whose hidden-marks need the page aspect — the SAME source
+	// the bake uses. Compute it for the angled pages from the PDF already in hand (the baker is non-nil here).
+	aspects := map[int]float64{}
+	for key, rc := range rects {
+		if rc.Angle == 0 {
+			continue
+		}
+		idx, aerr := strconv.Atoi(key)
+		if aerr != nil {
+			continue
+		}
+		asp, perr := a.baker.PageAspect(r.Context(), pdf, idx)
+		if perr != nil {
+			writeErr(w, perr)
+			return
+		}
+		aspects[idx] = asp
+	}
+	hidden, err := a.svc.PreviewFileCrop(u, bandID, song.ID, fileID, app.Crop{LockAR: true, Pages: rects}, snap, aspects)
 	if err != nil {
 		writeErr(w, err)
 		return

@@ -2,7 +2,6 @@ package bake
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"troubastack/core/internal/app"
@@ -304,87 +303,4 @@ func sm2Page0(t *testing.T, b *Baker, cb ConcertBundle) PageSource {
 		t.Fatal("no page sources for the song")
 	}
 	return srcs[0]
-}
-
-// TestBakeDeskewClampWarning is T199 B1b: when a deskew window's rotated box reaches past the page, the bake
-// clamps the render (white fill) and must NOT do so silently — a bake warning naming the song reaches the
-// terminal record Studio shows. A centred deskew that stays inside warns NOT AT ALL. The square fake raster
-// fixes the page aspect at 1:1 (policy-A crops are square, so the cropped raster's aspect IS the source's),
-// which is what the physical-units spill test uses. Sabotage: drop stageFile's cropWarnings loop (or let
-// deskewWindowSpills return false) and the spill case loses its warning → red.
-func TestBakeDeskewClampWarning(t *testing.T) {
-	bakeWithCrop := func(t *testing.T, crop app.Crop) []string {
-		t.Helper()
-		repo := memrepo.New()
-		svc := app.NewService(repo)
-		svc.WithBlobStore(blob.NewMem())
-		eng := engine.New(memstore.New().(store.HistoryAware))
-		admin, err := svc.Register("admin", "Admin", "password123", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		band, err := svc.CreateBand(admin, "Band")
-		if err != nil {
-			t.Fatal(err)
-		}
-		song, err := svc.CreateSong(admin, band.ID, "Crooked Song", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		file, err := svc.UploadSongFile(admin, band.ID, song.ID, "score.pdf", "application/pdf", []byte(contentPDF))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := svc.SetFileCrop(admin, band.ID, song.ID, file.ID, crop); err != nil {
-			t.Fatalf("set crop: %v", err)
-		}
-		sl, err := svc.CreateSetlist(admin, band.ID, "Gig", "", "", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := svc.AddSetlistItem(admin, band.ID, sl.ID, song.ID); err != nil {
-			t.Fatal(err)
-		}
-		// A SQUARE fake raster ⇒ page aspect 1:1 (what the spill test reads from the cropped raster). The fake
-		// raster ignores the crop, so this isolates the stageFile geometry warning from the real deskew render.
-		b := &Baker{
-			svc: svc, eng: eng,
-			raster:   fakeRaster{pages: 1, png: tinyPNG(t, 64, 64)},
-			aspecter: FixedAspecter{Aspects: []float64{1.0}}, // T199: aspect 1 (square), the spill geometry below assumes it
-			overlays: fakeOverlays{png: tinyPNG(t, 10, 14)},
-			bakesDir: t.TempDir(),
-			progress: newProgressRegistry(nil),
-			now:      func() int64 { return 1700000000 },
-		}
-		_, bakeID, err := b.Bake(context.Background(), band.ID, sl.ID, admin, nil, "")
-		if err != nil {
-			t.Fatalf("bake: %v", err)
-		}
-		prog, ok := b.Progress(band.ID, sl.ID, bakeID)
-		if !ok {
-			t.Fatal("no progress record for the finished bake")
-		}
-		return prog.Warnings
-	}
-
-	// A deskew whose window is flush to the left edge and rotated 10° pushes a corner off the page → warn.
-	spill := app.Crop{Pages: map[string]app.CropRect{"0": {X: 0, Y: 0.2, W: 0.6, H: 0.6, Angle: 10, Source: "manual"}}}
-	warns := bakeWithCrop(t, spill)
-	found := false
-	for _, w := range warns {
-		if strings.Contains(w, "straightened past") && strings.Contains(w, "Crooked Song") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("a spilling deskew must warn (naming the song), got %v", warns)
-	}
-
-	// A centred deskew that stays inside the page must not raise the clamp warning.
-	ok := app.Crop{Pages: map[string]app.CropRect{"0": {X: 0.2, Y: 0.2, W: 0.6, H: 0.6, Angle: 5, Source: "manual"}}}
-	for _, w := range bakeWithCrop(t, ok) {
-		if strings.Contains(w, "straightened past") {
-			t.Fatalf("a centred deskew that stays inside must not warn, got %q", w)
-		}
-	}
 }

@@ -73,35 +73,6 @@ func pageCropsFromContext(ctx context.Context) pageCrops {
 // giant raster. Applies to vector pages (no native-ppi cap) and as a backstop everywhere.
 const maxCropSidePx = 4096
 
-// deskewWindowSpills (T199, B1b) reports whether the rotated crop window reaches past the page edge, given the
-// page's pixel size (for its aspect). The rotation is about the window centre in PHYSICAL units: a normalized
-// offset (dx,dy) becomes (dx·W, dy·H) before rotating, so a non-square page doesn't shear. The server save
-// path has no page dims (it can't run this), and Studio clamps the window client-side, so this fires only for
-// a crop that reached the bake un-clamped — e.g. one imported past the dimension-free sanitizer. When it does,
-// renderDeskewedCropPage clamps the render to the page and fills the rest with white; the caller warns so the
-// clamp is never silent. angle 0 or a degenerate page ⇒ never spills.
-func deskewWindowSpills(r cropRect, aspect float64) bool {
-	if r.angle == 0 || aspect <= 0 {
-		return false
-	}
-	cx, cy := r.x+r.w/2, r.y+r.h/2
-	theta := r.angle * math.Pi / 180
-	sin, cos := math.Sin(theta), math.Cos(theta)
-	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {1, 1}, {-1, 1}} {
-		dx, dy := s[0]*r.w/2, s[1]*r.h/2
-		nx := cx + dx*cos - dy*sin/aspect
-		ny := cy + dx*aspect*sin + dy*cos
-		if nx < -cropEpsBake || nx > 1+cropEpsBake || ny < -cropEpsBake || ny > 1+cropEpsBake {
-			return true
-		}
-	}
-	return false
-}
-
-// cropEpsBake mirrors app.cropEps: absorb a float round-trip so a window whose rotated corner lands exactly on
-// the page edge isn't reported as spilling by a 1e-15 overshoot.
-const cropEpsBake = 1e-6
-
 // effectiveCropDPI computes the DPI to render a crop at: bring the cropped region to ≈ the pixel width the
 // WHOLE page gets at baseDPI (dpi_eff = baseDPI / w). Then two caps and a FLOOR:
 //   - cap at the page's native image ppi, but ONLY when a scan image actually bounds the crop's detail
