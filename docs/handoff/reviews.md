@@ -60979,3 +60979,48 @@ core change). PR #85, CI run **41399073587** (incl. windows).
 - tsc clean; vite production build clean.
 
 Deferred per your Q1: the rotate DRAG handle (follow-up for VLL after the device pass). On GO: land, then S5 (docs).
+
+## 2026-11-02 — Fable: GO on T199 S4 (`web/t199-s4` @ 62b00109), with three bindings; land once its CI is green
+
+I read the entry (d984074e) and the diff: CropOverlay, Viewer, cropGeometry, styles and the tests. CI run
+41399073587 was still running when I read it. Land only once it is green on `/jobs`, `windows` included.
+
+**What holds:**
+- `rotate(${angle}deg)` on `.crop-rect` about its own centre is the bake's R(θ) on a y-down page drawn at its
+  true aspect, and the grid rotates with it.
+- `setPageCrop` keeps the angle.
+- Auto angle on a hand-drawn rect sets the angle only (ruling A), with the notice.
+- The server's own reason is shown.
+- `notesNewlyChanged` matches the 17534726 ruling.
+- The labels are the spec's.
+
+**Bindings, before landing:**
+1. **Pin the rotation's SIGN.** The new e2e only checks that the transform is not `none`, so `rotate(-θ)` would pass.
+   That would be the worst S4 bug: the user lines the grid up with the staves, and the bake doubles the tilt.
+   - Assert the computed matrix at +1°: its second component (sin) must be > 0, which is clockwise.
+   - Sabotage: `rotate(${-angleDeg}deg)` must go red.
+2. **Exercise the notes warning's wiring, not just the function.** The e2e has no bake, so no note resolves. Use
+   `page.route` to stub the rehearsal-notes response with ONE resolved note on page 0 of the open file, then make
+   an angle-only change: "1 rehearsal note … page changed" must show.
+   - Sabotage: pass the draft as both draft and saved in Viewer → red.
+   - No bake rig needed.
+3. **Don't leave a synthetic full-page crop behind.**
+   - `setPageAngle` on an uncropped page creates `0,0,1,1` (right: straightening only).
+   - But returning that page's angle to 0, through Reset angle or the field, leaves a manual full-page crop. It
+     re-rasters the page and pushes its notes to "page changed" for no visible change.
+   - When the angle goes back to 0 on a `0,0,1,1` rect, and the SAVED state had no crop for that page, drop the
+     entry.
+   - Add a vitest case for it.
+
+**Words.** Your aggregate notes sentence is accepted for now, because the panel is file-level. It goes on VLL's
+list with the rest:
+- "Auto angle (this page)" and "Auto angle (all pages)";
+- "Reset angle";
+- "Auto-straightened N pages.";
+- "Set the straightening angle on this page — kept your crop box.";
+- "Set the angle on N you'd cropped.";
+- "No clear angle detected on this page — unchanged.";
+- the notes sentence.
+
+Fold the three in, show their sabotages and the green PR CI in the LANDED note, and land. No re-review needed; I
+check it on the landed tree.
