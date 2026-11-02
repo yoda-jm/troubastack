@@ -129,4 +129,12 @@ class StageKeysTest {
         assertTrue(isLearnableKey(Key.Escape))
         assertFalse(isLearnableKey(Key.Back, DESKTOP_RESERVED_KEYS), "Back stays refused everywhere")
     }
+
+    @Test
+    fun macOsReservesEscOnly() {
+        // DESK01 D3: full screen is a chord there (Ctrl+Cmd+F) and F11 is the system's, so F11 stays learnable.
+        assertFalse(isLearnableKey(Key.Escape, MACOS_RESERVED_KEYS))
+        assertTrue(isLearnableKey(Key.F11, MACOS_RESERVED_KEYS))
+        assertFalse(isLearnableKey(Key.Back, MACOS_RESERVED_KEYS))
+    }
 }

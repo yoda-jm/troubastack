@@ -50,6 +50,12 @@ sets up the server, makes accounts happen, and gets everyone in.
   **Update**; they also check once a day on their own, never during a concert. On Windows
   the app closes, installs the new version and opens again; the band's concerts, notes
   and sign-in are kept.
+- **Linux desktop** (DESK01): the same app as one AppImage on the `latest` release, for
+  64-bit PCs with glibc 2.35 or newer (built on Ubuntu 22.04; most distributions from 2022
+  on). Make it executable and run it, nothing to install; data in
+  `~/.local/share/troubastage`. It checks for updates like the others, and **Update** opens
+  the new download in the browser. A macOS app (one download for Apple silicon and Intel)
+  is built by CI and joins the release once it has been tested on a Mac.
 
 **Gaps:**
 - **Running the server like an adult** — TLS, systemd service, backups, a signed

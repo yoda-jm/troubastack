@@ -194,7 +194,8 @@ internal fun defaultSecretCodec(): SecretCodec = if (isWindows()) DpapiCodec els
  * unit-tested without touching the real env or OS:
  *  - `TROUBASTAGE_HOME` wins everywhere (tests and agents run isolated);
  *  - Windows: `%LOCALAPPDATA%\TroubaStageData` (fallback `<user.home>\AppData\Local\TroubaStageData`);
- *  - elsewhere: `${XDG_DATA_HOME:-<user.home>/.local/share}/troubastage`.
+ *  - macOS (DESK01): `<user.home>/Library/Application Support/TroubaStage`, outside the `.app` an update replaces;
+ *  - Linux: `${XDG_DATA_HOME:-<user.home>/.local/share}/troubastage`.
  *
  * B2 — the Windows folder is `TroubaStageData`, a SIBLING of the per-user MSI install dir
  * (`%LOCALAPPDATA%\TroubaStage`), NOT the same folder: a data root inside the install dir would be wiped
@@ -203,24 +204,22 @@ internal fun defaultSecretCodec(): SecretCodec = if (isWindows()) DpapiCodec els
  */
 internal fun resolveDataRoot(
     home: String?,
-    isWindows: Boolean,
+    os: HostOs,
     localAppData: String?,
     xdgDataHome: String?,
     userHome: String,
 ): File {
     home?.trim()?.takeIf { it.isNotEmpty() }?.let { return File(it) }
-    return if (isWindows) {
-        val base = localAppData?.takeIf { it.isNotBlank() } ?: "$userHome\\AppData\\Local"
-        File(base, "TroubaStageData")
-    } else {
-        val base = xdgDataHome?.takeIf { it.isNotBlank() } ?: "$userHome/.local/share"
-        File(base, "troubastage")
+    return when (os) {
+        HostOs.WINDOWS -> File(localAppData?.takeIf { it.isNotBlank() } ?: "$userHome\\AppData\\Local", "TroubaStageData")
+        HostOs.MACOS -> File("$userHome/Library/Application Support", "TroubaStage")
+        HostOs.LINUX -> File(xdgDataHome?.takeIf { it.isNotBlank() } ?: "$userHome/.local/share", "troubastage")
     }
 }
 
 private fun defaultDataRoot(): File = resolveDataRoot(
     home = System.getenv("TROUBASTAGE_HOME"),
-    isWindows = isWindows(),
+    os = hostOs,
     localAppData = System.getenv("LOCALAPPDATA"),
     xdgDataHome = System.getenv("XDG_DATA_HOME"),
     userHome = System.getProperty("user.home").orEmpty(),

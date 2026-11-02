@@ -40,32 +40,48 @@ class StorageDesktopTest {
     // ---- data root resolution (pure; each branch without touching the real env/OS) ----
 
     @Test fun resolveDataRoot_overrideWinsEverywhere() {
-        val over = resolveDataRoot("/custom/home", isWindows = false, localAppData = "/x", xdgDataHome = "/y", userHome = "/home/u")
+        val over = resolveDataRoot("/custom/home", os = HostOs.LINUX, localAppData = "/x", xdgDataHome = "/y", userHome = "/home/u")
         assertEquals(File("/custom/home"), over)
-        val overWin = resolveDataRoot("""D:\over""", isWindows = true, localAppData = """C:\la""", xdgDataHome = null, userHome = """C:\Users\u""")
+        val overWin = resolveDataRoot("""D:\over""", os = HostOs.WINDOWS, localAppData = """C:\la""", xdgDataHome = null, userHome = """C:\Users\u""")
         assertEquals(File("""D:\over"""), overWin)
     }
 
     @Test fun resolveDataRoot_windowsUsesLocalAppData_elseUserHome_andIsNotTheInstallDir() {
         // B2: the data folder is TroubaStageData, a SIBLING of the install dir %LOCALAPPDATA%\TroubaStage.
         val local = """C:\Users\u\AppData\Local"""
-        val data = resolveDataRoot(null, isWindows = true, localAppData = local, xdgDataHome = null, userHome = """C:\Users\u""")
+        val data = resolveDataRoot(null, os = HostOs.WINDOWS, localAppData = local, xdgDataHome = null, userHome = """C:\Users\u""")
         assertEquals(File(local, "TroubaStageData"), data)
         assertFalse(data.path.startsWith(File(local, "TroubaStage").path + File.separator), "data root must not be inside the install dir")
         assertEquals(
             File("""C:\Users\u\AppData\Local""", "TroubaStageData"),
-            resolveDataRoot(null, isWindows = true, localAppData = null, xdgDataHome = null, userHome = """C:\Users\u"""),
+            resolveDataRoot(null, os = HostOs.WINDOWS, localAppData = null, xdgDataHome = null, userHome = """C:\Users\u"""),
         )
+    }
+
+    @Test fun resolveDataRoot_macOsUsesApplicationSupport_whateverXdgSays() {
+        // DESK01 D3 — TEETH: the Linux branch on a Mac would put the data in ~/.local/share, where no Mac tool looks.
+        assertEquals(
+            File("/Users/u/Library/Application Support", "TroubaStage"),
+            resolveDataRoot(null, os = HostOs.MACOS, localAppData = null, xdgDataHome = "/xdg/data", userHome = "/Users/u"),
+        )
+        assertEquals(File("/over"), resolveDataRoot("/over", os = HostOs.MACOS, localAppData = null, xdgDataHome = null, userHome = "/Users/u"))
+    }
+
+    @Test fun hostOs_fromOsName() {
+        assertEquals(HostOs.WINDOWS, hostOsOf("Windows 11"))
+        assertEquals(HostOs.MACOS, hostOsOf("Mac OS X"))
+        assertEquals(HostOs.LINUX, hostOsOf("Linux"))
+        assertEquals(HostOs.LINUX, hostOsOf("FreeBSD"))
     }
 
     @Test fun resolveDataRoot_elsewhereUsesXdg_elseDotLocalShare() {
         assertEquals(
             File("/xdg/data", "troubastage"),
-            resolveDataRoot(null, isWindows = false, localAppData = null, xdgDataHome = "/xdg/data", userHome = "/home/u"),
+            resolveDataRoot(null, os = HostOs.LINUX, localAppData = null, xdgDataHome = "/xdg/data", userHome = "/home/u"),
         )
         assertEquals(
             File("/home/u/.local/share", "troubastage"),
-            resolveDataRoot(null, isWindows = false, localAppData = null, xdgDataHome = null, userHome = "/home/u"),
+            resolveDataRoot(null, os = HostOs.LINUX, localAppData = null, xdgDataHome = null, userHome = "/home/u"),
         )
     }
 

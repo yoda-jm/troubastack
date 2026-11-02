@@ -73,6 +73,10 @@ fun isLearnableKey(key: Key, reserved: Set<Key> = emptySet()): Boolean = key != 
 /** WIN03 D4 — the desktop window's own keys: F11 toggles full screen, Esc leaves it (and closes dialogs). */
 val DESKTOP_RESERVED_KEYS: Set<Key> = setOf(Key.F11, Key.Escape)
 
+/** DESK01 D3 — the macOS window's own keys: Esc. Full screen there is Ctrl+Cmd+F (a chord, never a pedal's key), and
+ *  F11 is the system's, so it stays learnable. */
+val MACOS_RESERVED_KEYS: Set<Key> = setOf(Key.Escape)
+
 /** The outcome of teaching one token. [takenFrom] is the action the token used to drive, if any — so the UI
  *  can say "this button was Previous" (A72 ⟨D3⟩). */
 data class PedalLearnResult(val bindings: PedalBindings, val takenFrom: PageTurn?)

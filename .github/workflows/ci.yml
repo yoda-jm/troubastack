@@ -858,3 +858,96 @@ jobs:
           path: |
             app/troubastage-linux-x86_64.AppImage
             app/smoke-*.png
+
+  # DESK01 D3 — the macOS app: ONE universal TroubaStage.app (Apple silicon + Intel) from two builds, layout B (two
+  # runtimes, a universal stub; packaging/macos/make-universal.sh). Hard-gating for CI, but NOT in release-apk's needs
+  # (Fable, b67486a3): the DMG is only an artifact until a person has tested it on a Mac, and a flaky Mac runner must
+  # not hold the APK and the MSI. It joins release-apk in the same gated change that publishes the DMG.
+  desktop-macos:
+    name: desktop (macos)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      # Two JDKs: the x64 one builds the Intel app under Rosetta; the arm64 one (set up last) is JAVA_HOME.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          architecture: x64
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          architecture: aarch64
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Rosetta (builds and smokes the Intel half)
+        run: |
+          uname -m; sw_vers -productVersion
+          arch -x86_64 /usr/bin/true 2>/dev/null || softwareupdate --install-rosetta --agree-to-license
+          arch -x86_64 /usr/bin/true && echo "Rosetta present"
+      - name: desktop tests (macOS)
+        working-directory: app
+        run: ./gradlew :shared:desktopTest :desktopApp:test
+      - name: app image — Apple silicon (native JDK)
+        working-directory: app
+        run: |
+          ./gradlew :desktopApp:createDistributable "-PdesktopVersion=1.0.${{ github.run_number }}"
+          mkdir -p "$RUNNER_TEMP/arm64" && ditto desktopApp/build/compose/binaries/main/app/TroubaStage.app "$RUNNER_TEMP/arm64/TroubaStage.app"
+      - name: app image — Intel (x64 JDK, Gradle under Rosetta)
+        working-directory: app
+        run: |
+          rm -rf desktopApp/build/compose
+          JAVA_HOME="$JAVA_HOME_21_X64" arch -x86_64 ./gradlew --no-daemon :desktopApp:createDistributable "-PdesktopVersion=1.0.${{ github.run_number }}"
+          mkdir -p "$RUNNER_TEMP/x64" && ditto desktopApp/build/compose/binaries/main/app/TroubaStage.app "$RUNNER_TEMP/x64/TroubaStage.app"
+      - name: one universal app (merge rule, two runtimes, universal stub, ad-hoc signed inside-out)
+        working-directory: app
+        run: desktopApp/packaging/macos/make-universal.sh "$RUNNER_TEMP/arm64/TroubaStage.app" "$RUNNER_TEMP/x64/TroubaStage.app" "$RUNNER_TEMP/universal/TroubaStage.app"
+      - name: launch smoke ×3 — natively, under Rosetta, and through LaunchServices; each draws, each on its own runtime
+        working-directory: app
+        run: |
+          set -uo pipefail
+          U="$RUNNER_TEMP/universal/TroubaStage.app"; concert="$GITHUB_WORKSPACE/docs/demo/demo-concert.tstage"; fail=0
+          # Runs one launch to its exit (150 s at most) while noting the libjvm it mapped (lsof), then checks the exit, both
+          # PNGs (B5: written only once the real window drew) and that the runtime was the expected arch's.
+          check() { label=$1 want=$2; shift 2
+            export TROUBASTAGE_HOME="$RUNNER_TEMP/home-$label"
+            "$@" &
+            pid=$!; seen=""
+            for i in $(seq 1 150); do
+              kill -0 $pid 2>/dev/null || break
+              seen="$seen $(lsof -c TroubaStag 2>/dev/null | grep -o "runtime-[a-z0-9_]*/Contents/Home/lib/server/libjvm.dylib" | sort -u)"
+              sleep 1
+            done
+            if kill -0 $pid 2>/dev/null; then kill -9 $pid; echo "::error::$label hung"; fail=1; return; fi
+            wait $pid; code=$?
+            jvm=$(echo $seen | tr ' ' '\n' | sort -u | grep . | tr '\n' ' ')
+            echo "$label: exit $code, runtime mapped: $jvm"
+            [ $code -eq 0 ] || { echo "::error::$label exited $code"; fail=1; }
+            for s in 1920x1080 800x600; do [ -s "smoke-$label-$s.png" ] || { echo "::error::$label wrote no $s PNG"; fail=1; }; done
+            [ "$jvm" = "runtime-$want/Contents/Home/lib/server/libjvm.dylib " ] || { echo "::error::$label ran on [$jvm], expected runtime-$want"; fail=1; }
+          }
+          check native arm64 "$U/Contents/MacOS/TroubaStage" --smoke smoke-native.png --smoke-concert "$concert"
+          check rosetta x86_64 arch -x86_64 "$U/Contents/MacOS/TroubaStage" --smoke smoke-rosetta.png --smoke-concert "$concert"
+          check open arm64 open -W -n --env TROUBASTAGE_HOME="$RUNNER_TEMP/home-open" "$U" --args --smoke "$PWD/smoke-open.png" --smoke-concert "$concert"
+          unset TROUBASTAGE_HOME
+          root=$("$U/Contents/MacOS/TroubaStage" --print-data-root)
+          [ "$root" = "$HOME/Library/Application Support/TroubaStage" ] || { echo "::error::data root is [$root]"; fail=1; }
+          echo "data root (no override): $root"
+          exit $fail
+      - name: the DMG (artifact only until a person has tested it on a Mac — D4)
+        working-directory: app
+        run: |
+          set -euo pipefail
+          d="$RUNNER_TEMP/dmg"; mkdir -p "$d"; ditto "$RUNNER_TEMP/universal/TroubaStage.app" "$d/TroubaStage.app"; ln -s /Applications "$d/Applications"
+          hdiutil create -quiet -volname TroubaStage -srcfolder "$d" -ov -format UDZO troubastage-macos.dmg
+          hdiutil verify troubastage-macos.dmg
+          echo "DMG: $(du -h troubastage-macos.dmg | cut -f1)"
+      - name: upload DMG + smoke PNGs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: troubastage-macos-dmg
+          path: |
+            app/troubastage-macos.dmg
+            app/smoke-*.png

@@ -157,6 +157,10 @@ interface AppUpdate {
      *  line Parameters shows instead of Update. null: it can (Android always can). */
     val installNote: String? get() = null
 
+    /** DESK01 — a plain line Parameters shows UNDER Update, which stays: what Update does here when it is not an
+     *  install (the Linux and macOS apps open the download in the browser). null: nothing to add. */
+    val actionNote: String? get() = null
+
     /** The flow's questions and outcome messages, composed once at the root of [App]. */
     @Composable
     fun Dialogs()

@@ -8,7 +8,10 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import com.troubastack.app.WindowControls
 import com.troubastack.shared.seams.Storage
+import com.troubastack.shared.seams.HostOs
+import com.troubastack.shared.seams.hostOs
 import com.troubastack.shared.stage.DESKTOP_RESERVED_KEYS
+import com.troubastack.shared.stage.MACOS_RESERVED_KEYS
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -54,7 +57,7 @@ class DesktopWindowControls(private val state: WindowState, private val storage:
         storage.putSecret(FULL_SCREEN_WHEN_PERFORMING_KEY, on.toString())
     }
 
-    override val reservedKeys: Set<Key> = DESKTOP_RESERVED_KEYS
+    override val reservedKeys: Set<Key> = if (hostOs == HostOs.MACOS) MACOS_RESERVED_KEYS else DESKTOP_RESERVED_KEYS
 
     /** Whether the window was full screen when the concert was entered; null outside a concert. */
     private var fullScreenOnEnter: Boolean? = null

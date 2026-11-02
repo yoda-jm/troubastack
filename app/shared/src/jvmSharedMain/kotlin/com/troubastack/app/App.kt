@@ -241,7 +241,8 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
             },
             autoChecks = appUpdate?.autoChecks ?: false,
             onAutoChecks = { appUpdate?.chooseAutoChecks(it) },
-            updateNote = appUpdate?.installNote, // WIN04 (H4): a copy that cannot install says so instead of Update
+            // WIN04 (H4): a copy that cannot install says so instead of Update; DESK01: else what Update does, if not an install.
+            updateNote = appUpdate?.installNote ?: appUpdate?.actionNote,
             // WIN03 — a desktop window: its reserved keys, and "Full screen when performing" (null hides it).
             reservedKeys = platform.window?.reservedKeys ?: emptySet(),
             fullScreenWhenPerforming = platform.window?.fullScreenWhenPerforming,

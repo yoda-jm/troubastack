@@ -8,6 +8,8 @@ import com.sun.jna.Structure
 import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinBase
 import com.sun.jna.ptr.IntByReference
+import com.troubastack.shared.seams.HostOs
+import com.troubastack.shared.seams.hostOs
 
 /**
  * WIN03/DESK01 — keep the display on while a concert is performed, the way each OS offers it. [hold] is called on the
@@ -18,13 +20,30 @@ internal interface DisplaySleep {
     fun hold(on: Boolean)
 }
 
-internal fun displaySleepForThisOs(): DisplaySleep = when {
-    isWindows() -> WindowsDisplaySleep
-    isLinux() -> FreedesktopDisplaySleep(LibDbusSession)
-    else -> NoDisplaySleep
+internal fun displaySleepForThisOs(): DisplaySleep = when (hostOs) {
+    HostOs.WINDOWS -> WindowsDisplaySleep
+    HostOs.LINUX -> FreedesktopDisplaySleep(LibDbusSession)
+    HostOs.MACOS -> CaffeinateDisplaySleep { pid -> ProcessBuilder("/usr/bin/caffeinate", "-d", "-w", pid.toString()).start() }
 }
 
-internal fun isLinux(): Boolean = System.getProperty("os.name").orEmpty().startsWith("Linux", ignoreCase = true)
+internal fun isLinux(): Boolean = hostOs == HostOs.LINUX
+
+/**
+ * DESK01 D3 — macOS: `caffeinate -d` holds the display awake while it runs; `-w <pid>` ends it with the app, so a crash
+ * never leaves the Mac unable to sleep. Released by ending it.
+ */
+internal class CaffeinateDisplaySleep(private val start: (pid: Long) -> Process) : DisplaySleep {
+    private var running: Process? = null
+
+    override fun hold(on: Boolean) {
+        if (on && running?.isAlive != true) {
+            running = runCatching { start(ProcessHandle.current().pid()) }.getOrNull()
+        } else if (!on) {
+            running?.destroy()
+            running = null
+        }
+    }
+}
 
 @Structure.FieldOrder("tvSec", "tvNsec")
 internal class Timespec : Structure() {
@@ -37,6 +56,11 @@ private interface LibC : Library {
     fun clock_gettime(clockId: Int, ts: Timespec): Int
 }
 
+@Suppress("FunctionName")
+private interface LibSystem : Library {
+    fun clock_gettime_nsec_np(clockId: Int): Long
+}
+
 /** DESK01 — Linux's CLOCK_BOOTTIME in ms (CLOCK_MONOTONIC plus the time spent suspended), or null if unavailable. */
 internal fun linuxBootTimeMs(): Long? {
     val libc = linuxLibC ?: return null
@@ -44,8 +68,19 @@ internal fun linuxBootTimeMs(): Long? {
     return if (libc.clock_gettime(CLOCK_BOOTTIME, ts) == 0) ts.tvSec * 1000 + ts.tvNsec / 1_000_000 else null
 }
 
+/** DESK01 — macOS's CLOCK_MONOTONIC in ms, which Apple documents as continuing to count while the system sleeps (the
+ *  JDK's System.nanoTime there does not); null if unavailable. */
+internal fun macMonotonicMs(): Long? {
+    val lib = macLibSystem ?: return null
+    return lib.clock_gettime_nsec_np(MACOS_CLOCK_MONOTONIC).takeIf { it > 0 }?.let { it / 1_000_000 }
+}
+
 private const val CLOCK_BOOTTIME = 7
+private const val MACOS_CLOCK_MONOTONIC = 6
 private val linuxLibC: LibC? by lazy { if (isLinux()) runCatching { Native.load("c", LibC::class.java) }.getOrNull() else null }
+private val macLibSystem: LibSystem? by lazy {
+    if (hostOs == HostOs.MACOS) runCatching { Native.load("System", LibSystem::class.java) }.getOrNull() else null
+}
 
 internal object NoDisplaySleep : DisplaySleep {
     override fun hold(on: Boolean) {}
