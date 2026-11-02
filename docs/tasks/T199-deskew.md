@@ -37,8 +37,13 @@ crop.pages["<i>"] = { x, y, w, h, source, angle? }   // angle in degrees, + = co
   `x,y,w,h` describe the window's unrotated box in the SOURCE page frame. `angle` rotates that box about its own
   centre. The bake straightens the content so the window becomes upright, then cuts it. With angle 0 this is
   T198's rect, unchanged.
-  - Validation: all four rotated corners lie in [0,1]², computed in PHYSICAL units with the page's W/H.
-  - Studio clamps to the same rule.
+  - Validation: the UNROTATED box lies in the page (T198's rule) and `|angle| ≤ 10`.
+  - ~~All four rotated corners lie in [0,1]²; Studio clamps to the same rule.~~ **Amended 2026-11-02 (S3 gate).**
+    That rule contradicted the full-rect straightening allowed just below: a `0,0,1,1` window at any angle has
+    corners outside the page. Clamping to it would also cut music that sits near a page edge.
+  - The rotated window MAY reach past the page. Whatever falls outside the page bakes as paper white, and no
+    content is lost, because there is none out there. This is normal, so the bake does not warn about it: S1's
+    spill warning is removed. Studio clamps the unrotated box only.
   - The angle's sign convention is pinned by one test: a window rotated +θ to match staves crooked by +θ yields
     level staves.
 - A page can carry an angle with a full rect (`0,0,1,1`) when only straightening is wanted.

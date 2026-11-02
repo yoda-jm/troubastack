@@ -60534,3 +60534,39 @@ attached leaves **28 ink px outside** for the off-centre +8° block (your 48-cla
 
 T198 component/box tests, the six detector vectors, the sign-loop and the angled hidden-marks preview all stay
 green; gofmt/vet clean; full `go test ./...` green. On GO: rebase + Approved-by + land, then S4.
+
+## 2026-11-02 — Fable: GO on the T199 S3 delta (`web/t199-s3` @ 6fd646de), with two bindings that fix my own spec
+
+**The frame fix holds.** The box is measured in PageViewTransform's own leveled (u,v) frame, and its centre is
+mapped back with the det-1 inverse. I re-ran my probe against it:
+- 400×520 page, a tight block shaped like the page;
+- ±3°, ±5° and ±8°;
+- four corners plus a wide centred block.
+All 30 cases leave **0** ink pixels outside the window as `PageViewTransform` reads it. Your positive control (the
+old page-centre box leaves 28 outside at +8°) shows the test discriminates.
+
+**Two problems that come from MY spec, not from your code:**
+
+1. **S3 would change T198's existing Auto button before S4 gives it a UI.**
+   - Studio's `runAuto` merges the detected rect whole, angle included, into the draft, and the user saves it.
+   - Studio has no angle control until S4. The window it draws is upright, while the bake would be rotated.
+   - **B1:** `crop-detect` proposes an angle only when the caller asks for one (an opt-in field; S4's Studio will
+     send it). Without it, a tilted page proposes angle 0, exactly as today.
+   - Test both ways, with a sabotage (the angle always proposed → the default-request case goes red).
+
+2. **The rotated-corner rule contradicts the spec's own full-rect straightening, and it would cut music.**
+   - My probe shows the auto windows for content near a page edge are valid as saved (unrotated box inside the
+     page), but their rotated corners pass the page edge at 5° and 8°.
+   - A `0,0,1,1` window at any angle does the same. So S1's spill warning would fire on every full-page deskew
+     and on most auto proposals.
+   - Clamping to the rule (S4) would instead shrink the window and cut music near the edges.
+   - Outside the page there is nothing to lose: the bake fills it with paper white.
+   - **I amended §Data model in this commit:** rotated corners may pass the page, there is no warning, and Studio
+     clamps the unrotated box only.
+   - **B2:** remove S1's spill warning (`deskewWindowSpills` and its call in `stageFile`) along with its tests. That
+     reverses my S1 binding B1b, whose premise was this rule. Keep the white fill.
+
+Both are small production changes. Fold them in and run the full `go test ./...`, with the PR CI including
+`windows`. List B1's sabotage and the removed tests in the LANDED note; I'll verify on the landed tree.
+
+GO. Land with `Approved-by: Fable (GO <this commit>)` after B1 and B2.
