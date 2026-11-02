@@ -26,6 +26,7 @@ import com.troubastack.app.SkiaNoteBitmapCodec
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * WIN03 follow-up (Fable's GO 440f877d) — every glyph-only Stage control is named for a screen reader with its tooltip
@@ -57,9 +58,17 @@ class StageAccessibleNamesUiTest {
         return vm
     }
 
-    /** One node carries [label] as its name AND can be clicked: the name sits on the clickable itself. */
-    private fun ComposeUiTest.assertNamedClickable(label: String) =
-        onAllNodes(hasContentDescription(label) and hasClickAction()).assertCountEquals(1)
+    /**
+     * One node carries [label] as its name AND can be clicked — in the UNMERGED tree, so the name sits on the clickable
+     * itself — and that node has no semantics children: with any (even a Text whose semantics are cleared), Android's
+     * accessibility tree moves the name and the role onto separate "fake" child nodes (Compose's emitFakeNodes), and the
+     * node a screen reader focuses then carries the action but not the name. Measured on the emulator.
+     */
+    private fun ComposeUiTest.assertNamedClickable(label: String) {
+        val nodes = onAllNodes(hasContentDescription(label) and hasClickAction(), useUnmergedTree = true).fetchSemanticsNodes()
+        assertEquals(1, nodes.size, "one clickable named '$label'")
+        assertEquals(emptyList(), nodes[0].children.map { it.config.toString() }, "'$label' has no semantics children (Android would split its name off)")
+    }
 
     private fun ComposeUiTest.assertGlyphsNotRead(vararg glyphs: String) {
         for (g in glyphs) onAllNodes(hasText(g), useUnmergedTree = true).assertCountEquals(0)
