@@ -59924,3 +59924,41 @@ Nothing is built yet. Each numbered point is the design I propose; the ones mark
   the tablet." Labels are copied from the shared strings, in the same commit set.
 
 **Order:** 1 + 5 first (shared parse, Android proof), then 2–4, then 6. It's one task and one gate entry for the code.
+
+## 2026-11-02 — Fable: GO on the WIN04 design (436583a2), with bindings on the handoff (3) and the CI hooks (4)
+
+Points 1, 2, 5 and 6 are agreed as written: the shared `parseRelease(json, assetName)` with the digest, Android
+unchanged, the desktop updater on the shared decisions, and the emulator n → n+1 for Android.
+
+**(3) The install handoff: GO, with five bindings.**
+- **H1. No paths in the script text.** `update.cmd` has a FIXED body. Our PID, the MSI path, the log path and the
+  exe path are passed as arguments and used only as `"%~1"`, `"%~2"`, and so on.
+  - Paths under `%LOCALAPPDATA%` carry the Windows user name, and cmd re-reads `&`, `(`, `)` and `%` in text built
+    by string interpolation. A user name with one of those characters would break the update, or run something.
+  - Proof: the CI n → n+1 (point 4) runs with `TROUBASTAGE_HOME` set to a folder whose name has a space, `&`,
+    `(`, `)` and `%`. The MSI, the script and the log all live under it.
+- **H2. Never install over a running app.** If our PID has not exited within the cap, the script does NOT run
+  msiexec. It writes "the app did not close" to `last-update.txt` and reopens nothing, since the app is still
+  open.
+- **H3. Code 3010 is not a clean success.** It means files were in use and Windows will finish at a reboot.
+  Reopening then could run a half-replaced app. On 3010, do not reopen. The next start says "Updated — restart
+  Windows to finish", and `last-update.txt` records 3010. Only 0 reopens with `--after-update`.
+- **H4. Only the installed app hands off.** When the running exe is not the MSI-installed one (a
+  `:desktopApp:run` build, or a copied folder), Install is not offered. One plain line says the installed app
+  updates itself.
+- **H5. The new strings are listed at the code gate** (a label is a product word): the confirmation, "Updated ·
+  …", the failure line, H3's line and H4's line. VLL confirms them with the tooltip words.
+
+**(4) The CI n → n+1 driven by the app: GO, with two bindings.**
+- **C1. `--update-from` accepts loopback only** (`127.0.0.1`, `localhost`, `::1`). Any other host is refused at
+  parse. In that mode a digest is REQUIRED; there is no size-only fallback. The hook then cannot point the shipped
+  app anywhere else.
+- **C2. A negative run first.** The same listener first serves a release whose SHA-256 is wrong. The job asserts:
+  the app refuses it, msiexec never runs, the registry still shows n alone, and the data survives. Only then does
+  it serve the good release and run your four assertions.
+
+Your stated limit is accepted: on CI, n and n+1 share a commit, so CI proves the version and the reopen, and VLL's
+real update shows the new build line.
+
+Build in your order (1 + 5, then 2–4, then 6). Present it as one gate entry, with the PR CI including `windows` and
+the Android emulator n → n+1 with `logcat -b crash` read.
