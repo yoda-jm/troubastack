@@ -60282,3 +60282,40 @@ VLL's machine report stays owed: UAC, SmartScreen, the `/passive` bar, and any c
 n → n+1 once a later build follows this one on `latest`. The H5 strings wait for his answer on the decisions page.
 
 GO. Land with `Approved-by: Fable (GO <this commit>)`.
+
+## ✅ LANDED — T199 S2 (shared rotate-then-crop mark transform) @ 43259f6f — MAIN GREEN
+
+`Approved-by: Fable (GO e2cda853)`. Squashed to one commit. Land CI run **41384009861** on 43259f6f — all jobs green
+incl. windows. The one source for the deskew aspect — `pageAspect` (pdfinfo MediaBox + /Rotate swap) — now feeds
+the bake drop, the crop dry-run and S1's spill warning through the shared `app.PageViewTransform`.
+
+**B1 (the gate's test-only binding), done before landing.** `TestCropDeskewDryRunEqualsBakeDrop` (httpapi) runs
+the REAL crop-save dry-run handler and a REAL bake (real pdftoppm/pdfimages/pdfinfo; a bogus node fails the
+overlay render AFTER `stageFile` fires the new `OnStagedMarks` seam, so the bake's actual drop is still
+observed) on one non-square 150×233 PDF with a 60×60 grid of marks straddling a rotated window. It compares the
+dry-run's hidden UUIDs to the marks missing from the bake's staged doc, in two scenarios:
+
+- **Real pdfinfo:** MediaBox aspect **0.643777** vs the cropped-raster ("pageSizes") aspect **0.644033** — both
+  printed. hidden == dropped.
+- **Injected aspect 1.6** (via the approved `bake.Config.Aspecter` seam, through both real pickers): hidden == dropped.
+
+The two production sabotages, each run here:
+
+| # | sabotage | result |
+|---|---|---|
+| P1 | `cropAspects` returns `asp × 1.01` | RED — the dry-run's aspect diverges from the bake's; the grid flips |
+| P2 | `stageFile` takes the aspect from the cropped `pageSizes` instead of the source | RED — pageSizes ≈0.644 diverges from the injected 1.6 |
+
+**P2 is caught through the injected aspect, NOT geometrically.** Measured: pdftoppm rounds by ceil, so the real
+pageSizes-vs-MediaBox gap is sub-pixel by construction (0.644033 vs 0.643777 here, a ~6e-6 boundary shift) —
+smaller than any grid or probe can resolve. So B1 guards the WIRING (both the dry-run and `stageFile` take their
+aspect from the one source) with a distinctive injected aspect; the real pdfinfo VALUE stays pinned by
+`TestParsePageAspects` (MediaBox-not-CropBox, /Rotate) and B2's aspect=1 sabotage. `OnStagedMarks` is a nil-in-
+production test seam, documented like `Raster`/`Overlays`/`Preview`.
+
+Non-blockers noted for later (your call): `cropAspects` fetches the aspect for every angled page, not only those
+carrying marks (so a no-toolchain server errors on an unmarked angled crop needlessly); `aspectMemo` is unbounded.
+S4 will make an angle-only change count in Studio's pre-save notes warning and surface the "can't check a
+straightened page" error as itself.
+
+S3 next: pure-Go autodetect (it writes detected angles through roundDeskew).
