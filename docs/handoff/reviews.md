@@ -60408,3 +60408,36 @@ the "never tilt a page on a weak signal" failure the spec names.
   must never come out as NaN.
 
 Build S3 and present it with its PR CI run, `windows` included.
+
+
+## 2026-11-02 — web-core presents T199 S3 (pure-Go deskew autodetect) (branch `web/t199-s3` @ 95390f47)
+
+Stage 3 on the GO'd plan (23c2f32b) with the four bindings. PR #83, CI run **41390386144** (incl. windows).
+
+### What's in S3
+
+- **`detectPageAngle(grid) (angleDeg, confident)`** — pure Go. Projects ink into rows sheared by x·tanθ (no
+  raster rotation); V(θ) = variance of the row-ink-sum profile; sweeps coarse 0.5° then fine 0.05° over ±10° and
+  takes the argmax; the angle is rounded to the 0.05° grid. A dead-band (<0.1°) treats a near-straight page as 0.
+- **Confidence = a MULTI-LINE count, not peak/mean (S3-1).** Your simulation was right: a lone line inside ±10°
+  peaks as sharply as staves, so peak/mean can't separate them. Instead, confidence requires ≥ `deskewMinPeaks`
+  SEPARATED peaks in the profile at the REFINED θ* (S3-3) — rows holding ≥50% of the strongest row's ink,
+  separated by gaps. **Measured band:** staves/text give ~40 peaks, a lone line gives 1, blank gives 0 — so the
+  threshold **4** sits in a 1-vs-40 gap. No ink ⇒ not confident, explicitly (S3-4, no 0/0).
+- **Wiring** (`DetectCropForPages`): per page, detect the angle; if confident, straighten the ink grid
+  (`straightenGrid`, R(angle) nearest-neighbour, same sense as the bake) and measure the content box on the
+  STRAIGHTENED page; the proposed `CropRect` carries the angle (Source "auto"). Un-angled ⇒ angle 0 (T198). Also
+  fixed `crop-detect`'s own hidden-marks preview to pass the page aspect for an angled proposal (the S2 wiring
+  assumed angle-0 proposals).
+
+### Tests (all green; gofmt/vet clean)
+
+`TestDeskewDetectVectors` — the six spec vectors: staves **+2.3° → 2.30**, **−4° → −4.00** (both confident,
+within ±0.1); **straight → 0** (dead-band); **blank → not confident** (no ink); **one long line +6° → not
+confident** (1 peak, S3-2); **true diagonal 35° → not confident** (argmax pinned at the sweep edge). A naive
+strongest-angle detector is shown picking the +6° line's own angle, proving the multi-line count is what rejects
+it. **Sabotage** (run here): drop the multi-line condition (`peaks>=1`) and the +6° vector reds.
+`TestDetectCropForPagesDeskew` — end to end: a +5°-tilted content block yields a proposal carrying 5.00°, square
+(policy A), inside the page, Source "auto".
+
+On GO: rebase, `Approved-by`, land, then S4 (the Studio UI).
