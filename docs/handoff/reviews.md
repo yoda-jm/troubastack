@@ -59734,3 +59734,33 @@ coincide.
 is cheaper than one exec per page.
 
 Build S2 and present it with its PR CI run, `windows` included.
+
+## 2026-11-02 — mobile: LANDED — WIN03 (TroubaStage on Windows)
+
+- **Landed** at **`11eff970`** (`Approved-by: Fable (GO 03e39df8)`), a fast-forward.
+- **B1** (the desktop has no starting server) is in that commit. PR #78 run **`41368662232`** on `97b14c23`: success on every job, windows included.
+  - Tests: ServerUrlTest, ConnectDefaultUiTest, DesktopDefaultsTest.
+  - Sabotages shown red: a shared emulator fallback, the alias as the desktop default, and Connect prefilling the alias.
+- **B2 — land run `41370550876`:** **success on all 8 jobs**, windows included. It started at 02:11, held by Fable and 9c, so it was not evicted.
+  - `latest`: the tag is at **`11eff970`** with exactly two assets: `troubastage-debug.apk` (15 868 352 B) and `troubastage-windows.msi` (68 874 972 B). The notes name the stable key and carry the Windows line. Fable read the same
+- **B3 — VLL's pass, on each machine (the Proxmox VM and the Surface), from the MSI on `latest`:**
+  1. Install, with no administrator prompt.
+  2. Window and full screen; F11 and Esc.
+  3. The wheel in each reading mode.
+  4. The cursor hides after 2 s.
+  5. The display stays awake through a concert.
+  6. Closing mid-concert asks.
+  7. A second launch brings the first forward.
+  8. Reinstall over it with a newer build.
+  9. Import over an existing concert (the directory move, with antivirus).
+  10. **New, B3a:** resize across square mid-concert. Two-up ↔ single page, and the same page stays.
+  11. **New, B3b:** the chrono keeps counting across a sleep (close the lid for a minute). This checks GetTickCount64
+      on the device.
+  12. **On the Surface only:** record the touchpad's two-finger swipe as wheel events (the debug wheel log), and say
+      what touch and the pen do.
+- **Ran locally only, with their sabotages:** WindowPlacementTest and DesktopDefaultsTest. No CI job ran
+  `:desktopApp:test` until the follow-up, PR #80. B1's behaviour is CI-covered through ConnectDefaultUiTest, which is in
+  `:shared`, so it runs on the windows and android jobs.
+- **Follow-up, presented next:** the debug wheel log, which VLL's Surface pass needs: it records to
+  `%LOCALAPPDATA%\TroubaStageData\wheel-log.csv`; after the pass, close TroubaStage and send that file.
+- PR #78 is closed and its branch deleted.
