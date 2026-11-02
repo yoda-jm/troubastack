@@ -62010,3 +62010,49 @@ in a follow-up from VLL's Windows machine pass, which also confirms there is no 
   pass captures a site-download screenshot — the packaging note is generic until then by ruling.
 - **Cleanup:** branch `win06` and its worktrees removed. The web-core WIN queue is now clear (WIN05 report
   relayed as VLL's decision item; WIN06 landed).
+
+
+## 2026-11-02 — web-core: DESK02 stage 1 (macOS DMG on `latest`) — REQUESTING GO — PR #90 @ 1122baf4
+
+Spec: `docs/tasks/DESK02-the-mac-app-on-latest-and-on-the-site.md` @ d8412aa5 (VLL, 2026-11-02: "align with
+windows, publish the artifact in latest"). Stage 1 is CI-only; stage 2 (site + docs) lands separately after
+`latest` carries the DMG. Five files: `.github/workflows/ci.yml` + comments-only in four `app/` files.
+
+**Changes**
+- `release-apk`: `desktop-macos` added to `needs`; a fetch of the `troubastage-macos-dmg` artifact; exactly one
+  `.dmg` or stop (`macos-dmg/*.dmg`, same shape as the MSI check); attached as `troubastage-macos.dmg` — four
+  assets now, recreated together. Release notes gain the macOS line ("one app for Apple silicon and Intel Macs,
+  not signed yet, same commit").
+- **Bounded `hdiutil create` retry** (3 tries, partial file cleared between tries; every-try failure still reds the
+  leg). ONLY `create` retries — `hdiutil verify` and the launch smokes are untouched.
+- **Republish on a `.github/workflows/ci.yml` change too**: the gate now matches
+  `^(app/|\.github/workflows/ci\.yml$)`, because this stage's own landing commit touches only `.github/`. Still
+  fails open (base unknown / compare error → publish).
+- Swept "until a person has tested it on a Mac": the three ci.yml spots (header ~298, the `desktop-macos` comment,
+  the DMG step name) and **comments only** in `AppUpdate.kt:28`, `DesktopAppUpdate.kt:127`, `DesktopOsTest.kt:84`,
+  `ReleaseParseTest.kt:62`. No `app/` code changed.
+- Per your ruling: `ReleaseParseTest.kt:72`'s assertion **message** also swept — now `"a release without the DMG:
+  no update for macOS"`; the assertion itself is byte-for-byte unchanged. On the branch as a second commit
+  (amend is blocked here as destructive); it squashes into the one stage-1 commit at landing, and this PR run is
+  on the final tip.
+
+**Acceptance**
+1. **PR #90 run `41508016923` (final SHA 1122baf4) GREEN on every job** — go, web, proto, android, e2e, image,
+   `desktop (linux)`, **`desktop (windows)`** and **`desktop (macos)`** all success; `release-apk` skipped
+   (main-push-only, as designed).
+2. **Retry both ways, shell-function `hdiutil` stub (the exact loop):**
+   - fails once then succeeds → step green, DMG present, exit 0.
+   - fails every try → `::error::hdiutil create failed on every try`, exit 1, no DMG.
+   (full transcript in the scratchpad; reproduced locally.)
+3. After landing (to verify on the land run, not now): `release-apk` ran its publish step; `latest` points at the
+   landing commit with exactly four assets; a ranged GET of the DMG = 206; the published DMG's sha256 == the DMG
+   in the same run's artifact.
+
+**Main health (heads-up, orthogonal to this change):** main's run on `d8412aa5` (`41506618737`, your docs-only
+spec commit) is RED — `desktop (windows)` only: `:shared:desktopTest` 674 tests / 21 failed, every one an
+`ExceptionInInitializerError` → `java.nio.file.AccessDeniedException` from the shared desktop-test static
+initializers (`ConnectDefaultUiTest.kt:23`, `SkiaBitmapsDesktopTest.kt:29`; `WindowsException.java:89`). That's
+transient Windows filesystem contention during test-class init, not a regression — my PR ran the identical
+`:shared:desktopTest` green on the same runner image minutes later. A re-run of that one job greens `d8412aa5`;
+and landing stage 1 supersedes it with a fresh run regardless. I did NOT re-run it (your commit, your call).
+
