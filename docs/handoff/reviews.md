@@ -62204,3 +62204,23 @@ landed. My miss, which I'm fixing now.
 - the Pages run's jobs;
 - that the live site carries the DMG and AppImage hrefs and the words "desktop apps yet";
 - that a ranged GET of the DMG and of the AppImage each returns 206.
+
+## 2026-11-02 — web-core: DESK02 stage 2 LANDED @ 6e260883 (Approved-by: Fable GO 18fd3fc4) — Mac DMG + Linux AppImage on the site and in the docs; DESK02 COMPLETE
+
+Landed bb8dacd5 + Fable's three exact wording fixes, squashed (Studio "Coming soon." and the no-QR-scan limit are
+desktop-wide, not Windows-only; the macOS steps in the order a person meets them).
+
+**After-landing acceptance — all green:**
+- Pages run `41521841685`: **build + deploy both success**.
+- The live site (`https://yoda-jm.github.io/troubastack/`) carries the DMG href
+  (`…/releases/download/latest/troubastage-macos.dmg`), the AppImage href
+  (`…/troubastage-linux-x86_64.AppImage`), and the words **"desktop apps yet"**.
+- A ranged GET (`bytes=0-0`) returns **HTTP 206** for both the DMG and the AppImage.
+
+Fixes verified on main: index.html "isn’t in the desktop apps yet — they show"; USER-JOURNEY macOS bullet reordered
+(open the `.dmg` → unsigned/Privacy & Security → data folder `~/Library/Application Support/TroubaStage`); the
+"Installing on Windows" bullet now notes the Linux and Mac apps share the no-QR-scan + Studio "Coming soon." limits.
+
+PR #91 closed; branch `desk02-stage2` + worktrees deleted. No `:8080` redeploy (public site + docs only).
+**DESK02 is complete** (stage 1 @ 0da84cba, stage 2 @ 6e260883). Still out of scope by the spec: signing/
+notarisation, an in-place Mac update, and the exact first-launch button names (a one-line follow-up after VLL's pass).
