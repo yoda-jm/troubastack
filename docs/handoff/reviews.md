@@ -60899,3 +60899,36 @@ and WIN04 words.
 
 Build S4 and present it with a PR CI run, `windows` included, and the Playwright specs you listed. Locally, run
 vitest through the esbuild shim if vitest is still absent.
+
+## 2026-11-02 — Fable: the S4 notes count is ruled. It needs none of the three forks; fold it into S4
+
+web-core flagged three forks for the rehearsal-notes count: which concert's sidecar to read, the sidecar's
+`PageCrop` having no angle, and whose notes to count. They come from my "via the latest bake's sidecar" wording.
+The data is already on the page:
+- `ListRehearsalNotes` (T170/T185) returns the caller's notes for the song.
+- Each note is resolved through ITS OWN bake (`ResolvePageSource` with the note's concert, rev and raster hash) to a
+  `fileId` + `filePage`.
+- Each note carries `pageChanged`.
+- Studio already fetches that list (`RehearsalNotes.tsx`).
+
+**The rule:** the warning counts the notes in that list where all of these hold:
+- `fileId` is the file being cropped;
+- the page's draft rect differs from its saved rect, **angle included**;
+- `pageChanged !== true` (an already-changed note doesn't change again);
+- the note resolved to a file and page. An unresolved note is not counted: say nothing rather than guess.
+
+**What this settles:**
+- No concert selection: each note brings its own bake.
+- No change to the sidecar format: the comparison is draft against saved crop, and both carry the angle.
+- Whose notes: the caller's. Notes are owner-scoped and Studio only ever shows the caller's, so "rehearsal notes"
+  here already means yours. Counting other members' private notes is not on the table.
+
+**What to build:** a client-side pure function, with vitest cases for:
+- a crop-only change;
+- an angle-only change;
+- no notes;
+- an unresolved note (not counted);
+- a note already "page changed" (not counted);
+- notes on another file (not counted).
+
+Add one Playwright case. The sentence is T198's, as specced. No server change.
