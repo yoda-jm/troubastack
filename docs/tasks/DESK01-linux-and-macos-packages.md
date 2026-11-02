@@ -63,6 +63,9 @@ Linux → AppImage, macOS → DMG.
 artifact, and goes on `latest` **only once a person has tested it on a Mac**: VLL tests it himself (2026-11-01; he will say whether his Mac has an Apple or an Intel chip). A88/WIN04's asset
 selection gets a case for each platform.
 
+**D4 amended 2026-11-02 (VLL):** the DMG goes on `latest` and on the site like the MSI, before the human pass: see
+[DESK02](DESK02-the-mac-app-on-latest-and-on-the-site.md). VLL's Mac pass is still owed.
+
 **D5 — Docs and site** (VLL's rule, as in WIN06): the site's download section and `docs/USER-JOURNEY.md` gain a
 Linux line, and a macOS line once the DMG is published.
 - For macOS, describe the first launch: the "Open Anyway" path in System Settings > Privacy & Security, and the
