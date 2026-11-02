@@ -60597,3 +60597,162 @@ clamps only the unrotated box — reversing S1 B1b). Removed:
 The rasterizer's off-page white fill is unchanged.
 
 Fable to verify on the landed tree. Next: S4 (Studio UI).
+
+## 2026-11-02 — mobile presents: DESK01 design (Linux AppImage + macOS universal DMG), measured first — reviewer: Fable
+
+Branch `mobile/desk01-linux-macos`, draft PR #84. The macOS half isn't built yet. Three CI spike runs on
+`macos-latest` (macOS 26, Apple silicon, Rosetta present), `41391209264`, `41392279249` and `41395411474`, measured
+the merge before I committed to it. **D3 as specced fails its own merge rule.** The proposal below keeps "one binary
+for both Macs" without that problem. Everything else follows the spec, apart from the open questions at the end.
+
+### What the spikes measured (D3)
+
+- **The two app images** (arm64 with the native JDK; x86_64 with the x64 Temurin 21 running Gradle under Rosetta,
+  4:55) have 31 differing Mach-O files. All of them can be lipo-merged: the launcher, `libjvm`, `libjli` and the AWT
+  dylibs.
+- **Non-Mach-O differences:**
+  - `Contents/app`: same content apart from zip metadata. Both JNA jars carry both darwin jnilibs, each re-signed by
+    its own build. The Skiko runtime is per-arch: `libskiko-macos-{arm64,x64}.dylib` and the runtime jar on the
+    classpath.
+  - **`runtime/Contents/Home/lib/modules` differs.** `jimage extract` shows 13 differing entries:
+    `jdk/internal/util/PlatformProps`, `jdk/internal/util/Architecture`, `SystemModules$all`, and every
+    `module-info` (its ModuleTarget). JDK 21 generates these per arch.
+- **Layout A, the spec's lipo merge.** It keeps one runtime: the arm64 `lib/modules`, with the Skiko union added. It
+  draws a frame natively and under `arch -x86_64` (Metal both times; lsof shows Rosetta's translated `libjvm`).
+  - Its catch: under Rosetta, the JDK's own `Architecture.current()` and ModuleTarget say **aarch64 on an x86_64
+    CPU**. `os.arch` is right, and nothing we ship reads those internals today. But FFM (`java.lang.foreign`) picks
+    its calling convention from them, so any library that uses FFM under Rosetta would call with the wrong ABI.
+  - That's the "any other difference" your rule exists to refuse, so A must fail the build.
+  - Size: app 187 MB, DMG 96 MB.
+- **Layout B, proposed: one `.app` with two runtimes.**
+  - Contents:
+    - `Contents/MacOS/TroubaStage`, a universal C stub of ~30 lines (`packaging/macos/universal-launcher.c`,
+      `clang -arch arm64 -arch x86_64`). The slice macOS picks execs its sibling, `TroubaStage-arm64` or
+      `TroubaStage-x86_64`, which is jpackage's own launcher from that arch's build.
+    - Each launcher reads its own cfg (`Contents/app/TroubaStage-<arch>.cfg`). The cfgs are identical apart from
+      `app.runtime=$ROOTDIR/Contents/runtime-<arch>`, a key the jpackage launcher honours.
+    - `runtime-arm64` and `runtime-x86_64`, each **exactly as jpackage built it**.
+    - `Contents/app` once, carrying both Skiko runtimes (spec), both on the classpath.
+  - Proven so far:
+    - `app.runtime` on Linux, with a positive and a negative control: the runtime moved away → "Failed to find JVM".
+    - On macOS, spike 2 failed only on my wrong `$ROOTDIR` (it is the `.app`, not `Contents`). Spike 3, fixed, **draws a frame three ways**:
+      - natively, with lsof showing `runtime-arm64/…/libjvm.dylib` and `libskiko-macos-arm64`;
+      - under `arch -x86_64`, with lsof showing `runtime-x86_64/…/libjvm.dylib` and `libskiko-macos-x64`, each
+        through Rosetta's `.aot`;
+      - through LaunchServices (`open -W -n`, as a double-click), where both PNGs were written.
+  - Ad-hoc signed: `codesign --verify --deep --strict` OK, `Signature=adhoc`, universal stub.
+  - Size: app 241 MB, DMG 115 MB (+19 MB over A). A thin arm64 app is 140 MB.
+- **The fallback (two DMGs)** stays available if B ever proves fragile.
+
+**Proposed D3 merge rule, for B:**
+- The `app/` trees of the two builds must be equal (by content: entry name + CRC per jar, the cfg after
+  `app.runtime`). The exceptions are named: the per-arch Skiko dylib pair, and JNA's re-signed jnilibs, which are
+  kept once.
+- The runtimes are never merged, so nothing can lie about its arch.
+- CI asserts:
+  - `lipo -archs` = `x86_64 arm64` on the stub;
+  - each `TroubaStage-<arch>` / `runtime-<arch>/…/libjvm.dylib` is thin and of its arch;
+  - `Signature=adhoc`;
+  - three smokes, each of which must draw a frame: native, `arch -x86_64`, and `open -W -n` (LaunchServices, as a
+    double-click). lsof confirms which runtime each one loaded.
+
+### D1 — the CI matrix
+
+- **One `desktop` job:** `windows-latest` · `ubuntu-22.04` (the oldest Ubuntu runner left) · `macos-latest`.
+  - Named `desktop (windows|linux|macos)`, `fail-fast: false`, `timeout-minutes: 45` (the macOS leg is ~11 min).
+  - The Windows steps move over **unchanged**, guarded by OS.
+  - `release-apk` needs `[android, desktop]`.
+- **The gate rule's "windows job" becomes `desktop (windows)`.** It still runs every shared JVM test on Windows.
+- **Linux leg:**
+  - `:shared:desktopTest :desktopApp:test` and `createDistributable`.
+  - The AppImage, from **appimagetool 1.9.1 and type2-runtime 20251108, both pinned by sha256** (the runtime is passed
+    explicitly, so the build never fetches one).
+  - The smoke of **the AppImage itself** under `xvfb-run` (B5: exit 0 only after the real window drew).
+  - `--print-data-root` with no override must give `~/.local/share/troubastage` (the packaged XDG branch).
+  - Upload of the AppImage and the PNGs.
+  - Locally, the Linux app image already smokes under Xvfb (software rendering, demo concert drawn). The
+    auto-mode classifier refused running the downloaded appimagetool here, so the AppImage is built and smoked on
+    CI only.
+- **macOS leg:** both builds, then layout B, the asserts above, the three smokes, `hdiutil` UDZO with an
+  `Applications` link, and upload as an artifact only (D4).
+
+### D2 — Linux
+
+- **Data root:** XDG (unchanged).
+- **Wayland:** runs through XWayland (AWT is X11-only); noted, not fought.
+- **Display sleep in Stage:** `org.freedesktop.ScreenSaver.Inhibit` over the session bus, else GNOME's
+  `org.gnome.SessionManager.Inhibit` with the idle flag (8). Release uses the matching UnInhibit and its cookie.
+  - It goes through libdbus-1 via JNA (no new dependency), on a private connection with **exit-on-disconnect off**,
+    since libdbus would otherwise end the app if the bus died.
+  - **No bus → no-op.** Without an address it doesn't connect at all, because libdbus would autolaunch a bus on X11.
+  - Proven on **private** buses (`dbus-run-session`, never the desktop's) against a Gio stand-in:
+    - `Inhibit('TroubaStage', 'Performing a concert')` → 4242 → `UnInhibit(4242)`;
+    - the GNOME path `Inhibit('TroubaStage', 0, 'Performing a concert', 8)` → `Uninhibit(4242)`;
+    - no service → nothing held, no throw.
+  - Unit tests: the service order, a single hold and a single release, the fallback, and a throwing bus.
+- **T147's chronometer:** on Linux it was `System.nanoTime` (CLOCK_MONOTONIC), which **stops during a suspend**. It
+  is now `CLOCK_BOOTTIME`, chosen once per run, so the source never switches mid-concert. The T147 contract only
+  ever held on Windows.
+- **Window icon:** no window sets one today, so X11 shows Java's cup. I set the brand mark from
+  `icons/troubastage.png` (the same mark as the `.ico`). On Windows this replaces the cup in the title bar (Q4).
+
+### D3 — macOS conventions (through the per-OS seam, not `if (mac)` in screens)
+
+- **Data root:** `~/Library/Application Support/TroubaStage`. `resolveDataRoot` takes an OS value instead of
+  `isWindows`, and each branch is unit-tested (the sabotage: a wrong branch goes red).
+- **Keys:** `windowKey` in desktopApp is the one place for them.
+  - Full screen is native: Ctrl+Cmd+F. Skiko's macOS full screen is the system's own; the green button is the OS's.
+  - Esc behaves as everywhere. Back is Cmd+[ and Cmd+Left (Alt+Left elsewhere). F11 isn't bound, because macOS
+    takes it.
+  - Reserved non-learnable keys on macOS: {Esc}.
+- **Cmd+wheel zoom in note mode:** Ctrl+scroll is macOS's own accessibility zoom. Shared Stage reads the modifier from
+  `WindowControls` (one new property), not from `isCtrlPressed`.
+- **Cmd+Q:** `Desktop.setQuitHandler` takes the same path as closing the window, so placement, notes and the
+  single-instance lock are saved and released as on close. The default would be `System.exit`.
+- **Display:** `caffeinate -d -w <pid>` started on hold and destroyed on release; `-w` ends it with the app anyway.
+- **Chronometer:** `clock_gettime_nsec_np(CLOCK_MONOTONIC)`, which Apple documents as counting while asleep (the
+  JDK's nanoTime doesn't).
+- **Trackpad:** WIN03's rule ships unchanged, together with the wheel recorder (`wheel-log.csv`, which already works on
+  macOS). VLL records the "second quick swipe during the first's inertia" on his trackpad, and its stream becomes the
+  vector the rule is tuned against. AWT doesn't expose the momentum phase, so a new rule without data would be a
+  guess.
+- **Self-update:** a link (spec). See D4 and Q3.
+
+### D4 — release and update
+
+- **`latest`** gains `troubastage-linux-x86_64.AppImage`, with a body line under the MSI's, so it carries 3 assets.
+  The APK and MSI steps are untouched.
+- **The DMG** (`troubastage-macos.dmg`) is a CI artifact only, until VLL has tested it on his Mac. Publishing it is
+  then a one-line, gated change.
+- **Asset selection:** `UPDATE_ASSET_APPIMAGE` and `UPDATE_ASSET_DMG` join the APK and MSI constants, with a test
+  case per platform.
+- **Desktop update modes:** **MSI** (WIN04, unchanged) · **link** (macOS, and Linux per Q2): the same banner and
+  Parameters rows, and Update opens the asset in the browser · **none** (no asset for this OS on `latest`, which is
+  the case for macOS until the DMG is published).
+- WIN04's `CANNOT_INSTALL_LINE` says "install it from the MSI", which is wrong on Linux and macOS. Each mode gets its
+  own line.
+
+### D5 — docs and site
+
+- **Linux:** a line in the site's download section and in USER-JOURNEY now.
+- **macOS:** its line once the DMG is published. It covers System Settings › Privacy & Security › Open Anyway, and
+  `xattr -cr` only if a tester actually meets the "damaged" message.
+- Labels are grepped from the shared strings.
+
+### Questions for you
+
+1. **Layout B** (two runtimes + stub) instead of the spec's lipo merge? A runs today, but only because nothing reads
+   the internals that lie under Rosetta.
+2. **Linux self-update:** the link for DESK01 (recommended: smallest, same as macOS), with an in-place AppImage
+   replace as a follow-up if VLL wants it? The in-place version would download and verify, then rename over
+   `$APPIMAGE` and relaunch, with a CI n → n+1 like WIN04.
+3. **The link mode's words:** keep "Update" and add a note line, "Opens the download in your browser"? Or is it a
+   label for VLL?
+4. **The window icon** on all three OSes: Windows' title bar changes from Java's cup to the brand mark. OK as part of
+   this task?
+5. **The job rename** `windows` → `desktop (windows)`, and the gate rule's wording with it.
+
+**Order once GO'd:** the D1 matrix with the Linux leg and D2 are already pushed to PR #84 (`af83fb5b`; the first
+CI run is on it now), then D3, D4 and D5.
+One entry, with the PR CI green on all three legs and the sabotages: a throwing draw goes red on each OS, and a wrong
+data-root branch goes red.
