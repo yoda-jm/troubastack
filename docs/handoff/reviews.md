@@ -62264,3 +62264,61 @@ product code.
 `app/shared/build/skiko/<hash>/libskiko-linux-x64.so` and leaves `~/.skiko` untouched; the configuration cache stores.
 
 The throwaway `win07-poscontrol` branch is **never landed**; only the three-file fix (a80a3262) lands on GO.
+
+## 2026-11-03 — Fable: GO on WIN07 (Windows desktop tests: no shared Skiko unpack) — PR #92 @ a80a3262, with one exact comment fix
+
+**GO**, provided the landed commit is a80a3262 plus exactly the one fix below, squashed into one commit. Cite this
+entry in the commit. `win07-poscontrol` never lands; delete it after landing.
+
+What I checked myself:
+- **The fix.** Both build files set `skiko.data.path` to `<buildDir>/skiko` and `exceptionFormat = FULL` on every
+  `Test` task, the same way `TROUBASTAGE_HOME` is already set. In `:shared` this also reaches the Android unit-test
+  tasks. That is harmless: they don't load Skiko. Neither task sets `maxParallelForks` or `forkEvery`.
+- **The CI records.** I read `/jobs` for all three runs:
+  - PR run `41540046482`: 10 jobs, all green. The WIN07 guard step ran and passed on windows, linux and macos.
+    `release-apk` was skipped, as it should be for a PR.
+  - Stress runs `41540011527` and `41543299261`: in both, the baseline guard step is red and the fixed one green.
+- **My own sabotage, on all three OSes** (throwaway branch `fable-win07-sabotage` @ 3f5598e5, run `41546244439`,
+  branch deleted after). 9c's baseline removed the setting from both projects, and only on Windows. Mine removed it
+  from `:desktopApp` only, which is the spec's case. It then ran the ci.yml guard as extracted from ci.yml, not a
+  copy. On each of windows, linux and macos, every step was green:
+  1. no `.skiko` existed before the tests;
+  2. after the tests, an independent check found `.skiko` in the user's home folder, `shared/build/skiko` present
+     and `desktopApp/build/skiko` absent. The check used Python, reading `USERPROFILE` on Windows and the passwd
+     entry on Unix, not java;
+  3. the guard went red, with its own `::error::WIN07: Skiko unpacked into the shared …` line;
+  4. after `.skiko` was removed, the same guard went green with its "OK" line.
+
+  So the guard discriminates on every OS, and it catches a single project missing the setting.
+- **`exceptionFormat = FULL`, checked locally.** I added a throwaway test in `:desktopApp` that throws
+  `IllegalStateException` caused by `AccessDeniedException("WIN07-PROBE-PATH\…dll")`:
+  - with a80a3262's setting, the console shows the cause's message, path included;
+  - with the setting removed, it shows only `AccessDeniedException at Win07FullProbeTest.kt:8`, with no path.
+
+  One correction to the presentation: "the FULL cause chain shows in the stress logs" cannot be right. All 54
+  iterations were green, so nothing failed and nothing was printed. This local check is the evidence for criterion 1.
+- **The 38 green baseline iterations.** I accept them as reported, and they do not count against the diagnosis.
+  After the first iteration everything is compiled, so every later iteration starts both test JVMs at nearly the
+  same moment, in the same test order. The loop keeps sampling about the same timing. The two real failures came
+  from cold CI runs, whose timing varies. The diagnosis remains strongly supported but unconfirmed, and the spec's
+  fallback applies.
+
+**The one fix.** `.github/workflows/ci.yml`, the comment above the Linux leg's guard. It says setup steps override
+`$HOME`, and none does: the only overrides in these jobs are `TROUBASTAGE_HOME`, `JAVA_HOME` and `ANDROID_HOME`. The
+claim came from my spec, which I have corrected in this same commit.
+- old:
+  `# WIN07 — same guard as the Windows leg. On Unix the JVM may resolve user.home from the passwd entry, not $HOME`
+  `# (which setup steps override), so ask the JVM where its home is rather than trust $HOME; check both to be safe.`
+- new:
+  `# WIN07 — same guard as the Windows leg. On Unix the JVM may resolve user.home from the passwd entry, not $HOME,`
+  `# so ask the JVM where its home is rather than trust $HOME; check both to be safe.`
+
+**After landing,** run the atomic check before the push, and report:
+- the land run's `/jobs`: all green, all three WIN07 guard steps run and green, and `release-apk` green;
+- that `latest` has its four assets recreated at the land commit.
+
+Then list **every** main run's `desktop (windows)` result from the land onward, not only the land run. If an
+`AccessDeniedException` comes back, the full output now names the path:
+- a path under `build\skiko` means the cause is something other than the shared folder (an antivirus scan holding
+  the fresh DLL, for example), and WIN07 reopens;
+- a path under `.skiko` means a test task escaped the setting.

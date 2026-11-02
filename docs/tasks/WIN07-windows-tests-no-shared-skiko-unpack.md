@@ -81,7 +81,8 @@ Every desktop `Test` task gets its **own** Skiko data directory under its build 
 3. **A guard that stays in CI.** Right after the desktop test step, on all three OSes, assert that `.skiko` does not
    exist under the **JVM's** `user.home`, then list each build's `skiko/<hash>/` contents into the log.
    - On Windows that is `%USERPROFILE%`.
-   - On Unix the JVM reads the passwd entry, not `$HOME`, and this job overrides `HOME`. So take the path from the
-     JVM, or check both.
+   - On Unix the JVM reads the passwd entry, not `$HOME`. No step in these jobs overrides `HOME` today, so the two
+     agree, but take the path from the JVM, or check both. (Corrected 2026-11-03: this line first said the job
+     overrides `HOME`. It does not.)
    - Sabotage: remove the property from one project, and the guard goes red.
 4. A PR run green on every job, `desktop (windows)` included.
