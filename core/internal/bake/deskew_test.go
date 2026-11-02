@@ -357,25 +357,25 @@ func TestDeskewSignConvention(t *testing.T) {
 // aspect case.
 func TestDeskewWindowSpills(t *testing.T) {
 	// Centred, mild angle, square page: stays inside.
-	if deskewWindowSpills(cropRect{x: 0.2, y: 0.2, w: 0.6, h: 0.6, angle: 5}, 100, 100) {
+	if deskewWindowSpills(cropRect{x: 0.2, y: 0.2, w: 0.6, h: 0.6, angle: 5}, 1.0) {
 		t.Error("a centred window at 5° must not spill")
 	}
 	// Flush to the left edge, 10°, square page: a bottom corner rotates past x=0.
-	if !deskewWindowSpills(cropRect{x: 0, y: 0.2, w: 0.6, h: 0.6, angle: 10}, 100, 100) {
+	if !deskewWindowSpills(cropRect{x: 0, y: 0.2, w: 0.6, h: 0.6, angle: 10}, 1.0) {
 		t.Error("an edge-flush window at 10° must spill")
 	}
 	// angle 0 never spills, even flush to the edge.
-	if deskewWindowSpills(cropRect{x: 0, y: 0, w: 1, h: 1, angle: 0}, 100, 100) {
+	if deskewWindowSpills(cropRect{x: 0, y: 0, w: 1, h: 1, angle: 0}, 1.0) {
 		t.Error("angle 0 must never spill")
 	}
 	// Aspect-sensitivity: a near-top window rotated on a WIDE page pushes a corner past y=0 (the physical
 	// x-extent is stretched, so rotation lifts the corner more in normalized y), while the SAME window on a
 	// square page stays in. Proves the aspect enters the rotation (physical units), not just the raw fractions.
 	wide := cropRect{x: 0.2, y: 0.08, w: 0.6, h: 0.6, angle: 8}
-	if deskewWindowSpills(wide, 100, 100) {
+	if deskewWindowSpills(wide, 1.0) {
 		t.Error("the window must stay inside on a square page")
 	}
-	if !deskewWindowSpills(wide, 300, 100) {
+	if !deskewWindowSpills(wide, 3.0) {
 		t.Error("the same window must spill on a 3:1 wide page (aspect must enter the rotation)")
 	}
 }

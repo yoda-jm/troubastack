@@ -36,14 +36,18 @@ func (s *Service) SetFileCrop(caller User, bandID, songID, fileID string, crop C
 // marks the crop would hide on the tablet. Because it shares cropTarget + NormalizeCrop with the save, a
 // preview that returns marks is a crop the save will accept — the warning and the result cannot diverge.
 // snap is the song's current annotation HEAD (the caller holds the engine; the service stays engine-free).
-func (s *Service) PreviewFileCrop(caller User, bandID, songID, fileID string, crop Crop, snap domain.Snapshot) ([]HiddenMark, error) {
+// aspects (T199) maps a page index to its rendered aspect (W/H) for the deskew mark transform — the SAME
+// pageAspect the bake drop uses, so this dryRun's hidden list == what the bake drops. Only ANGLED pages need
+// an entry; the caller (httpapi) fetches them from the baker and errors rather than guessing (B1), so a page
+// with an angle but no aspect here never reaches CropHidesMark.
+func (s *Service) PreviewFileCrop(caller User, bandID, songID, fileID string, crop Crop, snap domain.Snapshot, aspects map[int]float64) ([]HiddenMark, error) {
 	if _, err := s.cropTarget(caller, bandID, songID, fileID); err != nil {
 		return nil, err
 	}
 	if err := NormalizeCrop(&crop); err != nil {
 		return nil, err
 	}
-	return CropHiddenMarks(snap, fileID, crop), nil
+	return CropHiddenMarks(snap, fileID, crop, aspects), nil
 }
 
 // CropDetectSource returns an uploaded PDF's bytes for an autodetect proposal, enforcing the SAME gate as a
@@ -110,7 +114,7 @@ func NormalizeCrop(crop *Crop) error {
 // uses the SAME predicate the bake drop uses (CropHidesMark), so the warning can never disagree with the
 // result. snap is the song's current annotation HEAD; fileByLayer maps a layer to its file so only marks on
 // THIS file's cropped pages are considered.
-func CropHiddenMarks(snap domain.Snapshot, fileID string, crop Crop) []HiddenMark {
+func CropHiddenMarks(snap domain.Snapshot, fileID string, crop Crop, aspects map[int]float64) []HiddenMark {
 	fileByLayer := map[string]string{}
 	for _, l := range snap.Layers {
 		fileByLayer[l.ID] = l.FileID
@@ -133,7 +137,7 @@ func CropHiddenMarks(snap domain.Snapshot, fileID string, crop Crop) []HiddenMar
 		for i, p := range o.Points {
 			pts[i] = [2]float64{p.X, p.Y}
 		}
-		if CropHidesMark(pts, o.Style.Width, o.Style.FontSize, o.Type == domain.TypeText, o.Text, rect.X, rect.Y, rect.W, rect.H) {
+		if CropHidesMark(pts, o.Style.Width, o.Style.FontSize, o.Type == domain.TypeText, o.Text, rect.X, rect.Y, rect.W, rect.H, rect.Angle, aspects[o.Page]) {
 			hidden = append(hidden, HiddenMark{UUID: o.UUID, LayerID: o.LayerID, Page: o.Page})
 		}
 	}

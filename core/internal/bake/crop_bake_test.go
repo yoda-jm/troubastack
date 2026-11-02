@@ -350,6 +350,7 @@ func TestBakeDeskewClampWarning(t *testing.T) {
 		b := &Baker{
 			svc: svc, eng: eng,
 			raster:   fakeRaster{pages: 1, png: tinyPNG(t, 64, 64)},
+			aspecter: FixedAspecter{Aspects: []float64{1.0}}, // T199: aspect 1 (square), the spill geometry below assumes it
 			overlays: fakeOverlays{png: tinyPNG(t, 10, 14)},
 			bakesDir: t.TempDir(),
 			progress: newProgressRegistry(nil),

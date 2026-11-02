@@ -80,11 +80,10 @@ const maxCropSidePx = 4096
 // a crop that reached the bake un-clamped — e.g. one imported past the dimension-free sanitizer. When it does,
 // renderDeskewedCropPage clamps the render to the page and fills the rest with white; the caller warns so the
 // clamp is never silent. angle 0 or a degenerate page ⇒ never spills.
-func deskewWindowSpills(r cropRect, pageW, pageH int) bool {
-	if r.angle == 0 || pageW <= 0 || pageH <= 0 {
+func deskewWindowSpills(r cropRect, aspect float64) bool {
+	if r.angle == 0 || aspect <= 0 {
 		return false
 	}
-	aspect := float64(pageW) / float64(pageH)
 	cx, cy := r.x+r.w/2, r.y+r.h/2
 	theta := r.angle * math.Pi / 180
 	sin, cos := math.Sin(theta), math.Cos(theta)
@@ -427,12 +426,12 @@ func fieldFloat(fields []string, i int) float64 {
 // markIntersectsCrop reports whether a mark has any pixel inside the crop rect c. It defers to the ONE shared
 // predicate app.CropHidesMark (extent-aware: stroke half-width pad + text glyph run, and the empty-points
 // case) so the bake drop and the crop-save warning can never disagree about what a crop hides.
-func markIntersectsCrop(o docObject, c cropRect) bool {
+func markIntersectsCrop(o docObject, c cropRect, aspect float64) bool {
 	pts := make([][2]float64, len(o.Points))
 	for i, p := range o.Points {
 		pts[i] = [2]float64{p.X, p.Y}
 	}
-	return !app.CropHidesMark(pts, o.Style.Width, o.Style.FontSize, o.Type == "text", o.Text, c.x, c.y, c.w, c.h)
+	return !app.CropHidesMark(pts, o.Style.Width, o.Style.FontSize, o.Type == "text", o.Text, c.x, c.y, c.w, c.h, c.angle, aspect)
 }
 
 // applyCropToDoc transforms each mark on a cropped page into the CROPPED page frame, so it composites on the
@@ -441,7 +440,11 @@ func markIntersectsCrop(o docObject, c cropRect) bool {
 // scales by 1/cw and the text size (a page-HEIGHT fraction, matching web/ink's fontPx) by 1/ch. A mark that
 // does not intersect the crop (markIntersectsCrop, extent-aware) is dropped — it isn't on the tablet; a
 // straddling mark keeps its points and the renderer clips the overflow.
-func applyCropToDoc(doc annotationsDoc, crops pageCrops) annotationsDoc {
+// applyCropToDoc transforms each mark into the cropped VIEW frame (T199: rotate-then-crop via the shared
+// app.PageViewTransform), dropping those entirely outside the window. aspects maps a page index to its
+// rendered aspect (W/H); only pages carrying an angle need an entry (angle-0 pages ignore it and reduce to
+// T198's translate+scale, byte-identically). Stored coordinates never change (P3) — this is a bake-time view.
+func applyCropToDoc(doc annotationsDoc, crops pageCrops, aspects map[int]float64) annotationsDoc {
 	if len(crops) == 0 {
 		return doc
 	}
@@ -452,16 +455,18 @@ func applyCropToDoc(doc annotationsDoc, crops pageCrops) annotationsDoc {
 			out = append(out, o)
 			continue
 		}
-		if !markIntersectsCrop(o, c) {
+		aspect := aspects[o.Page]
+		if !markIntersectsCrop(o, c, aspect) {
 			continue // entirely outside the cropped page — not drawn on the tablet
 		}
 		to := o
 		to.Points = make([]docPoint, len(o.Points))
 		for i, p := range o.Points {
-			to.Points[i] = docPoint{X: (p.X - c.x) / c.w, Y: (p.Y - c.y) / c.h, Pressure: p.Pressure}
+			ox, oy := app.PageViewTransform(p.X, p.Y, c.x, c.y, c.w, c.h, c.angle, aspect)
+			to.Points[i] = docPoint{X: ox, Y: oy, Pressure: p.Pressure}
 		}
 		to.Style = o.Style
-		to.Style.Width = o.Style.Width / c.w
+		to.Style.Width = o.Style.Width / c.w // a page-width fraction; the rotation preserves it, the crop scales it
 		to.Style.FontSize = o.Style.FontSize / c.h
 		out = append(out, to)
 	}

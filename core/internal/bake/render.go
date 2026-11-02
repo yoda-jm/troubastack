@@ -46,6 +46,7 @@ type OverlayRenderer interface {
 type popplerRasterizer struct {
 	bin       string // pdftoppm binary (TROUBA_PDFTOPPM)
 	imagesBin string // pdfimages binary (TROUBA_PDFIMAGES); "" disables the T198 native-ppi crop cap
+	infoBin   string // pdfinfo binary (TROUBA_PDFINFO); "" disables the T199 deskew page-aspect lookup
 	dpi       int
 }
 

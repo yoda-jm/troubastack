@@ -180,3 +180,24 @@ func TestCropEndpoint_RefusesGeneratedAndInvalid(t *testing.T) {
 		t.Fatalf("no refused request may re-bake, notified=%v", *f.notified)
 	}
 }
+
+// TestCropEndpoint_DryRunDeskewNeedsAspect is T199 B1 (no silent degrade): a dry run on an ANGLED crop, when
+// this server has no bake toolchain to read the page aspect, must FAIL explicitly rather than return a wrong
+// hidden list (empty, or the angle-0 box). The fixture's API has no baker. An un-angled dry run still works.
+func TestCropEndpoint_DryRunDeskewNeedsAspect(t *testing.T) {
+	f := newCropFixture(t)
+	angled := map[string]any{"pages": map[string]any{"0": map[string]float64{"x": 0.25, "y": 0.25, "w": 0.5, "h": 0.5, "angle": 4}}}
+	rec := f.put(t, f.file, map[string]any{"crop": angled, "dryRun": true})
+	if rec.Code == http.StatusOK {
+		t.Fatalf("an angled dry run with no bake toolchain must error, not return 200: %s", rec.Body)
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("hiddenMarks")) {
+		t.Fatalf("an angled dry run that couldn't check must NOT return a hiddenMarks list: %s", rec.Body)
+	}
+	if c := f.fileCrop(t); c != nil {
+		t.Fatalf("a dry run must persist nothing, got %+v", c)
+	}
+	if ok := f.put(t, f.file, map[string]any{"crop": centreCrop, "dryRun": true}); ok.Code != http.StatusOK {
+		t.Fatalf("an un-angled dry run must still work without a baker: %d %s", ok.Code, ok.Body)
+	}
+}

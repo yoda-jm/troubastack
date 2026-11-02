@@ -105,3 +105,33 @@ func TestValidateCrop_LockARRequiresSquare(t *testing.T) {
 		t.Fatalf("a square aspect-locked crop must pass: %v", err)
 	}
 }
+
+// TestPageViewTransform pins the pure deskew view transform (T199): angle 0 reduces to T198's map (aspect
+// unused); the window centre always maps to the output centre; a hand-computed 90° case; and the aspect
+// scales the rotated cross-term (so a non-square page doesn't shear).
+func TestPageViewTransform(t *testing.T) {
+	approx := func(g, w float64) bool { return math.Abs(g-w) < 1e-9 }
+	// angle 0 == T198 (px−x)/w, (py−y)/h, for any aspect.
+	for _, asp := range []float64{0.5, 1, 2} {
+		ox, oy := PageViewTransform(0.4, 0.6, 0.25, 0.25, 0.5, 0.5, 0, asp)
+		if !approx(ox, (0.4-0.25)/0.5) || !approx(oy, (0.6-0.25)/0.5) {
+			t.Fatalf("angle 0 must be the T198 map, got (%.4f,%.4f)", ox, oy)
+		}
+	}
+	// window centre → output centre, any angle/aspect.
+	for _, ang := range []float64{-7, 0, 4, 90} {
+		ox, oy := PageViewTransform(0.5, 0.5, 0.25, 0.25, 0.5, 0.5, ang, 1.3)
+		if !approx(ox, 0.5) || !approx(oy, 0.5) {
+			t.Fatalf("centre must map to (0.5,0.5) at angle %g, got (%.4f,%.4f)", ang, ox, oy)
+		}
+	}
+	// hand-computed 90°: a point +0.1 in x from the centre of a square window (w=h=0.5), aspect 1.
+	ox, oy := PageViewTransform(0.6, 0.5, 0.25, 0.25, 0.5, 0.5, 90, 1)
+	if !approx(ox, 0.5) || !approx(oy, 0.3) {
+		t.Fatalf("90° of (+0.1,0) want (0.5,0.3), got (%.4f,%.4f)", ox, oy)
+	}
+	// aspect scales the rotated cross-term: the same point at aspect 2 → oy = 0.1.
+	if _, oy2 := PageViewTransform(0.6, 0.5, 0.25, 0.25, 0.5, 0.5, 90, 2); !approx(oy2, 0.1) {
+		t.Fatalf("aspect must scale the rotated y, want 0.1, got %.4f", oy2)
+	}
+}

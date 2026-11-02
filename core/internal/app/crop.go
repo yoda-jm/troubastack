@@ -142,7 +142,27 @@ func parsePageIndex(key string) (int, error) {
 // (it has no extent to place off the page, and the bake keeps it), so the warning must not report it either.
 // It is keep-biased: the box is padded by the stroke's round-cap radius and text is extended generously, so
 // an over-estimate keeps a mark the renderer then clips, never hides one.
-func CropHidesMark(pts [][2]float64, strokeWidth, fontSize float64, isText bool, text string, cx, cy, cw, ch float64) bool {
+// PageViewTransform (T199) maps a source-frame normalized point (px,py) into the bake's VIEW frame for a
+// crop: offset from the WINDOW centre, rotate by the deskew angle in PHYSICAL units (aspect = page W/H, so a
+// non-square page doesn't shear), straighten, then crop-normalize to the window. The result is the point's
+// position in the upright cropped page — [0,1]² inside the window. It is the ONE transform the bake drop
+// (applyCropToDoc) and the crop dryRun (CropHidesMark) share, so they can never disagree about where a mark
+// lands or whether it is hidden. At angle 0 it is EXACTLY T198's (px−x)/w, (py−y)/h, and aspect is unused. The
+// sign matches bake.rotateWindow (which maps output→source by +angle), pinned by the overlay-dot test.
+func PageViewTransform(px, py, x, y, w, h, angleDeg, aspect float64) (ox, oy float64) {
+	cx, cy := x+w/2, y+h/2
+	dx, dy := px-cx, py-cy
+	if angleDeg == 0 {
+		return 0.5 + dx/w, 0.5 + dy/h
+	}
+	th := angleDeg * math.Pi / 180
+	sin, cos := math.Sin(th), math.Cos(th)
+	ox = 0.5 + (cos*dx+sin*dy/aspect)/w
+	oy = 0.5 + (-sin*dx*aspect+cos*dy)/h
+	return ox, oy
+}
+
+func CropHidesMark(pts [][2]float64, strokeWidth, fontSize float64, isText bool, text string, x, y, w, h, angleDeg, aspect float64) bool {
 	if len(pts) == 0 {
 		return false // no extent; kept by the bake, so never reported hidden
 	}
@@ -175,6 +195,16 @@ func CropHidesMark(pts [][2]float64, strokeWidth, fontSize float64, isText bool,
 		bx1 = math.Max(bx1, x0+float64(widest)*fontSize) // run right from the anchor
 		by1 = math.Max(by1, y0+fontSize*1.2*float64(lines))
 	}
-	intersects := bx1 >= cx && bx0 <= cx+cw && by1 >= cy && by0 <= cy+ch
+	// T199: transform the source extent-box's four corners into the view frame and take their AABB, then test
+	// against the upright window [0,1]². The AABB of the rotated box OVER-estimates, so the predicate stays
+	// keep-biased (a boundary mark is kept, never hidden). At angle 0 this is identical to the T198 test.
+	ox0, oy0 := math.Inf(1), math.Inf(1)
+	ox1, oy1 := math.Inf(-1), math.Inf(-1)
+	for _, c := range [4][2]float64{{bx0, by0}, {bx1, by0}, {bx1, by1}, {bx0, by1}} {
+		tx, ty := PageViewTransform(c[0], c[1], x, y, w, h, angleDeg, aspect)
+		ox0, ox1 = math.Min(ox0, tx), math.Max(ox1, tx)
+		oy0, oy1 = math.Min(oy0, ty), math.Max(oy1, ty)
+	}
+	intersects := ox1 >= 0 && ox0 <= 1 && oy1 >= 0 && oy0 <= 1
 	return !intersects
 }
