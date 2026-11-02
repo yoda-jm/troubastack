@@ -61400,3 +61400,80 @@ action.
 **Also show** that Stage's pixels on Android are unchanged: WIN01's screenshot set, at least the Stage screens. The
 change is semantics only, but threading a Modifier through can move a pixel. Show too that the desktop tooltips
 still appear.
+
+## 2026-11-02 — mobile presents: accessible names for Stage's glyph controls (WIN03 follow-up), GO 440f877d — reviewer: Fable
+
+Branch `mobile/a11y-glyph-names` @ f60a5f2f, PR #88. **PR CI:** run **`41423690256`**: **success on every job**: `desktop (windows)`, `desktop (linux)`, `desktop (macos)`, android, web, e2e, go, proto and image. release-apk is skipped on a PR.
+
+### As built
+
+- **One call names a control.** `GlyphTooltip(label) { labelled -> … }` hands each control a Modifier with
+  `contentDescription = label`, and each control applies it to **its clickable**: the FAB, the chip's Surface, the
+  metronome's Boxes. The tooltip and the name come from that one call.
+- **Metronome** is a button: `clickable(role = Role.Button)`. There's no long press, so no second label.
+- **Keep running** is a switch: `toggleable(value = beat.continuous, role = Role.Switch)`.
+- **Finish notes and the zoom controls** keep their names, now through the same call.
+- **No new words.** Every name is a WIN03 tooltip label.
+
+### What the emulator showed, and the fix
+
+The first version cleared the glyph Text's semantics (`clearAndSetSemantics {}`), and the desktop test was green: its
+unmerged tree had the name, role and OnClick on one node.
+
+**On the emulator, the `uiautomator dump` said otherwise.** Each Stage button was a clickable, focusable View with **no
+content-desc**. Its children, all with the parent's bounds, were:
+- a View with the name;
+- the glyph's cleared node;
+- a Button-class View with the role.
+
+Only Metronome, whose icon is drawn, was a single node. **The cause is Compose's `SemanticsNode.emitFakeNodes`:** a
+merging node with a ContentDescription or Role that has *any* semantics child gets fake child nodes for them, and
+Android's accessibility delegate exposes those. So **the node a screen reader focuses had the action but not the
+name**. That's your trap, reached by another road.
+
+**The fix:** `GlyphText(labelled)` now **draws** the glyph, using the same text layout (`TextMeasurer` + `drawText`),
+so it adds no semantics node at all. Unlabelled, it is still a Text. Finish notes' ✔ is drawn too, since it split the
+same way.
+
+### Proof
+
+- **The emulator's dump of the head's APK** (Pixel Tablet, portrait):
+  - Stage chrome: each control is **ONE node with the name, clickable, focusable and `children=0`**:
+    - Songs `[21,15][118,112]`, Note mode, Parameters, Leave the concert, Previous page and Next page are
+      class `Button`;
+    - Metronome is class `Button`;
+    - Keep running is `checkable=true`, `checked=false`, then **`checked=true`** after one tap.
+  - Note mode: Pencil, Eraser and Finish notes are each one node with the name and `clickable=true`.
+  - Full screen doesn't appear: Android has no full-screen button. The desktop test covers it.
+- **Stage's pixels on Android are unchanged.** The same scripted journey ran from a fresh state each time, on `main`'s
+  APK twice and the head's once, with the status bar frozen.
+  - Of the PIL diffs, these screens are **identical** to `main`: the "Who are you?" picker, the page, the page with
+    the chrome shown, the note-mode question, and the note bar.
+  - Home and the concert list differ only in the gesture-nav handle's 4×7 px patch, which differs between the two
+    `main` runs too (known noise).
+  - The drawn glyphs ☰ ∞ ✎ ⚙ ✕ ✎ ⌫ ✔ are visible in the head's shots.
+- **`StageAccessibleNamesUiTest`** (shared desktopTest, run Android's way with no tooltip provider):
+  - all 11 controls, plus Finish notes, are checked in the **unmerged** tree: exactly one node carries the name *and*
+    the click action, and **it has no semantics children**, the condition that keeps Android from splitting it;
+  - no node reads a glyph;
+  - Metronome's role is Button;
+  - Keep running is a Switch that goes Off → On.
+- **The desktop tooltips still show.** `DesktopTooltipUiTest` (desktopApp) hovers with the **real**
+  `desktopGlyphTooltip`, on Parameters and on Keep running: no tooltip before the hover, then the label after 800 ms.
+  desktopApp gains `compose.uiTest` as a test dependency, opted in as :shared does.
+- **Sabotages, each red on its own test (all restored):**
+  - the name on a wrapper around the FAB → "one clickable named 'Songs' expected 1 was 0" (your trap);
+  - Keep running as a plain clickable → the switch test;
+  - **the first version, a Text with cleared semantics** → "'Songs' has no semantics children (Android would split
+    its name off)", and the same for Pencil;
+  - an earlier round: a readable glyph → the "glyph not read" checks;
+  - `GlyphTooltip` dropping the platform tooltip → both hover tests.
+- **StageMouseUiTest** found the buttons by their glyph text. It finds them by name now, a consumer of this change.
+  All 703 desktop tests pass.
+
+### Left as is, for you
+
+- **The zoom chip "⌕ 1×"** (named before this change): on Android its name is still on a fake child. Its visible text
+  is content (the factor), not a glyph. A screen reader reads it through the fake node.
+- **The ✕ on the Join and Connect screens** have no accessible name. They're outside Stage, so outside this task: a
+  candidate follow-up.
