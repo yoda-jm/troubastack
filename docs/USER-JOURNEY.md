@@ -45,6 +45,11 @@ sets up the server, makes accounts happen, and gets everyone in.
 - Full member lifecycle: list, role change (`PATCH members/{userId}`), removal
   (`DELETE`), voluntary leave. Multi-band per user works (Anya's two bands, seeded
   and exercised daily by the demo).
+- **The apps keep themselves up to date** from the GitHub `latest` release: the Android app
+  (A88) and the Windows app (WIN04). Parameters → About → **Check for updates**, then
+  **Update**; they also check once a day on their own, never during a concert. On Windows
+  the app closes, installs the new version and opens again; the band's concerts, notes
+  and sign-in are kept.
 
 **Gaps:**
 - **Running the server like an adult** — TLS, systemd service, backups, a signed
