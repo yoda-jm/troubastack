@@ -60319,3 +60319,49 @@ S4 will make an angle-only change count in Studio's pre-save notes warning and s
 straightened page" error as itself.
 
 S3 next: pure-Go autodetect (it writes detected angles through roundDeskew).
+
+## 2026-11-02 — web-core: T199 S3 plan (pure-Go deskew autodetect) — for sign-off, no code yet
+
+Stage 3 on the GO'd plan. Pure Go, no new deps. Runs BEFORE the content-box detect so the bbox is measured on
+the straightened page. One design choice to confirm: the confidence metric + its threshold band.
+
+### Detector — `detectPageAngle(img) (angleDeg float64, confidence float64)`
+
+- On a DOWNSCALED render of the base-DPI page (≤ ~1000px long side; downscale for speed + noise suppression).
+- Sweep θ ∈ [−10°, +10°]. For each θ, project the ink onto rows AS IF the page were rotated by θ (accumulate
+  each dark pixel into the row it would land in after rotating about the centre — a shear of the row index by
+  the pixel's x·tanθ, no actual raster rotation), giving a row-ink-sum profile; score V(θ) = variance of that
+  profile. Level staff/text lines pile ink into few rows ⇒ high variance; misaligned ⇒ ink spreads ⇒ low.
+- Coarse 0.5° over the whole range, then fine 0.05° around the best θ (coarse-to-fine, spec).
+- θ* = argmax V. Round θ* through `app.roundDeskew` (0.05° grid) — the autodetect writes on-grid angles (your
+  non-blocker note; keeps the raster key injective).
+
+### Confidence = peak-over-mean of the sweep (this is what rejects the lone diagonal)
+
+`confidence = V(θ*) / mean(V over the whole sweep)`. The spec's "peak's height relative to the mean".
+- **Staff/text**: periodic horizontal structure aligns ONLY at the true angle; 0.5° off and the many lines smear
+  across rows and V collapses ⇒ a SHARP peak ⇒ high peak/mean ⇒ confident.
+- **One long diagonal + little else**: the single line projects to a narrow band over a WIDE range of θ, so V is
+  a broad plateau ⇒ low peak/mean ⇒ below threshold ⇒ **propose 0**. This is exactly where a naive
+  "strongest-line / max-V angle" detector picks the diagonal and we must not — I'll show that naive detector
+  returning the diagonal's angle on the same vector, red.
+- **Blank**: V≈0 everywhere ⇒ peak/mean≈1 ⇒ below threshold ⇒ 0.
+- **Threshold is a BAND, not an adjective** ([[name-the-tier-not-the-adjective]]): I'll calibrate the number from
+  the five synthetic vectors (measure peak/mean for staves vs diagonal/blank, place the threshold in the gap)
+  and state it as a constant with the measured margins. Proposed starting point stated at the gate once measured.
+
+### Wiring (autocrop.go `DetectCropForPages`)
+
+Per page: `detectPageAngle` → if confident, straighten the raster by −θ (reuse S1's `rotateWindow`/bicubic on the
+whole page, or a whole-page rotate) → run the existing `detectContentRect` on the STRAIGHTENED raster → the
+proposed `CropRect` carries `Angle: θ` (and the content box measured straight). Not confident ⇒ Angle 0, today's
+behaviour. The proposal still flows through the normal crop-save (Source "auto"); the user commits it.
+
+### Tests (synthetic, generated in-test; no real scan committed)
+
+The five spec vectors: staff lines at **+2.3° → detected within ±0.1°**; the same at **−4°**; a **straight** page
+→ 0; a **blank** page → 0 with low confidence; a **single long diagonal + little else → 0** (NOT the diagonal's
+angle), and a naive strongest-angle detector shown returning the diagonal, red. Plus: the detected angle is
+on the 0.05° grid; `DetectCropForPages` returns the angle in the rect and the content box is measured straight.
+
+On GO I build S3 on web/t199-s3 and present with a PR CI run (incl. windows).
