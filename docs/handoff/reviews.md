@@ -59369,3 +59369,75 @@ One commit on `5ec148f3`. Spec `docs/tasks/WIN03-…` and its gate additions.
   high). It's cosmetic and consistent per machine.
 
 Stage-position writes stay on the UI thread (F2, GO 324068c3: put p95 1.354 ms).
+
+## 2026-11-02 — Fable: GO on WIN03 (`mobile/win03-troubastage-on-windows` @ a3aa8e23), with three bindings; the three questions ruled
+
+I read the gate entry (e69a25db), the whole diff against the spec and its gate additions, and CI run 41364466653
+on `/jobs`: 8 jobs, head a3aa8e23, `windows` success with its desktop-tests step, `release-apk` skipped as a PR
+should be.
+
+**Re-run by me, with my own sabotages.** I used `:shared:desktopTest` on Linux, in two rounds. In each round, the
+tests the sabotage does not touch stayed green.
+- **A50's frame wait removed** → `onEntry_pageDownTurns`, `afterAClickOnThePage_pageDownStillTurns` and
+  `lockSwipe_locksTheWheel_too` go red. That matches the three UI cases claimed. This is the shared focus fix
+  that Android also runs.
+- **`BackDispatcher` made oldest-wins** → `nested_theInnerHandlerWins…` goes red.
+- **`wheelStep` letting every event turn** → seven `StageMouseTest` cases go red, and so does the UI burst test.
+- **Esc's full-screen exit checked before the drawer** → `esc_withTheDrawerOpen_closesTheDrawerFirst…` goes red.
+
+**Read and accepted:**
+- **What Android sees is unchanged.** Every new local defaults to null, `window` is null, `pointer` is TOUCH,
+  `stageBackAction`'s `fullScreen` is false, and `readableWidth(null)` is the identity.
+  - The width-mode scroll is hoisted into the per-page `AnimatedContent` scope, so it keeps the same lifetime per
+    page.
+  - Two-up only happens in FIT_PAGE, so the edge rule never reads a dead scroll.
+  - Enter-to-submit adds the one visible Android change, and only with a hardware keyboard. It is an improvement.
+- **The single-instance listener is bound to the loopback address.** A local "front" message can only raise the
+  window.
+- **The display hold is set and cleared on the AWT thread**, by the Stage window's enter and dispose.
+- **D8.**
+  - `release-apk` now needs `windows`.
+  - It takes exactly one MSI from the artifact; the n+1 MSI stays under `build/`.
+  - `AppUpdaterParseTest` lists the MSI first, so a parser that takes the first asset goes red by construction.
+- **The D5 string sweep, which the entry did not list; I ran the spec's grep at a3aa8e23:**
+  - "Touch will draw…" gets its mouse variant.
+  - "Lock swipe" keeps its name, by the spec.
+  - "Tap to cycle…" and "…tap ✎ to take one" stay: "tap" reads fine with a mouse.
+  - "For a MIDI pedal, tap Connect…" disappears with the MIDI section.
+  - No other user-facing string is false on Windows.
+- **Screenshots I opened:**
+  - `03-connect-dialog`: no "Scan a QR", no discovered servers.
+  - `10-parameters-top`: no MIDI line, the new switch, and the pedal subtitle without MIDI.
+  - `07-studio-coming-soon`.
+  - `18-tooltip`.
+
+**The three questions, ruled:**
+1. **Connect's Server URL on the desktop.** It starts as `http://` when no server is saved; a saved one already
+   wins, through `CORE_URL_KEY`. The desktop never probes the emulator alias: today, before any connect,
+   HttpTransport's fallback sends Home's probe to `10.0.2.2:8080`, which on a 10.x LAN is somebody's machine. With
+   nothing saved, Home shows its usual not-connected state. Android keeps its emulator default (debug convenience,
+   out of scope). There are three copies of the constant today; the default comes from one place per platform.
+2. **Cursor hide and crosshair stay desktop-only**, as built. D3's "an Android tablet with a mouse gets them too"
+   was about the wheel rules. Hiding the pointer on Android would be a visible Android change with no ask behind it.
+3. **The tooltip words are accepted, and VLL confirms them on his decisions page.**
+   - They reuse the app's own words where any exist: "Keep running" is A34's, "Note mode" matches "Enter note
+     mode?", and "Finish notes" and the zoom labels are the existing content descriptions.
+   - "Parameters" on ⚙ matches the Parameters screen's own "Also on the ⚙ in concert mode".
+   - If he changes a word, it is a one-line swap.
+   - The accessible names on Android are not in WIN03. One string per button, used as both tooltip and content
+     description, is a small follow-up once he has confirmed the words.
+   - The Learn panel's large desktop key codes are cosmetic; accepted.
+
+**Bindings:**
+- **B1, before landing.** Fold in ruling 1, with a test of the desktop default. It is an `app/shared` change, so
+  show a PR CI run including `windows`, and cite it in the LANDED note. It needs no re-review.
+- **B2, at landing.** The land touches `app/`, so `release-apk` must publish. Nobody pushes until the land run has
+  started; if it is evicted anyway, re-run it rather than cover it. Then read `latest`: exactly two assets,
+  `troubastage-debug.apk` and `troubastage-windows.msi`, targeting the landed SHA. Put that line in the LANDED note.
+- **B3, VLL's per-machine pass gains two lines.**
+  - Resize the window across square mid-concert: two-up ↔ single, and the page you are on stays (D2; not shown on
+    Linux).
+  - Run the chrono across a sleep (close the Surface's lid for a minute): it keeps counting. The GetTickCount64
+    claim rests on Microsoft's documentation; this checks it on the device.
+
+GO. Land with `Approved-by: Fable (GO <this commit>)` after B1.
