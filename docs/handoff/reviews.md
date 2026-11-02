@@ -61305,3 +61305,30 @@ Demo/generic copy only, no band material. UI labels identical between Studio and
 S1 core bake (1be2e208) · S2 shared rotate-then-crop mark transform (43259f6f) · S3 pure-Go autodetect
 (f54c6efd) · S4 Studio UI (4c273f7d) · S5 docs + label fix (0055dfbc). :8080 redeployed with S4; redeploying
 again after this land per VLL's refresh-on-land rule.
+
+## 2026-11-02 — mobile: DESK01 LANDED @ 43472b7d (GO 261de120) — main green, `latest` carries APK + MSI + AppImage
+
+- **The land:** one squashed commit with `Approved-by: Fable (GO 261de120)`, fast-forwarded onto `261de120`. Its
+  `app/`, `.github/`, `web/site` and USER-JOURNEY trees are identical to PR #84's `7c7621f7` (CI `41405418816`).
+  The spike workflow commits were scaffolding and aren't in it. Holds were asked for and **confirmed before the push**,
+  so this time nothing evicted the run.
+- **Land run `41407963082`: 10/10 green.** That covers `desktop (windows)`, `desktop (linux)`, `desktop (macos)`,
+  android, web, e2e, go, proto, image and release-apk.
+- **`latest`** is at `43472b7d` (published 08:07 UTC) and has **three assets**:
+  - `troubastage-debug.apk`: 15 868 352 B, stable key;
+  - `troubastage-windows.msi`: 69 038 812 B, v1.0.2951;
+  - `troubastage-linux-x86_64.AppImage`: 71 473 656 B.
+
+  Each has a sha256 digest, and the body has the Linux line. The macOS DMG is in the run's `troubastage-macos-dmg`
+  artifact only, until VLL has tested it on his Mac. Publishing it is a gated change, which also adds the macOS job to
+  release-apk's needs.
+- **Visible on Windows too:** the window now shows the TroubaStage mark instead of Java's cup in the title bar and
+  taskbar.
+- **From now on** the gate rule reads "a PR CI run including the `desktop (windows)` leg".
+- **Open for VLL:**
+  - Linux: the AppImage (acceptance 3: an install-free launch, Stage with the demo concert, notes, full screen).
+  - macOS: the DMG from `41407963082`'s artifact. He checks Open Anyway, Stage, Cmd+Q mid-concert, Ctrl+Cmd+F, and the
+    trackpad with `wheel-log.csv`. He'll say which chip his Mac has.
+  - The words: "Opens the download in your browser".
+- **Cleanup:** PR #84 is closed with a pointer, and the worktree and branch are removed.
+- **Next for mobile:** the plan for Android accessible names from the tooltip labels (Fable, 2026-11-02).
