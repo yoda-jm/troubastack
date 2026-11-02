@@ -106,7 +106,7 @@ jobs:
           mv "$U/Contents/MacOS/TroubaStage" "$U/Contents/MacOS/TroubaStage-arm64"
           cp "$RUNNER_TEMP/x64/TroubaStage.app/Contents/MacOS/TroubaStage" "$U/Contents/MacOS/TroubaStage-x86_64"
           cp "$RUNNER_TEMP/x64/TroubaStage.app/Contents/app/libskiko-macos-x64.dylib"* "$U/Contents/app/"
-          for a in arm64 x86_64; do { echo "[Application]"; echo "app.runtime=\$ROOTDIR/runtime-$a"; tail -n +2 "$U/Contents/app/TroubaStage.cfg"; } > "$U/Contents/app/TroubaStage-$a.cfg"; done
+          for a in arm64 x86_64; do { echo "[Application]"; echo "app.runtime=\$ROOTDIR/Contents/runtime-$a"; tail -n +2 "$U/Contents/app/TroubaStage.cfg"; } > "$U/Contents/app/TroubaStage-$a.cfg"; done
           rm "$U/Contents/app/TroubaStage.cfg"; head -3 "$U/Contents/app/TroubaStage-x86_64.cfg"
           clang -arch arm64 -arch x86_64 -O2 -mmacosx-version-min=11.0 -o "$U/Contents/MacOS/TroubaStage" app/desktopApp/packaging/macos/universal-launcher.c
           lipo -archs "$U/Contents/MacOS/TroubaStage"
@@ -131,7 +131,9 @@ jobs:
           run A-rosetta arch -x86_64 "$RUNNER_TEMP/A/TroubaStage.app/Contents/MacOS/TroubaStage"
           run B-native "$RUNNER_TEMP/B/TroubaStage.app/Contents/MacOS/TroubaStage"
           run B-rosetta arch -x86_64 "$RUNNER_TEMP/B/TroubaStage.app/Contents/MacOS/TroubaStage"
-          echo "--- open (LaunchServices) layout B, 20 s:"; TROUBASTAGE_HOME="$RUNNER_TEMP/home-open" open -n "$RUNNER_TEMP/B/TroubaStage.app" --args --print-data-root; sleep 5; pgrep -lf TroubaStage-arm64 || echo "(not running — print-data-root exits at once)"
+          echo "--- B through LaunchServices (open -W -n, as a double-click):"
+          open -W -n --env TROUBASTAGE_HOME="$RUNNER_TEMP/home-open" "$RUNNER_TEMP/B/TroubaStage.app" --args --smoke "$RUNNER_TEMP/smoke-B-open.png" --smoke-concert "$GITHUB_WORKSPACE/docs/demo/demo-concert.tstage"
+          echo "open exit $?"; ls -la "$RUNNER_TEMP"/smoke-B-open*.png 2>/dev/null || echo "  (no PNG)"
       - name: DMG sizes
         run: |
           for L in A B; do
