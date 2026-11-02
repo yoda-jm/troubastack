@@ -295,24 +295,27 @@ jobs:
   # (least privilege). Guarded to pushes on `main`; on PRs the `if:` skips it entirely.
   # WIN03 D8: the Windows MSI rides the same release, built by the `windows` job: one release, two assets, recreated
   # together (so the APK now also waits for the windows job, and a red windows job publishes neither).
-  # DESK01 D4: that job is now the `desktop` matrix; its linux leg adds the AppImage (three assets). The macOS DMG is
-  # NOT published until a person has tested it on a Mac.
+  # DESK01 D4: that job is now the `desktop` matrix; its linux leg adds the AppImage (three assets).
+  # DESK02: the macOS DMG joins them, so `latest` carries four assets (built by `desktop-macos`, in `needs` too). A red
+  # Mac leg now holds up the APK, the MSI and the AppImage — the price of recreating the release as one set.
   release-apk:
-    needs: [android, desktop]
+    needs: [android, desktop, desktop-macos]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      # VLL, 2026-09-02: only republish when the APK could actually have changed. Without this the
+      # VLL, 2026-09-02: only republish when the release's contents could actually have changed. Without this the
       # release is deleted and recreated on every main push -- including docs-only ones -- which
-      # republishes an identical APK and 404s the download URL for a few seconds each time.
+      # republishes identical assets and 404s the download URLs for a few seconds each time.
       #
-      # A workflow-level `paths:` filter cannot express this: it would gate the WHOLE of CI, not this
-      # job. So decide here, via the compare API (no checkout needed, and the token is already set).
-      # FAIL OPEN: if the base is unknown (branch creation, force push) or the compare call fails,
-      # publish anyway -- a missed publish is worse than a redundant one.
-      - name: did app/ change?
+      # What can change the assets: a change under `app/` (the apps themselves), OR a change to this workflow,
+      # which is what builds and names them -- DESK02's own landing commit touches only `.github/workflows/ci.yml`
+      # and must still republish, so the DMG reaches `latest`. A workflow-level `paths:` filter cannot express this:
+      # it would gate the WHOLE of CI, not this job. So decide here, via the compare API (no checkout needed, and
+      # the token is already set). FAIL OPEN: if the base is unknown (branch creation, force push) or the compare
+      # call fails, publish anyway -- a missed publish is worse than a redundant one.
+      - name: do the release contents change?
         id: gate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -325,10 +328,10 @@ jobs:
                          --jq '.files[].filename' 2>/dev/null); then
             echo "compare failed - publishing anyway"; echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          if printf '%s\n' "$files" | grep -q '^app/'; then
-            echo "app/ touched - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"
+          if printf '%s\n' "$files" | grep -qE '^(app/|\.github/workflows/ci\.yml$)'; then
+            echo "app/ or the CI workflow touched - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"
           else
-            echo "no app/ change - keeping the existing release"; echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "no change to the release contents - keeping the existing release"; echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: fetch the APK the android job built
@@ -348,6 +351,12 @@ jobs:
         with:
           name: troubastage-linux-appimage
           path: linux-appimage
+      - name: fetch the DMG the desktop (macos) job built
+        if: steps.gate.outputs.publish == 'true'
+        uses: actions/download-artifact@v7
+        with:
+          name: troubastage-macos-dmg
+          path: macos-dmg
       - name: publish it on the rolling `latest` release
         if: steps.gate.outputs.publish == 'true'
         env:
@@ -362,6 +371,10 @@ jobs:
           # DESK01 D4: the AppImage, already under its stable name. Exactly one, or stop.
           [ -s linux-appimage/troubastage-linux-x86_64.AppImage ] || { echo "::error::no AppImage from the desktop (linux) job"; exit 1; }
           mv linux-appimage/troubastage-linux-x86_64.AppImage .
+          # DESK02: the DMG the desktop (macos) job built. Exactly one .dmg, or stop (its artifact also holds the smoke PNGs).
+          dmgs=(macos-dmg/*.dmg)
+          [ "${#dmgs[@]}" -eq 1 ] && [ -f "${dmgs[0]}" ] || { echo "::error::expected one DMG, found: ${dmgs[*]}"; exit 1; }
+          mv "${dmgs[0]}" troubastage-macos.dmg
           # Finding 1 (Fable): a rolling tag must not lie. `--clobber` would replace the asset but
           # leave the tag at an old commit, and versionName is a static 0.1.0 that cannot say which
           # build this is. So recreate the release+tag at THIS commit every publish and state the
@@ -387,9 +400,10 @@ jobs:
             echo
             echo "Windows: troubastage-windows.msi — a per-user install (no administrator rights), same commit."
             echo "Linux: troubastage-linux-x86_64.AppImage — no installation: make it executable and run it, same commit."
+            echo "macOS: troubastage-macos.dmg — one app for Apple silicon and Intel Macs, not signed yet, same commit."
           } > notes.md
           gh release delete latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
-          gh release create latest troubastage-debug.apk troubastage-windows.msi troubastage-linux-x86_64.AppImage \
+          gh release create latest troubastage-debug.apk troubastage-windows.msi troubastage-linux-x86_64.AppImage troubastage-macos.dmg \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --prerelease \
@@ -861,8 +875,9 @@ jobs:
 
   # DESK01 D3 — the macOS app: ONE universal TroubaStage.app (Apple silicon + Intel) from two builds, layout B (two
   # runtimes, a universal stub; packaging/macos/make-universal.sh). Hard-gating for CI, but NOT in release-apk's needs
-  # (Fable, b67486a3): the DMG is only an artifact until a person has tested it on a Mac, and a flaky Mac runner must
-  # not hold the APK and the MSI. It joins release-apk in the same gated change that publishes the DMG.
+  # (Fable, b67486a3): until DESK02 this job was NOT in release-apk's needs, so a flaky Mac runner could not hold the
+  # APK and the MSI. DESK02 (VLL, 2026-11-02) puts the DMG on `latest` with the others, so it is in `needs` now; the
+  # `hdiutil create` step below gets a bounded retry so a single transient failure does not redden the release.
   desktop-macos:
     name: desktop (macos)
     runs-on: macos-latest
@@ -942,12 +957,25 @@ jobs:
           [ "$root" = "$HOME/Library/Application Support/TroubaStage" ] || { echo "::error::data root is [$root]"; fail=1; }
           echo "data root (no override): $root"
           exit $fail
-      - name: the DMG (artifact only until a person has tested it on a Mac — D4)
+      - name: the DMG — one app for Apple silicon and Intel Macs (DESK02)
         working-directory: app
         run: |
           set -euo pipefail
           d="$RUNNER_TEMP/dmg"; mkdir -p "$d"; ditto "$RUNNER_TEMP/universal/TroubaStage.app" "$d/TroubaStage.app"; ln -s /Applications "$d/Applications"
-          hdiutil create -quiet -volname TroubaStage -srcfolder "$d" -ov -format UDZO troubastage-macos.dmg
+          # DESK02: `hdiutil create` flaked once (land run 41451900079 attempt 1) and passed on re-run with nothing
+          # changed. Now that the DMG gates the whole release, retry just the create a bounded few times, clearing any
+          # partial file between tries; if every try fails the leg still goes red. Only `create` retries — the verify
+          # and the launch checks above do not.
+          ok=
+          for try in 1 2 3; do
+            rm -f troubastage-macos.dmg
+            if hdiutil create -quiet -volname TroubaStage -srcfolder "$d" -ov -format UDZO troubastage-macos.dmg; then
+              ok=1; break
+            fi
+            echo "::warning::hdiutil create failed (try $try of 3)"
+            sleep 5
+          done
+          [ -n "$ok" ] || { echo "::error::hdiutil create failed on every try"; exit 1; }
           hdiutil verify troubastage-macos.dmg
           echo "DMG: $(du -h troubastage-macos.dmg | cut -f1)"
       - name: upload DMG + smoke PNGs

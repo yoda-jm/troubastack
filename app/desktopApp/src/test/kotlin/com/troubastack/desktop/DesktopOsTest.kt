@@ -81,7 +81,7 @@ class DesktopOsTest {
             assertEquals(1, opened.size, "plain http is never opened")
             assertTrue(u.message.orEmpty().contains("does not download from"), u.message)
         }
-        // A release without this OS's asset is no update, not a failure (macOS until its DMG is published).
+        // A release without this OS's asset is no update, not a failure (e.g. an older release predating it).
         withRelease("https://github.com/x/$UPDATE_ASSET_APPIMAGE") { url ->
             val mac = DesktopAppUpdate(
                 Storage(), CoroutineScope(Dispatchers.Unconfined), Files.createTempDirectory("desk01").toFile(), installedExe = null,
