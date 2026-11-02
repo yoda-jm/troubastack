@@ -141,10 +141,12 @@ func rotateWindow(src image.Image, outW, outH int, cx, cy, angleDeg float64) *im
 	return dst
 }
 
-// clamp8 converts a 16-bit premultiplied accumulator to an 8-bit channel, rounding and clamping the bicubic
-// kernel's possible overshoot/undershoot into [0,255].
+// clamp8 converts a 16-bit value (0..65535) to an 8-bit channel, rounding and clamping the bicubic kernel's
+// possible overshoot/undershoot into [0,255]. The divisor is 257, not 256: an 8-bit grey g is stored 16-bit
+// as g·257 (0xGG repeated), so v/257 maps every exact grey back to itself — v/256 would lift greys 128–254 by
+// one level, re-rendering a page no one deskewed.
 func clamp8(v float64) uint8 {
-	v = v/256 + 0.5
+	v = v/257 + 0.5
 	if v < 0 {
 		return 0
 	}

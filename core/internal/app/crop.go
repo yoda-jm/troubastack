@@ -102,9 +102,10 @@ func importCrop(c *Crop, generated bool) *Crop {
 	// aspect-locked-but-distorted.
 	c.LockAR = true
 	// B1a (T199): round each deskew angle to the 0.05° grid, exactly as NormalizeCrop does on save, so an
-	// imported angle can never mint a raster hash a save would not have produced. Import has no page dims, so
-	// the rotated-window-inside-the-page check is left to the next save (Studio clamps) and the bake's
-	// defensive clamp; only the dimension-free bound (|angle| ≤ 10, finite) is enforced here via ValidateCrop.
+	// imported angle can never mint a raster hash a save would not have produced. Neither import NOR save has
+	// the page dims, so the rotated-window-inside-the-page check lives only where the dims do — Studio's
+	// client-side clamp and the bake's visible defensive clamp; here only the dimension-free bound
+	// (|angle| ≤ 10, finite) is enforced, via ValidateCrop.
 	for key, r := range c.Pages {
 		if a := roundDeskew(r.Angle); a != r.Angle {
 			r.Angle = a

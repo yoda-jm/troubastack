@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"image"
+	"image/draw"
+	"image/png"
 	"math"
 	"os"
 	"os/exec"
@@ -409,5 +411,110 @@ func TestMarkIntersectsCrop(t *testing.T) {
 	empty := docObject{Type: "rect", Style: docStyle{Width: 0.01}, Points: nil}
 	if !markIntersectsCrop(empty, crop) {
 		t.Error("an empty-points mark must be KEPT, not dropped")
+	}
+}
+
+// tiltedEdgePDF builds a minimal one-page PDF (216×216 pt) whose only content is a straight BLACK/WHITE step
+// edge through the page centre, tilted by angleDeg — a rotation-matrix (cm) around the centre then a huge
+// filled rectangle covering one side. Baked and deskewed by the same angle, the edge must come back vertical.
+func tiltedEdgePDF(angleDeg float64) []byte {
+	// pdftoppm flips PDF space (y-up) to image space (y-down), which negates the rotation. The crop angle is
+	// defined in the IMAGE the user sees, so to render a +angleDeg tilt THERE we rotate the PDF by −angleDeg.
+	th := -angleDeg * math.Pi / 180
+	cos, sin := math.Cos(th), math.Sin(th)
+	content := fmt.Sprintf("q %.6f %.6f %.6f %.6f 108 108 cm 0 -1000 1000 2000 re f Q\n", cos, sin, -sin, cos)
+	return []byte("%PDF-1.4\n" +
+		"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+		"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
+		"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 216 216]/Contents 4 0 R>>endobj\n" +
+		fmt.Sprintf("4 0 obj<</Length %d>>stream\n%sendstream endobj\n", len(content), content) +
+		"trailer<</Root 1 0 R>>\n%%EOF\n")
+}
+
+func decodeRGBA(t *testing.T, b []byte) *image.RGBA {
+	t.Helper()
+	im, err := png.Decode(bytes.NewReader(b))
+	if err != nil {
+		t.Fatalf("decode png: %v", err)
+	}
+	rgba := image.NewRGBA(im.Bounds())
+	draw.Draw(rgba, rgba.Bounds(), im, im.Bounds().Min, draw.Src)
+	return rgba
+}
+
+// edgeMeanX is the mean column of the first ink (lum<=128) crossing per row — where the straightened edge sits.
+func edgeMeanX(img *image.RGBA, y0, y1 int) float64 {
+	w := img.Bounds().Dx()
+	var xs []float64
+	for y := y0; y < y1; y++ {
+		for x := 1; x < w; x++ {
+			if lum(img, x, y) <= 128 {
+				xs = append(xs, float64(x))
+				break
+			}
+		}
+	}
+	if len(xs) == 0 {
+		return -1
+	}
+	var m float64
+	for _, v := range xs {
+		m += v
+	}
+	return m / float64(len(xs))
+}
+
+// TestBakeDeskewRendersStraightSharpEdge exercises the REAL renderDeskewedCropPage path (pdftoppm → rotate →
+// cut) end to end: a PDF with a 4°-tilted edge, baked with a centred crop at angle 4° and dpi_eff ≥ 2× base,
+// must come back as an upright window with a SHARP, STRAIGHT, CENTRED edge — white left, black right. The
+// oracle is the fixture's literal geometry (output size, edge at the centre, sharpness + straightness). Three
+// production sabotages must red it: AABB rendered at base DPI then upscaled; the AABB origin not subtracted
+// from the window centre; and −angle.
+func TestBakeDeskewRendersStraightSharpEdge(t *testing.T) {
+	const angle = 4.0
+	r := popplerRasterizer{bin: "pdftoppm", imagesBin: "pdfimages", dpi: 150}
+	pdf := tiltedEdgePDF(angle)
+	full, err := r.Rasterize(context.Background(), pdf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bw, bh := dims(t, full[0])
+	rect := cropRect{x: 0.3, y: 0.3, w: 0.4, h: 0.4, angle: angle} // centred on the edge, square (policy A)
+	eff := effectiveCropDPI(150, bw, bh, rect, 0)
+	if eff < 2*150 {
+		t.Fatalf("need dpi_eff ≥ 2× base for the low-DPI sabotage to bite, got %d", eff)
+	}
+	got, err := r.Rasterize(withPageCrops(context.Background(), pageCrops{0: rect}), pdf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := decodeRGBA(t, got[0])
+	ow, oh := out.Bounds().Dx(), out.Bounds().Dy()
+	y0, y1 := oh/2-60, oh/2+60
+	t.Logf("base=%dx%d eff=%d out=%dx%d  transitionWidth=%.3f straightness=%.3f edgeMeanX=%.1f (centre %d) whiteL=%.0f blackR=%.0f",
+		bw, bh, eff, ow, oh, edgeTransitionWidth(out, y0, y1), edgeStraightness(out, y0, y1), edgeMeanX(out, y0, y1), ow/2, lum(out, 20, oh/2), lum(out, ow-20, oh/2))
+
+	// Size: the upright window is exactly the literal crop window in px at effDPI (round(w · page-px-at-eff)).
+	wantSide := int(math.Round(rect.w * math.Round(float64(bw)*float64(eff)/150)))
+	if ow != wantSide || oh != wantSide {
+		t.Errorf("deskewed output %dx%d, want %dx%d from the literal window geometry", ow, oh, wantSide, wantSide)
+	}
+	// Sharp: a base-DPI-then-upscale AABB render would blur this well past 1px (dpi_eff is 2.5× base here).
+	if tw := edgeTransitionWidth(out, y0, y1); tw > 1.0 {
+		t.Errorf("deskewed edge not sharp: transitionWidth=%.3f px (>1.0) — a base-DPI-then-upscale render reds here", tw)
+	}
+	// Straight: a −angle (wrong-direction) deskew leaves the edge at 2θ, residual ≈5px.
+	if st := edgeStraightness(out, y0, y1); st > 0.5 {
+		t.Errorf("deskewed edge not straight: residual=%.3f px (>0.5) — a wrong-direction (−angle) deskew reds here", st)
+	}
+	// Centred: dropping the AABB origin from the window centre samples the wrong region and shifts the edge.
+	if mx := edgeMeanX(out, y0, y1); mx < float64(ow/2)-3 || mx > float64(ow/2)+3 {
+		t.Errorf("deskewed edge at x=%.1f, want ≈centre %d — not subtracting the AABB origin reds here", mx, ow/2)
+	}
+	if l := lum(out, 20, oh/2); l < 200 {
+		t.Errorf("left of the straightened edge must be white, got lum=%.0f", l)
+	}
+	if rr := lum(out, ow-20, oh/2); rr > 55 {
+		t.Errorf("right of the straightened edge must be black, got lum=%.0f", rr)
 	}
 }

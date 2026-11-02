@@ -8,15 +8,16 @@ import (
 )
 
 // T199 deskew quality — these tests exercise the rotation resampler (rotateWindow) directly on synthetic
-// pages, with no pdftoppm, so they are fast and deterministic. The spec's acceptance is that a straight edge
+// pages, with no pdftoppm, so they are fast and deterministic. The spec's acceptance is that a straight EDGE
 // in the source stays as sharp after straightening as in an unrotated crop, and that the two WRONG resamplers
-// each fail — on DIFFERENT metrics, because one metric cannot catch both:
-//   - BILINEAR blurs, so it fails the THICKNESS bound (a straightened thin line is thicker than unrotated+1px);
-//     a nearest-neighbour staircase stays thin and would pass thickness.
-//   - NEAREST-NEIGHBOUR staircases, so it fails the STRAIGHTNESS bound (a straightened line's per-column centre
-//     jumps by whole pixels); bilinear's smooth ramp passes straightness.
+// each fail — on DIFFERENT metrics, because one metric cannot catch both (measured: the spec's old "rows above
+// 50% thickness" bound separated NEITHER wrong resampler for a thin line, so §Quality was amended to this):
+//   - BILINEAR blurs, so it fails the SHARPNESS bound (a straightened step edge's 20→80% transition is ~0.85px
+//     vs bicubic's ~0.46px); a nearest-neighbour staircase keeps a sharp edge and passes sharpness.
+//   - NEAREST-NEIGHBOUR staircases, so it fails the STRAIGHTNESS bound (a straightened edge's per-row position
+//     jumps by whole pixels, ~0.23px RMS); bilinear's smooth ramp passes straightness (~0.002px).
 // bicubic (the production rotateWindow) passes BOTH. The two wrong resamplers below live only in the test, to
-// prove the bound discriminates.
+// prove each bound discriminates; the thin-line thickness check survives only as a bicubic ACCEPTANCE check.
 
 // synthCrookedLine draws a thin black line through the image centre at angleDeg (y-down image frame), on a
 // white background, anti-aliased by coverage — WITHOUT any rotation resampler, so it is an independent
@@ -144,8 +145,8 @@ const (
 )
 
 // straighten rotates src by angleDeg about (cx,cy) into an outW×outH upright image, with the chosen sampler.
-// kindBicubic defers to the production rotateWindow; the other two mirror its inverse mapping exactly, so the
-// ONLY difference measured is the interpolation kernel.
+// kindBicubic defers to the production rotateWindow; the other two mirror its inverse mapping AND its 8-bit
+// conversion (clamp8) exactly, so the ONLY difference measured is the interpolation kernel.
 func straighten(src image.Image, outW, outH int, cx, cy, angleDeg float64, kind sampleKind) *image.RGBA {
 	if kind == kindBicubic {
 		return rotateWindow(src, outW, outH, cx, cy, angleDeg)
@@ -185,16 +186,16 @@ func straighten(src image.Image, outW, outH int, cx, cy, angleDeg float64, kind 
 				r, g, bl, a = lerp(r00, r10, r01, r11), lerp(g00, g10, g01, g11), lerp(b00, b10, b01, b11), lerp(a00, a10, a01, a11)
 			}
 			i := dst.PixOffset(ox, oy)
-			dst.Pix[i+0] = uint8(r / 256)
-			dst.Pix[i+1] = uint8(g / 256)
-			dst.Pix[i+2] = uint8(bl / 256)
-			dst.Pix[i+3] = uint8(a / 256)
+			dst.Pix[i+0] = clamp8(r)
+			dst.Pix[i+1] = clamp8(g)
+			dst.Pix[i+2] = clamp8(bl)
+			dst.Pix[i+3] = clamp8(a)
 		}
 	}
 	return dst
 }
 
-// inkRows returns, per column, the rows whose luminance is below 50% (ink). Used by both quality metrics.
+// lum returns a pixel's luminance (0=black, 255=white); the fixtures are grey, so R==G==B. Used by every metric.
 func lum(img *image.RGBA, x, y int) float64 {
 	i := img.PixOffset(x, y)
 	return float64(img.Pix[i]) // grey fixture: R==G==B
@@ -312,9 +313,11 @@ func TestDeskewEdgeSharpnessAndStraightness(t *testing.T) {
 	}
 }
 
-// TestDeskewThinLineAcceptance is the spec's literal bar: a thin black line deskewed by its own crookedness
-// has a vertical thickness within unrotated+1px and a single-peak row profile. This is a bicubic ACCEPTANCE
-// check — the sharpness test above is what actually separates bilinear.
+// TestDeskewThinLineAcceptance is a bicubic ACCEPTANCE check: a thin black line deskewed by its own
+// crookedness keeps a vertical thickness within unrotated+1px and a single-peak row profile. It does NOT
+// discriminate — measured, ALL THREE resamplers (bicubic, bilinear, nearest) pass it for a thin line, which
+// is exactly why §Quality moved the discriminating bar to edge sharpness (see the sharpness test above). Kept
+// only to pin that the production kernel still meets the spec's original thin-line shape.
 func TestDeskewThinLineAcceptance(t *testing.T) {
 	const size, out, angle, halfThick = 400, 280, 3.0, 1.0
 	cx, cy := float64(size)/2, float64(size)/2
@@ -374,5 +377,29 @@ func TestDeskewWindowSpills(t *testing.T) {
 	}
 	if !deskewWindowSpills(wide, 300, 100) {
 		t.Error("the same window must spill on a 3:1 wide page (aspect must enter the rotation)")
+	}
+}
+
+// TestRotateWindowPreservesGreys pins clamp8's 16→8-bit conversion: rotating a UNIFORM grey page returns the
+// SAME grey for every one of the 256 levels (a rotation of a constant is that constant — the bicubic weights
+// sum to 1, and the output window sits fully inside src so nothing reads the white fill). The old v/256
+// conversion lifted greys 128–254 by one level, silently re-rendering a page nobody deskewed; this reds it.
+func TestRotateWindowPreservesGreys(t *testing.T) {
+	const size, out = 24, 12
+	for g := 0; g < 256; g++ {
+		src := image.NewRGBA(image.Rect(0, 0, size, size))
+		for y := 0; y < size; y++ {
+			for x := 0; x < size; x++ {
+				src.Set(x, y, color.RGBA{uint8(g), uint8(g), uint8(g), 255})
+			}
+		}
+		got := rotateWindow(src, out, out, float64(size)/2, float64(size)/2, 0.05)
+		for y := 0; y < out; y++ {
+			for x := 0; x < out; x++ {
+				if v := int(lum(got, x, y)); v != g {
+					t.Fatalf("grey %d came back as %d after a 0.05° rotation", g, v)
+				}
+			}
+		}
 	}
 }

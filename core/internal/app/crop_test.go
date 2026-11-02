@@ -48,6 +48,19 @@ func TestValidateCropRect(t *testing.T) {
 	}
 }
 
+// TestNormalizeCropRoundsAngle guards the SAVE-side 0.05° rounding (B1a's save half): a crop saved with an
+// off-grid angle is snapped, so a save and an import of the "same" angle can't differ by float noise. Reds if
+// roundDeskew is dropped from NormalizeCrop — which app/httpapi/bake tests otherwise leave green.
+func TestNormalizeCropRoundsAngle(t *testing.T) {
+	crop := Crop{Pages: map[string]CropRect{"0": {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Angle: 2.37, Source: "manual"}}}
+	if err := NormalizeCrop(&crop); err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	if a := crop.Pages["0"].Angle; math.Abs(a-2.35) > 1e-9 {
+		t.Fatalf("save must round the deskew angle to 0.05° (2.37→2.35), got %v", a)
+	}
+}
+
 func TestValidateCrop_PageIndex(t *testing.T) {
 	c := Crop{LockAR: true, Pages: map[string]CropRect{
 		"0": {X: 0.1, Y: 0.1, W: 0.8, H: 0.8, Source: "manual"},
