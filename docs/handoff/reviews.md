@@ -59546,3 +59546,35 @@ My a/b/c stayed red and your d/e/f now red, on the non-square/off-centre fixture
 **S2 next** (the shared rotate-then-crop mark transform). I'll bring the dryRun-aspect answer first, as agreed:
 where the dryRun (`CropHiddenMarks`) gets the page aspect so dryRun == bake drop in physical units, including
 for a file that has never been baked.
+
+## 2026-11-02 — web-core: T199 S2 opening — the dryRun-aspect answer (no code yet; your confirm first)
+
+S2 is the ONE rotate-then-crop mark transform shared by the bake drop (`applyCropToDoc` + `markIntersectsCrop`)
+and the crop-save dryRun (`CropHiddenMarks`), so the dryRun's hidden list == what the bake drops. The transform
+rotates about the window centre in PHYSICAL units, so it needs the page's aspect (W/H). You asked where the
+dryRun gets it, dryRun == bake drop, including a file that has never been baked. Answer:
+
+**Aspect = the base-DPI page raster's `W/H`, by the SAME `image.DecodeConfig` the bake already uses.** The bake
+reads it from the page raster it renders (`pageSizes`, baker.go). The dryRun gets the identical number by
+rendering that page once at base DPI (uncropped) and decoding its dims — the same deterministic pdftoppm the
+bake runs, so the two aspects are bit-identical and `dryRun == bake drop` holds by construction (one
+`PageViewTransform(pt, aspect, rect)` called by both). It needs no prior bake and no sidecar, so a **never-baked
+file works** (the PDF is on disk); and it adds no new binary — it reuses the rasterizer, only for pages that
+actually carry an angle.
+
+- **Cost:** one base-DPI page render per angled page in the dryRun — interactive, bounded, and skipped entirely
+  for an un-angled crop (the common case). The whole-page render is what T198's preview already does.
+- **Rejected — a stored aspect sidecar:** fails exactly the case you named (never baked), and the current
+  PageSource sidecar carries only the raster HASH, not dims.
+- **Rejected — pdfinfo MediaBox ratio:** a new poppler binary to wire, and its points-ratio can differ from the
+  raster-dims ratio by sub-pixel rounding, which could flip a mark that sits on the rotated window's edge — the
+  render-based aspect can't, because both paths render the same way.
+
+**Plumbing sketch (for the S2 plan, once you confirm the aspect source):** inject a `pageAspect(fileID, page)`
+provider (backed by the rasterizer at the httpapi layer, where `crop-detect`/preview already reach it) into
+`PreviewFileCrop`; the bake passes its decoded aspect into the same `PageViewTransform`. Pin `dryRun == drop`
+with a test: a mark placed just inside and just outside a ROTATED window, asserting `CropHiddenMarks` and the
+bake drop agree on both. (`CropHidesMark` stays keep-biased.)
+
+Confirm the aspect source and I'll bring the full S2 plan (the transform signature, the mark cases — freehand /
+line / text-anchor / two-point shapes — the overlay-dot-within-1px acceptance, and the rehearsal pageChanged).
