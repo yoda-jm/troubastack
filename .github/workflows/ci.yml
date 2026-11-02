@@ -670,27 +670,37 @@ jobs:
           $msiN1 = (Get-ChildItem desktopApp\build\compose\binaries\main\msi\*.msi | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
           $sha = (Get-FileHash -Algorithm SHA256 $msiN1).Hash.ToLower()
           $size = (Get-Item $msiN1).Length
+          # A broken installer whose digest MATCHES what the release says: it passes verification and msiexec fails on it.
+          $brokenMsi = Join-Path $env:RUNNER_TEMP "broken.msi"
+          [IO.File]::WriteAllBytes($brokenMsi, [byte[]](@(7) * 4096))
+          $brokenSha = (Get-FileHash -Algorithm SHA256 $brokenMsi).Hash.ToLower()
+          $brokenSize = (Get-Item $brokenMsi).Length
           $port = 18765
           $modeFile = Join-Path $env:RUNNER_TEMP "release-mode.txt"
           "bad" | Set-Content $modeFile
           $server = Start-Job -ScriptBlock {
-            param($port, $msi, $sha, $size, $modeFile)
+            param($port, $msi, $sha, $size, $brokenMsi, $brokenSha, $brokenSize, $modeFile)
             $l = [System.Net.HttpListener]::new(); $l.Prefixes.Add("http://127.0.0.1:$port/"); $l.Start()
             while ($true) {
               $ctx = $l.GetContext(); $res = $ctx.Response
               switch ($ctx.Request.Url.AbsolutePath) {
                 "/release.json" {
-                  $digest = if ((Get-Content $modeFile -Raw).Trim() -eq "bad") { "sha256:" + ("0" * 64) } else { "sha256:$sha" }
+                  $mode = (Get-Content $modeFile -Raw).Trim()
+                  $digest = switch ($mode) { "bad" { "sha256:" + ("0" * 64) } "broken" { "sha256:$brokenSha" } default { "sha256:$sha" } }
+                  $assetSize = if ($mode -eq "broken") { $brokenSize } else { $size }
                   $json = @{ target_commitish = ("f" * 40); published_at = (Get-Date).ToUniversalTime().AddHours(1).ToString("yyyy-MM-ddTHH:mm:ssZ"); body = "";
-                    assets = @(@{ name = "troubastage-windows.msi"; size = $size; digest = $digest; browser_download_url = "http://127.0.0.1:$port/troubastage-windows.msi" }) } | ConvertTo-Json -Depth 5
+                    assets = @(@{ name = "troubastage-windows.msi"; size = $assetSize; digest = $digest; browser_download_url = "http://127.0.0.1:$port/troubastage-windows.msi" }) } | ConvertTo-Json -Depth 5
                   $b = [Text.Encoding]::UTF8.GetBytes($json); $res.ContentType = "application/json"; $res.OutputStream.Write($b, 0, $b.Length)
                 }
-                "/troubastage-windows.msi" { $b = [IO.File]::ReadAllBytes($msi); $res.ContentLength64 = $b.Length; $res.OutputStream.Write($b, 0, $b.Length) }
+                "/troubastage-windows.msi" {
+                  $file = if ((Get-Content $modeFile -Raw).Trim() -eq "broken") { $brokenMsi } else { $msi }
+                  $b = [IO.File]::ReadAllBytes($file); $res.ContentLength64 = $b.Length; $res.OutputStream.Write($b, 0, $b.Length)
+                }
                 default { $res.StatusCode = 404 }
               }
               $res.Close()
             }
-          } -ArgumentList $port, $msiN1, $sha, $size, $modeFile
+          } -ArgumentList $port, $msiN1, $sha, $size, $brokenMsi, $brokenSha, $brokenSize, $modeFile
           Start-Sleep -Seconds 3
           $installedExe = Join-Path $install "TroubaStage.exe"
           if (-not (Test-Path $installedExe)) { Write-Error "installed exe not found at $installedExe"; exit 1 }
@@ -710,9 +720,32 @@ jobs:
           if (-not (Test-Path $marker)) { Write-Error "data-root marker lost on a refused update"; exit 1 }
           Write-Host "wrong-digest pass OK: refused, no msiexec, one entry at $n, data intact"
 
+          # 5a403976 — a broken installer whose digest matches: it is handed off, msiexec FAILS, and the helper reopens
+          # the UNCHANGED n, which records the failure. n stays alone and the data survives.
+          "broken" | Set-Content $modeFile
+          $lastUpdate = Join-Path $dataRoot "last-update.txt"
+          Remove-Item $lastUpdate -ErrorAction SilentlyContinue
+          $brk = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -PassThru
+          if (-not $brk.WaitForExit(120000)) { Write-Error "the app did not exit on the broken-MSI pass (>120 s)"; exit 1 }
+          Write-Host "broken-MSI pass: exit $($brk.ExitCode)"
+          if ($brk.ExitCode -ne 0) { Write-Error "the app did not hand off the broken MSI (exit $($brk.ExitCode))"; exit 1 }
+          $deadline = (Get-Date).AddSeconds(240)
+          while (-not (Test-Path $lastUpdate) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 3 }
+          if (-not (Test-Path (Join-Path $updDir "msiexec.log"))) { Write-Error "msiexec did not run on the broken MSI"; exit 1 }
+          if (-not (Test-Path $lastUpdate)) { Write-Error "no last-update.txt: the unchanged app was not reopened after the failed install"; exit 1 }
+          $luBroken = Get-Content $lastUpdate -Raw
+          Write-Host "last-update.txt (broken MSI):`n$luBroken"
+          $reopened = @(Get-Process -Name TroubaStage -ErrorAction SilentlyContinue)
+          Write-Host "TroubaStage processes after the failed install: $($reopened.Count)"
+          $reopened | Stop-Process -Force
+          if ($luBroken -notmatch "result=failed") { Write-Error "the reopened app did not record the failed install"; exit 1 }
+          $afterBroken = @(Entries)
+          if ($afterBroken.Count -ne 1 -or $afterBroken[0].DisplayVersion -ne $n) { Write-Error "after the failed install: expected ONE entry at $n"; exit 1 }
+          if (-not (Test-Path $marker)) { Write-Error "data-root marker lost on a failed install"; exit 1 }
+          Write-Host "broken-MSI pass OK: msiexec failed, the unchanged app reopened and recorded it, one entry at $n, data intact"
+
           # The good release: the same path, through to the helper, msiexec and the reopen.
           "good" | Set-Content $modeFile
-          $lastUpdate = Join-Path $dataRoot "last-update.txt"
           Remove-Item $lastUpdate -ErrorAction SilentlyContinue
           $good = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -PassThru
           if (-not $good.WaitForExit(120000)) { Write-Error "the app did not exit after handing off (>120 s)"; exit 1 }
@@ -734,7 +767,7 @@ jobs:
           if ($afterUpg.Count -ne 1) { Write-Error "expected ONE TroubaStage entry after upgrade, found $($afterUpg.Count)"; exit 1 }
           if ($afterUpg[0].DisplayVersion -ne $n1) { Write-Error "upgraded entry is $($afterUpg[0].DisplayVersion), expected $n1"; exit 1 }
           if (-not (Test-Path $marker)) { Write-Error "data-root marker did NOT survive the upgrade (data root ~ install dir?)"; exit 1 }
-          Write-Host "upgrade-in-place proven THROUGH THE APP: refused a wrong digest; then one entry at $n1, reopened ($($lu -replace "`n", ' | ')); data-root marker survived; install dir disjoint from data root"
+          Write-Host "upgrade-in-place proven THROUGH THE APP: refused a wrong digest; a broken MSI failed and reopened n; then one entry at $n1, reopened ($($lu -replace "`n", ' | ')); data-root marker survived; install dir disjoint from data root"
       - name: upload MSI + smoke PNG
         if: always()
         uses: actions/upload-artifact@v7

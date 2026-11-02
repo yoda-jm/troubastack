@@ -120,7 +120,7 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
     override val appUpdate: ((Storage, CoroutineScope) -> AppUpdate)? = { s, scope ->
         DesktopAppUpdate(
             s, scope, dataRoot = File(desktopDataRoot()), installedExe = installedMsiExe(),
-            releaseUrl = updateFrom ?: UPDATE_RELEASE_URL, requireDigest = updateFrom != null,
+            releaseUrl = updateFrom ?: UPDATE_RELEASE_URL, hookMode = updateFrom != null,
             exitForInstall = { exitForInstall() },
         ).also { it.reportLastHandoff(); update = it }
     }

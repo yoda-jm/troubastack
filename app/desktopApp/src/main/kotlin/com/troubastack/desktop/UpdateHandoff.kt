@@ -16,7 +16,9 @@ class UpdateRefused(message: String) : Exception(message)
  *
  * It waits for the app (TS_PID) to exit — 60 s at most; if the app is still running it installs NOTHING and records
  * `notclosed` (H2). Then it runs the per-user MSI (`/passive`: a progress bar, no questions) and records msiexec's code.
- * Only code 0 reopens the app, with `--after-update`; 3010 (finished at the next reboot) and failures do not (H3).
+ * Code 0 reopens the new build with `--after-update`; 3010 (finished at the next reboot) reopens nothing (H3); any
+ * other code reopens the UNCHANGED build (the MSI is transactional), so a failed update never leaves the performer
+ * without the app. The system tools are called by full path (cmd would look in the working directory first).
  */
 val UPDATE_SCRIPT: String = listOf(
     "@echo off",
@@ -25,20 +27,23 @@ val UPDATE_SCRIPT: String = listOf(
     "setlocal EnableExtensions DisableDelayedExpansion",
     "set /a TS_WAIT=0",
     ":wait",
-    "tasklist /FI \"PID eq %TS_PID%\" /NH | find \"%TS_PID%\" >nul",
+    "\"%SystemRoot%\\System32\\tasklist.exe\" /FI \"PID eq %TS_PID%\" /NH | \"%SystemRoot%\\System32\\find.exe\" \"%TS_PID%\" >nul",
     "if errorlevel 1 goto closed",
     "set /a TS_WAIT+=1",
     "if %TS_WAIT% GEQ 60 goto notclosed",
-    "ping -n 2 127.0.0.1 >nul",
+    "\"%SystemRoot%\\System32\\ping.exe\" -n 2 127.0.0.1 >nul",
     "goto wait",
     ":notclosed",
     ">\"%TS_RESULT%\" echo notclosed",
     "exit /b 1",
     ":closed",
-    "start \"\" /wait msiexec.exe /i \"%TS_MSI%\" /passive /norestart /l*v \"%TS_LOG%\"",
+    "start \"\" /wait \"%SystemRoot%\\System32\\msiexec.exe\" /i \"%TS_MSI%\" /passive /norestart /l*v \"%TS_LOG%\"",
     "set TS_CODE=%ERRORLEVEL%",
     ">\"%TS_RESULT%\" echo %TS_CODE%",
     "if \"%TS_CODE%\"==\"0\" start \"\" \"%TS_EXE%\" --after-update",
+    "if \"%TS_CODE%\"==\"0\" exit /b 0",
+    "if \"%TS_CODE%\"==\"3010\" exit /b 0",
+    "start \"\" \"%TS_EXE%\"",
     "exit /b 0",
 ).joinToString("\r\n", postfix = "\r\n")
 
@@ -73,6 +78,22 @@ fun handoffResult(text: String?): HandoffResult? {
         "notclosed" -> HandoffResult.NotClosed
         else -> HandoffResult.Failed(t)
     }
+}
+
+/**
+ * WIN04 (5a403976) — where the installer may be downloaded from, as the release JSON names it: over https in normal use
+ * (GitHub's release asset, so a release without a digest is never checked by size alone over plain http), and on the
+ * loopback interface only when the CI hook is in use (the hook's release must not send the app to another host).
+ * Throws [UpdateRefused] otherwise; nothing is downloaded.
+ */
+fun checkAssetUrl(assetUrl: String, hook: Boolean) {
+    val uri = runCatching { URI(assetUrl) }.getOrNull()
+    val ok = when {
+        uri == null -> false
+        hook -> runCatching { loopbackReleaseUrl(assetUrl) }.isSuccess
+        else -> uri.scheme == "https" && !uri.host.isNullOrEmpty()
+    }
+    if (!ok) throw UpdateRefused("The release points the installer at an address TroubaStage does not download from. Nothing was installed.")
 }
 
 /**
