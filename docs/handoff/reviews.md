@@ -59214,3 +59214,158 @@ in the bake's visible clamp (B1b). Accepted as built.
 
 Re-present S1 as a delta, with its PR CI including `windows`. I will re-check the four items and re-run the
 sabotages.
+
+## 2026-11-02 — mobile presents: WIN03 — TroubaStage on Windows (branch `mobile/win03-troubastage-on-windows` @ a3aa8e23, PR #78) — reviewer: Fable
+
+One commit on `5ec148f3`. Spec `docs/tasks/WIN03-…` and its gate additions.
+
+**CI on the PR (the app/shared rule):** run **`41364466653`**, **success on every job, windows included** (`:shared:desktopTest` executed on Windows, not from cache, so the UI tests below ran there; the packaged smoke wrote both PNGs).
+- An earlier PR run, `41356900728` on `da864957` (everything up to the smoke and the runtime modules), was green on
+  every job, windows included.
+- Its smoke PNGs, Stage performing the demo concert, are **byte-identical** to my Linux render (115 650 and 40 605 bytes).
+
+### What the shared app gains (Android: null / TOUCH, so nothing changes there)
+- **`AppPlatform.window: WindowControls?`**: full screen, its toggle, "Full screen when performing", and the window's
+  reserved keys (F11, Esc).
+- **`AppPlatform.pointer: PointerKind`**: names the pointer in the note-mode dialog.
+- **Stage locals, null by default:** `LocalStagePointerIcons` (the hidden cursor, the crosshair) and
+  `LocalGlyphTooltip`. Only the desktop provides them.
+- **`LocalMaxContentWidth`** (D7), null by default.
+- **New dependencies:**
+  - `kotlinx-coroutines-swing` (`:shared` desktopMain, the catalog's coroutines version);
+  - `compose.uiTest` (desktopTest only);
+  - JNA in `:desktopApp`, already in the catalog.
+
+### D1–D8 as built
+- **D1 — capabilities:**
+  - As specced: the Skia decoder and codec (desktopTest), the system file dialog (.tstage plus All files), the
+    Coming-soon StudioHost (Edit and PresentQr fail naming WIN05), the six null capabilities, and resumeTicks on window
+    focus.
+  - **The monotonic clock is `GetTickCount64`.** Microsoft documents it as counting sleep and hibernation; `System.nanoTime`
+    is QueryPerformanceCounter, which is not documented either way. Off Windows it is `nanoTime`, which on Linux does
+    not count a suspend; that is a developer run only.
+- **D2 — the window.**
+  - Windowed at launch, with an 800×600 minimum. The placement is remembered, and an off-screen place falls back to
+    centred (`openingPlacement`, 6 tests).
+  - F11 on every screen; Stage's full-screen button, with a drawn glyph; "Full screen when performing", default on.
+  - Leaving a concert restores the mode it was entered in.
+  - While a concert is open, `SetThreadExecutionState(ES_CONTINUOUS|ES_DISPLAY_REQUIRED|ES_SYSTEM_REQUIRED)`.
+  - **One instance:** a lock file plus a loopback "front" message. A second launch exits in ≈0.3 s; if it can't reach the
+    first, it says "TroubaStage is already open."
+  - **Closing mid-concert asks:** "Close TroubaStage?" / "A concert is open. Your place in it and your notes are kept."
+    / Close · Cancel.
+- **D3 — the mouse.** Click and drag behave as touch does.
+  - **The wheel** goes through `wheelStep`. A gesture that turned also swallows its tail, so the tail never scrolls the
+    page it turned to; this is a rule I added, with its own test.
+  - **Width mode** turns only on a new gesture at the edge. **Scroll mode** never crosses a song. In **note mode**,
+    Ctrl+wheel zooms one A86 step and the plain wheel does nothing. **Lock swipe** locks the wheel too.
+  - **Right-click** does nothing: measured, so no filter was needed.
+  - **The cursor** hides after 2 s still and is a crosshair in note mode. Both come through the desktop's local, so an
+    Android tablet with a mouse keeps its pointer (your call if that should change).
+  - **Tooltips:** listed below under the new strings.
+- **D4 — the keyboard.**
+  - **A real bug, found by the UI test:** a mouse click focuses the button it lands on (the list's Open). That button
+    leaves with the screen, and its focus was cleared *after* A50's request, so **on the desktop, keys did not turn on
+    entering a concert**. A50's request now waits one frame; Android gains a frame and nothing else.
+  - Esc runs through `stageBackAction`. Esc, Alt+Left and the mouse Back button are Back outside Stage, through
+    `BackDispatcher` (newest handler wins).
+  - F11 and Esc are reserved from Learn.
+  - **Enter now submits** Connect, the invite link and the join sheet's Sign in and Create account. **None of them did
+    before.** It's a hardware-key handler, so Android's soft keyboard is unchanged.
+- **D5 — wording.** The full list of new strings is below.
+- **D6 — "Coming soon."**
+- **D7 — width:** Home, the concert list, the edited list and Parameters keep a 960 dp readable width on the desktop.
+- **D8 — the MSI on `latest`:** release-apk now `needs: [android, windows]` and publishes `troubastage-debug.apk` and
+  `troubastage-windows.msi` together, so a red windows job publishes neither. `AppUpdaterParseTest` has a two-asset
+  case with the MSI listed first.
+- **The packaged runtime's modules:** `java.instrument`, `java.management` and `jdk.unsupported` (from
+  `suggestRuntimeModules`), plus `jdk.crypto.ec` (a security provider jdeps can't see; HTTPS).
+
+### Found on the Linux journey (acceptance 3) and fixed
+1. **No `Dispatchers.Main` on the desktop.** Drawing a note threw "Module with the Main dispatcher is missing". The PNG
+   was written, but the index never came back (badge, counts, A77's send). Fixed with `kotlinx-coroutines-swing`.
+   `StageNoteUiTest` draws a real stroke with the mouse into a real `FileRehearsalNotes`; sabotage (drop the dependency)
+   turns it red with the same error.
+2. **Enter submitted nothing**, as described under D4. `SubmitOnEnterUiTest`; its sabotage turns it red.
+
+### New strings (product words; each is new, or a variant only where the old one is false on Windows)
+- **Parameters:** "Full screen when performing". The Foot pedal subtitle without MIDI: "Turn pages with a keyboard-type
+  pedal (Bluetooth or USB): Learn a button. The panel shows every press, so an empty panel is the answer, not a
+  failure."
+- **Learn refusal:** "That key can't be learned — F11 and Esc control the window."
+- **Note-mode dialog:** "The mouse will draw, not turn pages. Pages still turn with a pedal or the keyboard."
+- **The close question:** "Close TroubaStage?" / "A concert is open. Your place in it and your notes are kept." /
+  Close / Cancel.
+- **The second launch:** "TroubaStage is already open." The Studio screen: "Coming soon."
+- **Tooltips:** ☰ "Songs", the metronome "Metronome", ∞ "Keep running", ✎ "Note mode", ⛶ "Full screen" / "Leave
+  full screen", ⚙ "Parameters", ✕ "Leave the concert", ‹ › "Previous page" / "Next page" (in scroll mode "Previous
+  song" / "Next song").
+  - In the note bar: "Pencil" and "Eraser". The existing ones are kept: "Finish notes", "Zoom, 1×", "Zoom out", "Zoom
+    in", "Zoom to actual size".
+  - The width dots and colour swatches show what they are, so they have no tooltip.
+  - These labels are tooltips only. They are not set as content descriptions, so Android's accessibility is unchanged;
+    say if you want them there too.
+
+### Acceptance
+1. **The smoke:** `docs/demo/demo-concert.tstage` is imported through BundleImporter, as Import does, and performed
+   in Stage. PNGs at 1920×1080 and 800×600 are uploaded with the MSI artifact; B5 holds and the render API is logged.
+2. **A sabotage for every pure rule, shown red, then restored:**
+   - the wheel gap: 7 StageMouseTest cases and the UI burst test;
+   - Esc → full screen: 2 StageBackTest cases;
+   - the reserved keys: StageKeysTest;
+   - placement: 3 WindowPlacementTest cases;
+   - the cursor in note mode;
+   - the turned tail;
+   - A50's frame wait: 3 UI cases;
+   - BackDispatcher's newest-wins;
+   - the Swing dependency;
+   - Enter.
+3. **The Linux journey on Xvfb,** against the `:18097` scratch core (demo data only):
+   - **Steps:** connect, sign in, download, perform, draw a note, and send it (the A77 overwrite asked first). On the
+     wheel: one burst turns one page; width mode's edge rule; scroll mode never crosses; note-mode Ctrl+wheel zooms
+     1× → 1.5×.
+   - **Window behaviour:** Esc closes the ⚙ sheet first, then leaves full screen and never the concert. F11 works in
+     Stage and on Home; ✕ restores the mode entered in; the second launch exits.
+   - **Null capabilities visibly hidden:** no "Scan a QR" in Connect (`03-connect-dialog`), no discovered servers
+     (same shot), no MIDI line or Connect hint in Parameters (`10/11-parameters-*`), no update banner or About update
+     lines (`06-home-signed-in`, `11-parameters-bottom`).
+   - **Shots:** `…/scratchpad/a3shots/` (windowed 1280×800 and full screen).
+   - **Not shown:** single-page Stage, because a landscape window is two-up in page mode (A12), and the hidden cursor,
+     because a root capture doesn't include the X cursor.
+4. **UI tests with mouse input** (desktopTest; green on Linux and on the windows job):
+   - `StageMouseUiTest`, 9 cases: click toggles; one long burst = one page; a second burst turns; up goes back; Lock
+     swipe locks the wheel; right-click does nothing; ✕ leaves; PageDown turns on entry, after a page click, after ›,
+     and after ⚙ then Esc.
+   - `StageNoteUiTest` and `SubmitOnEnterUiTest`.
+5. **Android** (the emulator, `Pixel_Tablet_Portrait`, against the `:18097` scratch server). I used WIN01's screenshot set
+   (`shots.sh`; its copy only retries the first tap and verifies the URL it typed, both because of load) plus your
+   journey. Each APK starts from a reset state. `main` 5ec148f3 vs my head (same tree as the commit):
+   - **Every Stage screen is identical:** the page, the chrome, the drawer, **entering the concert, and PageDown pressed
+     with no tap in Stage, which turns on both**.
+   - **Home, Connect, Studio browse, and the list's Concerts and Notes tabs** differ only at y 2530–2536, the
+     gesture-handle row, which is known run-to-run noise. The first run had those screens fully identical.
+   - **Parameters** also differs in the About line (the build hash and time), by design.
+   - A first rerun without the reset showed differences everywhere. That's A46: the saved position carried over
+     between runs. It's why each APK now starts from a reset.
+   - `:androidApp:assembleDebug` is green.
+6. **VLL's pass, per machine (the Proxmox VM and the Surface), from the MSI on `latest` after landing:**
+   - install with no admin prompt;
+   - window and full screen; F11 and Esc;
+   - the wheel in each mode;
+   - the cursor hides;
+   - the display stays awake through a concert;
+   - closing asks;
+   - a second launch;
+   - reinstall over it with a newer build;
+   - **import over an existing concert** (your note: the directory move with antivirus).
+   - On the Surface, also record the touchpad's two-finger swipe as wheel events, and say what touch and the pen do.
+
+### Questions for you
+- **Connect's Server URL** starts at `http://10.0.2.2:8080`, the Android emulator's alias for its host, hard-coded in
+  ConnectScreen, HttpTransport and EditScreen. It's wrong on Windows (and on a real tablet). What should it start with
+  on Windows: empty, `http://`, or the last-used address? I left it unchanged.
+- **Cursor hide and crosshair on Android with a mouse** (see D3).
+- **Learn's panel** shows desktop key codes as large numbers ("key 4294967418"; Compose desktop packs the AWT code
+  high). It's cosmetic and consistent per machine.
+
+Stage-position writes stay on the UI thread (F2, GO 324068c3: put p95 1.354 ms).
