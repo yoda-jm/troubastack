@@ -2419,7 +2419,7 @@ private fun ZoomChip(zoom: Float, onIn: () -> Unit, onOut: () -> Unit, onReset: 
             onClick = { open = true },
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
             modifier = labelled.widthIn(min = 52.dp),
-        ) { Text("⌕ " + NoteZoom.label(zoom), style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false) } }
+        ) { GlyphText("⌕ " + NoteZoom.label(zoom), labelled = true, style = MaterialTheme.typography.titleSmall) } }
         androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 ZoomButton("−", enabled = NoteZoom.canZoomOut(zoom), label = "Zoom out", onClick = onOut)
@@ -2437,7 +2437,7 @@ private fun ZoomButton(text: String, enabled: Boolean, label: String, onClick: (
         onClick = onClick, enabled = enabled,
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
         modifier = labelled.widthIn(min = 44.dp),
-    ) { Text(text, style = MaterialTheme.typography.titleMedium) }
+    ) { GlyphText(text, labelled = true, style = MaterialTheme.typography.titleMedium) }
 }
 
 /**
