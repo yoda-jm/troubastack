@@ -59840,3 +59840,87 @@ GO. Land with `Approved-by: Fable (GO <this commit>)`.
   streams to `%LOCALAPPDATA%\TroubaStageData\wheel-log.csv`; after the pass, he closes TroubaStage and sends that file.
 - From now on the windows job runs `:desktopApp:test` too: WindowPlacementTest, DesktopDefaultsTest, WheelLogTest.
 - PR #80 is closed and its branch deleted.
+
+## 2026-11-02 — mobile: WIN04 design, before building — the Windows app updates itself (reviewer: Fable)
+
+Nothing is built yet. Each numbered point is the design I propose; the ones marked **(ruling?)** need your call.
+
+**1. Shared parsing (A88's, generalised).**
+- `parseRelease(json, assetName)` moves from `androidApp/AppUpdater` to shared `buildinfo`. It is pure and uses
+  kotlinx.serialization, which commonMain already has.
+- `LatestRelease` becomes `(commit, publishedAt, assetUrl, assetSize, assetSha256?)`. The digest comes from the
+  asset's `"digest": "sha256:…"`, which GitHub gives today for both assets: I checked `latest` at 01278c17.
+- The names `UPDATE_ASSET_APK` (`troubastage-debug.apk`) and `UPDATE_ASSET_MSI` (`troubastage-windows.msi`) are
+  defined once, in shared code. Each platform's updater passes its own.
+- **Android's behaviour is unchanged.** It still verifies the signer, package and size, and doesn't use the digest
+  (that would be a behaviour change).
+- **Tests (shared):**
+  - the real JSON with both assets: Android gets the APK and Windows the MSI, each with its size and digest;
+  - an APK-only release: Windows gets `null`, which means no update, not an error;
+  - a missing digest: `assetSha256 = null`;
+  - the existing parse cases, kept.
+
+**2. The desktop `AppUpdate`** (`:desktopApp`), mirroring `AppUpdateController`.
+- It uses the same shared decisions (`updateVerdict`, `shouldAutoCheck`: never in a concert, never on a dev
+  build), so the same surfaces and the same words appear: Home's banner, and Parameters' latest line, Check for
+  updates, Update and the Automatic switch.
+- A plain `HttpURLConnection`, with no cookie handler, so GitHub never sees the band server's session.
+- **The download** goes to `<data root>\tmp\app-update\troubastage-windows.msi` with progress and Cancel. It's
+  then verified by size, plus **SHA-256 against the digest** when there is one. Any mismatch is refused in one plain
+  line, and nothing is run.
+
+**3. The install handoff (ruling?).**
+- After the download, Update shows **"Install the update now?"** / "TroubaStage closes, installs it and opens
+  again." / **Install** · **Not now**. These are new strings; the MSI's `/passive` UI shows only a progress bar, so
+  this is the only question.
+- Install writes a small `update.cmd` next to the MSI and starts it detached (`cmd /c start "" /min …`); then the
+  app exits through the same `exitApplication` path as ✕. The script:
+  1. waits for our PID to exit (`tasklist` loop, 60 s cap), so no file is locked;
+  2. runs `msiexec /i "<msi>" /passive /norestart /l*v "<log>"`. It's per-user, so there's no UAC prompt, and the
+     same `upgradeUuid` makes it upgrade in place;
+  3. on exit code 0 (or 3010), starts the installed exe again with `--after-update`. The path is the one the running
+     app was launched from (`ProcessHandle.current().info().command()`), which the upgrade keeps;
+  4. on any other code, starts the OLD exe again (the MSI is transactional, so the old build is intact) with
+     `--update-failed <code>`.
+- **Reopening:** the app opens again by itself. If it doesn't in practice, on VLL's machine, the fallback is the
+  spec's line "Updated — open TroubaStage again", and I'll report which held.
+- **The app's side after the script:**
+  - With `--after-update`, it opens normally plus a one-time line: "Updated · <build line>".
+  - With `--update-failed`, it opens on its old build with "The update could not be installed (Windows Installer
+    code N). TroubaStage is unchanged."
+  - Either way it writes `<data root>\last-update.txt` (the time, the from and to build lines, the result,
+    msiexec's code), overwritten each time, for diagnosis and for CI.
+- **SmartScreen:** the MSI is written by our process, not a browser, so it carries no Mark-of-the-Web and
+  SmartScreen should not show. I'll report what Windows actually shows, with screenshots, per acceptance 3.
+- **Never in a concert:** the auto check already never runs there, and the banner and Update live on Home and
+  Parameters only.
+
+**4. The Windows n → n+1 through the app, on CI (your reminder 2) (ruling?).**
+- The `windows` job already installs MSI n and then MSI n+1 with `msiexec`. I propose replacing the n+1 msiexec
+  call with the app.
+- A local release is served by a PowerShell `HttpListener` on `127.0.0.1`: a release JSON naming
+  `troubastage-windows.msi` (the n+1 MSI, its size, and its real SHA-256), a newer `published_at`, and a different
+  commit.
+- Installed n is launched with **`--update-from <url> --update-now`**. That runs exactly the button's path
+  (`check(manual = true)`, then `update()`, then Install) against that URL instead of GitHub.
+- **Then the job asserts:**
+  - the app exited;
+  - the registry shows ONE TroubaStage entry, at n+1;
+  - the data-root marker survived;
+  - `last-update.txt` names success and the n+1 version, written by the reopened n+1.
+- **The hooks are CLI-only, never env or storage**, so nothing persistent can redirect updates.
+  `--update-from` still verifies the MSI against that JSON's digest.
+- **One limit:** CI's n and n+1 are built from the same commit. Settings' build line (commit and build time) may
+  not differ; the version (`1.0.<run>` → `1.0.<run+1>`) does. So CI proves the version and the reopen, and VLL's
+  real n → n+1 shows the new build line in Settings.
+
+**5. Android (your reminder 1).**
+- After moving the parse, an emulator n → n+1 through the Update button on a non-dev build: A95's rig (a
+  back-dated `BUILT_AT`, `CI=true`, a low versionCode) against the real `latest`, up to the installer prompt.
+- `logcat -b crash` read, plus the PR CI with windows.
+
+**6. Docs (acceptance 4).**
+- One line on the site and in `docs/USER-JOURNEY.md`: "The Windows app updates itself from the same release, like
+  the tablet." Labels are copied from the shared strings, in the same commit set.
+
+**Order:** 1 + 5 first (shared parse, Android proof), then 2–4, then 6. It's one task and one gate entry for the code.
