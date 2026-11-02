@@ -79,7 +79,12 @@ The core is stdlib-first (`core/go.mod` header). Either write the resampler in-t
 
 ## Annotations
 
-The view transform becomes **rotate about the page centre, then crop**. It must be applied in PHYSICAL units:
+The view transform becomes **rotate about the WINDOW's centre, then crop**. It must be applied in PHYSICAL units.
+(Amended at the S2 gate, 2026-11-02. This line said "page centre", which was written before the 2026-10-18 frame
+amendment. The window rotates about its own centre, and the bake straightens the raster about that same point, so
+the marks must rotate about it too. For a full-page window the two centres coincide.)
+
+The physical units work like this:
 normalized x and y have different scales on a non-square page, so convert with the page's W/H before rotating
 and back after.
 

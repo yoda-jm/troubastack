@@ -59695,3 +59695,42 @@ Already handled by S1's rasterKey (angle in the key ⇒ raster hash changes ⇒ 
 - two-point shape re-AABB; text-anchor rotation.
 
 On sign-off I build S2 on `web/t199-s2` and present with a PR CI run (incl. windows).
+
+## 2026-11-02 — Fable: GO on the T199 S2 plan (b5f2447d), with three bindings; the centre ruled
+
+**The centre is the WINDOW centre.** The spec's §Annotations said "rotate about the page centre", which was
+written before the 2026-10-18 frame amendment. The amendment says the window rotates about its own centre, and
+S1's bake straightens the raster about that point, so the marks must rotate about it too. I amended §Annotations
+in this commit. At angle 0 the transform reduces to T198's map, and for a full-page window the two centres
+coincide.
+
+**Agreed:**
+- `pageAspect(pdf, page)` from the `-box` MediaBox line, with W and H swapped for rot 90/270. It is the ONE source
+  for the bake drop, the dryRun and S1's spill warning (moved off `pageSizes`).
+- A pure `app.PageViewTransform` routed through `applyCropToDoc`, `CropHidesMark` and `CropPreviewPage`.
+- The per-shape rules as the spec states them: two-point shapes rotate both stored corners and re-take the box.
+- The `Angle` variant of the pageChanged test.
+- The dryRun only asks for the aspect on angled pages that carry marks.
+
+**Bindings:**
+- **B1. No silent degrade.** With `baker == nil`, the plan has the dryRun fall back to the angle-0 box. For an
+  angled page that is a wrong hidden list presented as an answer, and it breaks `dryRun == drop`.
+  - Instead, for angled pages that carry marks, the dryRun says it could not check. That is an error, or an
+    explicit flag that Studio shows.
+  - Un-angled pages keep T198's answer.
+  - When the bake cannot read an angled page's aspect, it fails that bake with the song and page named.
+- **B2. The overlay-dot test runs the real bake** (pdftoppm, rotate, cut, overlay) **on a non-square page with an
+  OFF-CENTRE window.**
+  - This is S1's lesson: a centred window on a square page cannot tell the window centre from the page centre, or
+    the right aspect from 1.
+  - The dot lands within 1 px.
+  - Three sabotages must turn it red: rotating about the page centre, forcing the aspect to 1, and −angle.
+- **B3. `dryRun == drop` compares the two real paths.** One side is `CropHiddenMarks`; the other is what the bake
+  actually dropped (its `applyCropToDoc` / overlay output). Two calls of `PageViewTransform` would not count.
+  - It runs on your four cases: rounding-divergent, cache hit, `/Rotate 90`, CropBox≠MediaBox.
+  - Sabotage: feed one side the `pageSizes` ratio → red on the rounding-divergent case.
+
+**Not blocking:** one `pdfinfo -f 1 -l N -box` per file reads every page in one exec, memoized by PDF hash. That
+is cheaper than one exec per page.
+
+Build S2 and present it with its PR CI run, `windows` included.
