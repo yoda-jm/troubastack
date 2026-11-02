@@ -461,7 +461,7 @@ export function Viewer({
     [cropDraft, persistedPages],
   );
   const buildCrop = useCallback((): Crop => ({ lockAR: true, pages: cropDraft }), [cropDraft]);
-  // T199: how many of MY rehearsal notes this unsaved crop edit would newly mark "page changed" (resolved notes
+  // T199: how many of MY rehearsal notes this unsaved crop edit would newly flag "not in the current bake" (resolved notes
   // on the cropped file whose page's rect — angle included — differs from the saved crop, not already changed).
   const cropNotesChanged = useMemo(
     () => (selectedFileId == null ? 0 : notesNewlyChanged(rehearsalNotes, selectedFileId, cropDraft, persistedPages ?? {})),
@@ -2125,7 +2125,7 @@ export function Viewer({
           {cropNotesChanged > 0 && (
             <span className="crop-panel-warn" data-testid="crop-notes-warning" role="status">
               {cropNotesChanged === 1 ? "1 rehearsal note" : `${cropNotesChanged} rehearsal notes`} on pages you
-              changed will show as "page changed" and no longer appear on the tablet.
+              changed will show as "not in the current bake" and no longer appear on the tablet.
             </span>
           )}
           {cropError && (

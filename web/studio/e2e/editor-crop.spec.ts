@@ -479,11 +479,12 @@ test("crop: a deskew angle rotates the window the right way and survives a save 
   await expect(page.getByTestId("crop-rect-0")).toHaveCSS("transform", "none");
 });
 
-// T199 — the pre-save warning counts rehearsal notes a crop change would push to "page changed". The e2e core
-// has no bake, so notes never RESOLVE (no fileId) — stub the notes list with one resolved note on page 0 of the
-// open file, then make an angle-only change and assert the warning. (Sabotage: have Viewer pass the draft as
-// both draft and saved to notesNewlyChanged → sameRect is always true → the warning never shows → red.)
-test("crop: an angle-only change warns about rehearsal notes that would go 'page changed'", async ({ page }) => {
+// T199 — the pre-save warning counts rehearsal notes a crop change would flag "not in the current bake" (the
+// label Studio's notes list actually shows). The e2e core has no bake, so notes never RESOLVE (no fileId) —
+// stub the notes list with one resolved note on page 0 of the open file, then make an angle-only change and
+// assert the warning. (Sabotage: have Viewer pass the draft as both draft and saved to notesNewlyChanged →
+// sameRect is always true → the warning never shows → red.)
+test("crop: an angle-only change warns about rehearsal notes that would be flagged not in the current bake", async ({ page }) => {
   await register(page, `crop_${stamp()}`);
   const band = await createBandAndOpen(page, `CropBand ${stamp()}`);
   const songId = await createSongAndOpen(page, `CropSong ${stamp()}`);
@@ -514,7 +515,9 @@ test("crop: an angle-only change warns about rehearsal notes that would go 'page
   await page.getByTestId("crop-save").click();
   await expect(page.getByTestId("file-tab-cropped").first()).toBeVisible();
 
-  // An ANGLE-only change makes page 0's rect differ from the saved one → the note would go "page changed".
+  // An ANGLE-only change makes page 0's rect differ from the saved one → the note would be flagged "not in the
+  // current bake" (the label the notes list shows — not "page changed", which no Studio surface uses).
   await page.getByTestId("crop-angle-inc-coarse-0").click();
   await expect(page.getByTestId("crop-notes-warning")).toContainText("1 rehearsal note");
+  await expect(page.getByTestId("crop-notes-warning")).toContainText("not in the current bake");
 });
