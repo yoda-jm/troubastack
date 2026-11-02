@@ -25,7 +25,7 @@ const val UPDATE_ASSET_MSI = "troubastage-windows.msi"
 /** DESK01 — the release asset that is the Linux app (published next to the MSI). */
 const val UPDATE_ASSET_APPIMAGE = "troubastage-linux-x86_64.AppImage"
 
-/** DESK01 — the release asset that will be the macOS app, once a person has tested the DMG on a Mac (D4). */
+/** DESK01 — the release asset for the macOS app. DESK02: it now rides `latest` with the others, still unsigned. */
 const val UPDATE_ASSET_DMG = "troubastage-macos.dmg"
 
 /**

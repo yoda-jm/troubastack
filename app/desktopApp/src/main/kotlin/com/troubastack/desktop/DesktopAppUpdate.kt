@@ -124,7 +124,7 @@ class DesktopAppUpdate(
         storage.putSecret(K_LAST_CHECK, System.currentTimeMillis().toString()) // a failure counts: try again tomorrow
         val fetched = fetchLatest()
         failed = fetched == null
-        // A release without this OS's asset is no update here, not a failure (macOS until its DMG is published).
+        // A release without this OS's asset is no update here, not a failure (e.g. an older release predating it).
         verdict = fetched?.release?.let { updateVerdict(appBuildGit, appBuildBuiltAt, it, storage.getSecret(K_DISMISSED), manual) }
         return verdict
     }

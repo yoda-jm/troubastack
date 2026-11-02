@@ -59,7 +59,7 @@ class ReleaseParseTest {
 
     @Test
     fun with_every_platforms_asset_each_platform_gets_its_own() {
-        // DESK01 D4 — the release with the AppImage (and, once published, the DMG): each OS picks its asset by name.
+        // DESK01 D4 / DESK02 — the release with the AppImage and the DMG: each OS picks its asset by name.
         val all = twoAssets.replace(
             "\"assets\":[",
             "\"assets\":[{\"name\":\"$UPDATE_ASSET_DMG\",\"size\":115000000,\"browser_download_url\":\"https://github.com/yoda-jm/troubastack/releases/download/latest/$UPDATE_ASSET_DMG\"}," +
