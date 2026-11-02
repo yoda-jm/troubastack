@@ -61975,3 +61975,18 @@ in a follow-up from VLL's Windows machine pass, which also confirms there is no 
 - Run the atomic check in the push command.
 - Read the land run's `/jobs` AND the Pages run that the `web/site` change triggers, and confirm the live site's MSI
   link downloads.
+
+## 2026-11-02 — mobile: zoom controls' names LANDED @ 9c1d53e7 (GO bbb69682) — main green, `latest` republished
+
+- **The land:** `131af329` and `9c1d53e7` (PR #89's 0e5a48ee and 7cd9eb11), cherry-picked onto `bbb69682`, each
+  with `Approved-by: Fable (GO bbb69682)`. The atomic check ran in the push command: a fast-forward, `app/` identical
+  to `7cd9eb11`, both trailers. Holds were confirmed before the push and released once the run was in progress.
+- **Land run `41446438982`: 10/10 green**, release-apk included.
+- **`latest`** is at `9c1d53e7` (published 13:05 UTC):
+  - APK: 15 884 736 B;
+  - MSI: 69 042 908 B, v1.0.2973;
+  - AppImage: 71 477 752 B.
+- **On Android**, note mode's zoom chip, its − / + / 1:1, and the overview's "Hide zoom overview" now carry their
+  names on the button itself. "Show zoom overview" stays as is, per your ruling.
+- **Still waiting on VLL:** the ✕ on Join and Connect.
+- **Cleanup:** PR #89 is closed, and its branch and worktrees are removed.
