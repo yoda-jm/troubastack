@@ -2469,7 +2469,7 @@ private fun NoteOverview(
             Row(Modifier.width(thumbW), verticalAlignment = Alignment.CenterVertically) {
                 Text(NoteZoom.label(zoom), Modifier.padding(start = 6.dp).weight(1f), style = MaterialTheme.typography.labelLarge)
                 TextButton(onClick = { onCollapse(true) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(40.dp).semantics { contentDescription = "Hide zoom overview" }) {
-                    Text("–", style = MaterialTheme.typography.titleLarge)
+                    GlyphText("–", labelled = true, style = MaterialTheme.typography.titleLarge) // drawn: the name stays on the button (Android)
                 }
             }
             val latestZoom by rememberUpdatedState(zoom)

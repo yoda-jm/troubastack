@@ -129,6 +129,9 @@ class StageAccessibleNamesUiTest {
             assertNamedClickable("Zoom, 1.5×")
             onAllNodes(hasContentDescription("Zoom, 1×"), useUnmergedTree = true).assertCountEquals(0)
             assertGlyphsNotRead("⌕ 1.5×")
+            // Zoomed, the overview opens with its own "–" to hide it (A86): the same rule.
+            assertNamedClickable("Hide zoom overview")
+            assertGlyphsNotRead("–")
         } finally {
             root.deleteRecursively()
         }
