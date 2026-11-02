@@ -1,0 +1,111 @@
+# DESK01 measurement spike (TEMPORARY — removed before landing): can the arm64 and x86_64 macOS app images be
+# lipo-merged into one universal .app? Lists every file that differs, classifies it (Mach-O → lipo-able; anything
+# else → the spec's merge rule fails), opens lib/modules with jimage when it differs, then tries the merge (taking
+# the arm64 copy of each differing non-Mach-O file, recorded) and smokes it natively and under Rosetta.
+name: desk01-spike
+
+on:
+  pull_request:
+
+jobs:
+  macos-merge:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          architecture: x64
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          architecture: aarch64
+      - uses: gradle/actions/setup-gradle@v6
+      - name: runner facts
+        run: |
+          uname -m; sw_vers; sysctl -n machdep.cpu.brand_string
+          env | grep -E '^JAVA_HOME' | sort
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then echo "rosetta: present"; else echo "rosetta: ABSENT - installing"; softwareupdate --install-rosetta --agree-to-license; fi
+          "$JAVA_HOME_21_X64/bin/java" -XshowSettings:properties -version 2>&1 | grep -E 'os.arch|java.version '
+      - name: app image arm64 (native JDK)
+        working-directory: app
+        run: |
+          ./gradlew --no-daemon :desktopApp:createDistributable
+          mkdir -p "$RUNNER_TEMP/arm64" && ditto desktopApp/build/compose/binaries/main/app/TroubaStage.app "$RUNNER_TEMP/arm64/TroubaStage.app"
+      - name: app image x86_64 (x64 JDK under Rosetta)
+        working-directory: app
+        run: |
+          rm -rf desktopApp/build/compose
+          JAVA_HOME="$JAVA_HOME_21_X64" arch -x86_64 ./gradlew --no-daemon :desktopApp:createDistributable
+          mkdir -p "$RUNNER_TEMP/x64" && ditto desktopApp/build/compose/binaries/main/app/TroubaStage.app "$RUNNER_TEMP/x64/TroubaStage.app"
+      - name: compare the two trees
+        run: |
+          cat > "$RUNNER_TEMP/compare.py" <<'PY'
+          import hashlib, os, subprocess, sys
+          a, b = sys.argv[1], sys.argv[2]
+          def walk(root):
+              out = {}
+              for d, dirs, files in os.walk(root):
+                  for f in files + [x for x in dirs if os.path.islink(os.path.join(d, x))]:
+                      p = os.path.join(d, f); out[os.path.relpath(p, root)] = p
+              return out
+          A, B = walk(a), walk(b)
+          def kind(p):
+              if os.path.islink(p): return "link:" + os.readlink(p)
+              return subprocess.run(["file", "-b", p], capture_output=True, text=True).stdout.strip()
+          def h(p): return "link:" + os.readlink(p) if os.path.islink(p) else hashlib.sha256(open(p, "rb").read()).hexdigest()
+          same = macho = 0; other = []
+          for rel in sorted(set(A) | set(B)):
+              if rel not in A or rel not in B:
+                  other.append(("ONLY-IN-" + ("arm64" if rel in A else "x64"), rel, "")); continue
+              if h(A[rel]) == h(B[rel]): same += 1; continue
+              ka, kb = kind(A[rel]), kind(B[rel])
+              if "Mach-O" in ka and "Mach-O" in kb: macho += 1; print("MACHO   ", rel, "|", ka[:60], "|", kb[:60]); continue
+              other.append(("DIFFERS", rel, f"{os.path.getsize(A[rel])} vs {os.path.getsize(B[rel])} ({ka[:40]})"))
+          print(f"\nidentical: {same}   Mach-O differing (lipo-able): {macho}   other differences: {len(other)}")
+          for o in other: print("  ", *o)
+          open(os.environ["RUNNER_TEMP"] + "/other.txt", "w").write("\n".join(r for k, r, _ in other if k == "DIFFERS"))
+          PY
+          python3 "$RUNNER_TEMP/compare.py" "$RUNNER_TEMP/arm64/TroubaStage.app" "$RUNNER_TEMP/x64/TroubaStage.app" | tee "$RUNNER_TEMP/compare.txt" | grep -v '^MACHO' || true
+          echo "--- Mach-O lines: $(grep -c '^MACHO' "$RUNNER_TEMP/compare.txt")"; grep '^MACHO' "$RUNNER_TEMP/compare.txt" | head -12
+      - name: if lib/modules differs, which entries
+        run: |
+          m=Contents/runtime/Contents/Home/lib/modules
+          if cmp -s "$RUNNER_TEMP/arm64/TroubaStage.app/$m" "$RUNNER_TEMP/x64/TroubaStage.app/$m"; then echo "lib/modules identical"; exit 0; fi
+          for x in arm64 x64; do mkdir -p "$RUNNER_TEMP/jm-$x"; "$JAVA_HOME/bin/jimage" extract --dir "$RUNNER_TEMP/jm-$x" "$RUNNER_TEMP/$x/TroubaStage.app/$m"; done
+          diff -rq "$RUNNER_TEMP/jm-arm64" "$RUNNER_TEMP/jm-x64" | sed "s#$RUNNER_TEMP/##g" | head -40
+          echo "differing entries: $(diff -rq "$RUNNER_TEMP/jm-arm64" "$RUNNER_TEMP/jm-x64" | wc -l)"
+          diff "$RUNNER_TEMP/arm64/TroubaStage.app/Contents/runtime/Contents/Home/release" "$RUNNER_TEMP/x64/TroubaStage.app/Contents/runtime/Contents/Home/release" || true
+      - name: try the merge (arm64 copy for each differing non-Mach-O file) + ad-hoc sign
+        run: |
+          U="$RUNNER_TEMP/universal/TroubaStage.app"; mkdir -p "$(dirname "$U")"; ditto "$RUNNER_TEMP/arm64/TroubaStage.app" "$U"
+          grep '^MACHO' "$RUNNER_TEMP/compare.txt" | awk '{print $2}' | while read -r rel; do
+            lipo -create "$RUNNER_TEMP/arm64/TroubaStage.app/$rel" "$RUNNER_TEMP/x64/TroubaStage.app/$rel" -output "$U/$rel"
+          done
+          echo "took the arm64 copy of:"; cat "$RUNNER_TEMP/other.txt"; echo
+          codesign --force --deep --sign - "$U"
+          codesign --verify --deep --strict "$U" && echo "codesign verify OK"
+          codesign -dv "$U" 2>&1 | grep -E 'Signature|Format'
+          lipo -archs "$U/Contents/MacOS/TroubaStage"; lipo -archs "$U/Contents/runtime/Contents/Home/lib/server/libjvm.dylib"
+      - name: smoke — thin arm64, merged native, merged under Rosetta, thin x64 under Rosetta
+        run: |
+          run() { label=$1; shift; export TROUBASTAGE_HOME="$RUNNER_TEMP/home-$label"; rm -rf "$TROUBASTAGE_HOME"
+            ( "$@" --smoke "$RUNNER_TEMP/smoke-$label.png" --smoke-concert "$GITHUB_WORKSPACE/docs/demo/demo-concert.tstage" > "$RUNNER_TEMP/smoke-$label.log" 2>&1 ) & pid=$!
+            for i in $(seq 1 150); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+            if kill -0 $pid 2>/dev/null; then kill -9 $pid; echo "$label: HUNG"; else wait $pid; echo "$label: exit $?"; fi
+            grep -E 'render API|os.arch|smoke' "$RUNNER_TEMP/smoke-$label.log" | head -6; ls -la "$RUNNER_TEMP"/smoke-$label*.png 2>/dev/null || echo "  (no PNG)"; }
+          run thin-arm64 "$RUNNER_TEMP/arm64/TroubaStage.app/Contents/MacOS/TroubaStage"
+          run merged-native "$RUNNER_TEMP/universal/TroubaStage.app/Contents/MacOS/TroubaStage"
+          run merged-rosetta arch -x86_64 "$RUNNER_TEMP/universal/TroubaStage.app/Contents/MacOS/TroubaStage"
+          run thin-x64-rosetta arch -x86_64 "$RUNNER_TEMP/x64/TroubaStage.app/Contents/MacOS/TroubaStage"
+          tail -20 "$RUNNER_TEMP/smoke-merged-rosetta.log"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: desk01-spike
+          path: |
+            ${{ runner.temp }}/compare.txt
+            ${{ runner.temp }}/smoke-*
