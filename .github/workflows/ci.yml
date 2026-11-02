@@ -612,6 +612,33 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: app
         run: .\gradlew.bat :shared:desktopTest :desktopApp:test
+      # WIN07 — the desktop tests must unpack Skiko under each module's build dir, never the shared per-user ~/.skiko
+      # (two concurrent test JVMs racing that one folder is what reddened Windows twice on 2026-11-02). Ask the test
+      # JVM for its user.home (Skiko's default root), assert no .skiko there, and list what each build's skiko/ holds.
+      - name: WIN07 — no Skiko under the JVM's home (per-task unpack dir)
+        if: always() && runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $props = (& java -XshowSettings:properties -version 2>&1 | Out-String)
+          $m = [regex]::Match($props, 'user\.home = (.+)')
+          $jvmHome = if ($m.Success) { $m.Groups[1].Value.Trim() } else { "" }
+          Write-Host "JVM user.home = [$jvmHome]   USERPROFILE = [$env:USERPROFILE]"
+          foreach ($h in @($jvmHome, $env:USERPROFILE) | Where-Object { $_ } | Select-Object -Unique) {
+            $skiko = Join-Path $h ".skiko"
+            if (Test-Path $skiko) {
+              Write-Host "::error::WIN07: Skiko unpacked into the shared $skiko — a desktop test task is missing skiko.data.path"
+              Get-ChildItem -Force -Recurse -Depth 1 $skiko | Format-Table -AutoSize | Out-String | Write-Host
+              exit 1
+            }
+          }
+          Write-Host "OK - no .skiko under the JVM user.home or USERPROFILE"
+          foreach ($d in @("shared\build\skiko", "desktopApp\build\skiko")) {
+            Write-Host "## $d"
+            if (Test-Path $d) { Get-ChildItem -Recurse -Depth 1 $d | Select-Object FullName | Format-Table -AutoSize | Out-String | Write-Host }
+            else { Write-Host "  (absent - the task did not run, or unpacked elsewhere)" }
+          }
       - name: package the per-user MSI (version 1.0.<run_number>)
         if: runner.os == 'Windows'
         working-directory: app
@@ -827,6 +854,31 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: app
         run: ./gradlew :shared:desktopTest :desktopApp:test
+      # WIN07 — same guard as the Windows leg. On Unix the JVM may resolve user.home from the passwd entry, not $HOME,
+      # so ask the JVM where its home is rather than trust $HOME; check both to be safe.
+      - name: WIN07 — no Skiko under the JVM's home (per-task unpack dir)
+        if: always() && runner.os == 'Linux'
+        working-directory: app
+        shell: bash
+        run: |
+          set -uo pipefail
+          jvm_home="$(java -XshowSettings:properties -version 2>&1 | sed -n 's/^[[:space:]]*user\.home = //p')"
+          echo "JVM user.home = [$jvm_home]   \$HOME = [${HOME:-}]"
+          rc=0
+          for h in "$jvm_home" "${HOME:-}"; do
+            [ -n "$h" ] || continue
+            if [ -e "$h/.skiko" ]; then
+              echo "::error::WIN07: Skiko unpacked into the shared $h/.skiko — a desktop test task is missing skiko.data.path"
+              ls -la "$h/.skiko" || true
+              rc=1
+            fi
+          done
+          [ "$rc" = 0 ] || exit 1
+          echo "OK - no .skiko under the JVM user.home or \$HOME"
+          for d in shared/build/skiko desktopApp/build/skiko; do
+            echo "## $d"
+            if [ -d "$d" ]; then find "$d" -maxdepth 2 -print; else echo "  (absent - the task did not run, or unpacked elsewhere)"; fi
+          done
       - name: package the Linux app image (version 1.0.<run_number>)
         if: runner.os == 'Linux'
         working-directory: app
@@ -904,6 +956,31 @@ jobs:
       - name: desktop tests (macOS)
         working-directory: app
         run: ./gradlew :shared:desktopTest :desktopApp:test
+      # WIN07 — same guard as the other two legs (dedicated job, so no runner.os condition). The JVM may read user.home
+      # from the passwd entry, not $HOME, so ask the JVM; check both to be safe.
+      - name: WIN07 — no Skiko under the JVM's home (per-task unpack dir)
+        if: always()
+        working-directory: app
+        shell: bash
+        run: |
+          set -uo pipefail
+          jvm_home="$(java -XshowSettings:properties -version 2>&1 | sed -n 's/^[[:space:]]*user\.home = //p')"
+          echo "JVM user.home = [$jvm_home]   \$HOME = [${HOME:-}]"
+          rc=0
+          for h in "$jvm_home" "${HOME:-}"; do
+            [ -n "$h" ] || continue
+            if [ -e "$h/.skiko" ]; then
+              echo "::error::WIN07: Skiko unpacked into the shared $h/.skiko — a desktop test task is missing skiko.data.path"
+              ls -la "$h/.skiko" || true
+              rc=1
+            fi
+          done
+          [ "$rc" = 0 ] || exit 1
+          echo "OK - no .skiko under the JVM user.home or \$HOME"
+          for d in shared/build/skiko desktopApp/build/skiko; do
+            echo "## $d"
+            if [ -d "$d" ]; then find "$d" -maxdepth 2 -print; else echo "  (absent - the task did not run, or unpacked elsewhere)"; fi
+          done
       # Both builds carry ONE build identity (the update check compares it): the same minute, stamped once.
       - name: one build time for both halves
         run: echo "BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:00Z)" >> "$GITHUB_ENV"

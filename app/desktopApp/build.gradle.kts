@@ -47,8 +47,14 @@ tasks.processResources {
 }
 
 // WIN03 — tests that build the desktop platform open a Storage(): point its data root at the build dir, never a profile.
+// WIN07 — and give Skiko its own unpack dir under this build dir, never the shared ~/.skiko: this task and
+// :shared:desktopTest run at once under the configuration cache, and on Windows the loser of the unpack race does an
+// ATOMIC_MOVE onto a DLL the winner already loaded, which Windows denies (see :shared's build for the full note). One
+// dir per task is enough while each runs a single fork (maxParallelForks == 1). exceptionFormat = FULL carries the path.
 tasks.withType<Test>().configureEach {
     environment("TROUBASTAGE_HOME", layout.buildDirectory.dir("test-home").get().asFile.path)
+    systemProperty("skiko.data.path", layout.buildDirectory.dir("skiko").get().asFile.path)
+    testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
 }
 
 compose.desktop {
