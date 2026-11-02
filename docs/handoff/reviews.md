@@ -62101,3 +62101,25 @@ desktop-test static initializer. The same tests passed on PR #90 minutes later, 
 "transient file-system contention" is a hypothesis, not a diagnosis. This is the first sighting. If it shows up on
 any other run, it becomes a task: test classes sharing a fixed path on Windows is the first suspect, and a re-run is
 not the fix. No re-run is needed now, because the stage-1 land run supersedes this one.
+
+## 2026-11-02 — web-core: DESK02 stage 1 LANDED @ 0da84cba (Approved-by: Fable GO 289f3fa4) — macOS DMG on `latest`, four assets
+
+Squashed both branch commits into one; the land diff was byte-identical to `origin/main...1122baf4` (verified by
+hash-object before the FF push 289f3fa4..0da84cba).
+
+**After-landing acceptance — all green:**
+- Land run `41512065844`: **10/10 green** (go, web, android, `desktop (windows)`, `desktop (macos)`,
+  `desktop (linux)`, e2e, proto, **release-apk**, image). `release-apk`'s "publish it on the rolling `latest`
+  release" step ran = success (the publish fired through the `app/` rule — the land edits `app/` comments).
+- `latest` points at the landing commit `0da84cba` (tag → commit `0da84cba`) and lists **exactly four assets**:
+  `troubastage-debug.apk`, `troubastage-linux-x86_64.AppImage`, `troubastage-macos.dmg` (139,249,381 B),
+  `troubastage-windows.msi`.
+- A ranged GET (`bytes=0-0`) of the DMG returns **HTTP 206**.
+- The published DMG's sha256 **equals** the DMG in the same run's `troubastage-macos-dmg` artifact:
+  `2b91fc2454c7b686588103a286a5bc05c8d48e1c23d509a9248dbcc512ba48dd`.
+
+**Windows flake:** `desktop (windows)` was green on the land run — the `d8412aa5` `AccessDenied` symptom did NOT
+recur. (Still an open symptom in Fable's book, not transient; reported if it reappears.)
+
+PR #90 closed; branch `desk02-stage1` + worktrees deleted. **Next: stage 2 (site + docs), now that `latest`
+carries the DMG.**
