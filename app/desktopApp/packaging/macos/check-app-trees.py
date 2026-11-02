@@ -8,7 +8,9 @@ cannot explain:
     libraries inside a jar (JNA's `*.jnilib`) are re-signed by each build, so for those only the set of names must match;
   - native libraries Compose extracted into app/ (the Skiko dylibs, re-signed by each build): each the same
     architectures (`lipo -archs`) where both builds have it, and their `.sha256` siblings follow them. The one named
-    exception: a build may carry only its own arch's `libskiko-macos-<arch>.dylib`; the universal app keeps both;
+    exception: a build moves its own arch's `libskiko-macos-<arch>.dylib` (and its .sha256) out of the Skiko runtime jar
+    into app/, so those are compared nowhere; the universal app keeps both libraries in app/ (make-universal.sh checks
+    each one's arch);
   - the launcher cfg: equal once the jars' hash suffixes are removed;
   - anything else: byte-equal.
 
@@ -52,6 +54,8 @@ def archs(path):
 def jar_entries(path):
     out = {}
     for i in zipfile.ZipFile(path).infolist():
+        if SKIKO_NATIVE.match(os.path.basename(i.filename)):
+            continue  # each build moves its own arch's Skiko library out of its runtime jar into app/ (the named exception)
         native = i.filename.endswith((".jnilib", ".dylib"))
         out[i.filename] = None if native else (i.CRC, i.file_size)
     return out

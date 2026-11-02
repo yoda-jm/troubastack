@@ -889,16 +889,19 @@ jobs:
       - name: desktop tests (macOS)
         working-directory: app
         run: ./gradlew :shared:desktopTest :desktopApp:test
+      # Both builds carry ONE build identity (the update check compares it): the same minute, stamped once.
+      - name: one build time for both halves
+        run: echo "BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:00Z)" >> "$GITHUB_ENV"
       - name: app image — Apple silicon (native JDK)
         working-directory: app
         run: |
-          ./gradlew :desktopApp:createDistributable "-PdesktopVersion=1.0.${{ github.run_number }}"
+          ./gradlew :desktopApp:createDistributable "-PdesktopVersion=1.0.${{ github.run_number }}" "-PbuiltAt=$BUILT_AT"
           mkdir -p "$RUNNER_TEMP/arm64" && ditto desktopApp/build/compose/binaries/main/app/TroubaStage.app "$RUNNER_TEMP/arm64/TroubaStage.app"
       - name: app image — Intel (x64 JDK, Gradle under Rosetta)
         working-directory: app
         run: |
           rm -rf desktopApp/build/compose
-          JAVA_HOME="$JAVA_HOME_21_X64" arch -x86_64 ./gradlew --no-daemon :desktopApp:createDistributable "-PdesktopVersion=1.0.${{ github.run_number }}"
+          JAVA_HOME="$JAVA_HOME_21_X64" arch -x86_64 ./gradlew --no-daemon :desktopApp:createDistributable "-PdesktopVersion=1.0.${{ github.run_number }}" "-PbuiltAt=$BUILT_AT"
           mkdir -p "$RUNNER_TEMP/x64" && ditto desktopApp/build/compose/binaries/main/app/TroubaStage.app "$RUNNER_TEMP/x64/TroubaStage.app"
       - name: one universal app (merge rule, two runtimes, universal stub, ad-hoc signed inside-out)
         working-directory: app
