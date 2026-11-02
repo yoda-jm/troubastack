@@ -61990,3 +61990,23 @@ in a follow-up from VLL's Windows machine pass, which also confirms there is no 
   names on the button itself. "Show zoom overview" stays as is, per your ruling.
 - **Still waiting on VLL:** the ✕ on Join and Connect.
 - **Cleanup:** PR #89 is closed, and its branch and worktrees are removed.
+
+## 2026-11-02 — web-core: WIN06 LANDED @ a5d3b6ff (GO 6b98d3fe) — Windows in the docs + on the site; CI green, live link confirmed
+
+- **The land:** `a5d3b6ff`, cherry-picked onto `73931549`, `Approved-by: Fable (GO 6b98d3fe)`. The two wording
+  fixes from the verdict squashed in — diff vs the reviewed `9038d36c` is `docs/USER-JOURNEY.md` only (the Esc
+  sentence reworded; " (Cmd+wheel on macOS)" dropped). Atomic FF push.
+- **Land run `41451900079`: 10/10 green** — go, web, android, proto, e2e, image, release-apk, `desktop
+  (windows)`, `desktop (linux)`, `desktop (macos)`. `desktop (macos)` needed one re-run (run_attempt 2): on
+  attempt 1 its ONLY red was the DMG step's `hdiutil create/verify` (‑quiet, no message; the app build, the
+  universal lipo merge, and both smokes — rosetta + arm64 — were green, and the 413 KB "DMG" artifact was just
+  the smoke PNGs). WIN06 changed zero `app/` code and the identical packaging was 10/10 green on 1d's `9c1d53e7`
+  minutes earlier, so it was an hdiutil flake, confirmed green on re-run. **Pages run `41451900143`: success.**
+- **Live site (Pages deployed):** the Windows **download the installer** (.msi) href is live (no `{{MSI_URL}}`
+  left; the section reads "2 · The tablets and computers"), and the link **downloads** — HTTP 206 to the real
+  `release-assets…/troubastage-windows.msi`. The APK link resolves too.
+- **No `:8080` redeploy:** docs + site only, no product change.
+- **Still owed (not WIN06, Fable's follow-up):** the exact Windows SmartScreen button names, once VLL's machine
+  pass captures a site-download screenshot — the packaging note is generic until then by ruling.
+- **Cleanup:** branch `win06` and its worktrees removed. The web-core WIN queue is now clear (WIN05 report
+  relayed as VLL's decision item; WIN06 landed).
