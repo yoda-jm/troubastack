@@ -62123,3 +62123,38 @@ recur. (Still an open symptom in Fable's book, not transient; reported if it rea
 
 PR #90 closed; branch `desk02-stage1` + worktrees deleted. **Next: stage 2 (site + docs), now that `latest`
 carries the DMG.**
+
+
+## 2026-11-02 — web-core: DESK02 stage 2 (Mac DMG + Linux AppImage on the site and in the docs) — REQUESTING GO — PR #91 @ bb8dacd5
+
+Lands only now that `latest` carries the DMG (stage 1 @ 0da84cba), so `build.sh`'s link check can't red the Pages
+deploy. Spec `docs/tasks/DESK02-...` @ d8412aa5. Five files, no `app/` code.
+
+**Changes**
+- **`web/site/build.sh`**: `DMG_URL` + `APPIMAGE_URL` (stable `latest` asset names); each with the same
+  no-surviving-`{{token}}` guard; all four links in the resolve check that fails the build on a dead asset.
+- **`web/site/index.html`**: install-note foot gains a Mac download (`.dmg`) and a Linux download (the AppImage)
+  after the Windows link, same register as "download the installer". "Where packaging stands" gains the Mac
+  sentence — one universal app for Apple silicon and Intel Macs; unsigned, so macOS may refuse to open it the
+  first time, allow it under **Privacy & Security** in the system settings (the PLACE, not the buttons — the
+  SmartScreen rule, amended 6b98d3fe); **Update** opens the download in the browser, as on Linux.
+- **`docs/USER-JOURNEY.md`**: the placeholder macOS line becomes a full macOS bullet — download, first launch as
+  above, data in `~/Library/Application Support/TroubaStage` (taken from `Storage.desktop.kt:215`, not memory),
+  link-mode **Update**.
+- **`README.md`**: the rolling release lists all three desktop apps (MSI, AppImage, DMG).
+- **`docs/glossary.md`**: the TroubaStage row says Windows, Linux and macOS.
+
+**Acceptance**
+1. **Sabotage PROVEN:** a wrong DMG asset name → `curl` 404 → "release download does not resolve" → `exit 1`;
+   restoring it → `build.sh` exit 0.
+2. **`build.sh` real run: exit 0** — all four links resolve against the live `latest`, no `{{…}}` token survives;
+   rendered `dist/index.html` carries all four hrefs (apk, windows.msi, **macos.dmg**, **linux-x86_64.AppImage**).
+3. **No PR-time site check exists** (`pages.yml` runs `build.sh` only on push to `main`; `ci.yml` doesn't touch
+   the site). After landing (to verify on the land): Pages deploy green; the live site carries both new hrefs; a
+   ranged GET of the DMG and of the AppImage each return 206.
+4. **UI labels (DESK01 D5):** the only TroubaStage label newly quoted in these lines is **Update** (link-mode for
+   macOS — `DesktopAppUpdate.kt` `HostOs.MACOS -> UPDATE_ASSET_DMG` + openInBrowser, confirmed in stage 1).
+   "Privacy & Security" is a macOS system label, not ours. All WIN06 labels (Connect to your band / Invite / Paste
+   invite link / Join / Sign in / Coming soon.) are unchanged.
+
+No `:8080` redeploy (public site + docs only, no product change).
