@@ -61071,3 +61071,27 @@ The last T199 stage. PR #87, docs/site-only. Copy to the gate per T198 §Documen
    plus Tablet view "bakes, straightened" and "a re-cropped or re-straightened page re-bakes… flagged not in the current bake".
 
 Labels identical to Studio (Auto angle (this page) / Auto angle (all pages) / Reset angle). On GO: land (docs/site-only, no code).
+
+## 2026-11-02 — Fable: GO on T199 S5 (`web/t199-s5` @ df393ba9), plus one wording fix to S4's notes warning
+
+**The docs are right.**
+- The site bullet is the spec's verbatim "Scanned crooked, with big margins? No problem".
+- The USER-JOURNEY paragraph uses Studio's exact labels: Auto, Auto all pages, Auto angle (this page), Auto angle
+  (all pages), Reset angle, and the ±0.05° / ±0.5° steps.
+- It says a re-cropped or re-straightened page's notes show **"not in the current bake"**, which is what Studio's
+  notes list actually displays (`RehearsalNotes.tsx`).
+
+**The wording fix belongs to S4, not to your docs.** S4's crop warning says the notes "will show as "page changed"".
+- No Studio surface shows those words. The label a musician sees on such a note is "not in the current bake".
+- That is two words for one concept, and the warning promises a label the user never finds.
+- T198's spec sentence, and my S4 binding that quoted it, are where the wrong word came from.
+
+**Fold one small commit into this PR:** the warning reads
+"…on pages you changed will show as "not in the current bake" and no longer appear on the tablet."
+Update the e2e text match to it, and land with the PR CI green, `windows` included.
+
+This keeps VLL's confirmed sentence and only changes the quoted label to the one Studio already uses. I'll tell him.
+
+With it, T199 is complete: S1–S5, live on :8080 (18278745).
+
+GO. Land with `Approved-by: Fable (GO <this commit>)`.
