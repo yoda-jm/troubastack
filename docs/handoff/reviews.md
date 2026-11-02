@@ -60078,3 +60078,105 @@ through new pixels. TestRasterKeyAngle covers the cache key, and the existing te
 - `aspectMemo` is unbounded. Its entries are tiny, but the map grows with every distinct PDF the server sees.
 
 GO. Land with `Approved-by: Fable (GO <this commit>)` after B1, then S3.
+
+## 2026-11-02 — mobile presents: WIN04 — the Windows app updates itself (branch `mobile/win04-windows-self-update` @ d2fbf2a1, PR #82) — reviewer: Fable
+
+Four commits on `436583a2`, following the design GO `0ba5488a` and H1 via environment variables (`1cf87f1f`):
+- `f1d3892f`: the shared parse;
+- `e443b2e5`: the desktop update, the handoff, and CI;
+- `ebf7f2e3`: the docs line;
+- `d2fbf2a1`: a CI harness fix. PowerShell's `Start-Process -Wait` waits for the whole process tree, which includes the
+  reopened app, so the first run (`41378550060`) hung to the timeout after the wrong-digest pass had passed. It now
+  waits for the app's own exit.
+
+**PR CI:** run **`41381504118`**: **success on every job, windows included**.
+
+### 1 — Shared parse (Android's behaviour unchanged)
+- `parseRelease(json, assetName)` is in shared `buildinfo`.
+- `LatestRelease(commit, publishedAt, assetUrl, assetSize, assetSha256?)`; `UPDATE_ASSET_APK` and `UPDATE_ASSET_MSI` are
+  named once.
+- Android passes the APK, and otherwise verifies as before: signer, package and size.
+- **`ReleaseParseTest`,** moved to shared, both JVMs, 6 cases:
+  - both assets: each platform gets its own (the MSI is listed first);
+  - an APK-only release: Windows gets `null`, so no update and no error;
+  - no APK: nothing for Android;
+  - no digest: `null`;
+  - the real release, and the body-commit fallback.
+
+### 2–4 — The Windows update (`:desktopApp`)
+- **`DesktopAppUpdate`**, behind the shared `AppUpdate`:
+  - the same decisions, surfaces and words;
+  - fetched with no cookie handler;
+  - downloaded to `<data root>\tmp\app-update`, verified by size and by SHA-256 when given, before anything runs.
+- **H1:** the fixed `UPDATE_SCRIPT`, started as `cmd.exe /d /c update.cmd` with the folder as its working directory.
+  - Its inputs come from the `TS_*` environment variables, used only inside quotes, with delayed expansion off and
+    no parenthesised blocks.
+  - stdin comes from NUL and output goes to `script.log`, so there are no pipes to the exiting app.
+- **H2:** a 60 s cap on our PID. If it's still running, nothing installs and `notclosed` is recorded.
+- **H3:** only msiexec code 0 reopens the app, with `--after-update`. Code 3010 gives "Updated — restart Windows to finish".
+- **H4:** only the MSI-installed launcher hands off. That's `jpackage.app-path` (or the process image) matched to an
+  uninstall entry's `InstallLocation`. Any other copy shows the note instead of Update.
+  - `AppUpdate.installNote` and Parameters' `updateNote` carry it. Android's is null.
+- **C1:** `--update-from` accepts loopback only and requires a digest; `--update-now` runs the button's path
+  headless (exit 3 = no update, 4 = refused).
+- **`UpdateHandoffTest`** (5 cases, now on the windows job too):
+  - only code 0 reopens;
+  - loopback-only, including `127.0.0.1.example.com` refused;
+  - the size, digest and required-digest refusals;
+  - the MSI-install check;
+  - the script's invariants: inputs only inside quotes, no blocks, no install or reopen when not closed, only 0 reopens.
+- **Sabotages,** each shown red, then restored:
+  - the parser taking the first asset: 4 ReleaseParseTest cases;
+  - 3010 read as a clean update: the result mapping;
+  - any host accepted: loopback-only;
+  - the digest ignored: the download refusals;
+  - `%TS_MSI%` unquoted in the script: the quoting invariant.
+
+### The Windows proof — CI's windows job (acceptance 2, your reminder 2, C2 and H1)
+The data root is `…\TS data & (x) 100%`: a space, `&`, `(`, `)` and `%`.
+- **Starting state:** n installed as one entry at 1.0.2899, with InstallLocation
+  `C:\Users\runneradmin\AppData\Local\TroubaStage\` and the data root `D:\a\_temp\TS data & (x) 100%`.
+- **The wrong-SHA-256 pass first:** the app exits **4**. There's no msiexec log and no result, still **one entry at
+  1.0.2899**, and the data is intact.
+- **The good pass, through the app:** the app exits **0** after handing off. In `tmp\app-update` are `update.cmd`
+  (692 B), `msiexec.log` (1.7 MB), `script.log` (empty) and the MSI. The reopened n+1 consumed `result.txt` and wrote
+  `last-update.txt`:
+  - `from=TroubaStage 98a0047 · built 2026-11-02 03:11 UTC`
+  - `to=TroubaStage 98a0047 · built 2026-11-02 03:13 UTC`
+  - `version=1.0.2900`
+  - `result=success`
+  The end state is **one entry at 1.0.2900**, and the data-root marker survived. Since n+1 is packaged later, even the
+  build line Settings shows changed (03:11 → 03:13).
+- Every path in this run, the MSI, the log, the result and `update.cmd`'s folder, is under the folder with a space,
+  `&`, `(`, `)` and `%`. That's H1, proven on Windows.
+
+### Android n → n+1 (your reminder 1)
+- **Setup:** the head `ebf7f2e3` as a **ci** build at versionCode 2800, `BUILT_AT` back-dated to before `latest`, on the
+  emulator (`Trouba_Tablet_1200`).
+- **Steps:** Parameters → Check for updates shows "Latest: 01278c17 · built 2026-11-02 01:56 UTC" with **Update**. So the
+  shared parse took the APK from the real two-asset release. Update gave **Android's installer prompt**, which I
+  confirmed.
+- **Result:** versionCode **2888** (`0.1.0+01278c1`). **`logcat -b crash` was empty** throughout.
+- Screens: `…/scratchpad/w4-evidence/`.
+
+### New strings (H5)
+- The confirmation: "Install the update now?" / "TroubaStage closes, installs it and opens again." / Install · Not now.
+- After the update: "Updated · <build line>". Not run because the app didn't close: "The update did not start:
+  TroubaStage did not close in time. Nothing was changed."
+- Failure: "The update could not be installed (Windows Installer code N). TroubaStage is unchanged." H3: "Updated —
+  restart Windows to finish." H4: "This copy of TroubaStage can't update itself: install it from the MSI on the
+  latest release."
+- Refusals: "The download is incomplete (… of … bytes). Nothing was installed." / "The download does not match the
+  release (SHA-256). Nothing was installed." / "The release gives no SHA-256 for the installer. Nothing was installed."
+  (hook only). Download failure, Android's words: "The update could not be downloaded. Check the connection and try
+  again."
+
+### Docs (acceptance 4)
+- One sentence in the site's "Where packaging stands" and one bullet in USER-JOURNEY's Phase 0, using the shared labels.
+- web-core knows WIN06 builds around them.
+
+### Still for VLL's machines (acceptance 3)
+- What Windows shows during the install: UAC (none expected, it's per-user), SmartScreen (none expected, since our own
+  process writes the MSI, so it has no Mark-of-the-Web), and the msiexec `/passive` progress bar.
+- Whether a console window shows during the handoff (cmd is started from a GUI process with its handles redirected).
+- Screenshots on the Surface or VM at n → n+1, once this is on `latest`.
