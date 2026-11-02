@@ -34,6 +34,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -132,8 +133,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -1318,29 +1321,41 @@ private val STAGE_FAB_OUTLINE_WIDTH = 1.5.dp
  *  hairline outline so it reads on both the black canvas and the white page. */
 @Composable
 private fun StageFab(glyph: String, label: String? = null, size: Dp = 56.dp, container: Color = STAGE_FAB_CONTAINER, onClick: () -> Unit) =
-    StageFab(label, size, container, onClick) { Text(glyph, style = MaterialTheme.typography.headlineSmall) }
+    StageFab(label, size, container, onClick) { GlyphText(glyph, labelled = label != null, style = MaterialTheme.typography.headlineSmall) }
 
-/** [label]: shown on hover where the platform has tooltips (WIN03 D3). */
+/** [label]: shown on hover where the platform has tooltips (WIN03 D3), and the button's accessible name everywhere. */
 @Composable
 private fun StageFab(label: String? = null, size: Dp = 56.dp, container: Color = STAGE_FAB_CONTAINER, onClick: () -> Unit, content: @Composable () -> Unit) =
-    GlyphTooltip(label) {
+    GlyphTooltip(label) { labelled ->
         val shape = FloatingActionButtonDefaults.shape
         FloatingActionButton(
             onClick = onClick,
             containerColor = container,
             contentColor = Color.White,
             shape = shape,
-            modifier = Modifier.size(size).border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, shape),
+            modifier = labelled.size(size).border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, shape),
             content = content,
         )
     }
 
-/** WIN03 D3 — a glyph-only control's [label] as a hover tooltip, where the platform shows them (LocalGlyphTooltip). */
+/**
+ * WIN03 D3 — a glyph-only control's [label]: a hover tooltip where the platform shows them (LocalGlyphTooltip), and —
+ * on every platform — its accessible name: [content] gets a Modifier carrying it, which the control applies to ITS
+ * clickable (a label on a wrapper would name an empty container; the button would still read its glyph). One call for
+ * both, so a glyph control cannot have the tooltip without the name.
+ */
 @Composable
-private fun GlyphTooltip(label: String?, content: @Composable () -> Unit) {
+private fun GlyphTooltip(label: String?, content: @Composable (labelled: Modifier) -> Unit) {
     val tooltip = LocalGlyphTooltip.current
-    if (tooltip == null || label == null) content() else tooltip(label, content)
+    val labelled = if (label == null) Modifier else Modifier.semantics { contentDescription = label }
+    if (tooltip == null || label == null) content(labelled) else tooltip(label) { content(labelled) }
 }
+
+/** A control's glyph: when the control is [labelled], the character itself is not read after the name (a screen
+ *  reader would say "☰" or "Identical to"). Only the text's own semantics are cleared, never the clickable's. */
+@Composable
+private fun GlyphText(glyph: String, labelled: Boolean, style: TextStyle, modifier: Modifier = Modifier, color: Color = Color.Unspecified) =
+    Text(glyph, if (labelled) modifier.clearAndSetSemantics {} else modifier, color = color, style = style)
 
 /** WIN03 D3 — the wheel's two gestures in progress: page turns, and note mode's Ctrl+wheel zoom. */
 private class WheelState {
@@ -2273,8 +2288,8 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    GlyphTooltip("Pencil") { NoteChip("✎", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.PENCIL, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.PENCIL) } }
-                    GlyphTooltip("Eraser") { NoteChip("⌫", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.ERASER, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.ERASER) } }
+                    GlyphTooltip("Pencil") { NoteChip("✎", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.PENCIL, chrome = chrome, labelled = it) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.PENCIL) } }
+                    GlyphTooltip("Eraser") { NoteChip("⌫", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.ERASER, chrome = chrome, labelled = it) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.ERASER) } }
                     NoteBarSeparator(chrome)
                     // three widths: a small, medium, large filled dot
                     listOf(6.dp to com.troubastack.shared.stage.notes.NoteTools.FINE, 11.dp to com.troubastack.shared.stage.notes.NoteTools.MEDIUM, 18.dp to com.troubastack.shared.stage.notes.NoteTools.WIDE).forEach { (dot, w) ->
@@ -2311,8 +2326,8 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
                 // A73 ⟨D1⟩/⟨D2⟩ — a checkmark, still a FILLED Button (the sole exit must not read as a fourth tool), with
                 // an accessible name since the glyph alone has none. U+2714 HEAVY CHECK MARK: a thin ✓ on a filled
                 // container does not read at arm's length on a dark stage.
-                GlyphTooltip("Finish notes") {
-                    Button(onClick = { vm.exitNoteMode() }, modifier = Modifier.semantics { contentDescription = "Finish notes" }) {
+                GlyphTooltip("Finish notes") { labelled ->
+                    Button(onClick = { vm.exitNoteMode() }, modifier = labelled) {
                         Text("✔", style = MaterialTheme.typography.titleLarge)
                     }
                 }
@@ -2382,10 +2397,10 @@ private fun NoteBarLayout(modifier: Modifier, tools: @Composable () -> Unit, cle
 private fun ZoomChip(zoom: Float, onIn: () -> Unit, onOut: () -> Unit, onReset: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        GlyphTooltip("Zoom, " + NoteZoom.label(zoom)) { TextButton(
+        GlyphTooltip("Zoom, " + NoteZoom.label(zoom)) { labelled -> TextButton(
             onClick = { open = true },
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-            modifier = Modifier.widthIn(min = 52.dp).semantics { contentDescription = "Zoom, " + NoteZoom.label(zoom) },
+            modifier = labelled.widthIn(min = 52.dp),
         ) { Text("⌕ " + NoteZoom.label(zoom), style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false) } }
         androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2399,11 +2414,11 @@ private fun ZoomChip(zoom: Float, onIn: () -> Unit, onOut: () -> Unit, onReset: 
 }
 
 @Composable
-private fun ZoomButton(text: String, enabled: Boolean, label: String, onClick: () -> Unit) = GlyphTooltip(label) {
+private fun ZoomButton(text: String, enabled: Boolean, label: String, onClick: () -> Unit) = GlyphTooltip(label) { labelled ->
     TextButton(
         onClick = onClick, enabled = enabled,
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-        modifier = Modifier.widthIn(min = 44.dp).semantics { contentDescription = label },
+        modifier = labelled.widthIn(min = 44.dp),
     ) { Text(text, style = MaterialTheme.typography.titleMedium) }
 }
 
@@ -2492,13 +2507,14 @@ private fun NoteOverview(
 }
 
 @Composable
-private fun NoteChip(label: String, selected: Boolean, chrome: ChromeColors, onClick: () -> Unit) {
+private fun NoteChip(label: String, selected: Boolean, chrome: ChromeColors, labelled: Modifier? = null, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
+        modifier = labelled ?: Modifier,
         color = if (selected) chrome.onSurface.copy(alpha = 0.14f) else Color.Transparent,
         contentColor = chrome.onSurface,
         shape = MaterialTheme.shapes.small,
-    ) { Text(label, Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium) }
+    ) { GlyphText(label, labelled = labelled != null, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) }
 }
 
 /** A70 §5.1 — the persistent "✎ notes" badge on a page that carries a rehearsal note, in every mode. */
@@ -2614,12 +2630,12 @@ private fun StageBeatControl(tempo: Int, meter: String, beat: StageBeat, onStart
             .border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, shape),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        GlyphTooltip("Metronome") { Box(
-            Modifier
+        GlyphTooltip("Metronome") { labelled -> Box(
+            labelled
                 .fillMaxHeight()
                 .width(height)
                 .background(if (beat.running) accent else Color.Transparent)
-                .clickable {
+                .clickable(role = Role.Button) {
                     if (enabled) {
                         beat.toggle(tempo, groups)
                         if (beat.running) onStart()
@@ -2628,16 +2644,18 @@ private fun StageBeatControl(tempo: Int, meter: String, beat: StageBeat, onStart
             contentAlignment = Alignment.Center,
         ) { MetronomeIcon(beatTint(beat), Modifier.size(height * 0.42f)) } }
         Box(Modifier.width(STAGE_FAB_OUTLINE_WIDTH).fillMaxHeight().background(STAGE_FAB_OUTLINE.copy(alpha = 0.55f)))
-        GlyphTooltip("Keep running") { Box(
-            Modifier
+        // An on/off setting (beat.continuous), so a switch with its state: a screen reader says "Keep running, on".
+        GlyphTooltip("Keep running") { labelled -> Box(
+            labelled
                 .fillMaxHeight()
                 .width(height)
                 .background(if (beat.continuous) accent else Color.Transparent)
-                .clickable { beat.continuous = !beat.continuous },
+                .toggleable(value = beat.continuous, role = Role.Switch) { beat.continuous = it },
             contentAlignment = Alignment.Center,
         ) {
-            Text(
+            GlyphText(
                 "∞",
+                labelled = true,
                 color = if (beat.continuous) Color.White else MaterialTheme.colorScheme.outline,
                 style = MaterialTheme.typography.headlineSmall,
             )

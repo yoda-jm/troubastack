@@ -18,6 +18,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onLast
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -34,7 +35,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * WIN03 acceptance 4 — Stage driven with a MOUSE, through the real StageScreen on the desktop. The clock is advanced
+ * WIN03 acceptance 4 — Stage driven with a MOUSE (its buttons found by their accessible names, the tooltip labels:
+ * their glyphs are not in the semantics tree since the accessible-names follow-up), through the real StageScreen on the desktop. The clock is advanced
  * by hand, so the chrome's auto-hide never races a click.
  */
 @OptIn(ExperimentalTestApi::class)
@@ -89,7 +91,7 @@ class StageMouseUiTest {
         // A mouse click focuses the button clicked (measured on ⚙); › opens no overlay, so A50's refocus never runs.
         val vm = vm()
         stage(vm)
-        onNodeWithText("›").performMouseInput { click() }
+        onNodeWithContentDescription("Next page").performMouseInput { click() }
         mainClock.advanceTimeBy(500)
         assertEquals(1, vm.state.value.current, "› turned")
         pageDown()
@@ -106,7 +108,7 @@ class StageMouseUiTest {
     }
 
     private fun ComposeUiTest.chromeShown(): Boolean =
-        onAllNodes(androidx.compose.ui.test.hasText("⚙")).fetchSemanticsNodes().isNotEmpty()
+        onAllNodes(androidx.compose.ui.test.hasContentDescription("Parameters")).fetchSemanticsNodes().isNotEmpty()
 
     private fun ComposeUiTest.clickPage() {
         onAllNodes(isRoot()).onFirst().performMouseInput { click(Offset(width / 2f, height / 2f)) }
@@ -117,7 +119,7 @@ class StageMouseUiTest {
     fun theCloseButton_leavesTheConcert() = runComposeUiTest {
         var exited = false
         stage(vm(), onExit = { exited = true })
-        onNodeWithText("✕").performMouseInput { click() }
+        onNodeWithContentDescription("Leave the concert").performMouseInput { click() }
         mainClock.advanceTimeBy(500)
         assertTrue(exited, "✕ clicked with the mouse calls onExit")
     }
@@ -136,7 +138,7 @@ class StageMouseUiTest {
     fun afterClickingAChromeButton_pageDownStillTurns() = runComposeUiTest {
         val vm = vm()
         stage(vm)
-        onNodeWithText("⚙").performMouseInput { click() }
+        onNodeWithContentDescription("Parameters").performMouseInput { click() }
         mainClock.advanceTimeBy(800)
         onAllNodes(isRoot()).onLast().performKeyInput { pressKey(Key.Escape) } // the sheet (its own root) closes on Esc
         mainClock.advanceTimeBy(800)
