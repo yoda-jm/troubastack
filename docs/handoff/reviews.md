@@ -60932,3 +60932,50 @@ The data is already on the page:
 - notes on another file (not counted).
 
 Add one Playwright case. The sentence is T198's, as specced. No server change.
+
+
+## 2026-11-02 — web-core presents T199 S4 (Studio deskew UI) (branch `web/t199-s4` @ 62b00109)
+
+Stage 4 on the GO'd plan (1247a5b1), with the notes-count folded in per your 17534726 ruling. Client-only (no
+core change). PR #85, CI run **41399073587** (incl. windows).
+
+### What's in S4
+- **Per-page angle control** (`CropOverlay`): a numeric degree field + four step buttons (−0.5 / −0.05 / +0.05 /
+  +0.5) → `setPageAngle` (snaps to 0.05°, clamps ±10°; 0 clears the angle; a page with no box gets a 0,0,1,1
+  straighten-only window). The field keeps local text and commits on blur/Enter so typing isn't snapped mid-key.
+- **The window + grid rotate**: `transform: rotate(angle)` on `.crop-rect` about its centre — CSS +θ = CW on a
+  y-down screen = the bake's R(θ) (your confirmation). Grid + handles are children, so they rotate for free.
+- **Auto angle** buttons — "Auto angle (this page)" (overlay) and "Auto angle (all pages)" (panel) → `runAuto`
+  with `deskew: true` (B1 opt-in). Existing "Auto" / "Auto all pages" stay upright. On a hand-cropped page Auto
+  angle takes the ANGLE only and keeps the user's box + manual source (ruling A); the notice says so.
+- **`setPageCrop` now preserves an existing angle** (it spread only {x,y,w,h} before, wiping it on a box drag).
+- **No-aspect error surfaced as itself**: the live dry-run's catch now keeps the server's message (e.g. "can't
+  check a straightened page"), shown in place of the generic "couldn't check".
+- **Reset angle** (keeps the box) alongside the existing Reset (clears both).
+- **Rehearsal-notes count (Q3)** — pure client `notesNewlyChanged`: counts the caller's RESOLVED notes on the
+  cropped file whose page's draft rect ≠ saved rect (angle included) and that aren't already page-changed; shown
+  in the panel. No server change; each note carries its own bake, we compare draft vs saved.
+- Preview is unchanged: `TabletPreview` already sends the angle to crop-preview (server renders straightened).
+
+### New UI strings (please confirm)
+- Buttons: `Auto angle (this page)`, `Auto angle (all pages)`, step labels `−0.5` `−0.05` `+0.05` `+0.5`,
+  `Reset angle`; field aria-label `Deskew angle, degrees`, unit `°`.
+- Notices: `Auto-straightened N page(s).` · `Set the angle on N you'd cropped.` · `Set the straightening angle
+  on this page — kept your crop box.` · `No clear angle detected on this page — unchanged.`
+- Notes warning (aggregate, since the panel is file-level, not per-page): **`N rehearsal note(s) on pages you
+  changed will show as "page changed" and no longer appear on the tablet.`** — this is my adaptation of T198's
+  per-page sentence to the file-level panel; tell me if you want it worded differently.
+
+### Tests
+- **vitest** (`crop-geometry.test.ts`): `snapAngle` (clamp/snap), `sameRect` (box + angle; 0==absent),
+  `notesNewlyChanged` — your six cases plus `pageChanged:null` and no-notes (8 total). Ran via the esbuild shim
+  (vitest absent locally): 15 pass; a sabotage dropping the angle term from `sameRect` reds the angle cases.
+- **Playwright** (`editor-crop.spec.ts`): a deskew angle rotates the window, shows in the field, persists across
+  save+reload, and Reset angle returns it upright — **passes locally**. The full crop spec re-run is attached in
+  the PR CI.
+- **Notes-warning e2e is not feasible in the studio e2e rig**: that server has NO bake (the rehearsal-notes spec
+  documents it — pageChanged is null there), so a note never RESOLVES to a fileId and the warning can't fire. The
+  logic is the 8 unit cases + the sabotage instead. Flagging in case you want the heavier bake+note rig built.
+- tsc clean; vite production build clean.
+
+Deferred per your Q1: the rotate DRAG handle (follow-up for VLL after the device pass). On GO: land, then S5 (docs).
