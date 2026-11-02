@@ -17,16 +17,12 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.os.Build
 import com.troubastack.shared.buildinfo.LatestRelease
-import com.troubastack.shared.buildinfo.UPDATE_ASSET_NAME
+import com.troubastack.shared.buildinfo.UPDATE_ASSET_APK
+import com.troubastack.shared.buildinfo.parseRelease
 import com.troubastack.shared.buildinfo.UPDATE_RELEASE_URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -49,24 +45,9 @@ object AppUpdater {
             }
             try {
                 if (c.responseCode != 200) return@runCatching null
-                parseRelease(c.inputStream.bufferedReader().use { it.readText() })
+                parseRelease(c.inputStream.bufferedReader().use { it.readText() }, UPDATE_ASSET_APK)
             } finally { c.disconnect() }
         }.getOrNull()
-    }
-
-    /** The release JSON → [LatestRelease]: the tag's target commit (release-apk creates it `--target <sha>`), else the
-     *  body's `Commit:` line; `published_at`; the [UPDATE_ASSET_NAME] asset. */
-    internal fun parseRelease(json: String): LatestRelease? {
-        val o = Json.parseToJsonElement(json).jsonObject
-        val sha = Regex("^[0-9a-f]{40}$")
-        val target = o["target_commitish"]?.jsonPrimitive?.content?.takeIf { sha.matches(it) }
-        val fromBody = o["body"]?.jsonPrimitive?.content?.let { Regex("""Commit:\s*([0-9a-f]{40})""").find(it)?.groupValues?.get(1) }
-        val commit = target ?: fromBody ?: return null
-        val published = o["published_at"]?.jsonPrimitive?.content ?: return null
-        val asset = o["assets"]?.jsonArray?.map { it.jsonObject }?.firstOrNull { it["name"]?.jsonPrimitive?.content == UPDATE_ASSET_NAME } ?: return null
-        val url = asset["browser_download_url"]?.jsonPrimitive?.content ?: return null
-        val size = asset["size"]?.jsonPrimitive?.longOrNull ?: return null
-        return LatestRelease(commit, published, url, size)
     }
 
     /** True on a metered connection (mobile data): the ~15 MB download is confirmed first (§2). */
@@ -85,8 +66,8 @@ object AppUpdater {
     /** Download [release]'s APK to the app cache, reporting progress 0..1. Cancellable. */
     suspend fun download(context: Context, release: LatestRelease, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
         val dir = File(context.cacheDir, "app-update").apply { deleteRecursively(); mkdirs() }
-        val out = File(dir, UPDATE_ASSET_NAME)
-        val c = (URL(release.apkUrl).openConnection() as HttpURLConnection).apply {
+        val out = File(dir, UPDATE_ASSET_APK)
+        val c = (URL(release.assetUrl).openConnection() as HttpURLConnection).apply {
             connectTimeout = TIMEOUT_MS; readTimeout = 30_000; instanceFollowRedirects = true
             setRequestProperty("User-Agent", "TroubaStage")
         }
@@ -101,7 +82,7 @@ object AppUpdater {
                         val n = input.read(buf)
                         if (n < 0) break
                         output.write(buf, 0, n); done += n
-                        onProgress((done.toFloat() / release.apkSize).coerceIn(0f, 1f))
+                        onProgress((done.toFloat() / release.assetSize).coerceIn(0f, 1f))
                     }
                 }
             }
@@ -111,7 +92,7 @@ object AppUpdater {
 
     /** §2 step 2 — refuse anything that is not this app, signed by this app's key, at the advertised size. */
     fun verify(context: Context, apk: File, release: LatestRelease) {
-        if (apk.length() != release.apkSize) throw UpdateRefused("The download is incomplete (${apk.length()} of ${release.apkSize} bytes). Try again.")
+        if (apk.length() != release.assetSize) throw UpdateRefused("The download is incomplete (${apk.length()} of ${release.assetSize} bytes). Try again.")
         val pm = context.packageManager
         val archive = archiveInfo(pm, apk) ?: throw UpdateRefused("The downloaded file is not an app TroubaStage can install.")
         if (archive.packageName != context.packageName) throw UpdateRefused("The downloaded app is not TroubaStage (${archive.packageName}).")
