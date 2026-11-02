@@ -61095,3 +61095,150 @@ This keeps VLL's confirmed sentence and only changes the quoted label to the one
 With it, T199 is complete: S1–S5, live on :8080 (18278745).
 
 GO. Land with `Approved-by: Fable (GO <this commit>)`.
+
+## 2026-11-02 — mobile presents: DESK01 (Linux AppImage + macOS universal app), GO b67486a3 — reviewer: Fable
+
+Branch `mobile/desk01-linux-macos` @ 7c7621f7, PR #84. **PR CI:** run **`41405418816`**: **success on every job**: `desktop (windows)`, `desktop (linux)`,
+`desktop (macos)`, android (iOS klibs included), web, e2e, go, proto and image. release-apk is skipped on a PR.
+- Getting there took four macOS iterations, all script-side:
+  - the checker meeting `app/resources/`;
+  - the merge rule's two real finds (below);
+  - the step dying silently on the runner's `bash -e` when a Rosetta launch had not yet mapped its `libjvm`;
+  - the drew-marker (sabotage, below).
+- One earlier run had a Studio e2e red (`rehearsal-note-goto.spec.ts:62`, twice, 13 s timeouts) on a diff whose only
+  `web/` change is the site paragraph. `main` was green on the same suite, and this run's e2e is green: a flake.
+
+### Rulings, as built
+
+1. **Layout B.** `packaging/macos/make-universal.sh` follows your four stub checks:
+   - `universal-launcher.c` resolves its sibling from `_NSGetExecutablePath` + `realpath`, never `argv[0]`, the cwd or
+     PATH;
+   - it calls `execv` directly, with no shell, passing argv through (argv[0] becomes the target's path);
+   - a missing sibling gets `perror` and exit 71; an unresolvable own path gets exit 70;
+   - it is compiled `-arch arm64 -arch x86_64 -Wall -Werror`.
+
+   **Signing is inside-out:** every Mach-O in `app/` and in both runtimes, then each runtime bundle, the two
+   launchers and the `.app`. `--deep` is used only in `codesign --verify --deep --strict`.
+
+   **The merge rule** is `check-app-trees.py`, run first; any unexplained difference fails the build.
+   - Jars are paired by exact name, else by name-without-hash when unambiguous: two different
+     `runtime-desktop-1.9.0-*.jar` exist. They are then compared entry by entry (name, CRC, size).
+   - The cfg must match apart from the jars' hashes.
+   - Every other file must be byte-equal.
+   - The named exceptions: re-signed native entries (JNA's jnilibs), and the Skiko library each build moves out of its
+     own runtime jar into `app/`.
+
+   **It earned its keep on its first full run.** It refused two real differences:
+   - **`BuildInfo`:** each build stamped its own minute, so the two slices would have claimed different builds to the
+     update check. Fixed: `:shared:generateBuildInfo -PbuiltAt=<ISO minute>` (validated; default now), and the macOS
+     job stamps one minute for both builds. Checked locally: the right value is written, and a malformed one is
+     refused.
+   - **The Skiko runtime jars:** now inside the named exception.
+2. **Linux update is the link.**
+3. **The words:** "Update" (shared, unchanged), plus `OPENS_DOWNLOAD_LINE` = "Opens the download in your browser",
+   under it in Parameters, for Linux and macOS. These are the strings for VLL's page.
+4. **The window icon** is set on every OS from `icons/troubastage.png`, the same mark as the `.ico` (and the new
+   `.icns`). Pinned by a test: on the classpath, 512 px. For the LANDED note: on Windows, the title bar loses Java's cup.
+5. **The rename:** `desktop (windows)` and `desktop (linux)` form the matrix, and `desktop (macos)` is its own job.
+   **Binding met:** `release-apk` needs `[android, desktop]`, so the macOS job isn't in it. The job's comment says it
+   joins in the same change that publishes the DMG.
+
+### What CI shows (`41405418816`)
+
+- **desktop (windows):** WIN02–WIN04's steps unchanged, all green, including the three update passes.
+- **desktop (linux)**, on ubuntu-22.04:
+  - `:shared:desktopTest :desktopApp:test` pass;
+  - appimagetool 1.9.1 and type2-runtime 20251108 sha256-verified;
+  - **the AppImage itself** (71.5 MB) runs **through FUSE**, not extract-and-run, and Stage draws the demo
+    concert under Xvfb (software rendering);
+  - with no override, the data root is `/home/runner/.local/share/troubastage`.
+- **desktop (macos)**, on macOS 26.6.2 (Apple silicon):
+  - the two builds;
+  - the merge rule: `app/ trees compared: 72 paired, 0 unexplained difference(s)`;
+  - arch asserts: the stub is `x86_64 arm64`; `TroubaStage-arm64`, `runtime-arm64/…/libjvm.dylib` and `libskiko-macos-arm64` are arm64; `TroubaStage-x86_64`, `runtime-x86_64/…/libjvm.dylib` and `libskiko-macos-x64` are x86_64;
+  - `Signature=adhoc`, and the deep verify passes;
+  - **three smokes, each drawing on its own runtime:** native exit 0 on `runtime-arm64` (Metal), `arch -x86_64` exit 0 on `runtime-x86_64` (Metal), and LaunchServices (`open -W -n`) exit 0 on `runtime-arm64`, each with both PNGs;
+  - with no override, the data root is `~/Library/Application Support/TroubaStage`;
+  - the DMG (`hdiutil verify` OK): 133 MB, uploaded as an artifact, not published.
+- **android** (iOS klibs included), **web**, **e2e**, **go**, **proto** and **image**: all green.
+
+### Per-OS code (desktopApp, through `HostOs`, one place)
+
+- **Data root:** `resolveDataRoot(home, os: HostOs, …)` has a macOS branch, `~/Library/Application
+  Support/TroubaStage`.
+- **Keys:** `windowAction(os, key, ctrl, alt, meta, inConcert)` is pure and unit-tested per OS. On macOS:
+  - Ctrl+Cmd+F is full screen;
+  - Cmd+[ and Cmd+Left are Back outside a concert;
+  - Esc;
+  - F11 is not bound.
+  Reserved keys on macOS: `MACOS_RESERVED_KEYS = {Esc}` (shared).
+- **Cmd+wheel** zooms in note mode. This is app/shared: `LocalCommandModifier`, default **CTRL**, so Android and
+  Windows are unchanged and the desktop provides META on macOS. Stage reads it instead of `isCtrlPressed`.
+- **Cmd+Q, and the app menu's and Dock's Quit:** `Desktop.setQuitHandler` → `cancelQuit()` + the window's own
+  `requestClose`, so a concert asks **"Close TroubaStage?"**, as the window close does.
+- **Display hold:**
+  - Linux: D-Bus Inhibit, as presented.
+  - macOS: `caffeinate -d -w <pid>`, tested with a fake process: one per hold, tied to the app's pid, ended on
+    release, never throws.
+- **T147 chronometer:**
+  - Linux: `CLOCK_BOOTTIME`.
+  - macOS: `clock_gettime_nsec_np(CLOCK_MONOTONIC)`, which counts sleep.
+  - Chosen once per run.
+- **Update:** `updateAssetFor(os)` (MSI / AppImage / DMG) and the link mode.
+  - Update opens the https asset in the browser (AWT Desktop, else `xdg-open` / `open`). Plain http is refused, using
+    WIN04's `checkAssetUrl`.
+  - **A release without this OS's asset is no update, not "Couldn't check"**: the desktop check used to read a missing
+    asset as a failure, which macOS would have shown until its DMG is published.
+  - Tested end to end against a loopback release.
+
+### Sabotages, each red on its own test
+
+- **Local:**
+  - S1, the macOS data root in the Linux branch → `resolveDataRoot_macOsUsesApplicationSupport…`;
+  - S2, F11 as macOS full screen → `macOsUsesItsOwnKeys`;
+  - S3, Linux reading the MSI → `eachOsUpdatesFromItsOwnAsset`;
+  - S4, the link mode without `checkAssetUrl` → `theLinkMode_…RefusesPlainHttp` ("plain http is never opened");
+  - S5, `caffeinate` not tied to the pid → `macOsHoldsTheDisplay…`.
+  - Earlier: the D-Bus release and fallback tests.
+  - All restored; the tree is clean.
+- **On CI, a throwing window draw:** throwaway PR #86, with the smoke window's `drawWithContent` throwing.
+  - **Round 1 (run `41404181481`):** all three legs red at their launch smoke:
+    - Windows: "smoke exited with 1";
+    - Linux: `IllegalStateException: SABOTAGE…`;
+    - macOS: native and Rosetta "exited 1".
+  - **But round 1 found a hole: the LaunchServices launch passed.** `open -W` exits 0 whatever the app does, and the
+    smoke renders its PNGs off-screen *before* it checks the window, so the PNGs prove nothing about the window.
+  - Fixed in `7c7621f7`: the smoke writes `<prefix>-ok.txt` only at its B5 success point, after the real window drew,
+    and the macOS job requires that marker for each launch.
+  - **Round 2 (the same sabotage on `7c7621f7`, run `41405420626`):** **red on all three legs**, each at its launch smoke, and on macOS **all three launches**:
+    - native: "exited 1" and "the real window never drew (no smoke-native-ok.txt)";
+    - Rosetta: the same two;
+    - LaunchServices: "the real window never drew (no smoke-open-ok.txt)".
+    PR #86 is closed and its branch deleted..
+- **The merge rule:** on synthetic trees locally (an identical app passes; an extra file, a changed class and a nested
+  changed resource each fail with their line), and for real on CI, where it refused the two differences above.
+
+### Docs (D5)
+
+- **Linux:** the site's packaging paragraph and USER-JOURNEY.
+  - "an AppImage for 64-bit PCs with glibc 2.35 or newer (most distributions from 2022 on): make it executable and
+    run it, nothing to install";
+  - Update opens the new download in the browser;
+  - USER-JOURNEY also names the data folder.
+- **Labels** grepped from the shared UI strings: `Text("Update")` and `Text("Check for updates")`
+  (SettingsScreen.kt:186-187).
+- **macOS:** USER-JOURNEY says it is built by CI and joins the release once tested on a Mac. The site gets its line
+  when the DMG is published.
+
+### Open, for VLL's machines
+
+- **Linux:** the AppImage on his machine (acceptance 3): an install-free launch, Stage with the demo concert, notes,
+  and full screen.
+- **macOS:** the DMG from this run's artifact, on his Mac (he'll say which chip). He checks:
+  - first launch: System Settings › Privacy & Security › Open Anyway;
+  - Stage;
+  - Cmd+Q mid-concert;
+  - Ctrl+Cmd+F;
+  - the trackpad, with `wheel-log.csv`, including the "second quick swipe during the first's inertia".
+
+  Publishing the DMG is a gated change after that.
