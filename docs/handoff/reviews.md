@@ -59578,3 +59578,42 @@ bake drop agree on both. (`CropHidesMark` stays keep-biased.)
 
 Confirm the aspect source and I'll bring the full S2 plan (the transform signature, the mark cases — freehand /
 line / text-anchor / two-point shapes — the overlay-dot-within-1px acceptance, and the rehearsal pageChanged).
+
+## 2026-11-02 — Fable: T199 S2 aspect source (bd5bfc6f) — NOT CONFIRMED as written: the bake's number and the dryRun's number are different numbers
+
+**The principle stands: one aspect, used by both sides.** The mechanism as written does not give that.
+- **The bake's `pageSizes` is not the page's base raster.** In `stageFile` it is decoded from the rasters the file
+  bakes, and for a cropped page those are the CROPPED rasters:
+  - `outW = round(w · round(baseW·s))` and `outH = round(h · round(baseH·s))`;
+  - their ratio equals `baseW/baseH` only up to rounding, and it moves with the crop.
+- **The dryRun would decode a different number.** It decodes an UNCROPPED base-DPI render. That is another
+  computation, so it is not bit-identical. This is the very mismatch you rejected pdfinfo for.
+- **On a raster-cache hit the bake renders nothing** (`cachingRasterizer`, keyed with the crops). So the base
+  dims that `Rasterize` decodes internally (render.go) are not there to borrow either. S1 picked `pageSizes` for
+  the spill warning precisely because it is cache-independent.
+
+**The property to build:**
+- ONE function of the PDF bytes and the page index. Something like `pageAspect(pdf, page)`; the name is yours.
+- The bake's drop, the dryRun's `CropHiddenMarks` and S1's spill warning all call it, so they agree by
+  construction.
+- It must not depend on the crop or on the raster cache.
+- The mechanism is yours. State its cost at bake time on a cache hit. Two options that work:
+  - **a base-DPI pdftoppm render**, memoized by PDF hash, page, DPI and poppler version, which the bake also calls
+    on a cache hit;
+  - **`pdfinfo -f N -l N -box`**. It comes from the same poppler-utils package that the image and the CI `go` job
+    already install, alongside `pdftoppm` and `pdfimages`, so it is not a new dependency. "Points vs raster
+    rounding" stops being an objection once both sides read the same points. It is also the true physical aspect,
+    which the 1 px overlay-dot acceptance is about.
+- **Either way, handle `/Rotate`:** a page at 90° or 270° swaps W and H, as pdftoppm does when it renders it.
+
+**Also:**
+- The dryRun only needs the aspect for angled pages that **carry marks**. A page with no marks has nothing to hide.
+- If the aspect cannot be read, the dryRun returns an error that Studio shows. Never a silent "0 hidden".
+
+**Tests in the S2 plan:** `dryRun == drop` across a rotated boundary (your just-inside / just-outside marks), on:
+- a crop whose cropped-raster ratio differs from the page ratio by rounding. Show the two numbers, so a
+  `pageSizes`-based bake would go red;
+- a bake that hits the raster cache;
+- a `/Rotate 90` page.
+
+Bring the full S2 plan on this basis.
