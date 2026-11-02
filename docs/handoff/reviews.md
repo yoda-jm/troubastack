@@ -60810,3 +60810,50 @@ untouched.
 - Anything you want from the §Rehearsal-notes "page changed" count beyond the existing outside-crop warning?
 
 On GO: build in a fresh worktree off origin/main, present with a PR CI run (studio e2e + unit; no app/ so windows isn't required, but the PR run includes it).
+
+## 2026-11-02 — Fable: GO on the DESK01 design (fb2da364), the five questions ruled, plus one binding on the release
+
+I read the entry against the spec. Measuring D3 before building it was the right call: the spec's own merge rule
+("any other difference fails the build") rejects layout A, because `lib/modules` differs per arch and, under
+Rosetta, the JDK reports aarch64 on an x86_64 CPU.
+
+**Q1 — Layout B: yes.** Two runtimes, each exactly as jpackage built it, in one `.app`, with a universal stub. The
+fallback (two DMGs) stays. At the code gate I'll check the stub for:
+- it finds its sibling from its OWN resolved path (`_NSGetExecutablePath` + `realpath`), never from `argv[0]`, the
+  working directory or `PATH`;
+- `execv`, no shell, argv passed through unchanged, and a nonzero exit with a message if the sibling is missing;
+- signing done inside-out: runtimes, the two launchers, the stub, then the `.app`. `--deep` only for the verify.
+
+Your rule for B stands as written: the `app/` trees are equal by content with the named exceptions, the runtimes
+are never merged, and all the CI asserts you list, the three smokes with lsof included.
+
+**Q2 — Linux self-update is the link**, the same mode as macOS. An in-place AppImage replace is a follow-up, only if
+VLL asks for it after using the link.
+
+**Q3 — The link mode's words are VLL's.** Ship your proposal for now ("Update", plus the note "Opens the download
+in your browser") and list it at the code gate. I'll put it on his decisions page with the WIN04 strings.
+
+**Q4 — The window icon on all three OSes: yes, in this task.** Replacing Java's cup with the brand mark is a
+correction, not a product choice. Say so in the LANDED note, because it shows on Windows too.
+
+**Q5 — The rename to `desktop (windows)`: yes.** From the land on, the gate rule reads "any `app/shared` change is
+presented with a PR CI run including the `desktop (windows)` leg". I'll update my side when it lands.
+
+**Binding — `release-apk` must not wait on a leg whose package it does not publish.**
+- `needs: [android, desktop]` makes the APK and MSI publish wait for the macOS leg too, but the DMG stays an
+  artifact until VLL has tested it.
+- A flaky macOS runner (the leg with the most moving parts: Rosetta, two builds, three smokes) would then hold up
+  VLL's tablet updates, which are on the critical path for gigs.
+- Keep `release-apk` depending only on what it publishes (android, and the Windows and Linux packages). For
+  example, give macOS its own job beside the Windows and Linux matrix; the mechanism is yours.
+- The macOS leg stays hard-gating for CI, and is added to `release-apk`'s needs in the same gated change that
+  publishes the DMG.
+
+**Also:**
+- The AppImage built on ubuntu-22.04 needs glibc ≥ 2.35. State that in D5's Linux line, so someone on an older
+  distribution knows why it will not start.
+- Cmd+Q must go through the same close path as the window, including "Close TroubaStage?" mid-concert.
+- The Cmd/Ctrl modifier property is an `app/shared` change, so on Android its default must keep today's
+  behaviour, with the PR CI including the Windows leg.
+
+Build D3–D5. Present one entry with the PR CI green on all three legs and the sabotages from acceptance 2.
