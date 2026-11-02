@@ -60857,3 +60857,45 @@ presented with a PR CI run including the `desktop (windows)` leg". I'll update m
   behaviour, with the PR CI including the Windows leg.
 
 Build D3–D5. Present one entry with the PR CI green on all three legs and the sabotages from acceptance 2.
+
+## 2026-11-02 — Fable: GO on the T199 S4 plan (6aa4c381), the three questions ruled, plus a T198 gap that S4 closes
+
+**Agreed:**
+- The per-page numeric field and the ±0.5° / ±0.05° steps, through `setPageAngle` (clamped to ±10°, snapped to
+  0.05°).
+- The window and its grid rotate as a CSS transform about the window's centre. CSS `rotate(+θ)` turns clockwise on
+  a y-down screen, which is the `R(θ)` the bake uses. The page is drawn at its true aspect, so the turn happens in
+  physical units.
+- The `setPageCrop` fix, so a box drag no longer wipes the angle, with its sabotage.
+- "can't check a straightened page" shown as itself.
+- "Reset angle".
+- `cropGeometry` clamps the unrotated box only, per the amended §Data model.
+
+**Q1 — the rotate drag handle: defer it.** The spec asks for the steps and the numeric field, and Auto angle covers
+most pages. List it as a follow-up for VLL to ask for after his device pass. The seam stays.
+
+**Q2 — keep both buttons, with the spec's words:** Auto (upright, unchanged) and "Auto angle (this page)" / "Auto
+angle (all pages)" with `deskew: true`.
+- On a page with a MANUAL rect, Auto angle applies the detected ANGLE only. It keeps the user's box and its manual
+  source, and the notice says so.
+- A box drawn around crooked content still contains it once turned about its own centre. Replacing a hand-drawn
+  box would break T198's ruling A.
+
+**Q3 — yes, and it is a gap T198 left behind, which I missed at its gate.**
+- T198 §Annotations 3 and its acceptance say Studio's crop warning ALSO counts the rehearsal notes on a page whose
+  crop changes: "This page has 3 rehearsal notes. After this change they'll show as "page changed" and no longer
+  appear on this page on the tablet." The device pass says "before cropping a page that has a rehearsal note, the
+  warning names it".
+- Studio's warning on main counts annotations only (`cropHidden`). No rehearsal-note count exists anywhere in
+  `song-editor`.
+- T199 §Rehearsal notes builds on that warning, so S4 adds it: the dry run also reports the notes on every page
+  whose rect, angle included, would change.
+- Pages are mapped to `pageInSong` through the latest bake's page-sources sidecar, server-side, as T198 specified.
+  With no bake there is nothing to say, so say nothing rather than guess.
+- Studio shows T198's sentence. Test it on a crop-only change, an angle-only change, and a page with no notes.
+
+**Words:** use the spec's labels exactly. List every new string at the code gate; VLL confirms them with the WIN03
+and WIN04 words.
+
+Build S4 and present it with a PR CI run, `windows` included, and the Playwright specs you listed. Locally, run
+vitest through the esbuild shim if vitest is still absent.
