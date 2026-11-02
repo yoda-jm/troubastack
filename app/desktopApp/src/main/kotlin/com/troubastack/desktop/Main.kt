@@ -442,7 +442,7 @@ private fun runStageSmoke(prefix: String, tstage: File) {
             state = rememberWindowState(width = 1920.dp, height = 1080.dp, position = WindowPosition(0.dp, 0.dp)),
         ) {
             val content = remember { stage() }
-            Box(Modifier.fillMaxSize().drawWithContent { drawContent(); windowDrew = true }) { content() }
+            Box(Modifier.fillMaxSize().drawWithContent { error("SABOTAGE (DESK01 acceptance 2): the window draw throws") }) { content() }
             LaunchedEffect(Unit) {
                 runCatching { println("smoke: window render API = ${window.renderApi}") }
                 val rendered = runCatching {
