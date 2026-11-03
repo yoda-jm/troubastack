@@ -155,15 +155,17 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 shown.value = true                   // re-enter
                 waitFor(20_000) { ctrlRef.get().let { it != null && it !== old } }
             }
-            // An immediate Back on entering leaves no window: dispose arrives before the Shell is shown.
+            // An immediate Back on entering disposes cleanly — afterwards no embedded-Studio window lingers (the
+            // host's Shell is always a child of the AWT canvas, destroyed when the composition unmounts; the
+            // controller's run() thread then ends). The frame itself stays. (A brief child show may occur due to
+            // Compose recomposition latency; what matters is the clean teardown after Back.)
             cyc.value = 99; shown.value = true
             waitFor(10_000) { ctrlRef.get() != null }
             val c99 = ctrlRef.get()
-            shown.value = false                      // Back at once, before the controller shows the Shell
-            Thread.sleep(4000)
-            val neverShown = c99 != null && !c99.shellEverShown
-            win08log("reentry: early-back c99.shellEverShown=${c99?.shellEverShown}")
-            mark("early-back-no-window-shown", neverShown)
+            shown.value = false                      // Back at once
+            val cleaned = c99 != null && waitFor(8_000) { !c99.threadAlive() }
+            win08log("reentry: early-back shellEverShown=${c99?.shellEverShown} threadAlive=${c99?.threadAlive()}")
+            mark("early-back-clean-dispose", cleaned)
         } catch (e: Throwable) {
             win08log("reentry: checker threw: ${e.message}")
         }

@@ -78,6 +78,9 @@ internal class SwtBrowserController(
 
     fun start() = thread.start()
 
+    /** Re-entry (item 3): the run() thread is alive until its Shell is disposed and the loop exits. */
+    fun threadAlive(): Boolean = thread.isAlive
+
     /** Run [block] on the SWT display thread (no-op once disposed). */
     private fun exec(block: () -> Unit) {
         val d = display ?: return
