@@ -114,18 +114,26 @@ object AppUpdater {
         out
     }
 
-    /** §2 step 2 — refuse anything that is not this app, signed by this app's key, at the advertised size. */
-    fun verify(context: Context, apk: File, release: LatestRelease) {
+    /** §2 step 2 — refuse anything that is not this app, signed by this app's key, at the advertised size. Returns the
+     *  verified package's versionCode (A96: the build the reopening notification will expect). */
+    fun verify(context: Context, apk: File, release: LatestRelease): Long {
         if (apk.length() != release.assetSize) throw UpdateRefused("The download is incomplete (${apk.length()} of ${release.assetSize} bytes). Try again.")
         val pm = context.packageManager
         val archive = archiveInfo(pm, apk) ?: throw UpdateRefused("The downloaded file is not an app TroubaStage can install.")
         if (archive.packageName != context.packageName) throw UpdateRefused("The downloaded app is not TroubaStage (${archive.packageName}).")
         val installed = installedInfo(pm, context.packageName)
         signerRefusal(signerVerdict(certDigests(installed), archiveDigests(pm, apk, archive)))?.let { throw UpdateRefused(it) }
+        @Suppress("DEPRECATION")
+        return if (Build.VERSION.SDK_INT >= 28) archive.longVersionCode else archive.versionCode.toLong()
     }
 
-    /** §2 step 3 — hand the verified APK to PackageInstaller. Android then shows its own confirmation. */
-    fun install(context: Context, apk: File) {
+    /**
+     * §2 step 3 — hand the verified APK to PackageInstaller. Android then shows its own confirmation. A96: off the main
+     * thread (a 15 MB copy), and a Cancel that arrives while the package is written drops the session before commit.
+     * [onCommitted] runs the moment commit returns: from then on Android owns the update, even if this call is cancelled
+     * before it returns.
+     */
+    suspend fun install(context: Context, apk: File, onCommitted: () -> Unit) = withContext(Dispatchers.IO) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)
@@ -133,11 +141,23 @@ object AppUpdater {
         }
         val id = installer.createSession(params)
         installer.openSession(id).use { session ->
-            session.openWrite("troubastage.apk", 0, apk.length()).use { out -> apk.inputStream().use { it.copyTo(out) }; session.fsync(out) }
-            val intent = Intent(context, UpdateInstallReceiver::class.java)
-            val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
-            session.commit(PendingIntent.getBroadcast(context, id, intent, flags).intentSender)
+            try {
+                session.openWrite("troubastage.apk", 0, apk.length()).use { out -> apk.inputStream().use { it.copyTo(out) }; session.fsync(out) }
+                coroutineContext.ensureActive()
+                val intent = Intent(context, UpdateInstallReceiver::class.java)
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+                session.commit(PendingIntent.getBroadcast(context, id, intent, flags).intentSender)
+                onCommitted()
+            } catch (e: Throwable) {
+                session.abandon()
+                throw e
+            }
         }
+    }
+
+    /** A96 — the downloaded package is dropped when the update stops before Android has it (cancelled, refused). */
+    fun dropDownload(context: Context) {
+        File(context.cacheDir, "app-update").deleteRecursively()
     }
 
     /** Whether Android lets TroubaStage install apps; if not, the person is sent to "Install unknown apps" once. */
@@ -181,14 +201,32 @@ object AppUpdater {
         sigs.orEmpty().map { s -> MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) } }.toSet()
 }
 
-/** PackageInstaller's status callback. When Android needs the person's confirmation, show its prompt; other statuses
- *  (success restarts the app; failure/abort) need nothing here — the app reopens on Home after an update. */
+/**
+ * PackageInstaller's status callback. When Android needs the person's confirmation, show its prompt. A96: a failure or
+ * a cancel in Android's dialog puts the status back to Update with "The update was not installed. Nothing was
+ * changed." Success needs nothing here: Android ends the app to replace it, and does not reopen it (a relaunch from a
+ * receiver is blocked, measured at API 29 and 34); [AppUpdatedReceiver] posts the notification that does.
+ */
 class UpdateInstallReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE) == PackageInstaller.STATUS_PENDING_USER_ACTION) {
-            @Suppress("DEPRECATION")
-            val confirm = (if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java) else intent.getParcelableExtra(Intent.EXTRA_INTENT)) ?: return
-            context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        when (sessionOutcome(intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE))) {
+            SessionOutcome.CONFIRM -> {
+                @Suppress("DEPRECATION")
+                val confirm = (if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java) else intent.getParcelableExtra(Intent.EXTRA_INTENT)) ?: return
+                context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+            SessionOutcome.NOT_INSTALLED -> UpdateSessionEvents.notInstalled(context)
+            SessionOutcome.INSTALLED -> {}
         }
     }
+}
+
+/** A96 — what a PackageInstaller status means for the update: Android asks (pending), installed, or not installed
+ *  (every STATUS_FAILURE*, STATUS_FAILURE_ABORTED included: the person cancelled in Android's dialog). */
+enum class SessionOutcome { CONFIRM, INSTALLED, NOT_INSTALLED }
+
+internal fun sessionOutcome(status: Int): SessionOutcome = when (status) {
+    PackageInstaller.STATUS_PENDING_USER_ACTION -> SessionOutcome.CONFIRM
+    PackageInstaller.STATUS_SUCCESS -> SessionOutcome.INSTALLED
+    else -> SessionOutcome.NOT_INSTALLED
 }

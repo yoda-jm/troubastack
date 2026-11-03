@@ -1,9 +1,12 @@
 package com.troubastack.app
 
+import android.Manifest
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -81,9 +84,12 @@ class MainActivity : ComponentActivity() {
 private fun inviteLinkFrom(intent: Intent?): String? =
     intent?.takeIf { it.action == Intent.ACTION_VIEW }?.data?.toString()
 
-/** A88 — the update flow's two questions (mobile data; "Install unknown apps") and its one-line outcome messages. */
+/** A88 — the update flow's questions (mobile data; "Install unknown apps"; A96: the reopening notification) and its
+ *  one-line outcome messages. */
 @Composable
 internal fun AppUpdateDialogs(c: AppUpdateController) {
+    // A96: Android's own notification prompt, after our one line; whatever the answer, the update goes ahead.
+    val notifyPrompt = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { c.notifyAnswered(promptShown = true) }
     when (c.ask) {
         AppUpdateController.Ask.METERED -> AlertDialog(
             onDismissRequest = { c.answer(false) },
@@ -98,6 +104,12 @@ internal fun AppUpdateDialogs(c: AppUpdateController) {
             text = { Text("Android asks once: turn on \u201cAllow from this source\u201d for TroubaStage, then come back and tap Update again.") },
             confirmButton = { TextButton(onClick = { c.answer(true) }) { Text("Open settings") } },
             dismissButton = { TextButton(onClick = { c.answer(false) }) { Text("Not now") } },
+        )
+        AppUpdateController.Ask.NOTIFY -> AlertDialog(
+            onDismissRequest = { c.notifyAnswered(promptShown = false) }, // Android's prompt never ran: not a refusal
+            title = { Text("App update") },
+            text = { Text("Allow a notification so you can reopen TroubaStage when the update is done.") },
+            confirmButton = { TextButton(onClick = { notifyPrompt.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text("Continue") } },
         )
         null -> {}
     }

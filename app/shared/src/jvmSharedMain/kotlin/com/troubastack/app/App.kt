@@ -239,6 +239,8 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
                 is com.troubastack.shared.buildinfo.UpdateVerdict.Available, is com.troubastack.shared.buildinfo.UpdateVerdict.Dismissed -> ({ appUpdate?.update() })
                 else -> null
             },
+            updatePhase = appUpdate?.phase, // A96 — the same status as Home's banner
+            onCancelUpdate = { appUpdate?.cancel() },
             autoChecks = appUpdate?.autoChecks ?: false,
             onAutoChecks = { appUpdate?.chooseAutoChecks(it) },
             // WIN04 (H4): a copy that cannot install says so instead of Update; DESK01: else what Update does, if not an install.
@@ -364,7 +366,7 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
             editedLine = com.troubastack.shared.distribution.editedHomeLine(editedCount), // A92
             onEdited = { showEdited = true },
             appUpdateText = appUpdate?.bannerText, // A88
-            appUpdateProgress = appUpdate?.progress,
+            appUpdatePhase = appUpdate?.phase, // A96
             onAppUpdate = { appUpdate?.update() },
             onAppUpdateNotNow = { appUpdate?.notNow() },
             onAppUpdateCancel = { appUpdate?.cancel() },

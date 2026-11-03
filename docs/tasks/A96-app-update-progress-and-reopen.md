@@ -107,3 +107,10 @@ by comparing the stored last-run build with the running one, so an `adb install 
 - **CI:** the usual set, green, `desktop (windows)` included, since `app/shared` changes.
 - **VLL's tablet** (his pass, after landing): update from About, see each phase, and the app comes back (or one
   tap on the notification opens it). The lane never touches the tablet.
+
+## As built (GO 3e51e9c1)
+
+- **The notification starts with the update after A96.** The update *into* A96 comes from a build that stores no
+  marker, so it posts nothing. Its first run still says "Updated · …", because Android's install and update times
+  differ.
+- VLL's check therefore needs two updates. The first brings A96. The second shows every phase and the notification.

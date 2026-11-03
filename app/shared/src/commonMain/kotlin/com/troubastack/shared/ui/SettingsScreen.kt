@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.troubastack.shared.buildinfo.ServerVersion
+import com.troubastack.shared.buildinfo.UpdatePhase
 import com.troubastack.shared.buildinfo.appBuildLine
 import com.troubastack.shared.buildinfo.serverVersionLine
 import com.troubastack.shared.stage.FitMode
@@ -93,6 +94,9 @@ fun SettingsScreen(
     checkingForUpdates: Boolean = false,
     onCheckForUpdates: (() -> Unit)? = null,
     onUpdateApp: (() -> Unit)? = null,
+    // A96 — an update in progress: its phase replaces the latest-release row (the same status Home's banner shows).
+    updatePhase: UpdatePhase? = null,
+    onCancelUpdate: () -> Unit = {},
     autoChecks: Boolean = false,
     onAutoChecks: (Boolean) -> Unit = {},
     // WIN04 (H4) — a plain line under the latest-release row when this copy cannot install updates (null: none).
@@ -178,7 +182,9 @@ fun SettingsScreen(
                     TextButton(onClick = { clipboard.setText(AnnotatedString(lines.joinToString("\n"))) }) { Text("Copy") }
                 }
                 if (onCheckForUpdates != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (updatePhase != null) {
+                        AppUpdateStatus(updatePhase, onCancelUpdate, MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
                             if (checkingForUpdates) "Checking…" else latestLine.ifEmpty { "App updates come from the GitHub latest release" },
                             Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
