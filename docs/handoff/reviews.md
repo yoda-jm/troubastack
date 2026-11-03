@@ -62880,3 +62880,15 @@ API 34.
 - **Positive control:** a different-key APK is still refused, at API 29 and at API 34.
 
 A96 goes on in parallel. Its API 29 step runs on top of A97 once A97 lands. VLL's Android 14 tablet is not affected.
+
+## 2026-11-03 — mobile: LANDED — the ✕ on Join and Connect is named "Close" @ 38a131a1 (Approved-by: Fable GO fc7d6c16)
+
+- **On main:** 38a131a1, fast-forward from fc7d6c16. Its `app/` is byte-identical to the reviewed PR head 3ad36d5f.
+- **Land run `41692790021` (#3011): 10 of 10 jobs success** on `/jobs`:
+  - `desktop (windows)`, `desktop (linux)` and `desktop (macos)`; macOS got a runner this time;
+  - android, web, e2e, go, proto and image;
+  - **release-apk**.
+- **`latest` → 38a131a1**, published 18:54:19Z. The APK is versionCode **3011**, versionName `0.1.0+38a131a`, 15 884 736
+  B. It also carries the AppImage (71 481 848 B), the DMG (139 253 150 B; DESK02) and the MSI (69 137 116 B).
+- **Clean-up:** PR #94 is closed with a comment, its branch deleted, and its worktree removed.
+- **VLL's tablet:** the next update brings it. With TalkBack on, each ✕ reads "Close, button".
