@@ -285,12 +285,20 @@ internal class SwtBrowserController(
 
             // After the first load, send a hello over the native→web channel; a ready back proves both ways.
             var lateBridgeDone = false
+            var probedOpen = false
             browser.addProgressListener(object : ProgressAdapter() {
                 override fun completed(event: ProgressEvent) {
                     // B3 sabotage (b): register the bridge only AFTER the load — the page's head script has already
                     // run without window.TroubaStageShellReceive, so no ready is sent and the bridge check reds.
                     if (sabotage == "bridge-late" && !lateBridgeDone) { lateBridgeDone = true; registerBridge() }
                     runCatching { browser.execute("window.__troubastageShell&&window.__troubastageShell.deliver(JSON.stringify({type:'hello'}))") }
+                    // S1.4 positive control (item 7): once, fire a window.open so the OpenWindowListener is exercised —
+                    // it must log REPORT + suppress (no OS window). Dormant unless WIN08_PROBE_OPENWINDOW is set.
+                    if (System.getenv("WIN08_PROBE_OPENWINDOW") == "1" && !probedOpen) {
+                        probedOpen = true
+                        log("win08: PROBE firing window.open('_blank') to exercise OpenWindowListener")
+                        runCatching { browser.execute("window.open('https://example.com/win08-probe','_blank')") }
+                    }
                 }
             })
 
