@@ -74,9 +74,14 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             onEngineMissing = { engineMissing = true },
             onStartupTimeout = { timedOut = true },
             onFullScreenKey = {
-                win08log("win08: onFullScreenKey entry; isFullScreen before=${args.isFullScreen()}")
+                val fw = args.frameWindow()
+                fun realState() = fw?.let { "${Win08Native.frameState(it)} awtBounds=${it.bounds} extState=${(it as? java.awt.Frame)?.extendedState}" } ?: "no frame"
+                win08log("win08: F11 BEFORE toggle — isFullScreen=${args.isFullScreen()}; ${realState()}")
                 args.toggleFullScreen()
-                win08log("win08: onFullScreenKey after toggleFullScreen; isFullScreen=${args.isFullScreen()}")
+                win08log("win08: F11 AFTER toggle (immediate) — isFullScreen=${args.isFullScreen()}; ${realState()}")
+                // The placement change is applied by Compose on the EDT; read the SETTLED real state after it lands.
+                javax.swing.Timer(700) { win08log("win08: F11 AFTER toggle (settled) — isFullScreen=${args.isFullScreen()}; ${realState()}") }
+                    .apply { isRepeats = false; start() }
             },
             log = ::win08log,
         ).also(onController)

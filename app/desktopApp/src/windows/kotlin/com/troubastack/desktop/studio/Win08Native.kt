@@ -102,4 +102,21 @@ internal object Win08Native {
     /** A window's client size in physical pixels. */
     fun clientSize(h: HWND): Pair<Int, Int> =
         runCatching { val r = RECT(); user32.GetClientRect(h, r); (r.right - r.left) to (r.bottom - r.top) }.getOrDefault(-1 to -1)
+
+    private const val WS_CAPTION = 0x00C00000
+    private const val MONITOR_DEFAULTTONEAREST = 0x00000002
+
+    /**
+     * WIN08 F11 diagnosis — the window's REAL state (not Compose's isFullScreen flag): the full window rect, whether
+     * the style still carries WS_CAPTION (a title bar → not full screen), and the monitor's whole rect to compare.
+     */
+    fun frameState(window: Window): String = runCatching {
+        val h = hwndOf(window) ?: return "no frame HWND"
+        val wr = RECT(); user32.GetWindowRect(h, wr)
+        val style = user32.GetWindowLong(h, GWL_STYLE)
+        val hasCaption = (style and WS_CAPTION) == WS_CAPTION
+        val mon = user32.MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST)
+        val mi = com.sun.jna.platform.win32.WinUser.MONITORINFO(); user32.GetMonitorInfo(mon, mi); val m = mi.rcMonitor
+        "winRect=[${wr.left},${wr.top},${wr.right},${wr.bottom}] wsCaption=$hasCaption style=0x${Integer.toHexString(style)} monitor=[${m.left},${m.top},${m.right},${m.bottom}]"
+    }.getOrElse { "frameState error: $it" }
 }
