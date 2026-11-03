@@ -68,14 +68,17 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 frameWindow = { frameHolder.get() },
             )
 
-            win08log("smoke: entering application{}")
+            // Check-7 discriminator: WIN08_SABOTAGE=noclose makes onCloseRequest ignore the close (log, don't exit).
+            // If the WM_CLOSE still ends the process (jpackage/Compose force-exit), the normal backstop never fires and
+            // the exit code is 0 — then check 7 is un-sabotageable, proven positively. If instead the window stays open
+            // (AWT delivers WINDOW_CLOSING, we ignore it), the 75 s backstop fires (halt 1) — so the sabotage reds it.
+            val sabotageClose = System.getenv("WIN08_SABOTAGE") == "noclose"
+            win08log("smoke: entering application{} (sabotageClose=$sabotageClose)")
             application {
-                // Check 7 — WM_CLOSE must end the process (positive proof below). It can't be forced red in the
-                // PACKAGED app: a raw WM_CLOSE destroys the window at the Win32 level regardless of onCloseRequest,
-                // and the jpackage launcher + Compose's exitProcess(0) always end the process (verified across
-                // daemon/non-daemon/exitProcessOnExit/ignored-onCloseRequest runs). So the guarantee is by construction.
                 Window(
-                    onCloseRequest = ::exitApplication,
+                    onCloseRequest = if (sabotageClose) {
+                        { win08log("smoke: SABOTAGE noclose — onCloseRequest fired (AWT WINDOW_CLOSING from WM_CLOSE); IGNORING, window stays open") }
+                    } else ::exitApplication,
                     title = "TroubaStage",
                     state = rememberWindowState(width = 1200.dp, height = 820.dp),
                 ) {
