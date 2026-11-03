@@ -63338,3 +63338,93 @@ double install you found.
 
 Present it with the acceptance as specced, plus your §3 tests, the four marker vectors, the B2 vector and the
 permanent-refusal measurement. API 29 runs on top of A97 once A97 lands.
+
+## 2026-11-03 — mobile presents A97: the update's signer check reads the downloaded file's own certificate on older Android — reviewer: Fable
+
+Branch `mobile/a97-signer-check` @ 871fad1c, PR #96. **PR CI:** run **`41707447299`**: **success on every job**:
+`desktop (windows)`, `desktop (linux)`, `desktop (macos)`, android, web, e2e, go, proto and image. release-apk is
+skipped on a PR.
+
+### 1. The measurement (diagnostic build: main + log lines, never committed; real `latest`; Update pressed in About)
+
+```
+API 28  I/A96DIAG ( 5125): installed sdk=28 signingInfo=true multi=false contents=1 history=1 signatures=null
+        I/A96DIAG ( 5125): archive sdk=28 signingInfo=false multi=null contents=null history=null signatures=null
+        I/A96DIAG ( 5125): archive GET_SIGNATURES signatures=1 digests=[e99675323f86797c5addbafe2d4c0a8c7d855fb1d21e7e00fe9c72d07340a426]
+        I/A96DIAG ( 5125): mine=[e99675323f86797c5addbafe2d4c0a8c7d855fb1d21e7e00fe9c72d07340a426] theirs=[]
+API 29  I/A96DIAG ( 7640): installed sdk=29 signingInfo=true multi=false contents=1 history=1 signatures=null
+        I/A96DIAG ( 7640): archive sdk=29 signingInfo=false multi=null contents=null history=null signatures=null
+        I/A96DIAG ( 7640): archive GET_SIGNATURES signatures=1 digests=[e99675323f86797c5addbafe2d4c0a8c7d855fb1d21e7e00fe9c72d07340a426]
+        I/A96DIAG ( 7640): mine=[e99675323f86797c5addbafe2d4c0a8c7d855fb1d21e7e00fe9c72d07340a426] theirs=[]
+API 32  I/A96DIAG ( 4409): installed sdk=32 signingInfo=true multi=false contents=1 history=1 signatures=null
+        I/A96DIAG ( 4409): archive sdk=32 signingInfo=true multi=false contents=1 history=1 signatures=null
+        I/A96DIAG ( 4409): mine=[e99675323f86797c5addbafe2d4c0a8c7d855fb1d21e7e00fe9c72d07340a426] theirs=[e99675323f86797c5addbafe2d4c0a8c7d855fb1d21e7e00fe9c72d07340a426]
+API 33  I/A96DIAG ( 3699): installed sdk=33 signingInfo=true multi=false contents=1 history=1 signatures=null
+        I/A96DIAG ( 3699): archive sdk=33 signingInfo=true multi=false contents=1 history=1 signatures=null
+        I/A96DIAG ( 3699): mine=[e99675323f86797c5addbafe2d4c0a8c7d855fb1d21e7e00fe9c72d07340a426] theirs=[e99675323f86797c5addbafe2d4c0a8c7d855fb1d21e7e00fe9c72d07340a426]
+```
+
+- **At 28 and 29**, the archive comes back with no `signingInfo`, so "theirs" is empty, and today's app refuses the
+  update as "different key".
+- **At 32 and 33**, the archive has its `signingInfo`, the two sets match, and Android's confirmation appears.
+- **At 30 and 31: not measured.** The fix doesn't depend on that, because it is keyed on a null `signingInfo`, not
+  on the API level.
+
+### 2. As built (`AppUpdater.kt`)
+
+- **The fallback (`archiveDigests`)** applies only when the archive's `signingInfo` is null **and** the API level is
+  below 33. Then the same downloaded file is read again with `GET_SIGNATURES`; nothing ever falls back to the
+  installed app's signers. From 33 on there is no fallback: a missing `signingInfo` means "could not check".
+- **The pure decision:**
+  - `signerVerdict(ours, theirs)` returns INSTALL, DIFFERENT_KEY or COULD_NOT_CHECK. A null or empty set is
+    unreadable. It never counts as a match, and it is never reported as "different key".
+  - `signerRefusal(verdict)` gives the words: your exact "could not check" sentence, or today's "different key"
+    one.
+- **The rotation rule is unchanged** (only the current signer matches). The sentence you asked for is in
+  `certDigests`' KDoc:
+
+  > A97: on the GET_SIGNATURES path that [archiveDigests] falls back to below API 33, Android reports the oldest
+  > certificate of a rotated lineage, not the current one, so a rotation is not told apart there; Android's own
+  > install check is the authority.
+
+### 3. Proof
+
+- **`SignerCheckTest`, new, 3 cases:** equal → install; different, or an extra signer → different key; every
+  unreadable pair → could not check (`ours`/`theirs` × null/empty, and both unreadable). It also checks both
+  sentences.
+- **Sabotage:**
+  - **S1, unreadable counted as a match:** the comparison goes first, so two empty sets are equal → red on
+    `ours=null theirs=null expected:<COULD_NOT_CHECK> but was:<INSTALL>`.
+  - **S2, unreadable reported as "different key"** → red on `ours=[e9967532…] theirs=null
+    expected:<COULD_NOT_CHECK> but was:<DIFFERENT_KEY>`.
+
+  Restored, and androidApp's unit tests (SignerCheck 3, UpdatePath 3) pass.
+- **The emulator, A96's rig:**
+  - **old** is the head with its release URL pointed at a local `latest` stand-in on 127.0.0.1:8791, reached as
+    10.0.2.2. That is a throwaway patch, never committed. It is versionCode 100, `CI=true`, built 2026-11-01.
+  - **new** is the head as committed, versionCode 200. Both carry the stable key (e9967532…).
+  - **API 29:** Update from About reaches Android's "Do you want to install an update to this existing application?".
+    I pressed Install, and **versionCode 200 (`0.1.0+871fad1c`) is installed**:
+    ```
+    I/ActivityTaskManager( 1952): START u0 {act=android.content.pm.action.CONFIRM_INSTALL … cmp=com.google.android.packageinstaller/com.android.packageinstaller.PackageInstallerActivity …
+    I/ActivityManager( 1952): Force stopping com.troubastack.app appid=10149 user=-1: installPackageLI
+    I/ActivityManager( 1952): Start proc 5746:com.troubastack.app/u0a149 for broadcast {com.troubastack.app/com.troubastack.app.UpdateInstallReceiver}
+    ```
+  - **API 34:** the same, unchanged from today. Android asked "Do you want to update this app?", I pressed Update,
+    and **versionCode 200** is installed:
+    ```
+    I/ActivityManager(  557): Force stopping com.troubastack.app appid=10195 user=-1: installPackageLI
+    I/PackageManager(  557): Update package com.troubastack.app code path from /data/app/… to /data/app/…
+    I/ActivityManager(  557): Start proc 6084:com.troubastack.app/u0a195 for broadcast {com.troubastack.app/com.troubastack.app.UpdateInstallReceiver}
+    ```
+  - **The positive control, on both levels:** the stand-in served the same new APK, re-signed with a **throwaway
+    key**. It was generated in my scratchpad for this test (certificate 9175e04a…) and never committed. At **29**
+    and at **34**, the app refuses it: "This update is signed with a different key than the TroubaStage on this
+    tablet, so Android would not install it over this one. Your notes are safe; nothing was changed.", and
+    versionCode stays 100. So at 29 the fallback really reads the file.
+- **CI:** a PR run with `desktop (windows)`, as above.
+
+### Note for the land
+
+A96 changes `AppUpdater.verify` too. It returns the versionCode for its marker. A97 lands first, and A96 rebases
+onto it.
