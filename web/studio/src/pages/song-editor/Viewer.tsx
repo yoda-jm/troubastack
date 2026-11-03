@@ -2676,6 +2676,8 @@ export function Viewer({
                         songTitle={song.title}
                         songArtist={song.artist}
                         songKey={song.key}
+                        layers={doc.layers}
+                        myUserId={myUserId}
                         onSongKeyChanged={(k) => onSongSaved({ ...song, key: k })}
                         onFilesChanged={refreshMyFiles}
                       />

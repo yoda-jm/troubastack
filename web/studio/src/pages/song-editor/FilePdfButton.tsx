@@ -15,7 +15,7 @@ export function visibleLayerIdsForFile(
 }
 
 /** Hands a Blob to the browser as a download named `filename`. */
-function saveBlob(blob: Blob, filename: string) {
+export function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

@@ -92,7 +92,8 @@ prefers his tab on top; Marie wants vocals first. Nobody wants to fight about it
 
 **Validated today:**
 - Songs CRUD; **multi-file shared pool per song** with display order
-  (`songs/{id}/files`, PATCH to reorder); PDF viewing in Studio.
+  (`songs/{id}/files`, PATCH to reorder); PDF viewing in Studio. Any file
+  **downloads from its ⋯ menu** — with your annotations, or as uploaded.
 - **`my-files`** — the quietly excellent bit: each member keeps a *personal ordered
   selection* of a song's pool (`GET/PUT/DELETE …/my-files`, `MyFileSelection` in
   `service.go`) that never affects what others see. Leo's tab-first view is real and

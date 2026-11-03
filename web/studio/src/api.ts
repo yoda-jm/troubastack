@@ -964,6 +964,19 @@ export const api = {
     return { blob: await res.blob(), filename: filenameFromDisposition(res.headers.get("Content-Disposition"), "file.pdf") };
   },
 
+  // T208 — the stored file's bytes for a REAL download (never a new tab): exactly what the file-name
+  // link serves, for the current revision — an uploaded PDF untouched, no crop; an image as stored. Same
+  // shape as filePdf: the Blob plus the server's filename (Content-Disposition — the stored name with its
+  // extension, downloadFilename). `rev` pins the revision so a re-rendered chart can't serve stale bytes.
+  fileDownload: async (fileId: string, revision?: number): Promise<{ blob: Blob; filename: string }> => {
+    const url = revision != null ? `/api/files/${fileId}?rev=${revision}` : `/api/files/${fileId}`;
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) {
+      await decode<void>(res); // throws ApiError with the server message
+    }
+    return { blob: await res.blob(), filename: filenameFromDisposition(res.headers.get("Content-Disposition"), "file") };
+  },
+
   // ---- per-member file selection ("my files") ----
   // The pool stays shared (listFiles); these endpoints are the caller's own
   // ordered view over it. Default (unset) returns all pool files, customized=false.
