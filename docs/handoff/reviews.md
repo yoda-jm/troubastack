@@ -63932,3 +63932,48 @@ The next one shows every phase and the reopening notification.
     Home with "Updated · …".
   - **MIUI may suppress the heads-up, or stop the app's receiver (its Autostart setting).** If so, the shade still
     has the notification, and if it doesn't, that's the follow-up to look at.
+
+## 2026-11-04 — mobile presents A98: Studio's session cookie is seeded HttpOnly, as the server sets it (split per Fable) — reviewer: Fable
+
+Branch `mobile/a98-cookie-httponly` @ 129ffbbf, PR #98, on top of A96's 986a31df. **PR CI:** run **`41739242838`**:
+**success** on `desktop (windows)`, `desktop (linux)`, `desktop (macos)`, android, web, e2e, go and proto. image is still
+running. release-apk is skipped on a PR.
+
+### As built
+
+- **`sessionCookieSeed(cookie, url)`** in `HttpTransport.kt`, next to `sessionCookieFor`, and
+  **`SessionCookieSeedTest`** (jvmSharedTest) are **byte-identical to web-core's on PR #95 @ 6818c5f1**:
+  `git diff 6818c5f1 -- <both files>` is empty. Nothing was changed, so 9c's rebase simply drops its copy.
+  - It returns `name=value; Path=/; HttpOnly; SameSite=Lax`, plus `; Secure` on https, and no `Expires`.
+- **Android:** `seedSessionCookie` (`EditScreen.kt`) calls `cm.setCookie(url, sessionCookieSeed(cookie, url))`. Its
+  KDoc now says what the code does: the cookie is seeded HttpOnly, as the server sets it, and it replaces a cookie an
+  older build seeded without the attribute (same name, domain and path). That is the only other change.
+
+### Proof
+
+- **Unit:** `SessionCookieSeedTest`, 2 cases: http gives `Path=/`, `HttpOnly`, `SameSite=Lax`, no `Secure` and no
+  `Expires`/`Max-Age`, with name=value first and unchanged; https gives the same plus `Secure`.
+  `AndroidPureFunctionsTest` passes too (8).
+  **Sabotage:** `HttpOnly` dropped from the function → **both cases red** (`Expected value to be true.` on the
+  `"HttpOnly" in attrs` line). Restored.
+- **The emulator** (A96_API34). The scratch core is a copy of the demo `troubacore` on **:18097**, with throwaway data,
+  the demo seed only (`marie`/`demo`) and mDNS off; :8080 was never touched. Studio was opened from the app (Studio tile
+  → The Troubadours) and read over DevTools:
+  1. **Main's APK** (`latest`, 986a31df, versionCode 3035), signed in through Connect:
+     `document.cookie` = `trouba_session=a144cc54…`, and `Network.getCookies` =
+     `{name: trouba_session, path: /, httpOnly: false, sameSite: null, session: true}`. That's the bug, reproduced.
+  2. **The head installed over it** (`adb install -r`, versionCode 9999 = 129ffbbf; app data and the WebView jar kept;
+     A96's "Updated · TroubaStage 129ffbbf · …" showed once), then Studio opened again:
+     - `document.cookie` = `""`. **The session's name is gone from it.**
+     - `Network.getCookies` shows **one** cookie, `{name: trouba_session, value: a144cc54… (the same session),
+       domain: 10.0.2.2, path: /, httpOnly: true, sameSite: "Lax", session: true}`. **The old cookie was replaced in
+       place, not duplicated.**
+     - **The positive control:** the band page loaded signed in (Marie, admin). From the page, the authenticated `GET
+       /api/bands` returns **200** with the band list, and the same request with `credentials: "omit"` returns **401**.
+       So the session is still sent, and the 200 depended on it.
+- **CI:** a PR run with `desktop (windows)`, as above.
+
+### For WIN08
+
+`sessionCookieSeed` is on main once this lands, unchanged from 6818c5f1, so web-core's rebase of PR #95 only drops its
+copy and keeps its call site.
