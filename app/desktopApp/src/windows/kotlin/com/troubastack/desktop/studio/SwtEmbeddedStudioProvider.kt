@@ -73,7 +73,11 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             onReady = {},
             onEngineMissing = { engineMissing = true },
             onStartupTimeout = { timedOut = true },
-            onFullScreenKey = { args.toggleFullScreen() },
+            onFullScreenKey = {
+                win08log("win08: onFullScreenKey entry; isFullScreen before=${args.isFullScreen()}")
+                args.toggleFullScreen()
+                win08log("win08: onFullScreenKey after toggleFullScreen; isFullScreen=${args.isFullScreen()}")
+            },
             log = ::win08log,
         ).also(onController)
     }

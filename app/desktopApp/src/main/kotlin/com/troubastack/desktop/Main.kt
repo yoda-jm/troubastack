@@ -339,6 +339,7 @@ private fun runApp(updateFrom: String?, onWindow: (bringToFront: () -> Unit) -> 
  */
 @OptIn(ExperimentalComposeUiApi::class)
 private fun runWin08Studio(url: String, user: String, pass: String, songPath: String?) {
+    System.setProperty("win08.log", "1") // diagnostic path: write the durable win08.log (F11 key trace etc.)
     val storage = Storage()
     storage.putSecret("coreUrl", url)
     val transport = HttpTransport(storage, defaultServerUrl = null) { }

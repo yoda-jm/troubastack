@@ -267,7 +267,10 @@ internal class SwtBrowserController(
             // F11 forwarded to the app's full screen (S1.7); nothing else consumed, so Esc still reaches Studio.
             browser.addKeyListener(object : KeyAdapter() {
                 override fun keyPressed(e: KeyEvent) {
-                    if (e.keyCode == SWT.F11) { e.doit = false; onEdt(onFullScreenKey) }
+                    // WIN08 F11 diagnosis: log every key that reaches the SWT Browser listener (keyCode in hex, plus
+                    // whether F11 matched) so the log shows if F11 is delivered here at all vs. controls F5/Ctrl+F.
+                    log("win08: keyPressed keyCode=0x${Integer.toHexString(e.keyCode)} stateMask=0x${Integer.toHexString(e.stateMask)} (F11=0x${Integer.toHexString(SWT.F11)})")
+                    if (e.keyCode == SWT.F11) { e.doit = false; log("win08: F11 matched -> onEdt(onFullScreenKey)"); onEdt(onFullScreenKey) }
                 }
             })
 
