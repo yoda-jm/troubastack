@@ -300,6 +300,12 @@ internal class SwtBrowserController(
 
     private fun runLoopUntilDisposed(display: Display, shell: Shell) {
         while (!shell.isDisposed) { if (!display.readAndDispatch()) display.sleep() }
+        // "nondaemon" sabotage (check 7): the SWT thread is non-daemon (see `thread`) and keeps running after the
+        // window closed — a leftover non-daemon thread that blocks JVM exit, so the process must NOT end on its own.
+        if (sabotage == "nondaemon") {
+            log("ctrl: SABOTAGE nondaemon — non-daemon SWT thread staying alive after close (check 7 must red)")
+            while (true) Thread.sleep(100_000)
+        }
     }
 }
 

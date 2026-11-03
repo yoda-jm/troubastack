@@ -34,6 +34,7 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import androidx.compose.runtime.CompositionLocalProvider
 import com.troubastack.app.App
+import com.troubastack.app.HttpTransport
 import com.troubastack.app.AndroidImportFs
 import com.troubastack.app.FileBundleFiles
 import com.troubastack.app.SkiaImageDecoder
@@ -183,6 +184,21 @@ fun main(args: Array<String>) {
         if (code != 0) exitProcess(code)
         return
     }
+    // WIN08 item 2 — the real-Studio CI hook (`--win08-studio <loopback URL>`): sign in THROUGH the app's own
+    // sign-in code (HttpTransport.connect, the call Connect's "Sign in" makes), storing the session exactly as
+    // Connect does, then open the embedded editor at the demo song. Loopback only; credentials from the environment
+    // (TROUBA_WIN08_USER / _PASS), never from argv; the song path from TROUBA_WIN08_SONG_PATH.
+    val studioIdx = args.indexOf("--win08-studio")
+    if (studioIdx >= 0) {
+        val url = args.getOrNull(studioIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-studio needs a loopback URL"); exitProcess(2) }
+        val host = runCatching { java.net.URI(url).host }.getOrNull()
+        if (host != "127.0.0.1" && host != "localhost") { System.err.println("--win08-studio: loopback URL only"); exitProcess(2) }
+        val user = System.getenv("TROUBA_WIN08_USER") ?: run { System.err.println("--win08-studio: TROUBA_WIN08_USER unset"); exitProcess(5) }
+        val pass = System.getenv("TROUBA_WIN08_PASS") ?: run { System.err.println("--win08-studio: TROUBA_WIN08_PASS unset"); exitProcess(5) }
+        runWin08Studio(url, user, pass, System.getenv("TROUBA_WIN08_SONG_PATH"))
+        return
+    }
     // WIN04 (C1) — the CI hook: a release on the loopback interface (refused otherwise), digest required.
     val updateFrom = args.indexOf("--update-from").takeIf { it >= 0 }?.let { i ->
         val raw = args.getOrNull(i + 1) ?: run { System.err.println("--update-from needs a URL"); exitProcess(2) }
@@ -300,6 +316,36 @@ private fun runApp(updateFrom: String?, onWindow: (bringToFront: () -> Unit) -> 
                     confirmButton = { TextButton(onClick = ::exitApplication) { Text("Close") } },
                     dismissButton = { TextButton(onClick = { askClose = false }) { Text("Cancel") } },
                 )
+            }
+        }
+    }
+}
+
+/**
+ * WIN08 item 2 — sign in through the app's OWN sign-in code (HttpTransport.connect, what Connect's "Sign in" calls)
+ * against a loopback core, storing the session exactly as Connect does, then open the embedded editor at [songPath].
+ * The CI screenshots the window and injects a pen stroke. Windows only in practice (Edit shows the embedded host).
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+private fun runWin08Studio(url: String, user: String, pass: String, songPath: String?) {
+    val storage = Storage()
+    storage.putSecret("coreUrl", url)
+    val transport = HttpTransport(storage, defaultServerUrl = null) { }
+    val err = runBlocking { transport.connect(user, pass) }
+    if (err != null) { System.err.println("win08-studio: sign-in failed: $err"); exitProcess(5) }
+    println("win08-studio: signed in as $user; opening ${songPath ?: "/"}")
+    application {
+        val windowState = rememberWindowState(width = 1400.dp, height = 900.dp, position = WindowPosition(0.dp, 0.dp))
+        val platform = remember { DesktopAppPlatform(storage, windowState) }
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "TroubaStage",
+            state = windowState,
+            onKeyEvent = { e -> windowKey(e, platform) },
+        ) {
+            LaunchedEffect(Unit) { platform.awtWindow = window }
+            TroubaTheme(dark = false) {
+                platform.studio.Edit(storage, onBack = { exitApplication() }, initialPath = songPath, bandTitle = "CI Band")
             }
         }
     }
