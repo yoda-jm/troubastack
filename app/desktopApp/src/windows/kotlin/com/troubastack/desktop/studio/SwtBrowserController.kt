@@ -294,6 +294,7 @@ internal class SwtBrowserController(
             // After the first load, send a hello over the native→web channel; a ready back proves both ways.
             var lateBridgeDone = false
             var probedOpen = false
+            var probedDownload = false
             browser.addProgressListener(object : ProgressAdapter() {
                 override fun completed(event: ProgressEvent) {
                     // B3 sabotage (b): register the bridge only AFTER the load — the page's head script has already
@@ -306,6 +307,13 @@ internal class SwtBrowserController(
                         probedOpen = true
                         log("win08: PROBE firing window.open('_blank') to exercise OpenWindowListener")
                         runCatching { browser.execute("window.open('https://example.com/win08-probe','_blank')") }
+                    }
+                    // Item 7 download observation: once, trigger an <a download> so we can see what the embedded
+                    // WebView2 does with a download (its default UI + where the file lands). Dormant unless set.
+                    if (System.getenv("WIN08_PROBE_DOWNLOAD") == "1" && !probedDownload) {
+                        probedDownload = true
+                        log("win08: PROBE firing an <a download> click")
+                        runCatching { browser.execute("var a=document.createElement('a');a.href='data:application/octet-stream,win08-download-probe';a.download='win08-download.bin';document.body.appendChild(a);a.click();") }
                     }
                 }
             })
