@@ -258,6 +258,7 @@ are. The iOS hoist stays deferred. Order: WIN01 ∥ WIN02 → WIN03 → WIN04 an
 | WIN05 | [Embedded Studio on Windows: measured spike, VLL decides](WIN05-embedded-studio-spike.md) | web-core | S |
 | WIN06 | [Windows in the docs and on the public site](WIN06-windows-in-the-docs-and-on-the-site.md) | web-core | S |
 | DESK01 | [Linux AppImage + macOS DMG (unsigned) from the same CI matrix](DESK01-linux-and-macos-packages.md) | mobile (moved 2026-11-02) | M |
+| WIN08 | [Studio inside the Windows app (WebView2), starting with the stage VLL checks](WIN08-studio-inside-the-windows-app.md) | web-core | M (stage 1) / L |
 
 ## Phase 2 — opt-in modes & debt retirement
 

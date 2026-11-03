@@ -62512,3 +62512,63 @@ What I checked myself:
 - **Branch `t208-file-download` deleted** after the land.
 
 T208 complete.
+
+## 2026-11-03 — Fable: VLL's answers (decisions page) — "Close" for both ✕, DESK01's words stand, WIN08 filed for web-core, A96 filed for mobile
+
+VLL answered three open items and left a note on the tablet update, on his decisions page, on 2026-11-03.
+
+| Item | VLL | What follows |
+|---|---|---|
+| DESK01's words (Linux and Mac: "Update" + "Opens the download in your browser"; the crop warning quotes "not in the current bake") | **"Tout me va"** | Nothing changes. Both are on main already. |
+| The ✕ on "Join a band" and "Connect to your band" | **"« Close » pour les deux"** | **Mobile**, below. |
+| Studio in the Windows app | **"Oui, WebView2, en commençant par l'étape à valider"** | **WIN08**, filed in this push, for **web-core**. |
+| The tablet update (note) | See below | **A96**, filed in this push, for **mobile**. |
+
+**For mobile — the ✕ is named "Close" in both dialogs** (`JoinDialog.kt` and `ConnectScreen.kt`):
+- Use the method from GO 1c339669 and GO bbb69682:
+  - the glyph is drawn;
+  - the clickable carries the name;
+  - `assertNamedClickable` checks it.
+- Connect's ✕ does what that dialog's **Cancel** does. VLL chose "Close" for both anyway, so don't reuse "Cancel".
+- **Proof:**
+  - a UI case per dialog: one named clickable "Close", and "✕" is never read;
+  - one sabotage;
+  - the emulator dump;
+  - pixels identical to main.
+- It's small. Present it on its own, or alongside A96, as you prefer.
+
+**The tablet update.** VLL's note, verbatim:
+
+> "install the new app on the unlocked tablet, currently update is not working so I canot check the refresh. My bad
+> it was just super long, maybe we need a download progress bar or something like that, some statust sure the app
+> restart after an update from the app. Reload validated BTW"
+
+- The update worked, and A93's Reload is validated on the tablet.
+- What I read on main:
+  - **Parameters → About's Update shows no progress at all.** Only Home's banner has the bar. The likely reason it
+    looked broken: pressed from About, the whole download is invisible.
+  - **"The app restarts on Home"** is claimed in A88 §2 step 4 and in two code comments. Nothing in the code does
+    it: Android ends the process of an app that updates itself, and nothing reopens it.
+- **A96** asks for:
+  - the status on both surfaces, through every phase;
+  - a relaunch, or a one-tap notification, **measured first** on API 34 and API 29;
+  - "Updated · <build line>" once after the update, with WIN04's words;
+  - the false claims corrected.
+- The lane asks VLL, through me, which button he pressed. My reading rests on it.
+
+**WIN08 (web-core): Studio in the TroubaStage window, through SWT `Browser(SWT.EDGE)`.**
+- **Stage 1** is the part WIN05 delta 2 left unproven:
+  - the Browser inside the Compose window, with its threading model;
+  - the writable `EdgeDataDir` under the data root, and no `~/.swt`;
+  - the seeded session, the origin lock, the bridge's startup shim;
+  - the no-WebView2 words, Esc, the ⋮ menu over Studio, DPI.
+- **Proof:**
+  - main's windows smoke, each check sabotaged red;
+  - real Studio on a throwaway workflow, with demo data only.
+- **Then VLL checks the PR run's MSI on his Surface,** pen against Edge. Stage 1 doesn't land before he has.
+- **Stage 2** is outlined, and is specced in full after his check.
+- **Linux and macOS keep "Coming soon."**
+
+**Queues:**
+- mobile: the ✕ names, then A96;
+- web-core: WIN08 stage 1.
