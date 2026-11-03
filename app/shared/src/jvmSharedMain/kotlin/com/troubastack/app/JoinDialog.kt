@@ -26,6 +26,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -41,6 +43,7 @@ import com.troubastack.shared.join.parseTroubaLink
 import com.troubastack.shared.join.reasonSentence
 import com.troubastack.shared.seams.SESSION_ORIGIN_KEY
 import com.troubastack.shared.seams.Storage
+import com.troubastack.shared.ui.GlyphText
 import kotlinx.coroutines.launch
 
 /**
@@ -159,7 +162,10 @@ fun JoinDialog(
             ) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Join a band", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
-                    TextButton(onClick = { token.clear(); onClose() }) { Text("✕") }
+                    // VLL: "Close" — the name sits on the button, and the ✕ is drawn so it is not read after it (Android)
+                    TextButton(onClick = { token.clear(); onClose() }, modifier = Modifier.semantics { contentDescription = "Close" }) {
+                        GlyphText("✕", labelled = true)
+                    }
                 }
 
                 when (val s = step) {

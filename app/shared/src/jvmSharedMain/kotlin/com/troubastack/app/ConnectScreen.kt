@@ -28,12 +28,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.troubastack.shared.distribution.ServerDiscovery
 import com.troubastack.shared.seams.Storage
+import com.troubastack.shared.ui.GlyphText
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
@@ -104,7 +107,10 @@ private fun ConnectContent(
         // Title row with an explicit ✕ dismiss — this is what makes it read as a modal, not a page.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Connect to your band", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
-            TextButton(onClick = onDone, enabled = !busy) { Text("✕") }
+            // VLL: "Close", as on Join (not this dialog's "Cancel") — named on the button, the ✕ drawn (Android)
+            TextButton(onClick = onDone, enabled = !busy, modifier = Modifier.semantics { contentDescription = "Close" }) {
+                GlyphText("✕", labelled = true)
+            }
         }
         // A68: the offline reassurance sits ABOVE the tabs — true of both journeys, and the one line that
         // tells a hesitant person they can ignore all of this. It earns prominence, not a footnote.
