@@ -76,7 +76,10 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             )
 
             win08log("smoke: entering application{}")
-            application {
+            // Compose's `application` calls exitProcess(0) when the window closes (this is how the real app ends on
+            // close — WIN04's updater relies on it). The "nondaemon" sabotage turns that OFF so the leaked non-daemon
+            // thread actually blocks JVM exit, proving check 7 catches a process that fails to end on its own.
+            application(exitProcessOnExit = System.getenv("WIN08_SABOTAGE") != "nondaemon") {
                 Window(
                     onCloseRequest = ::exitApplication,
                     title = "TroubaStage",
