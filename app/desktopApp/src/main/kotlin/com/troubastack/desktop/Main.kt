@@ -132,7 +132,9 @@ fun main(args: Array<String>) {
         // WIN08 — render Compose Popup/Dialog (the ⋮ menu, dialogs) as separate undecorated windows so they float
         // OVER the heavyweight SWT browser instead of being painted under it (Swing interop). Process-wide, so set
         // before the first composition — here, before any `application {}` including the smokes.
-        System.setProperty("compose.layers.type", "WINDOW")
+        // Env toggle (item-8 comparison only): WIN08_NO_COMPOSE_LAYERS=1 skips it, to capture the same screen with and
+        // without the property on one binary — proving it doesn't change the app's own dialogs/tooltips. Never set in prod.
+        if (System.getenv("WIN08_NO_COMPOSE_LAYERS") != "1") System.setProperty("compose.layers.type", "WINDOW")
         // WIN08 (S1.2 / WIN07) — SWT unpacks its native DLLs under the data root, never the shared ~/.swt.
         System.setProperty("swt.library.path", File(desktopDataRoot(), "swt").also { runCatching { it.mkdirs() } }.path)
         // WIN08 — raise SWT's Edge operation timeout (R4_40 Edge.java: MAXIMUM_OPERATION_TIME, default 5000, read once
@@ -208,6 +210,16 @@ fun main(args: Array<String>) {
         val user = System.getenv("TROUBA_WIN08_USER") ?: run { System.err.println("--win08-studio: TROUBA_WIN08_USER unset"); exitProcess(5) }
         val pass = System.getenv("TROUBA_WIN08_PASS") ?: run { System.err.println("--win08-studio: TROUBA_WIN08_PASS unset"); exitProcess(5) }
         runWin08Studio(url, user, pass, System.getenv("TROUBA_WIN08_SONG_PATH"))
+        return
+    }
+    // WIN08 item 8 — the Stage CI hook (`--win08-stage <concert.tstage>`): import the demo concert and show it
+    // INTERACTIVELY in Stage (no sign-in), with the desktop glyph-tooltip provider, so a screenshot can capture a
+    // Stage tooltip (a compose.layers popup) and check a page-turn key still turns the page while it shows.
+    val stageIdx = args.indexOf("--win08-stage")
+    if (stageIdx >= 0) {
+        val concert = args.getOrNull(stageIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-stage needs a .tstage path"); exitProcess(2) }
+        runWin08Stage(concert)
         return
     }
     // WIN04 (C1) — the CI hook: a release on the loopback interface (refused otherwise), digest required.
@@ -358,6 +370,42 @@ private fun runWin08Studio(url: String, user: String, pass: String, songPath: St
             LaunchedEffect(Unit) { platform.awtWindow = window }
             TroubaTheme(dark = false) {
                 platform.studio.Edit(storage, onBack = { exitApplication() }, initialPath = songPath, bandTitle = "CI Band")
+            }
+        }
+    }
+}
+
+/** Item 8 — show the demo concert in Stage INTERACTIVELY (no sign-in), with the desktop glyph-tooltip provider, so a
+ *  screenshot can capture a Stage tooltip (a compose.layers popup) and verify a page-turn key still turns the page. */
+private fun runWin08Stage(tstagePath: String) {
+    System.setProperty("win08.log", "1")
+    val storage = Storage()
+    val fs = AndroidImportFs(storage)
+    val temp = File(storage.tempDir(), "win08stage-${System.nanoTime()}.tstage").also { File(tstagePath).copyTo(it) }
+    val imported = BundleImporter(fs).import(temp.path); temp.delete()
+    val concertId = (imported as? ImportResult.Imported)?.concertId
+        ?: run { System.err.println("win08-stage: import refused: $imported"); exitProcess(5) }
+    val dir = fs.bundleTargetDir(concertId)
+    val loaded = BundleLoader().load(dir, FileBundleFiles())
+    val roster = (loaded as? LoadResult.Loaded)?.bundle?.roster.orEmpty()
+    val vm = StageViewModel(loaded, identity = roster.firstOrNull()?.memberId ?: "")
+    val decoder = SkiaImageDecoder(File(dir))
+    println("win08-stage: concert $concertId in Stage")
+    application {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "TroubaStage",
+            state = rememberWindowState(width = 1400.dp, height = 900.dp, position = WindowPosition(0.dp, 0.dp)),
+        ) {
+            val stagePointer = remember { desktopStagePointerIcons() }
+            TroubaTheme(dark = false) {
+                CompositionLocalProvider(
+                    LocalStagePointerIcons provides stagePointer,
+                    LocalCommandModifier provides CommandModifier.CTRL,
+                    LocalGlyphTooltip provides desktopGlyphTooltip,
+                ) {
+                    StageScreen(vm, decoder, onExit = { exitApplication() }, fullScreen = false)
+                }
             }
         }
     }
