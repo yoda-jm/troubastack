@@ -93,6 +93,11 @@ Studio's handshake (`web/studio/src/bridge.ts`) completes:
 - the app logs Studio's `ready`;
 - the app's `hello`, sent through `window.__troubastageShell.deliver`, gets `ready` back.
 
+**Amended 2026-11-03 at the design GO.** A BrowserFunction's name must be a bare identifier, so SWT can't present
+`window.TroubaStageShell.receive`. `bridge.ts` may therefore also accept a function-shaped shell:
+`window.TroubaStageShellReceive`, used when `window.TroubaStageShell` is absent. That additive change is the one
+Studio change WIN08 allows. The GO entry in `docs/handoff/reviews.md` has its tests.
+
 ### S1.6 No WebView2
 
 If `Browser(SWT.EDGE)` throws, or `getBrowserType()` isn't `"edge"`, the screen shows:
@@ -107,7 +112,7 @@ property that makes the host treat the engine as missing), so the words are test
 - Typing goes into Studio's fields.
 - **Esc pressed inside Studio reaches Studio.** For example it closes T208's Download PDF dialog. It doesn't
   leave the screen, and it doesn't leave full screen.
-- Say what F11 does while focus is inside Studio, whichever way it goes.
+- F11 toggles full screen from inside Studio too: it is the app's full-screen key (amended at the design GO).
 - **The app's ⋮ menu opens over Studio and is fully visible.** A heavyweight native window paints over Compose's
   in-window popups, so this needs an explicit answer.
 - **High DPI:** say the DPI-awareness mode, and how Studio's bounds follow the window at a scale other than 100 %.
@@ -173,5 +178,6 @@ The outline, so the size is honest:
 - Studio inside the Linux or macOS app.
 - JCEF.
 - The native ink overlay (A07).
-- Changing Studio itself. If the bridge needs a Studio change, report it; the change gets its own task.
+- Changing Studio itself, except S1.5's additive change in `bridge.ts`. Any other Studio change the bridge needs
+  gets its own task.
 - Code signing. That still waits for WIN04's install screenshots.

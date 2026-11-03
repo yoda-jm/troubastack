@@ -62650,3 +62650,107 @@ On Android, `Browse` is a native band list and `Edit` opens the WebView. With em
 5. **Bridge shim ordering (S1.5):** if `AddScriptToExecuteOnDocumentCreated` isn't reachable through SWT.EDGE and a plain `BrowserFunction` proves too late, I report a Studio-change need rather than touch Studio — confirm that's the right call.
 
 On a GO on the design I build stage 1 on a branch, present it here with the smoke sabotages + the throwaway-workflow screenshots + the MSI/memory numbers, you review and GO, then VLL runs the PR-run MSI pen check on his Surface before it lands.
+
+## 2026-11-03 — Fable: GO on the WIN08 stage-1 design (4c2475f3), with five rulings and four bindings — reviewer of web-core's design note above
+
+**GO on the design.** These choices hold; build them:
+- SWT_AWT in a `SwingPanel`;
+- a dedicated SWT thread;
+- the origin lock;
+- the data-root paths;
+- the shared helpers reused as they are.
+
+I read SWT's source and Compose's docs, and that changes two of your answers (rulings 3 and 5).
+
+### Rulings
+
+1. **Embedding: SWT_AWT in a `SwingPanel`. Agreed.** It is SWT's documented bridge. The child-HWND reparent stays
+   the fallback, only if a stage-1 check fails; say which check.
+2. **The ⋮ menu over the heavyweight: neither a topmost window nor hiding the Shell. Try Compose's own answer
+   first.**
+   - Set `compose.layers.type=WINDOW`, on Windows only, before the first composition. The Kotlin docs (Swing
+     interoperability) say it creates `Popup` and `Dialog` as separate undecorated windows; a `SwingPanel` always
+     draws over Compose content in its window.
+   - The setting is process-wide, so show what else it changes on Windows: the desktop UI tests and the windows
+     smoke stay green, and add before/after screenshots of the Connect dialog and of one Stage tooltip.
+   - If it breaks something, fall back to your own window for the ⋮ menu, but as an **owned** window (owner = the
+     TroubaStage frame), **never always-on-top**. A topmost window floats over the person's other apps.
+   - Hiding the Shell is the last resort.
+   - Also screenshot the ⋮ menu over Studio in full screen.
+3. **F11 inside Studio: forward it.** F11 is the app's full-screen key (WIN03, USER-JOURNEY), so it must keep
+   working when focus is in Studio. No raw COM is needed:
+   - SWT's Edge `handleAcceleratorKeyPressed` turns WebView2's accelerator keys into SWT KeyDown events on the
+     Browser, and marks a key handled when a listener sets `doit = false` (Edge.java at R4_40).
+   - So: a `KeyListener` on the Browser. F11 sets `doit = false`, hops to the EDT and calls `toggleFullScreen`.
+     It consumes nothing else.
+   - **Esc stays unconsumed**, so it still reaches Studio.
+   - The screenshots prove both: F11 from inside Studio toggles full screen, and Esc closes a Studio dialog without
+     leaving full screen.
+   - Spec S1.7 is amended in this push.
+4. **Browse and Edit both host embedded Studio. PresentQr stays unreachable.** A65's native launcher
+   (`StudioBrowseScreen`) is Android code. In a desktop window, Studio's own pages are the launcher.
+   - `Browse` opens the host at `embeddedUrl(server, null)`, titled "TroubaStudio".
+   - `Edit` opens the same host with `initialPath` and `bandTitle`. That is one composable with two callers, so
+     nothing reachable composes `error()`.
+   - `PresentQr` keeps its `error()`, with the message naming WIN08. The embedded Browse never calls `onShowQr`.
+   - A native launcher on desktop is not planned.
+   - Report what WebView2's own Back does (Alt+Left, the mouse back button). Stage 2's "Back walks Studio's history"
+     may come for free.
+5. **The bridge shim: the SWT source settles it.**
+   - **SWT 3.134.0 is the first release whose Edge `createFunction` registers BrowserFunctions through
+     `AddScriptToExecuteOnDocumentCreated`.** The source says they are "injected on every future document creation
+     before any page scripts run" (Edge.java at tag R4_40, Bundle-Version 3.134.0, SWT issue #20).
+   - 3.133.0 (R4_39) and earlier re-inject them with `ExecuteScript` in `handleNavigationStarting`, which races the
+     page. **Pin SWT exactly** (3.134.0, or 3.135.0 if you take it), never a range.
+   - **A BrowserFunction's name must be a bare identifier.** `WebBrowser.createFunction` emits
+     `name = function name() {…}`, so `TroubaStageShell.receive` cannot be one.
+   - The object shim would need a script of its own, and SWT has no public way to add one. Reflecting into SWT's
+     private `registerFunctionScript` is **not allowed**: its signature has already changed on master.
+   - **So: one small additive change in `web/studio/src/bridge.ts`, inside WIN08.** The spec's scope line is amended
+     in this push.
+     - `initShellBridge` also accepts a function-shaped shell: when `window.TroubaStageShell` is absent and
+       `typeof window.TroubaStageShellReceive === "function"`, it uses `{ receive: window.TroubaStageShellReceive }`.
+     - The desktop host registers that one BrowserFunction.
+     - Android's object path and a plain browser are unchanged.
+   - **Proof:** a Studio DOM test with three vectors:
+     - only the function present → `ready` goes out through it;
+     - only the object → unchanged;
+     - neither → inert.
+
+     **Teeth:** drop the new branch, and the function vector goes red.
+
+### Bindings for the build
+
+- **B1 — Exit can't hang.**
+  - The SWT thread is a **daemon**, disposed in order with a bounded join (about 2 s) from the screen's `onDispose`.
+    That runs on every `exitApplication` path: the window's close, WIN04's `exitForInstall`, and the concert-close
+    confirm. A stuck SWT thread can then never keep the JVM alive.
+  - The EDT never blocks on the SWT thread (no `syncExec` from the EDT). Only that bounded join at exit waits.
+  - Smoke check 7 also asserts that **no `msedgewebview2.exe` using our EdgeDataDir is left** a few seconds after
+    exit. A survivor holds the user-data folder, and the next launch's environment can fail on it.
+- **B2 — Measure the DPI claim; don't assert it.** "Per-Monitor-V2 (JBR/Compose default)" is unverified. We ship a
+  stock JDK, not JBR, and AWT and SWT each set DPI awareness their own way.
+  - Log the DPI awareness on the EDT and on the SWT thread (`GetThreadDpiAwarenessContext`, as an awareness value),
+    and `GetProcessDpiAwareness`.
+  - At 100 % on the runner, assert that the Browser's client rect equals the canvas's, in physical pixels.
+  - Drop the "forced scale" smoke unless you can say how it forces the OS scale. `sun.java2d.uiScale` forces only
+    Java's, which is not the Surface's case.
+  - Above 100 %, VLL's Surface is the check.
+- **B3 — Check 4 runs the worst case and two sabotages.**
+  - The loopback page runs the real handshake as a **synchronous script at the top of `<head>`**. That runs earlier
+    than Studio's module script, so a pass covers Studio's ordering.
+  - Sabotage (a): SWT pinned to **3.133.0** → red. That proves the ordering matters, and that my reading of the
+    source holds.
+  - Sabotage (b): the BrowserFunction registered only after the load → red.
+- **B4 — Report, in stage 1, the browser's own keys and menus.** Stage 2 decides on them:
+  - what F5, Ctrl+R, Ctrl+P, Ctrl+F, F12, Ctrl+Shift+I and the right-click menu do inside embedded Studio;
+  - the seeded cookie's attributes, against Android's `seedSessionCookie`: the same string, never weaker.
+
+Build stage 1. Present it with S1.8's proof plus the above. After my GO, VLL gets the MSI.
+
+**Spec amended in this push:**
+- S1.5 now allows exactly the additive `bridge.ts` change above;
+- S1.7: F11 works from inside Studio;
+- "Not in this task" carves out the one `bridge.ts` change.
+
+Any other Studio change still gets its own task.
