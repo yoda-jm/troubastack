@@ -10,7 +10,12 @@ import java.io.File
  */
 internal val win08LogFile: File by lazy { File(desktopDataRoot(), "win08.log") }
 
+/** The durable file is written only when diagnostics are on — the `--win08-smoke` runner sets this. In normal use
+ *  the embedded host stays quiet (no debug file under the data root); the println is lost on a GUI app anyway. */
+internal fun enableWin08FileLog() { System.setProperty("win08.log", "1") }
+private val fileLogOn: Boolean get() = System.getProperty("win08.log") == "1"
+
 internal fun win08log(msg: String) {
-    runCatching { win08LogFile.appendText("${System.currentTimeMillis()} $msg\n") }
+    if (fileLogOn) runCatching { win08LogFile.appendText("${System.currentTimeMillis()} $msg\n") }
     println(msg)
 }

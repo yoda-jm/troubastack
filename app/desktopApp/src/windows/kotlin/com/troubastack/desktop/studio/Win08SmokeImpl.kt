@@ -36,6 +36,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
 
     override fun run(outDir: File): Int {
         outDir.mkdirs()
+        enableWin08FileLog()
         win08log("smoke: run start; outDir=$outDir log=$win08LogFile")
         // Arm the backstop FIRST, so any hang — even before the loopback server is up — is logged and halted.
         Thread {
