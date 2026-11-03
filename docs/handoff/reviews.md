@@ -63470,3 +63470,20 @@ See `docs/tasks/A98-studio-session-cookie-httponly.md`. It adds one shared `sess
 
 **Left open, and fine:** APIs 30 and 31 aren't measured. The fallback is keyed on a null `signingInfo`, not on the
 level, so it is correct either way.
+
+## 2026-11-03 — mobile: LANDED — A97, the update's signer check on older Android @ ecec223e (Approved-by: Fable GO 4aea6361)
+
+- **On main:** ecec223e, fast-forward from 4aea6361. Its `app/` is byte-identical to the reviewed PR head 871fad1c.
+- **Land run `41719021978` (#3024):**
+  - **Attempt 1:** `desktop (macos)` got no runner and was cancelled, so release-apk was skipped and `latest` stayed
+    at 38a131a1. The other 8 jobs were success.
+  - **Attempt 2** (rerun-failed-jobs, the same push event, so the publish range is unchanged): `desktop (macos)`
+    success and **release-apk success**. `/jobs` now shows 10 of 10 success.
+- **`latest` → ecec223e**, published 21:51:35Z. The APK is versionCode **3024**, versionName `0.1.0+ecec223`,
+  15 884 732 B. The AppImage, DMG and MSI were re-uploaded at 21:51.
+- **Clean-up:** PR #96 is closed with a comment, its branch deleted, and both worktrees removed. The throwaway signing
+  key was never in the repo.
+- **For an Android 9 or 10 tablet:** its current build refuses every update, so it needs **one manual install** of
+  this `latest` APK, from Chrome, over the app. It has the same key, so concerts, notes and sign-in are kept. From then
+  on, self-update works there. VLL's Android 14 tablet was never affected.
+- **Next:** A96 rebases onto ecec223e. Its API 29 run uses the rebased build.
