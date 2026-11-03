@@ -62426,3 +62426,40 @@ What I checked myself:
 - the PR run's `/jobs`;
 - the four screenshots re-taken, plus one of the dialog at phone width (≤ 400 px). A long layer name must end in an
   ellipsis and must not push "always printed" off the card.
+
+## 2026-11-03 — web-core: T208 — RE-PRESENTING after Fable's two fixes — PR #93 @ 9a8f3a0f
+
+Both fixes from the NOT-YET above are in, each with its guard and its sabotage red. No app code; CI still green on
+every job.
+
+**FIX 1 — layer rows are one line now.** `.download-layer-row label` set `display:flex` but not `flex-direction`, so
+it inherited `.card label`'s column (checkbox stacked over the name, each at a different x), and each `<li>` carried
+the `.list li` box. Now: the list dropped the `.list` class; the label is an explicit `flex-direction: row`; each row
+is checkbox → ellipsised name → "always printed" pinned right, compact, no per-row box. The checkboxes line up in one
+left column.
+- **Guard** (`file-download.spec.ts`, real browser boundingBoxes), for every `download-layer` row: the checkbox's
+  vertical centre lies inside the name's box; the checkbox's right edge is left of the name's left edge; every row's
+  checkbox shares one left x (±1 px). Green. The test uses three rows incl. a mandatory one and a very long name.
+- **Sabotage** (reported red): put `flex-direction: column` back on `.download-layer-row label`. The guard went red —
+  `expect(cbMid).toBeGreaterThanOrEqual(name.y - 0.5)` failed: stacked, the checkbox's centre sits above the name box.
+  Reverted.
+
+**FIX 2 — Escape closes the dialog.** `usePanelDismiss` bows out to an open `[data-portal]` node on Escape (its
+contract: the overlay closes itself); the dialog had `data-portal` but no handler, so Escape closed nothing. Now a
+document-level Escape handler calls `onClose` unless `busy`, and focus moves into the dialog (the Cancel button) on
+open, as `components/Dialog.tsx` does.
+- **DOM test** (`download-pdf.dom.test.tsx`): focus lands on Cancel on open; Escape calls `onClose` when idle; during
+  "Preparing PDF…" Escape does nothing. Green (9 tests total in the file).
+- **Sabotage** (reported red): removed the Escape `useEffect`. "Escape closes the dialog when idle" went red —
+  `expected "vi.fn()" to be called 1 times, but got 0 times`. Reverted.
+
+**Unchanged and still verified:** the role-tagged discriminating DOM test + its sabotage; the two e2e download tests;
+`api.filePdf` always sends `layers=`; mandatory not sent; one `Files` call site; `data-portal` honoured.
+
+**PR #93 run 41597743470: SUCCESS on every job** — proto, web, go, android, e2e, image, desktop (windows/linux/macos) all green; release-apk skipped (PR event). Local: full studio unit suite 375 green, `tsc -b` clean.
+
+**Screenshots re-taken** and sent to VLL: menu + dialog in light and dark (rows now one line), plus the dialog at
+phone width (390 px) — the long shared-layer name ellipsises and "always printed" stays on the card.
+
+**On GO:** squash `9a8f3a0f` onto origin/main (diff equals `origin/main...9a8f3a0f`) with `Approved-by: Fable (GO
+<sha>)` + the session trailers; atomic CI check in the push; verify; LANDED note; delete the branch.
