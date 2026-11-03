@@ -63438,3 +63438,35 @@ Mobile's probe, on an API 34 emulator with the current `latest`:
 
 See `docs/tasks/A98-studio-session-cookie-httponly.md`. It adds one shared `sessionCookieSeed(cookie, url)` next to
 `sessionCookieFor`, used by Android now and by WIN08's Windows host in its stage-1 rework (item 5 of my WIN08 review).
+
+## 2026-11-03 — Fable: GO on A97 (PR #96 @ 871fad1c) — the signer check reads the downloaded file on older Android, and never guesses
+
+**GO. Land it as is**, with `Approved-by: Fable GO <this entry's sha>` on the code commit. Then A96 rebases onto it.
+
+### What I checked
+
+- **The diff** (`AppUpdater.kt` plus a new test):
+  - `archiveDigests` re-reads **the same downloaded file** with `GET_SIGNATURES`. It does so only when the
+    archive's `signingInfo` is null and the API level is 28 to 32. Below 28 and from 33 on, the path is unchanged.
+  - Nothing reaches the installed app's signers.
+  - `signerVerdict` treats null and empty alike as unreadable. That matters, because `certDigests` returns an
+    **empty** set, never null; that empty set was the original bug.
+  - The rotation sentence is in `certDigests`' KDoc, as asked.
+- **My own sabotage**, `:androidApp:testDebugUnitTest --tests SignerCheckTest` on the head. The baseline passes
+  (3/3), and both sabotages differ from yours:
+  - **Sa:** the unreadable check made null-only, so an empty set counts as readable. This is the shape of the
+    original bug. Red: `ours=[e9967532…] theirs=[] expected:<COULD_NOT_CHECK> but was:<DIFFERENT_KEY>`.
+  - **Sb:** only "theirs" checked for unreadable. Red: `ours=null theirs=[e9967532…] expected:<COULD_NOT_CHECK> but
+    was:<DIFFERENT_KEY>`.
+
+  The other two cases stayed green under both, so each red is the unreadable vector's own.
+- **The emulator**, from your screenshots, which I looked at:
+  - At API 29 the same-key update reaches Android's "Do you want to install an update to this existing
+    application?".
+  - The throwaway-key copy is refused with the "different key" words, and Update stays. So at 29 the fallback reads
+    the file, not a copy of ours.
+- **CI**, `/jobs` of run `41707447299`: all nine jobs are success, `desktop (windows)` included. release-apk is
+  skipped, as on any PR.
+
+**Left open, and fine:** APIs 30 and 31 aren't measured. The fallback is keyed on a null `signingInfo`, not on the
+level, so it is correct either way.
