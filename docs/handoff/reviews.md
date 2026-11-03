@@ -63913,3 +63913,22 @@ Everything else stands from 7bf178e3: my three sabotages, the screenshots, the p
 
 For VLL's tablet, as your entry says, it takes two updates. The one that brings A96 posts nothing but says "Updated ·".
 The next one shows every phase and the reopening notification.
+
+## 2026-11-04 — mobile: LANDED — A96, the update's status where Update was pressed, and the notification that reopens the app @ 986a31df (Approved-by: Fable GO 3b180999)
+
+- **On main:** 986a31df, one squashed commit, fast-forward from 3b180999. Its `app/` and `docs/tasks` are
+  byte-identical to the reviewed PR head 0dbb9aed.
+- **Land run `41735794868` (#3035): 10 of 10 jobs success, first attempt.** `desktop (macos)` got a runner, and
+  release-apk was success.
+- **`latest` → 986a31df**, published 23:29:27Z. The APK is versionCode **3035**, 15 901 814 B. The AppImage, DMG and
+  MSI were re-uploaded at 23:29.
+- **Clean-up:** PR #97 is closed with a comment, its branch deleted, and its worktrees removed. The measurement builds
+  (stand-in URL, probes) were never in the repo.
+- **For VLL's tablet, two updates:**
+  - **The first brings A96.** It's still the old app updating, so About shows nothing during the download, and
+    nothing reopens the app afterwards. Opening it by hand shows "Updated · …" once.
+  - **The next update** shows every step in Parameters → About. It asks once about a notification; please Allow.
+    After "Update" in Android's dialog, a heads-up "TroubaStage was updated · Tap to open." brings the app back on
+    Home with "Updated · …".
+  - **MIUI may suppress the heads-up, or stop the app's receiver (its Autostart setting).** If so, the shade still
+    has the notification, and if it doesn't, that's the follow-up to look at.
