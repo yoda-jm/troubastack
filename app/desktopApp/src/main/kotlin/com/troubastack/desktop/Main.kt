@@ -184,6 +184,17 @@ fun main(args: Array<String>) {
         if (code != 0) exitProcess(code)
         return
     }
+    // WIN08 S1.1 (item 3) — re-entry: leave and re-enter the embedded Studio screen twice, and an immediate Back.
+    val reentryIdx = args.indexOf("--win08-reentry")
+    if (reentryIdx >= 0) {
+        val outDir = args.getOrNull(reentryIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-reentry needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner
+            ?: run { System.err.println("win08-reentry: no runner on this OS (Windows only)"); exitProcess(2) }
+        val code = runner.runReentry(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
     // WIN08 item 2 — the real-Studio CI hook (`--win08-studio <loopback URL>`): sign in THROUGH the app's own
     // sign-in code (HttpTransport.connect, the call Connect's "Sign in" makes), storing the session exactly as
     // Connect does, then open the embedded editor at the demo song. Loopback only; credentials from the environment

@@ -52,6 +52,8 @@ internal class SwtBrowserController(
     @Volatile var started: Boolean = false; private set
     @Volatile var engineMissingReported: Boolean = false; private set
     @Volatile var startupTimedOut: Boolean = false; private set
+    @Volatile var shellEverShown: Boolean = false; private set   // true once the embedded Shell was made visible
+    @Volatile var newWindowRequested: Boolean = false; private set // S1.4 report: a target=_blank/window.open fired
     @Volatile var docCookie: String? = null; private set   // what document.cookie sees (item 5 — must NOT hold the session)
     @Volatile private var disposed: Boolean = false
     // B2 DPI measurement (filled by measureDpi, read by the smoke).
@@ -153,9 +155,11 @@ internal class SwtBrowserController(
                 reportEngineMissing()
                 return
             }
-            // Wait for the AWT canvas to be realized (SwingPanel adds + shows it) before SWT_AWT.new_Shell.
+            if (disposed) { log("ctrl: disposed before the Shell existed — bailing, no window"); return }
+            // Wait for the AWT canvas to be realized (SwingPanel adds + shows it) before creating the Shell.
             val deadline = System.currentTimeMillis() + 10_000
-            while (!canvas.isDisplayable && System.currentTimeMillis() < deadline) Thread.sleep(20)
+            while (!canvas.isDisplayable && !disposed && System.currentTimeMillis() < deadline) Thread.sleep(20)
+            if (disposed) { log("ctrl: disposed during the canvas wait — bailing, no window"); return }
             if (!canvas.isDisplayable) { log("ctrl: canvas never became displayable"); reportEngineMissing(); return }
             log("ctrl: canvas displayable; creating TOP-LEVEL Shell + Browser(SWT.EDGE)")
 
@@ -199,7 +203,7 @@ internal class SwtBrowserController(
                 if (sabotage != "nofit") canvas.addComponentListener(object : java.awt.event.ComponentAdapter() {
                     override fun componentResized(e: java.awt.event.ComponentEvent?) = exec { fitShellToCanvas(shell) }
                 })
-                shell.isVisible = true
+                shell.isVisible = true; shellEverShown = true
                 log("ctrl: reparented shell into canvas hwnd=$canvasHwnd (sabotage=$sabotage)")
             } else if (sabotage == "reparent") {
                 // SABOTAGE only: leave the Shell top-level so no WebView2 window is a frame descendant (GA_ROOT reds).
@@ -264,6 +268,15 @@ internal class SwtBrowserController(
                 }
             })
 
+            // S1.4 report (item 7): observe new-window requests (target=_blank / window.open, e.g. a file-name link).
+            // Stage 1 only reports + suppresses (leaving event.browser null); stage 2 routes them.
+            browser.addOpenWindowListener(object : org.eclipse.swt.browser.OpenWindowListener {
+                override fun open(event: org.eclipse.swt.browser.WindowEvent) {
+                    newWindowRequested = true
+                    log("win08: REPORT OpenWindowListener fired — new-window request suppressed (event.browser left null)")
+                }
+            })
+
             // After the first load, send a hello over the native→web channel; a ready back proves both ways.
             var lateBridgeDone = false
             browser.addProgressListener(object : ProgressAdapter() {
@@ -279,9 +292,8 @@ internal class SwtBrowserController(
             // Studio's own scripts cannot read the session (document.cookie), while the request header still carries
             // it. SWT's setCookie parses these attributes via HttpCookie.parse.
             sessionCookie?.let { c ->
-                val https = origin.startsWith("https")
-                val value = "$c; Path=/; HttpOnly" + if (https) "; Secure" else ""
-                runCatching { Browser.setCookie(value, origin) }.onSuccess { ok -> log("win08: setCookie=$ok (HttpOnly${if (https) ",Secure" else ""})") }
+                val value = com.troubastack.app.sessionCookieSeed(c, origin) // A98: HttpOnly; SameSite=Lax (+Secure https)
+                runCatching { Browser.setCookie(value, origin) }.onSuccess { ok -> log("win08: setCookie=$ok via sessionCookieSeed") }
             }
             browser.setUrl(loadUrl)
             log("ctrl: setUrl($loadUrl); entering readAndDispatch loop")

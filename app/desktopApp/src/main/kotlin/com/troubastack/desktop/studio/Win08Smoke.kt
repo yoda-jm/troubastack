@@ -14,6 +14,10 @@ import java.util.ServiceLoader
 interface Win08SmokeRunner {
     /** Run the smoke; return the process exit code (0 = all checks passed). Writes screenshots/markers under [outDir]. */
     fun run(outDir: File): Int
+
+    /** S1.1 re-entry (item 3): leave and re-enter the embedded Studio screen twice (the bridge round-trips each
+     *  time), and an immediate Back on entering leaves no window. Returns the exit code (0 = passed). */
+    fun runReentry(outDir: File): Int
 }
 
 val win08SmokeRunner: Win08SmokeRunner? by lazy {

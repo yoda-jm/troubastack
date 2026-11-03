@@ -97,6 +97,79 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         return 0
     }
 
+    override fun runReentry(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        win08log("reentry: run start; log=$win08LogFile")
+        Thread {
+            try { Thread.sleep(90_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("reentry: BACKSTOP firing (>90s)"); Runtime.getRuntime().halt(1)
+        }.apply { isDaemon = true; start() }
+        val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+        serverSocket = server
+        val origin = "http://127.0.0.1:${server.localPort}"
+        Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
+        val edgeDataDir = File(desktopDataRoot(), "webview2")
+        fun argsNow() = EmbeddedStudioArgs(origin, null, "TroubaStudio", "win08sess=smoke", edgeDataDir, {}, {}, { false }, { null })
+        val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+        val shown = mutableStateOf(true)
+        val cyc = mutableStateOf(0)
+        application {
+            Window(
+                onCloseRequest = ::exitApplication,
+                title = "TroubaStage",
+                state = rememberWindowState(width = 1200.dp, height = 820.dp),
+            ) {
+                androidx.compose.runtime.key(cyc.value) {
+                    if (shown.value) EmbeddedStudioContent(argsNow(), onController = { ctrlRef.set(it) })
+                }
+                LaunchedEffect(Unit) { Thread { reentryChecks(ctrlRef, shown, cyc) }.apply { isDaemon = true; start() } }
+            }
+        }
+        return 0
+    }
+
+    private fun reentryChecks(
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+        shown: androidx.compose.runtime.MutableState<Boolean>,
+        cyc: androidx.compose.runtime.MutableState<Int>,
+    ) {
+        val results = LinkedHashMap<String, Boolean>()
+        fun mark(name: String, ok: Boolean) { results[name] = ok; line("WIN08-CHECK $name: ${if (ok) "PASS" else "FAIL"}") }
+        fun waitFor(timeoutMs: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + timeoutMs
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(100) }
+            return cond()
+        }
+        try {
+            win08log("reentry: checker start")
+            // S1.1 — leave and re-enter twice; the bridge round-trips each time (a fresh controller per entry).
+            for (c in 1..2) {
+                val ok = waitFor(40_000) { ctrlRef.get()?.bridgeReady == true }
+                win08log("reentry: cycle $c bridge=$ok")
+                mark("reentry-cycle$c-bridge", ok)
+                val old = ctrlRef.get()
+                shown.value = false                 // leave → onDispose → controller.dispose()
+                Thread.sleep(2500)
+                ctrlRef.set(null)
+                cyc.value = c                        // fresh key → a brand-new EmbeddedStudioContent + controller
+                shown.value = true                   // re-enter
+                waitFor(20_000) { ctrlRef.get().let { it != null && it !== old } }
+            }
+            // An immediate Back on entering leaves no window: dispose arrives before the Shell is shown.
+            cyc.value = 99; shown.value = true
+            waitFor(10_000) { ctrlRef.get() != null }
+            val c99 = ctrlRef.get()
+            shown.value = false                      // Back at once, before the controller shows the Shell
+            Thread.sleep(4000)
+            val neverShown = c99 != null && !c99.shellEverShown
+            win08log("reentry: early-back c99.shellEverShown=${c99?.shellEverShown}")
+            mark("early-back-no-window-shown", neverShown)
+        } catch (e: Throwable) {
+            win08log("reentry: checker threw: ${e.message}")
+        }
+        finish(results) { null }
+    }
+
     /** A one-page HTTP/1.0 loopback: read the request headers (record the Cookie), reply with [PAGE]. */
     private fun acceptLoop(server: ServerSocket) {
         while (!server.isClosed) {
