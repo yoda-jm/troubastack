@@ -126,6 +126,14 @@ private fun AppRoot(onDraw: () -> Unit = {}) {
 private var windowDrew = false
 
 fun main(args: Array<String>) {
+    if (isWindows()) {
+        // WIN08 — render Compose Popup/Dialog (the ⋮ menu, dialogs) as separate undecorated windows so they float
+        // OVER the heavyweight SWT browser instead of being painted under it (Swing interop). Process-wide, so set
+        // before the first composition — here, before any `application {}` including the smokes.
+        System.setProperty("compose.layers.type", "WINDOW")
+        // WIN08 (S1.2 / WIN07) — SWT unpacks its native DLLs under the data root, never the shared ~/.swt.
+        System.setProperty("swt.library.path", File(desktopDataRoot(), "swt").also { runCatching { it.mkdirs() } }.path)
+    }
     // F2.3 nit — CI reads the data root the app actually resolves, instead of hard-coding the folder name.
     // Writes to the given file (a GUI app's stdout is not captured on CI); falls back to stdout locally.
     val pdrIdx = args.indexOf("--print-data-root")

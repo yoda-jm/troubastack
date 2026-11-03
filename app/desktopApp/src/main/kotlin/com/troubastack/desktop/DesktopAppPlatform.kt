@@ -32,6 +32,9 @@ import com.troubastack.app.RehearsalNotesStore
 import com.troubastack.app.SkiaImageDecoder
 import com.troubastack.app.SkiaNoteBitmapCodec
 import com.troubastack.app.StudioHost
+import com.troubastack.app.sessionCookieFor
+import com.troubastack.desktop.studio.EmbeddedStudioArgs
+import com.troubastack.desktop.studio.embeddedStudioProvider
 import com.troubastack.shared.distribution.ServerDiscovery
 import com.troubastack.shared.buildinfo.UPDATE_RELEASE_URL
 import com.troubastack.shared.seams.HostOs
@@ -85,6 +88,10 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
     override val qrScanner: (@Composable (onDecoded: (String) -> Unit, onClose: () -> Unit) -> Unit)? = null
 
     override val studio: StudioHost = object : StudioHost {
+        // WIN08 — on Windows the embedded-Studio provider hosts Studio (WebView2/SWT) in the window; on Linux and
+        // macOS no provider is registered, so both Browse and Edit fall back to "Coming soon." (D6). Browse opens
+        // Studio at its root; Edit opens the SAME host at initialPath with the band title. PresentQr stays
+        // unreachable (the embedded Browse never calls onShowQr).
         @Composable
         override fun Browse(
             transport: HttpTransport,
@@ -92,20 +99,45 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             onShowQr: (bandId: String, bandName: String) -> Unit,
             onBack: () -> Unit,
         ) {
-            StudioComingSoon(onBack)
+            val provider = embeddedStudioProvider
+            if (provider != null) provider.Host(embeddedArgs(initialPath = null, title = "TroubaStudio", onBack = onBack))
+            else StudioComingSoon(onBack)
             BackHandler(onBack)
         }
 
-        // Neither is reachable from the Coming-soon screen; if one is ever composed, say why instead of drawing nothing.
         @Composable
-        override fun Edit(storage: Storage, onBack: () -> Unit, initialPath: String?, bandTitle: String?) =
-            error("Studio's editor is not on Windows yet (WIN05)")
+        override fun Edit(storage: Storage, onBack: () -> Unit, initialPath: String?, bandTitle: String?) {
+            val provider = embeddedStudioProvider
+            if (provider != null) {
+                provider.Host(embeddedArgs(initialPath = initialPath, title = bandTitle?.ifBlank { null } ?: "TroubaStudio", onBack = onBack))
+                BackHandler(onBack)
+            } else {
+                error("Studio's editor is not on Windows yet (WIN05)")
+            }
+        }
 
         @Composable
         override fun PresentQr(transport: HttpTransport, bandId: String, bandName: String, onManageInStudio: () -> Unit, onBack: () -> Unit) =
             error("Studio's room QR is not on Windows yet (WIN05)")
 
-        override fun clearCookies() {} // no Studio web view, so no cookies
+        override fun clearCookies() {} // the WebView2 profile is cleared through the EdgeDataDir (stage 2)
+    }
+
+    /** WIN08 — gather what the embedded-Studio host needs (the server, the session cookie bound to that origin,
+     *  the EdgeDataDir under the data root, and the window hooks). The provider builds the URL + origin from these. */
+    private fun embeddedArgs(initialPath: String?, title: String, onBack: () -> Unit): EmbeddedStudioArgs {
+        val serverUrl = storage.getSecret(CORE_URL_KEY)
+        return EmbeddedStudioArgs(
+            serverUrl = serverUrl,
+            initialPath = initialPath,
+            title = title,
+            sessionCookie = serverUrl?.let { sessionCookieFor(storage::getSecret, it) },
+            edgeDataDir = File(desktopDataRoot(), "webview2"),
+            onBack = onBack,
+            toggleFullScreen = { window.toggleFullScreen() },
+            isFullScreen = { window.fullScreen },
+            frameWindow = { awtWindow },
+        )
     }
 
     /** WIN04 — closes the app for an update's install (the entrypoint sets it: exitApplication). */
@@ -187,6 +219,9 @@ private fun StudioComingSoon(onBack: () -> Unit) {
         }
     }
 }
+
+/** The saved server URL key (file-private per-screen, as in HttpTransport/ConnectScreen/EditScreen). */
+private const val CORE_URL_KEY = "coreUrl"
 
 internal fun isWindows(): Boolean = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
 
