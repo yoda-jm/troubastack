@@ -2,7 +2,6 @@ package com.troubastack.desktop.studio
 
 import com.troubastack.shared.distribution.reloadUrl
 import org.eclipse.swt.SWT
-import org.eclipse.swt.awt.SWT_AWT
 import org.eclipse.swt.browser.Browser
 import org.eclipse.swt.browser.BrowserFunction
 import org.eclipse.swt.browser.LocationAdapter
@@ -74,6 +73,11 @@ internal class SwtBrowserController(
     /** Smoke only: try to navigate off-origin; the LocationListener must veto it ([navVetoed] is the proof). */
     fun probeOffOriginNav(foreign: String) = exec { browser?.setUrl(foreign) }
 
+    /** Keep the reparented child Shell filling the AWT canvas (called on the SWT thread). */
+    private fun fitShellToCanvas(shell: Shell) {
+        if (!shell.isDisposed) shell.setBounds(0, 0, maxOf(1, canvas.width), maxOf(1, canvas.height))
+    }
+
     /** Ordered teardown + bounded join, from the screen's onDispose (every exitApplication path runs it). */
     fun dispose() {
         exec { shell?.takeIf { !it.isDisposed }?.dispose() }
@@ -100,12 +104,14 @@ internal class SwtBrowserController(
             val deadline = System.currentTimeMillis() + 10_000
             while (!canvas.isDisplayable && System.currentTimeMillis() < deadline) Thread.sleep(20)
             if (!canvas.isDisplayable) { log("ctrl: canvas never became displayable"); onEdt(onEngineMissing); return }
-            log("ctrl: canvas displayable; calling SWT_AWT.new_Shell")
+            log("ctrl: canvas displayable; creating TOP-LEVEL Shell + Browser(SWT.EDGE)")
 
-            val shell = SWT_AWT.new_Shell(display, canvas)
+            // A top-level, SWT-thread-owned Shell (NOT SWT_AWT.new_Shell): WebView2's controller-ready callback then
+            // pumps on the SWT thread (WIN05: a bare Shell readies in ~80ms). Under SWT_AWT the embedded Shell was
+            // AWT-affine and the first Edge op timed out at 5s. We reparent this Shell into the AWT canvas below.
+            val shell = Shell(display, SWT.NO_TRIM)
             this.shell = shell
             shell.layout = FillLayout()
-            log("ctrl: new_Shell done; creating Browser(SWT.EDGE)")
 
             val browser = try {
                 Browser(shell, SWT.EDGE)
@@ -126,6 +132,20 @@ internal class SwtBrowserController(
                 return
             }
             this.browser = browser
+
+            // Child-HWND embedding: reparent the Shell's HWND into the heavyweight AWT canvas and track its size.
+            val canvasHwnd = Win08Native.hwndOf(canvas)
+            if (canvasHwnd != null) {
+                Win08Native.embed(Win08Native.hwnd(shell.handle), canvasHwnd)
+                fitShellToCanvas(shell)
+                canvas.addComponentListener(object : java.awt.event.ComponentAdapter() {
+                    override fun componentResized(e: java.awt.event.ComponentEvent?) = exec { fitShellToCanvas(shell) }
+                })
+                shell.isVisible = true
+                log("ctrl: reparented shell into canvas hwnd=$canvasHwnd")
+            } else {
+                log("ctrl: WARN no canvas HWND; shell not embedded")
+            }
 
             // Bridge: a BrowserFunction whose bare-identifier name Studio's bridge.ts picks up as the shell
             // (window.TroubaStageShellReceive). SWT 3.134.0 registers it via AddScriptToExecuteOnDocumentCreated,
