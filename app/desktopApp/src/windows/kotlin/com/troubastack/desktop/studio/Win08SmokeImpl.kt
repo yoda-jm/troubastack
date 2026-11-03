@@ -26,18 +26,13 @@ import java.nio.charset.StandardCharsets
 class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var cookieHeader: String? = null
     @Volatile private var served = false
-    private lateinit var logFile: File
 
-    /** A packaged Windows app is a GUI subsystem binary: its stdout is not captured on CI, so every marker line is
-     *  also appended to [logFile], which the CI step reads back and echoes (the step conclusions Fable needs). */
-    private fun line(s: String) {
-        println(s)
-        runCatching { logFile.appendText(s + "\n") }
-    }
+    /** Markers and stages all go to the durable [win08log] file (a packaged Windows app has no captured stdout). */
+    private fun line(s: String) = win08log(s)
 
     override fun run(outDir: File): Int {
         outDir.mkdirs()
-        logFile = File(outDir, "win08-smoke.log").apply { runCatching { writeText("") } }
+        win08log("smoke: run start; outDir=$outDir log=$win08LogFile")
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         val port = server.address.port
         val origin = "http://127.0.0.1:$port"
@@ -50,13 +45,15 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             ex.responseBody.use { it.write(body) }
         }
         server.start()
+        win08log("smoke: loopback server on $origin")
 
-        // Backstop: never hang the CI job — halt non-zero after 90 s if the checker has not already exited.
+        // Backstop: never hang the CI job — halt non-zero after 75 s if the checker has not already exited.
         Thread {
-            try { Thread.sleep(90_000) } catch (_: InterruptedException) { return@Thread }
-            System.err.println("win08-smoke: backstop timeout (>90s)")
+            try { Thread.sleep(75_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("smoke: BACKSTOP firing (>75s) — halting 1")
             Runtime.getRuntime().halt(1)
         }.apply { isDaemon = true; start() }
+        win08log("smoke: backstop armed")
 
         val edgeDataDir = File(desktopDataRoot(), "webview2")
         val args = EmbeddedStudioArgs(
@@ -71,6 +68,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             frameWindow = { null },
         )
 
+        win08log("smoke: entering application{}")
         application {
             Window(
                 onCloseRequest = ::exitApplication,
@@ -80,6 +78,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 var controller by remember { mutableStateOf<SwtBrowserController?>(null) }
                 EmbeddedStudioContent(args, onController = { controller = it })
                 LaunchedEffect(Unit) {
+                    win08log("smoke: window composed; starting checker thread")
                     Thread { runChecks(controller, edgeDataDir, server) }.apply { isDaemon = true; start() }
                 }
             }
@@ -99,6 +98,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             return cond()
         }
         try {
+            win08log("checker: start (controller=${controller != null})")
             val c = controller
             if (c == null) { mark("controller-created", false); finish(results, server); return }
 

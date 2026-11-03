@@ -66,12 +66,13 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             onReady = {},
             onEngineMissing = { engineMissing = true },
             onFullScreenKey = { args.toggleFullScreen() },
-            log = { println(it) },
+            log = ::win08log,
         ).also(onController)
     }
     DisposableEffect(Unit) {
+        win08log("content: DisposableEffect -> controller.start()")
         controller.start()
-        onDispose { controller.dispose() }
+        onDispose { win08log("content: onDispose -> controller.dispose()"); controller.dispose() }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -97,7 +98,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             SwingPanel(
                 background = Color.Transparent,
                 modifier = Modifier.fillMaxSize(),
-                factory = { JPanel(BorderLayout()).apply { add(canvas, BorderLayout.CENTER) } },
+                factory = { win08log("content: SwingPanel factory -> JPanel+Canvas"); JPanel(BorderLayout()).apply { add(canvas, BorderLayout.CENTER) } },
             )
         }
     }

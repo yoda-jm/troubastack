@@ -83,25 +83,29 @@ internal class SwtBrowserController(
     private fun run() {
         var display: Display? = null
         try {
+            log("ctrl: run start (thread=${Thread.currentThread().name})")
             // EdgeDataDir MUST be set before the first Browser(SWT.EDGE) creates the WebView2 environment.
             System.setProperty("org.eclipse.swt.browser.EdgeDataDir", edgeDataDir.also { it.mkdirs() }.absolutePath)
             display = Display()
             this.display = display
             started = true
+            log("ctrl: Display created")
             if (forceNoWebview) {
                 // S1.6 CI path: behave as if WebView2 is absent, without creating a Shell/Browser.
-                log("win08: forceNoWebview — reporting engine missing")
+                log("ctrl: forceNoWebview — reporting engine missing")
                 onEdt(onEngineMissing)
                 return
             }
             // Wait for the AWT canvas to be realized (SwingPanel adds + shows it) before SWT_AWT.new_Shell.
             val deadline = System.currentTimeMillis() + 10_000
             while (!canvas.isDisplayable && System.currentTimeMillis() < deadline) Thread.sleep(20)
-            if (!canvas.isDisplayable) { log("win08: canvas never became displayable"); onEdt(onEngineMissing); return }
+            if (!canvas.isDisplayable) { log("ctrl: canvas never became displayable"); onEdt(onEngineMissing); return }
+            log("ctrl: canvas displayable; calling SWT_AWT.new_Shell")
 
             val shell = SWT_AWT.new_Shell(display, canvas)
             this.shell = shell
             shell.layout = FillLayout()
+            log("ctrl: new_Shell done; creating Browser(SWT.EDGE)")
 
             val browser = try {
                 Browser(shell, SWT.EDGE)
@@ -166,6 +170,7 @@ internal class SwtBrowserController(
             // Seed the session cookie (Browser exists ⇒ the WebView2 cookie manager is up), then load — signed in.
             sessionCookie?.let { c -> runCatching { Browser.setCookie(c, origin) }.onSuccess { ok -> log("win08: setCookie=$ok") } }
             browser.setUrl(loadUrl)
+            log("ctrl: setUrl($loadUrl); entering readAndDispatch loop")
 
             runLoopUntilDisposed(display, shell)
         } catch (e: Throwable) {
