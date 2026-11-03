@@ -62322,3 +62322,55 @@ Then list **every** main run's `desktop (windows)` result from the land onward, 
 - a path under `build\skiko` means the cause is something other than the shared folder (an antivirus scan holding
   the fresh DLL, for example), and WIN07 reopens;
 - a path under `.skiko` means a test task escaped the setting.
+
+## 2026-11-03 — web-core: T208 (download a song file from its ⋯ menu, with or without annotations) — REQUESTING GO — PR #93 @ dc5bb091
+
+Spec `docs/tasks/T208-download-a-song-file-from-the-file-list.md` @ 9c6c9ef9 (VLL: "can I download a pdf of a file
+inside a song (annotated or not)… at the file level"). Size S. **No app code** — Studio + docs only, so the Windows
+rule does not apply; CI still green on every job.
+
+**The feature.** One download entry, FIRST, in every file row's ⋯ menu:
+- PDF / text-chart rows → **"Download PDF…"** opens a dialog: **With annotations** (default; a checklist of THIS
+  file's layers pre-ticked by `defaultVisibility`, mandatory locked + "always printed"; disabled with "This file has
+  no annotations." when the file has none) or **Without annotations** ("The file as uploaded: no annotations, no
+  crop.").
+- Image rows → **"Download image"**, a direct download, no dialog.
+Both are real downloads (`saveBlob`), never a new tab. The viewer's Layers-tab button and the file-name link are
+unchanged.
+
+**The trap, handled.** "With annotations" reuses the one layer rule (`visibleLayerIdsForFile`) and `api.filePdf`, so
+it ALWAYS sends `layers=` explicitly — the ticked ids, empty when none ticked, never omitted. The server's
+absent-param default (`fileLayerVisible`, role `""`) drops a role-tagged shared layer that `defaultVisibility` shows;
+omitting would print less than the dialog listed. Mandatory layers are not sent (the server forces them on in
+`bake.fileLayerVisible`), which is what lets "untick everything" reach a truly empty `layers=`.
+
+**One layout call.** The dialog is portalled to `<body>`: it renders inside the Details panel, which has `transform`
++ `backdrop-filter` + `overflow:auto` — a containing block that would clip a nested `position:fixed` backdrop (the
+RowMenu T87 trap). `data-portal="download-dialog"` marks it "inside" for `usePanelDismiss`, so interacting with it
+does not dismiss the panel.
+
+**Acceptance.**
+1. **DOM test** `web/studio/test/download-pdf.dom.test.tsx` — one file with the six specified layers: a shared layer
+   WITH a role tag (the discriminating vector), a conductor layer, my own personal, another member's personal, a
+   mandatory, and a song-level layer with no `fileId`. Asserts the checklist lists exactly this file's five layers
+   (song-level excluded), ticked as `defaultVisibility` says, mandatory locked; Download sends `layers=` with exactly
+   `{shared-role, conductor, mine}` — role-tagged INCLUDED, another member's / song-level / mandatory excluded;
+   unticking everything sends `layers=` EMPTY, never no parameter. 6 tests, all green.
+2. **Sabotage (reported red).** Temporarily made the dialog omit `layers` when the ticks equal the defaults. The
+   discriminating test went red: `expected false to be true` at `expect(present).toBe(true)` — the `layers` parameter
+   was absent, so the role-tagged assertion failed. Reverted; byte-identical to the committed dialog.
+3. **e2e** `web/studio/e2e/file-download.spec.ts` — FILEPDF mocked via `page.route` (no poppler in e2e). Two tests,
+   green: ⋯ → Download PDF… → With annotations → Download yields a `download` event with the server's filename and a
+   routed request carrying `layers=dl-role,dl-mine`; → Without annotations → Download yields a `download` whose bytes
+   equal `GET /api/files/{id}` and opens no new page (popup listener stayed false); and an image row's "Download
+   image" downloads straight, no dialog.
+4. **Docs** `docs/USER-JOURNEY.md` Phase 1 multi-file-pool bullet extended: any file downloads from its ⋯ menu, with
+   your annotations or as uploaded.
+5. **PR #93 run 41594415854: SUCCESS on every job** — proto, web, go, android, e2e, image, desktop (windows), desktop (linux), desktop (macos) all green; release-apk correctly skipped (PR event, not a main push).
+
+Local: full studio unit suite 372 green, `tsc -b` clean. Screenshots of the menu and the dialog in light + dark sent
+to VLL.
+
+**On GO:** squash `dc5bb091` onto origin/main with `Approved-by: Fable (GO <sha>)` + the session trailers; the land
+diff against origin/main equals `origin/main...dc5bb091`. Atomic CI check in the push command; verify on main; push
+the LANDED note; delete the branch.
