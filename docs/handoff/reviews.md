@@ -62754,3 +62754,65 @@ Build stage 1. Present it with S1.8's proof plus the above. After my GO, VLL get
 - "Not in this task" carves out the one `bridge.ts` change.
 
 Any other Studio change still gets its own task.
+
+## 2026-11-03 — mobile presents: the ✕ on "Join a band" and "Connect to your band" is named "Close" (VLL) — reviewer: Fable
+
+Branch `mobile/close-names` @ 3ad36d5f, PR #94. **PR CI:** run **`41679107466`**: every app job is **success**: `desktop (windows)`, `desktop (linux)`,
+`desktop (macos)`, android, web, go and proto. e2e and image are still running; I'll post their result here.
+
+### As built
+
+- **Both ✕ are named "Close"** on their button (`JoinDialog.kt`, `ConnectScreen.kt`), with the method you GO'd:
+  - the name is a `contentDescription` on the TextButton;
+  - the ✕ is drawn with `GlyphText`, so it isn't read after the name.
+- **Connect's ✕ is named "Close", not "Cancel"**, as VLL chose. It still does what Cancel does.
+- **`GlyphText` moved** from a private function in `StageScreen.kt` to `shared/ui/GlyphText.kt` (internal), unchanged,
+  so the dialogs can use it. Its `style` now defaults to `LocalTextStyle.current`, the style a `Text` would take.
+  That keeps the dialogs' ✕ pixel-identical inside a TextButton.
+- **The test rule is shared:** `assertNamedClickable` and `assertGlyphsNotRead` moved from
+  `StageAccessibleNamesUiTest` to a desktopTest helper (`shared/ui/AccessibleNames.kt`), unchanged, so the Stage test
+  and the new one apply the same rule.
+
+### Proof
+
+- **`DialogCloseNamesUiTest`, new, one case per dialog.**
+  - **Connect:** one clickable named "Close" with no semantics children. "✕" is never read, and no node is named
+    "Cancel". Clicking the named ✕ closes the dialog.
+  - **Join, first-ever server (the Confirm step):** the same checks.
+  - **Join, a malformed invite (the Blocked step):** the step also has its own "Close" button, a word. The ✕ is
+    still the one clickable *named* "Close", with no children, and "✕" isn't read. Clicking the named ✕ closes Join.
+  - Shared desktop and desktopApp suites: 676 + 30 tests pass.
+- **Sabotage, both dialogs in one run:**
+  - Join's ✕ back to `Text("✕")`, name kept → red on "'Close' has no semantics children (Android would split its
+    name off)";
+  - Connect's name removed → red on "one clickable named 'Close' expected:<1> but was:<0>".
+
+  Restored.
+- **The emulator's dump of the head's APK** (Pixel Tablet AVD, API 36):
+  - Connect: **ONE Button node, content-desc "Close", `clickable=true`, `children=0`**. Its Cancel is unchanged.
+  - Join (Confirm), and Join (Blocked): the same, each. The Blocked step's own "Close" stays a text button.
+  - "✕" is in no dump of the head. **Positive control:** in all three of main's dumps, the ✕ is an unnamed clickable
+    View with 2 children, one of them a "✕" TextView.
+- **Pixels: main's APK twice against the head's**, with the same journey from a fresh state each time. The journey:
+  Home → Connect → its ✕ → Join (Confirm) → its ✕ → Join (Blocked) → its ✕. Each shot waits until two screencaps
+  2 s apart are identical.
+  - **Every step is identical above the gesture-handle band** (PIL bbox None on y < 2528): main vs main, main vs
+    head, and head vs head. Main B vs head B is identical over the whole screen in 6 of 8 steps.
+  - The only differing pixels are the handle at y 2530–2536 (the known 4×7 px patch at (988,2530), x 612–991 under a
+    dialog's scrim). They differ between main's own two runs too.
+  - **Rig notes, so nobody repeats them:**
+    - The host was loaded (load 10–14), and polling with accessibility dumps between taps made the app ANR. The pixel
+      runs take no dumps; the dumps are a separate pass with fixed waits.
+    - Airplane mode (emulator only) was on for both, because B06's LAN discovery lists the host's server at a
+      random moment and adds a row to Connect. Nothing was ever tapped or sent to it.
+    - Join is opened by an explicit `VIEW` intent on `/join/…` links: a first-ever server for Confirm, and
+      `/join/a.b` for Blocked. Nothing is contacted.
+- **CI:** a PR run with `desktop (windows)`, as above.
+
+### Seen on main, for you
+
+- Two docs-only main runs went red: `41668230724` (e2b2ffde) and `41670418386` (4c2475f3).
+  - In both, **`desktop (macos)` never got a runner.** No step ran, and the job was cancelled after 15 minutes.
+  - The next run, `41671939267` (2d0ba235), was green.
+- **Since DESK02, that job is in release-apk's `needs`.** On a no-runner day, an app land publishes nothing until the
+  run is re-run. I'll watch for it on my land.
