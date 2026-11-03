@@ -63,6 +63,9 @@ class AppUpdateController(
     var message by mutableStateOf<String?>(null)
     var ask by mutableStateOf<Ask?>(null); private set
     private var job: Job? = null
+    /** Set (on the install thread) the moment the session is committed: Android owns the update from then on, so a
+     *  Cancel no longer applies and the status stays "Android will ask you…" even if the job was cancelled meanwhile. */
+    @Volatile private var committed = false
     private var meteredAnswered = false
     private val marker = ReopenMarker(storage)
 
@@ -125,19 +128,15 @@ class AppUpdateController(
         if (!notifyAnswered && notifyAskNow(release.commit) == NotifyAsk.ASK) { ask = Ask.NOTIFY; return }
         ask = null
         meteredAnswered = false
+        committed = false
         phase = UpdatePhase.Downloading(0f)
         job = scope.launch {
-            var handedOver = false
             try {
                 val apk = AppUpdater.download(context, release) { phase = UpdatePhase.Downloading(it) }
                 phase = UpdatePhase.Checking
                 val versionCode = withContext(Dispatchers.IO) { AppUpdater.verify(context, apk, release) }
                 marker.arm(versionCode)
-                AppUpdater.install(context, apk)
-                handedOver = true
-                // Android shows its own confirmation, then ends this process to replace the app; the new version posts
-                // the notification that reopens it — or, when notifications can't show, the line says to reopen it.
-                phase = UpdatePhase.Confirming(reopenYourself = !ReopenNotice.canShow(context))
+                AppUpdater.install(context, apk) { committed = true }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: UpdateRefused) {
@@ -145,7 +144,11 @@ class AppUpdateController(
             } catch (e: Exception) {
                 message = "The update could not be downloaded. Check the connection and try again."
             } finally {
-                if (!handedOver) {
+                if (committed) {
+                    // Android shows its own confirmation, then ends this process to replace the app; the new version
+                    // posts the notification that reopens it — or, when notifications can't show, the line says so.
+                    phase = UpdatePhase.Confirming(reopenYourself = !ReopenNotice.canShow(context))
+                } else {
                     marker.clear()
                     AppUpdater.dropDownload(context)
                     phase = null
@@ -158,7 +161,7 @@ class AppUpdateController(
     /** Cancel while downloading or checking: the status goes back to Update at once. A check already running finishes
      *  in the background, its result is dropped, the package is never handed to Android, and the file is deleted. */
     fun cancel() {
-        if (phase is UpdatePhase.Confirming) return
+        if (committed || phase is UpdatePhase.Confirming) return
         job?.cancel()
         phase = null
     }
@@ -174,11 +177,14 @@ class AppUpdateController(
         )
     }
 
-    /** The notification question was answered (Android's prompt, or our line dismissed): remember it, then go on —
-     *  the update goes ahead whatever the answer. */
-    fun notifyAnswered() {
+    /**
+     * The notification question was answered — Android's prompt ran ([promptShown]), or our line was dismissed — so
+     * this release asks no more, and the update goes ahead whatever the answer. Only a prompt that ran counts towards
+     * "refused for good": a dismissed line never showed Android's prompt (whose rationale is false until it has).
+     */
+    fun notifyAnswered(promptShown: Boolean) {
         ask = null
-        storage.putSecret(K_NOTIFY_ASKED_BEFORE, "true")
+        if (promptShown) storage.putSecret(K_NOTIFY_ASKED_BEFORE, "true")
         when (val v = verdict) {
             is UpdateVerdict.Available -> storage.putSecret(K_NOTIFY_ASKED_RELEASE, v.release.commit)
             is UpdateVerdict.Dismissed -> storage.putSecret(K_NOTIFY_ASKED_RELEASE, v.release.commit)
@@ -197,7 +203,7 @@ class AppUpdateController(
             Ask.UNKNOWN_SOURCES -> context.startActivity(
                 Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
-            Ask.NOTIFY -> notifyAnswered()
+            Ask.NOTIFY -> notifyAnswered(promptShown = false)
         }
     }
 }

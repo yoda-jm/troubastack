@@ -130,8 +130,10 @@ object AppUpdater {
     /**
      * §2 step 3 — hand the verified APK to PackageInstaller. Android then shows its own confirmation. A96: off the main
      * thread (a 15 MB copy), and a Cancel that arrives while the package is written drops the session before commit.
+     * [onCommitted] runs the moment commit returns: from then on Android owns the update, even if this call is cancelled
+     * before it returns.
      */
-    suspend fun install(context: Context, apk: File) = withContext(Dispatchers.IO) {
+    suspend fun install(context: Context, apk: File, onCommitted: () -> Unit) = withContext(Dispatchers.IO) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)
@@ -145,6 +147,7 @@ object AppUpdater {
                 val intent = Intent(context, UpdateInstallReceiver::class.java)
                 val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
                 session.commit(PendingIntent.getBroadcast(context, id, intent, flags).intentSender)
+                onCommitted()
             } catch (e: Throwable) {
                 session.abandon()
                 throw e
