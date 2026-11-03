@@ -179,10 +179,13 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             c.probeOffOriginNav("https://example.org/win08")
             mark("off-origin-nav-vetoed", waitFor(10_000) { c.navVetoed })
 
-            if (System.getenv("WIN08_SABOTAGE") == "dotswt") runCatching { File(System.getProperty("user.home").orEmpty(), ".swt").mkdirs() }
+            val dotSwt = File(System.getProperty("user.home").orEmpty(), ".swt")
+            if (System.getenv("WIN08_SABOTAGE") == "dotswt") runCatching { dotSwt.mkdirs() }
             val underRoot = edgeDataDir.absolutePath.startsWith(File(desktopDataRoot()).absolutePath)
-            val noDotSwt = !File(System.getProperty("user.home").orEmpty(), ".swt").exists()
+            val noDotSwt = !dotSwt.exists()
             mark("data-dir-under-root-no-dotswt", edgeDataDir.exists() && underRoot && noDotSwt)
+            // Clean up the dotswt sabotage's ~/.swt so it doesn't pollute later runs (user.home is shared in the job).
+            if (System.getenv("WIN08_SABOTAGE") == "dotswt") runCatching { dotSwt.deleteRecursively() }
 
             // B2 — DPI: log awareness on the process, the EDT and the SWT thread; at 100% assert the embedded
             // Shell's client rect equals the canvas's. (Above 100% is VLL's Surface check, not asserted here.)
