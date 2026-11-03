@@ -64,6 +64,10 @@ internal class SwtBrowserController(
 
     private fun reportEngineMissing() { engineMissingReported = true; onEdt { onEngineMissing() } }
 
+    /** WIN08 sabotage knob (dormant unless WIN08_SABOTAGE is set — only the CI sabotage runs set it, never
+     *  production). Each value breaks exactly one guarded behaviour so its smoke check can be shown to red. */
+    private val sabotage: String = System.getenv("WIN08_SABOTAGE").orEmpty()
+
     fun start() = thread.start()
 
     /** Run [block] on the SWT display thread (no-op once disposed). */
@@ -152,9 +156,9 @@ internal class SwtBrowserController(
                 runLoopUntilDisposed(display, shell)
                 return
             }
-            val type = runCatching { browser.browserType }.getOrNull()
+            val type = if (sabotage == "engine") "ie" else runCatching { browser.browserType }.getOrNull()
             browserType = type
-            log("win08: browserType=$type")
+            log("win08: browserType=$type (sabotage=$sabotage)")
             if (type != "edge") {
                 // Never fall back to IE: a non-edge backend is "no WebView2".
                 browser.dispose()
@@ -167,34 +171,40 @@ internal class SwtBrowserController(
             // Child-HWND embedding: reparent the Shell's HWND into the heavyweight AWT canvas and track its size.
             val canvasHwnd = Win08Native.hwndOf(canvas)
             this.canvasHwnd = canvasHwnd
-            if (canvasHwnd != null) {
+            if (canvasHwnd != null && sabotage != "reparent") {
                 Win08Native.embed(Win08Native.hwnd(shell.handle), canvasHwnd)
-                fitShellToCanvas(shell)
-                canvas.addComponentListener(object : java.awt.event.ComponentAdapter() {
+                if (sabotage == "nofit") shell.setBounds(0, 0, 120, 80) else fitShellToCanvas(shell)
+                if (sabotage != "nofit") canvas.addComponentListener(object : java.awt.event.ComponentAdapter() {
                     override fun componentResized(e: java.awt.event.ComponentEvent?) = exec { fitShellToCanvas(shell) }
                 })
                 shell.isVisible = true
-                log("ctrl: reparented shell into canvas hwnd=$canvasHwnd")
+                log("ctrl: reparented shell into canvas hwnd=$canvasHwnd (sabotage=$sabotage)")
             } else {
-                log("ctrl: WARN no canvas HWND; shell not embedded")
+                // sabotage=reparent (or no canvas): leave the Shell top-level, so no WebView2 window is a frame descendant.
+                shell.setBounds(0, 0, 800, 600); shell.isVisible = true
+                log("ctrl: shell NOT embedded (sabotage=$sabotage canvasHwnd=$canvasHwnd)")
             }
 
             // Bridge: a BrowserFunction whose bare-identifier name Studio's bridge.ts picks up as the shell
             // (window.TroubaStageShellReceive). SWT 3.134.0 registers it via AddScriptToExecuteOnDocumentCreated,
-            // so it exists before Studio's bundle runs initShellBridge.
-            object : BrowserFunction(browser, "TroubaStageShellReceive") {
-                override fun function(arguments: Array<out Any?>?): Any? {
-                    val json = arguments?.getOrNull(0) as? String ?: return null
-                    if (json.contains("\"ready\"")) {
-                        if (!bridgeReady) { bridgeReady = true; log("win08: bridge ready"); onEdt(onReady) }
-                        else helloAnswered = true // a second ready = our hello was answered
+            // so it exists before Studio's bundle runs initShellBridge. Registered BEFORE the load (the ordering
+            // that matters); the "bridge-late" sabotage registers it after the first load instead (B3 sabotage b).
+            fun registerBridge() {
+                object : BrowserFunction(browser, "TroubaStageShellReceive") {
+                    override fun function(arguments: Array<out Any?>?): Any? {
+                        val json = arguments?.getOrNull(0) as? String ?: return null
+                        if (json.contains("\"ready\"")) {
+                            if (!bridgeReady) { bridgeReady = true; log("win08: bridge ready"); onEdt(onReady) }
+                            else helloAnswered = true // a second ready = our hello was answered
+                        }
+                        return null
                     }
-                    return null
                 }
             }
+            if (sabotage != "bridge" && sabotage != "bridge-late") registerBridge()
 
             // Origin lock: veto any navigation off the server's origin.
-            browser.addLocationListener(object : LocationAdapter() {
+            if (sabotage != "nav") browser.addLocationListener(object : LocationAdapter() {
                 override fun changing(event: LocationEvent) {
                     val to = event.location ?: return
                     if (to != "about:blank" && !sameOrigin(to, origin)) {
@@ -213,8 +223,12 @@ internal class SwtBrowserController(
             })
 
             // After the first load, send a hello over the native→web channel; a ready back proves both ways.
+            var lateBridgeDone = false
             browser.addProgressListener(object : ProgressAdapter() {
                 override fun completed(event: ProgressEvent) {
+                    // B3 sabotage (b): register the bridge only AFTER the load — the page's head script has already
+                    // run without window.TroubaStageShellReceive, so no ready is sent and the bridge check reds.
+                    if (sabotage == "bridge-late" && !lateBridgeDone) { lateBridgeDone = true; registerBridge() }
                     runCatching { browser.execute("window.__troubastageShell&&window.__troubastageShell.deliver(JSON.stringify({type:'hello'}))") }
                 }
             })

@@ -167,6 +167,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             c.probeOffOriginNav("https://example.org/win08")
             mark("off-origin-nav-vetoed", waitFor(10_000) { c.navVetoed })
 
+            if (System.getenv("WIN08_SABOTAGE") == "dotswt") runCatching { File(System.getProperty("user.home").orEmpty(), ".swt").mkdirs() }
             val underRoot = edgeDataDir.absolutePath.startsWith(File(desktopDataRoot()).absolutePath)
             val noDotSwt = !File(System.getProperty("user.home").orEmpty(), ".swt").exists()
             mark("data-dir-under-root-no-dotswt", edgeDataDir.exists() && underRoot && noDotSwt)
@@ -193,8 +194,13 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         line("win08-smoke: ${results.count { it.value }}/${results.size} checks passed; served=$served cookie=[${cookieHeader ?: ""}]")
         // Check 7 — tear down like a window close: dispose the controller so SWT closes the WebView2 environment
         // and its msedgewebview2.exe children exit (a survivor would hold the EdgeDataDir — B1). Then halt.
-        win08log("smoke: disposing controller before exit")
-        runCatching { controller?.dispose() }
+        // The "nodispose" sabotage skips teardown → msedgewebview2.exe children survive → CI check 7 reds.
+        if (System.getenv("WIN08_SABOTAGE") != "nodispose") {
+            win08log("smoke: disposing controller before exit")
+            runCatching { controller?.dispose() }
+        } else {
+            win08log("smoke: SABOTAGE nodispose — NOT disposing (expect survivors)")
+        }
         Thread.sleep(2500) // let the WebView2 child processes finish exiting after Close
         runCatching { serverSocket?.close() }
         win08log("smoke: exit code ${if (ok) 0 else 1}")
