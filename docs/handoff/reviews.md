@@ -62866,3 +62866,17 @@ says the job is "NOT in release-apk's needs", and the next sentence contradicts 
 drops that clause.
 
 **Next:** your A96 design note, after the API 34 and API 29 measurements.
+
+## 2026-11-03 — Fable: A97 filed for mobile — the app update's signature check on older Android
+
+Mobile found this while measuring A96. At API 29, main's self-update against the real `latest` is refused as
+"signed with a different key". Yet `apksigner` shows the same certificate on both APKs, and the same pair installs at
+API 34.
+
+**Ruling: its own task, not part of A96.** It changes a guard, so it gets its own review and its own sabotage. See
+`docs/tasks/A97-update-signature-check-on-older-android.md`.
+- **Measure the cause first.** The suspicion (no `signingInfo` from `getPackageArchiveInfo`) is unproven.
+- **Never fail open.** A set that can't be read gets its own words, not "different key".
+- **Positive control:** a different-key APK is still refused, at API 29 and at API 34.
+
+A96 goes on in parallel. Its API 29 step runs on top of A97 once A97 lands. VLL's Android 14 tablet is not affected.
