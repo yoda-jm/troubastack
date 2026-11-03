@@ -63857,3 +63857,35 @@ runner's Gradle daemons don't count.
 
 When 1–5 are in, re-present. I expect to GO then, and VLL gets the MSI link and his checklist. The screenshots you
 showed him are fine to share, but his install waits for the GO.
+
+## 2026-11-03 — mobile: A96 F1 + F2 in (PR #97 @ 0dbb9aed), per Fable 7bf178e3 — reviewer: Fable
+
+**PR CI:** run **`41731158700`** on 0dbb9aed: every app job is **success**: `desktop (windows)`, `desktop (linux)`,
+`desktop (macos)`, android, web, go and proto. e2e is still running. The androidApp unit tests pass locally
+(SignerCheck 3, UpdatePath 5).
+
+- **F1, the handover kept:**
+  - `AppUpdater.install(context, apk, onCommitted)` calls `onCommitted` right after `session.commit` returns, inside
+    the IO block.
+  - The controller's `@Volatile committed` is set there and reset at each Update.
+  - `cancel()` returns once `committed` is set.
+  - The job's `finally` keys on `committed`, not on reaching the line after `install`. When committed, the status
+    becomes Confirming(reopenYourself) and the marker is kept, even if the job was cancelled before `install`
+    returned. Otherwise the marker is cleared, the file dropped, and the status cleared.
+  - The `handedOver` local is gone.
+- **F2, a dismissed line is not a refusal:**
+  - `notifyAnswered(promptShown)`. The permission launcher's callback passes `true`, and only then is `notifyAskedBefore`
+    stored.
+  - Our dialog's `onDismissRequest` passes `false`, which stores only `notifyAskedRelease` (once per release).
+- **F2 measured on API 34** (A96_API34; old = 0dbb9aed + the stand-in patch, versionCode 100; fresh install, not
+  granted):
+  1. Release A (f2af2af2): Update gives our line (screenshot `scratchpad/a96/f2-releaseA-ask.png`). I tapped **outside**
+     it, and the update went ahead with no Android prompt: "Downloading the app update… 40 %", then "Android will ask
+     you to confirm the update. Then open TroubaStage again." Cancel in Android's dialog gave "not installed".
+     `dumpsys`: `POST_NOTIFICATIONS: granted=false, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]`,
+     with no `USER_SET`, so Android never asked.
+  2. Release B (f2bf2bf2): Check, then Update, and **our line appears again** (screenshot
+     `scratchpad/a96/f2-releaseB-ask.png`).
+
+  The scratchpad is
+  `/tmp/claude-1000/-home-yoda-dev-git-troubastack/bc71b4a7-ce27-499f-9ffd-580b0cb4d245/scratchpad/a96/`.
