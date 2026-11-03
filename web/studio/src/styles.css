@@ -2234,6 +2234,32 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .bake-link-check-counts { flex: 0 0 auto; font-weight: 700; }
 .bake-dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .3rem; }
 
+/* T208 — the file-row "Download PDF" dialog. Same backdrop/card as BakeDialog; a radio per choice with
+   this file's layer checklist nested under the annotated one. */
+.download-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+  background: color-mix(in srgb, var(--fg) 40%, transparent);
+}
+.download-dialog {
+  width: min(28rem, 100%); max-height: calc(100% - 2rem); overflow-y: auto;
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.download-choice { flex-direction: row !important; align-items: center; gap: .5rem; font-weight: 600; color: var(--fg); }
+.download-choice input { flex: 0 0 auto; }
+/* One line per layer, no box per row: checkbox first (one left column), then the ellipsised name, then
+   "always printed" pinned at the right. The label must be a ROW — `.card label` (styles.css:226) is a
+   column, and same-specificity, so set flex-direction explicitly here. */
+.download-layer-list { list-style: none; margin: .1rem 0 .35rem 1.5rem; padding: 0; display: flex; flex-direction: column; gap: .05rem; }
+.download-layer-row { display: flex; align-items: center; gap: .5rem; padding: .18rem .15rem; }
+.download-layer-row label { display: flex; flex-direction: row; align-items: center; gap: .5rem; font-weight: 400; color: var(--fg); min-width: 0; flex: 1 1 auto; }
+.download-layer-row label input { flex: 0 0 auto; margin: 0; }
+.download-layer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.download-always { flex: 0 0 auto; font-size: .78rem; white-space: nowrap; }
+.download-no-annotations { margin: 0 0 .2rem 1.5rem; font-size: .85rem; }
+.download-without-note { margin: 0 0 .2rem 1.5rem; font-size: .85rem; }
+.download-dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .3rem; }
+
 /* OPS02: topbar "Get the app" affordance — a chip (next to the version chip) that
    opens a popover with a QR + per-platform download rows. Mirrors the version-chip
    pattern and INHERITS its T47 viewport clamp (see the media query below) so the

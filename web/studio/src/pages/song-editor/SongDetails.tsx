@@ -4,13 +4,15 @@
  * metadata form, files list, and delete-song danger zone.
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ApiError, api, type Song, type SongFile } from "../../api";
+import { ApiError, api, type AnnotationLayer, type Song, type SongFile } from "../../api";
 import { useDialogs } from "../../components/Dialog";
 import { ErrorBanner } from "../../components/ErrorBanner";
 import { RowMenu, RowMenuItem } from "../../components/RowMenu";
 import { useFlipRows, useSortable } from "../../components/SortableList";
 import { normalizeLyrics, detectSections } from "./lyrics";
 import { ChartEditor, type ChartEdit } from "./ChartEditor";
+import { DownloadPdfDialog } from "./DownloadPdfDialog";
+import { saveBlob } from "./FilePdfButton";
 import { TagInput } from "./TagInput";
 
 export function Details({ title, children }: { title: string; children: ReactNode }) {
@@ -196,6 +198,8 @@ export function Files({
   songTitle,
   songArtist,
   songKey,
+  layers = [],
+  myUserId = null,
   onSongKeyChanged,
   onFilesChanged,
 }: {
@@ -206,6 +210,10 @@ export function Files({
   // T60: the song's current key drives the ChartEditor's Transpose control (prefill +
   // key/semitone path). onSongKeyChanged bubbles up a transpose that also updated the key.
   songKey?: string;
+  // T208: the song's annotation layers + the viewer's id, from the Viewer's sync spine, so a file
+  // row's "Download PDF…" dialog can list THIS file's layers ticked as the viewer shows them.
+  layers?: readonly AnnotationLayer[];
+  myUserId?: string | null;
   onSongKeyChanged?: (key: string) => void;
   // T67: bubbles a pool mutation (esp. a chart re-render — same file id, revision++) up to
   // the Viewer so it refetches "my files" and the open render updates in-session, no F5.
@@ -217,6 +225,8 @@ export function Files({
   const [busy, setBusy] = useState(false);
   const [chart, setChart] = useState<ChartEdit | null>(null);
   const [lyricsOpen, setLyricsOpen] = useState(false);
+  // T208: the file whose "Download PDF…" dialog is open (null = closed).
+  const [downloadFile, setDownloadFile] = useState<SongFile | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   // T80 — the upload entry's shell: opens on the "Upload file" entry or on picking a file; carries a
   // name field pre-filled from the filename (§6) that must never clobber a name the user typed.
@@ -290,6 +300,18 @@ export function Files({
       setError(err instanceof ApiError ? err.message : "Failed to upload");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // T208 — an image file has no annotated form (FILEPDF can't print one), so "Download image" skips the
+  // dialog and saves the stored bytes straight away. A real download (saveBlob), never a new tab.
+  async function downloadImage(file: SongFile) {
+    setError(null);
+    try {
+      const { blob, filename } = await api.fileDownload(file.id, file.revision);
+      saveBlob(blob, filename);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to download the file");
     }
   }
 
@@ -494,6 +516,17 @@ export function Files({
           />
         )}
 
+        {downloadFile && (
+          <DownloadPdfDialog
+            bandId={bandId}
+            songId={songId}
+            file={downloadFile}
+            layers={layers}
+            myUserId={myUserId}
+            onClose={() => setDownloadFile(null)}
+          />
+        )}
+
         <ErrorBanner message={error} />
 
         {files.length === 0 ? (
@@ -557,6 +590,30 @@ export function Files({
                   <RowMenu testId="file-menu" label="File actions">
                     {(close) => (
                       <>
+                        {/* T208 — download comes first: it is where a person looks for "download this
+                            file". An image has no annotated form, so it downloads straight; a PDF / text
+                            chart opens the dialog (with annotations or as uploaded). */}
+                        {f.contentType.startsWith("image/") ? (
+                          <RowMenuItem
+                            testId="file-menu-download"
+                            onClick={() => {
+                              close();
+                              void downloadImage(f);
+                            }}
+                          >
+                            Download image
+                          </RowMenuItem>
+                        ) : (
+                          <RowMenuItem
+                            testId="file-menu-download"
+                            onClick={() => {
+                              close();
+                              setDownloadFile(f);
+                            }}
+                          >
+                            Download PDF…
+                          </RowMenuItem>
+                        )}
                         <RowMenuItem
                           testId="file-menu-rename"
                           onClick={() => {
