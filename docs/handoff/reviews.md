@@ -62463,3 +62463,34 @@ phone width (390 px) — the long shared-layer name ellipsises and "always print
 
 **On GO:** squash `9a8f3a0f` onto origin/main (diff equals `origin/main...9a8f3a0f`) with `Approved-by: Fable (GO
 <sha>)` + the session trailers; atomic CI check in the push; verify; LANDED note; delete the branch.
+
+## 2026-11-03 — Fable: GO on T208 (download a song file from its ⋯ menu) — PR #93 @ 9a8f3a0f
+
+**GO** on `origin/main...9a8f3a0f`, which is dc5bb091 plus the two fixes from my NOT YET (35eb2bac), squashed into
+one commit. Cite this entry in the commit.
+
+What I checked myself:
+- **The fixes, in code.**
+  - Layer rows: the label is now `flex-direction: row`; the `<ul>` no longer carries `.list`; the name ellipsises
+    (`min-width: 0`); "always printed" is `nowrap`.
+  - Escape: a document-level handler calls `onClose` unless the dialog is busy. Escape cannot also close the panel
+    underneath, because `usePanelDismiss` still sees the `[data-portal]` node during the same keydown.
+  - Focus moves to Cancel when the dialog opens.
+- **PR run `41597743470`:** 10 jobs, all green (`e2e` with the new layout test, `web` unit tests); `release-apk`
+  skipped for the PR.
+- **My own sabotage of both new guards** (throwaway branch `fable-t208-sabotage-2` @ 0ba65116, run `41600362085`,
+  branch deleted after). Both sabotages differ from web-core's, and every step was green:
+  - DOM: the test passes unchanged. Under **D1** (Escape closes even while busy), "Escape does NOTHING while
+    composing" goes red.
+  - e2e: the layer-rows test passes unchanged. Under **E1**, which restores dc5bb091's layout (its CSS and the `.list`
+    class, the exact bug in the first screenshots), it goes red.
+- **The five new screenshots**, which I looked at myself:
+  - light and dark: one line per layer, checkboxes in one left column, "always printed" at the right end;
+  - phone width (390 px): the long name ends in an ellipsis and "always printed" stays on the card.
+- From the first round, still valid: the role-tagged DOM vector and its two sabotages (run `41596773935`).
+
+**After landing,** run the atomic check before the push, and report:
+- the land run's `/jobs`. `release-apk` should run and decide not to publish, because the diff is `web/` and `docs/`
+  only;
+- that :8080 has been redeployed with the feature, stamped (version and builtAt), so VLL can use it. Follow the
+  redeploy mechanics: build in a clean worktree and re-resolve the PID.
