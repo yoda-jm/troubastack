@@ -54,6 +54,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             win08log("smoke: loopback server on $origin")
 
             val edgeDataDir = File(desktopDataRoot(), "webview2")
+            val frameHolder = java.util.concurrent.atomic.AtomicReference<java.awt.Window?>()
             val args = EmbeddedStudioArgs(
                 serverUrl = origin,
                 initialPath = null,
@@ -63,7 +64,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 onBack = {},
                 toggleFullScreen = {},
                 isFullScreen = { false },
-                frameWindow = { null },
+                frameWindow = { frameHolder.get() },
             )
 
             win08log("smoke: entering application{}")
@@ -76,8 +77,9 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                     var controller by remember { mutableStateOf<SwtBrowserController?>(null) }
                     EmbeddedStudioContent(args, onController = { controller = it })
                     LaunchedEffect(Unit) {
+                        frameHolder.set(window)
                         win08log("smoke: window composed; starting checker thread")
-                        Thread { runChecks(controller, edgeDataDir) }.apply { isDaemon = true; start() }
+                        Thread { runChecks(controller, edgeDataDir) { frameHolder.get() } }.apply { isDaemon = true; start() }
                     }
                 }
             }
@@ -116,7 +118,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         }
     }
 
-    private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File) {
+    private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File, frame: () -> java.awt.Window?) {
         val results = LinkedHashMap<String, Boolean>()
         fun mark(name: String, ok: Boolean) {
             results[name] = ok
@@ -130,7 +132,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         try {
             win08log("checker: start (controller=${controller != null})")
             val c = controller
-            if (c == null) { mark("controller-created", false); finish(results); return }
+            if (c == null) { mark("controller-created", false); finish(results, null); return }
 
             waitFor(30_000) { c.browserType != null }
             mark("engine-is-edge", c.browserType == "edge")
@@ -140,6 +142,16 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             val hello = bridge && waitFor(10_000) { c.helloAnswered }
             mark("bridge-round-trips", bridge && hello)
 
+            // Check 2 — the embedded browser's top-level window is the TroubaStage frame.
+            val f = frame()
+            if (f != null) {
+                val (owns, detail) = Win08Native.frameOwnsWebView(f)
+                win08log("ga_root: $detail")
+                mark("frame-owns-webview", owns)
+            } else {
+                mark("frame-owns-webview", false)
+            }
+
             mark("seeded-cookie-arrives", (cookieHeader ?: "").contains("win08sess=smoke"))
 
             c.probeOffOriginNav("https://example.org/win08")
@@ -148,16 +160,24 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             val underRoot = edgeDataDir.absolutePath.startsWith(File(desktopDataRoot()).absolutePath)
             val noDotSwt = !File(System.getProperty("user.home").orEmpty(), ".swt").exists()
             mark("data-dir-under-root-no-dotswt", edgeDataDir.exists() && underRoot && noDotSwt)
+
+            finish(results, c)
         } catch (e: Throwable) {
             win08log("smoke: checker threw: ${e.message}")
+            finish(results, controller)
         }
-        finish(results)
     }
 
-    private fun finish(results: Map<String, Boolean>) {
+    private fun finish(results: Map<String, Boolean>, controller: SwtBrowserController?) {
         val ok = results.isNotEmpty() && results.values.all { it }
         line("win08-smoke: ${results.count { it.value }}/${results.size} checks passed; served=$served cookie=[${cookieHeader ?: ""}]")
+        // Check 7 — tear down like a window close: dispose the controller so SWT closes the WebView2 environment
+        // and its msedgewebview2.exe children exit (a survivor would hold the EdgeDataDir — B1). Then halt.
+        win08log("smoke: disposing controller before exit")
+        runCatching { controller?.dispose() }
+        Thread.sleep(2500) // let the WebView2 child processes finish exiting after Close
         runCatching { serverSocket?.close() }
+        win08log("smoke: exit code ${if (ok) 0 else 1}")
         System.out.flush(); System.err.flush()
         Runtime.getRuntime().halt(if (ok) 0 else 1)
     }
