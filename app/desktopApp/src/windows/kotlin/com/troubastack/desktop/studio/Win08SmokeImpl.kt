@@ -70,13 +70,12 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
 
             win08log("smoke: entering application{}")
             application {
-                // Check 7 — WM_CLOSE must end the process. The "noclose" sabotage ignores onCloseRequest, so the
-                // window never closes, the app never ends on its own, and the backstop must halt it (check 7 reds).
-                // (A non-daemon thread CANNOT model this: the jpackage launcher force-exits when main returns, so the
-                // packaged process always ends once the window closes — verified across daemon/non-daemon/exit-flag runs.)
-                val noClose = System.getenv("WIN08_SABOTAGE") == "noclose"
+                // Check 7 — WM_CLOSE must end the process (positive proof below). It can't be forced red in the
+                // PACKAGED app: a raw WM_CLOSE destroys the window at the Win32 level regardless of onCloseRequest,
+                // and the jpackage launcher + Compose's exitProcess(0) always end the process (verified across
+                // daemon/non-daemon/exitProcessOnExit/ignored-onCloseRequest runs). So the guarantee is by construction.
                 Window(
-                    onCloseRequest = { if (!noClose) exitApplication() },
+                    onCloseRequest = ::exitApplication,
                     title = "TroubaStage",
                     state = rememberWindowState(width = 1200.dp, height = 820.dp),
                 ) {
