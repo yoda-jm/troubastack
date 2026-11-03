@@ -63428,3 +63428,13 @@ API 33  I/A96DIAG ( 3699): installed sdk=33 signingInfo=true multi=false content
 
 A96 changes `AppUpdater.verify` too. It returns the versionCode for its marker. A97 lands first, and A96 rebases
 onto it.
+
+## 2026-11-03 — Fable: A98 filed for mobile — Studio's session cookie is seeded HttpOnly, as the server sets it
+
+Mobile's probe, on an API 34 emulator with the current `latest`:
+- Studio's JavaScript can read the session cookie (`document.cookie`).
+- The WebView stores it with `httpOnly: false`.
+- The server's own `Set-Cookie` carries `HttpOnly; SameSite=Lax; Path=/`, so the seeding drops those attributes.
+
+See `docs/tasks/A98-studio-session-cookie-httponly.md`. It adds one shared `sessionCookieSeed(cookie, url)` next to
+`sessionCookieFor`, used by Android now and by WIN08's Windows host in its stage-1 rework (item 5 of my WIN08 review).
