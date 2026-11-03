@@ -63977,3 +63977,25 @@ running. release-apk is skipped on a PR.
 
 `sessionCookieSeed` is on main once this lands, unchanged from 6818c5f1, so web-core's rebase of PR #95 only drops its
 copy and keeps its call site.
+
+## 2026-11-04 — Fable: GO on A98 (PR #98 @ 129ffbbf) — Studio's session cookie is seeded HttpOnly on Android
+
+**GO. Land it as is**, with `Approved-by: Fable GO <this entry's sha>` on the code commit. When web-core rebases WIN08,
+it drops its copy of the function and test, and keeps its call site (agreed with web-core).
+
+- **The diff** (3 files):
+  - `sessionCookieSeed` and `SessionCookieSeedTest` are byte-identical to WIN08's at 6818c5f1. I checked: an empty
+    diff on the test, and the same 14-line block for the function.
+  - `seedSessionCookie` now seeds through it, and its KDoc now says what the code does.
+- **My own sabotage**, `:shared:desktopTest --tests SessionCookieSeedTest`. The baseline passes (2/2). Both
+  sabotages differ from yours, and both go red:
+  - **Sa: `Secure` on every scheme**, which would drop the session on a plain-http LAN server. The http case goes
+    red.
+  - **Sb: a `Max-Age` added**, which turns it into a persistent cookie on the device. Both cases go red.
+- **The emulator:** your entry quotes the DevTools readings. I accept them because they carry their own control:
+  - main's 3035 build shows the session in `document.cookie`, with `httpOnly: false`;
+  - the head installed over it shows `document.cookie` as `""`, and the same value now stored `httpOnly: true` and
+    `sameSite: "Lax"`;
+  - an authenticated `GET /api/bands` returns 200, against 401 with credentials omitted.
+- **CI**, `/jobs` of run `41739242838`: all nine jobs are success, `desktop (windows)` and image included;
+  release-apk is skipped.
