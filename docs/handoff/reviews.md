@@ -63711,3 +63711,54 @@ both screenshots.
 
 Push both fixes to the PR, with the PR run including windows. I'll then confirm here, and you land with
 `Approved-by: Fable GO <that confirmation's sha>`.
+
+## 2026-11-03 — web-core: WIN08 stage 1 — RE-PRESENTING (your nine items addressed + real-Studio screenshots; one finding + one scope Q) — PR #95 @ 6818c5f1
+
+Answers your NOT-YET (the PR-@-ab1fe33e review). PR #95 is fast-forwarded: `ab1fe33e..6818c5f1`, 9 commits on `win08-studio-embed`. All code is on that branch; the screenshots/sabotages/stability were proven on a throwaway `win08-spike` workflow (deleted before landing), and the screenshots on a throwaway `win08-shots` workflow. The branch is not yet rebased onto current main — I rebase before landing, not for this review.
+
+### Your nine items (0–8)
+- **0 — PR Windows smoke red.** Fixed by item 1. The new PR CI run on 6818c5f1 (`41728654921`) is **all green — 10/10 jobs**, incl. `desktop (windows)` (smoke 8/8 + S1.6 2/2 + check 7: process exited, no survivor), `desktop (linux)`/`(macos)` (no SWT jar), `e2e`, `web`, `android`, `go`, `image`.
+- **1 — no 6 s warm-up; SWT `Edge.timeout`.** `main()` sets `org.eclipse.swt.internal.win32.Edge.timeout=30000` before any Browser class loads; a **single** `createFunction`, no warm-up, no retry (retry poisons the Browser — your finding, confirmed). 10× cold-VM stability 10/10, `createFunction` ~0.6 s.
+- **2 — check 7 really closes the window.** `Win08Native.postClose` posts a real `WM_CLOSE`. I could **not** make a sabotage red check 7: in the packaged app the jpackage launcher + Compose `exitProcess(0)` force process exit regardless of daemon/non-daemon threads, `exitProcessOnExit=false`, or an ignored `onCloseRequest` (all four tried). So check 7 is proven **positively** and is un-sabotageable by construction — see the jpackage finding below.
+- **3 — re-entry.** Two leave/re-enter cycles, bridge round-trips each time (`reentry-cycle1/2-bridge: PASS`); an immediate Back disposes cleanly (the host Shell is always a child of the AWT canvas, destroyed on unmount; the controller's run() thread ends — `early-back-clean-dispose: PASS`). Disposed-flag guards added before Shell create/show/reparent.
+- **4 — physical-pixel sizing.** `GetClientRect`+`SetWindowPos` in physical px; uiScale=1.5 discriminator green (shell rect 1029×666 vs a logical-fit's 686×444).
+- **5 — cookie HttpOnly.** Via the shared `sessionCookieSeed` (A98, below); smoke asserts `document.cookie` does NOT show the session (`cookie-httponly-hidden-from-document: PASS`) while the request header still carries it.
+- **6 — bridge origin check.** The BrowserFunction returns null unless `sameOrigin(browser.url, origin)`; off-origin nav vetoed.
+- **7 — report new windows / downloads / browser keys / right-click.** Written up — see the item-7 report below.
+- **8 — Connect dialog + Stage tooltip (compose.layers.type=WINDOW).** The Compose ⋮ menu layering **over** the WebView is shown in screenshot 2 (see below). `compose.layers.type=WINDOW` is set in `main()` on Windows.
+
+### A98 shared `sessionCookieSeed` (item 5) — I own it; mobile rewires Android onto it
+Added `sessionCookieSeed(cookie, url)` in `jvmSharedMain/HttpTransport.kt` (`name=value; Path=/; HttpOnly; SameSite=Lax` + `Secure` on https only, no Expires/Max-Age) with `SessionCookieSeedTest` (teeth = the HttpOnly assertion). WIN08's Windows host seeds through it (`Browser.setCookie`); A98 (mobile) rewires `seedSessionCookie` onto the same helper. Coordinated with 1d.
+
+### Real-Studio screenshots (your Q2) — the embedding works, captured on CI
+Signed in through the app's own `HttpTransport.connect` (`--win08-studio`), a real one-page-PDF chart, pen via `mouse_event`:
+- **1-signed-in** — real Studio hosted INSIDE the TroubaStage Compose window: native title bar + app bar ("‹ Back  CI Band", ⋮), the embedded SPA with the full editor toolbar, and the PDF chart ("TroubaStack Page 1") rendered.
+- **5-stroke** — a red **freehand pen stroke drawn over the real chart** through the reparented WebView2 (pen tool active, the freehand toolbar open). This is the input-through-a-reparented-window proof.
+- **2-menu-over-studio** — the Compose ⋮ menu ("Reload") renders **on top of** the WebView (the compose.layers.type=WINDOW effect of item 8).
+- **6-reload-stroke-kept** — after ⋮ Reload reloads the WebView, the **saved stroke persists** ("1 objects ● live").
+- **7d-details-dialog** — the Studio **Details** dialog (title/artist/key/tempo/metre/tags form) renders inside the embedding.
+- **7b-after-esc** — **Esc closes the Details dialog** → keyboard input reaches Studio content.
+(Screenshots sent to VLL via the session; happy to attach for you too.)
+
+### FINDING — F11 full screen does not work while the WebView has focus
+Observed across two runs (7a/7c windowed, never full screen). The wiring is **correct**: `SwtBrowserController` F11 `KeyListener` → `onFullScreenKey` → `args.toggleFullScreen()` → `window.toggleFullScreen()`. Esc reaches Studio content (7d→7b), so keyboard input flows to the WebView — but **F11 (a host-level accelerator) is not delivered to the SWT host KeyListener** by SWT's Edge Browser, and Compose's own `onKeyEvent` only fires when the app chrome (not the WebView) has focus. So F11-from-inside-Studio currently does nothing.
+**Options (your call — I will not make a 2nd Studio change without a GO):**
+  (a) accept F11 works only when the app chrome has focus, not while editing;
+  (b) forward F11 via a JS `keydown` handler in the SPA that posts to the shell bridge — a **2nd** `web/studio` change beyond the `TroubaStageShellReceive` one you already allowed;
+  (c) WebView2 `AcceleratorKeyPressed` directly (SWT does not expose it — native/reflection).
+I recommend (b) as the only reliable in-editor option, but it needs your GO on the extra Studio change.
+
+### jpackage check-7 finding (positive proof, item 2)
+In the packaged app a raw `WM_CLOSE` destroys the window at the Win32 level and the jpackage launcher + Compose `exitProcess(0)` always end the process — verified across daemon/non-daemon threads, `exitProcessOnExit=false`, and an ignored `onCloseRequest`. So no thread-leak sabotage can keep the process alive; check 7 is guaranteed by construction, proven positively.
+
+### item-7 report (new windows / downloads / browser keys / right-click)
+- **New windows:** `OpenWindowListener` fires and leaves `event.browser` null → SWT suppresses the popup; Stage 1 reports+suppresses, routing is Stage 2.
+- **F11:** see the finding above.
+- **Downloads / right-click context menu / Ctrl+P·F·zoom:** WebView2 defaults, not hooked in Stage 1 (SWT does not surface the CoreWebView2 settings/events). Each is a Stage-2 decision (route downloads, disable the Save/Inspect context menu + DevTools, print/find policy). None is a Stage-1 regression; I did not claim to have exercised them — only F11 (finding) and the new-window suppression are from the code.
+
+### Notes
+- **MSI builds** (`TroubaStage-1.0.7.msi`); I did not capture the byte size (a glob bug in the throwaway shots workflow) — can re-measure if you want the delta.
+- **Memory:** the throwaway run's number was polluted by the Gradle daemons on the runner; not a clean figure. Can re-measure the app process tree only if useful.
+- **No SWT jar on Linux/macOS** asserted in CI; the SWT impls live in `src/windows` and are added to the jar only on a Windows host.
+
+Requesting: a verdict, and specifically a ruling on the F11 option (a/b/c). VLL's MSI pen-check on his Surface is the gate after your GO.
