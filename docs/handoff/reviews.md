@@ -62816,3 +62816,53 @@ Branch `mobile/close-names` @ 3ad36d5f, PR #94. **PR CI:** run **`41679107466`**
   - The next run, `41671939267` (2d0ba235), was green.
 - **Since DESK02, that job is in release-apk's `needs`.** On a no-runner day, an app land publishes nothing until the
   run is re-run. I'll watch for it on my land.
+
+## 2026-11-03 — Fable: GO on the ✕ named "Close" on Join and Connect (PR #94 @ 3ad36d5f)
+
+**GO.** Land it as is, with `Approved-by: Fable GO <this entry's sha>` on the code commit.
+
+### What I checked
+
+- **The diff** (7 files). `GlyphText` moved unchanged except for its `style` default, `LocalTextStyle.current`.
+  - Every Stage caller passes `style` explicitly, so Stage doesn't change.
+  - Inside a TextButton, that default is the style `Text("✕")` took.
+  - The ink still reads `LocalContentColor`, so Connect's ✕ still dims while it's disabled during a connect.
+- **My own sabotage**, `:shared:desktopTest --tests DialogCloseNamesUiTest` on the head. The baseline is green (2/2).
+  Each sabotage goes red on its own assertion, and I restored the code after each:
+  - **S1**: Connect's ✕ named "Cancel", the dialog's other word. Connect goes red: "one clickable named 'Close'
+    expected:<1> but was:<0>". Join stays green.
+  - **S2**: Join's name put on the glyph instead of the button, the naive placement. Join goes red with the same
+    message. Connect stays green.
+  - **S3**: Connect's ✕ composed as a Text again (`GlyphText` unlabelled), with the name kept. Connect goes red:
+    "'Close' has no semantics children".
+  - **S4**: the Blocked step's word "Close" button also named "Close". Join goes red at line 57, the Blocked step's
+    own check: "expected:<1> but was:<2>". So the Blocked half of the test has teeth of its own.
+- **The emulator dumps**, which I read myself (the six `*-final-*.xml`):
+  - **Head:** Connect, Join (Confirm) and Join (Blocked) each have ONE `android.widget.Button`. It has content-desc
+    "Close", is clickable, has 0 children, and has the same bounds as main's ✕. No "✕" text appears in any dump.
+  - **Main:** an unnamed clickable View holding a "✕" TextView and an unnamed Button.
+  - Blocked's word "Close" is still a plain text button.
+- **Pixels**, my own PIL diff of the 32 pairs: 8 steps × mainA/headA, mainB/headB, mainA/mainB and headA/headB.
+  - Above y 2528, no pair differs.
+  - The only differing pixels are in the gesture handle (x 612–991, y 2530–2536), and they differ the same way
+    between main's own two runs.
+  - I looked at the head's Connect and Join (Blocked) shots: the ✕ is in place, same size and same colour.
+- **CI**, `/jobs` of run `41679107466`: all nine jobs are success, `desktop (windows)` included. release-apk is
+  skipped, as on any PR. The android job also cross-compiles the iOS klibs, so the moved common file builds for iOS.
+
+### The macOS no-runner runs
+
+Confirmed from `/jobs`: in both runs, `desktop (macos)` has no runner name and no steps. It was cancelled about
+15 minutes after it was queued, but its `timeout-minutes` is 45. So GitHub never assigned a runner; it isn't our
+timeout.
+
+**If it happens on your land, `latest` isn't republished.**
+1. Re-run the land run (`POST /actions/runs/<id>/rerun`, as for A95). A re-run keeps the push's `before`, so
+   release-apk's compare still sees `app/`.
+2. Read `releases/tags/latest`: its target must be the land commit, and the APK's versionName must be the new one.
+
+Not yours, and no action now: the first sentence of the comment above `desktop-macos` (`ci.yml`, about line 929) still
+says the job is "NOT in release-apk's needs", and the next sentence contradicts it. Whoever next touches `ci.yml`
+drops that clause.
+
+**Next:** your A96 design note, after the API 34 and API 29 measurements.
