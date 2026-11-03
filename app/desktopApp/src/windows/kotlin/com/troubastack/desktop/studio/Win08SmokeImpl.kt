@@ -254,6 +254,14 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             win08log("doc.cookie=[${c.docCookie ?: "(none)"}]")
             mark("cookie-httponly-hidden-from-document", !(c.docCookie ?: "").contains("win08sess"))
 
+            // Item 7 — a window.open/target=_blank popup must be BLOCKED: the page reported window.open()===null AND no
+            // VISIBLE TOP-LEVEL WebView2 window exists (the embedded browser is a WS_CHILD, not enumerated). Sabotage
+            // 'noblock' leaves required=false, so a chrome window opens and window.open returns a Window → this reds.
+            waitFor(10_000) { c.openWindowBlocked != null }
+            val topLevelWv = Win08Native.topLevelWebViewWindows()
+            win08log("openwindow: blocked=${c.openWindowBlocked} topLevelWebViewWindows=$topLevelWv")
+            mark("new-window-blocked", c.openWindowBlocked == true && topLevelWv == 0)
+
             c.probeOffOriginNav("https://example.org/win08")
             mark("off-origin-nav-vetoed", waitFor(10_000) { c.navVetoed })
 
@@ -317,6 +325,10 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
     // Item 5 — report what document.cookie can see. With an HttpOnly session cookie it must NOT contain the session,
     // while the request's Cookie header still carried it.
     window.TroubaStageShellReceive(JSON.stringify({type:"cookie", value: document.cookie}));
+    // Item 7 — a popup must be BLOCKED: window.open() must return null (the host sets required=true, no NewWindow).
+    // Under the 'noblock' sabotage a chrome window opens and window.open returns a Window object.
+    var __ow = null; try { __ow = window.open('https://example.com/win08-openwindow','_blank'); } catch(e) {}
+    window.TroubaStageShellReceive(JSON.stringify({type:"openwindow", blocked: (__ow === null)}));
     window.__win08 = "shell-present";
   } else {
     window.__win08 = "no-shell-at-head";

@@ -55,6 +55,7 @@ internal class SwtBrowserController(
     @Volatile var shellEverShown: Boolean = false; private set   // true once the embedded Shell was made visible
     @Volatile var newWindowRequested: Boolean = false; private set // S1.4 report: a target=_blank/window.open fired
     @Volatile var docCookie: String? = null; private set   // what document.cookie sees (item 5 — must NOT hold the session)
+    @Volatile var openWindowBlocked: Boolean? = null; private set  // item 7 — the page's window.open() must return null (popup blocked)
     @Volatile private var disposed: Boolean = false
     // B2 DPI measurement (filled by measureDpi, read by the smoke).
     @Volatile var swtThreadDpiAwareness: Int = -1; private set
@@ -231,6 +232,7 @@ internal class SwtBrowserController(
                         val json = arguments?.getOrNull(0) as? String ?: return null
                         when {
                             json.contains("\"cookie\"") -> { docCookie = json; log("win08: document.cookie reported") }
+                            json.contains("\"openwindow\"") -> { openWindowBlocked = json.contains("\"blocked\":true"); log("win08: openwindow reported blocked=$openWindowBlocked") }
                             json.contains("\"ready\"") -> {
                                 if (!bridgeReady) { bridgeReady = true; log("win08: bridge ready"); onEdt(onReady) }
                                 else helloAnswered = true // a second ready = our hello was answered
@@ -279,7 +281,13 @@ internal class SwtBrowserController(
             browser.addOpenWindowListener(object : org.eclipse.swt.browser.OpenWindowListener {
                 override fun open(event: org.eclipse.swt.browser.WindowEvent) {
                     newWindowRequested = true
-                    log("win08: REPORT OpenWindowListener fired — new-window request suppressed (event.browser left null)")
+                    // Block the popup via SWT's OWN path: required=true + browser left null → Edge.handleNewWindowRequested
+                    // calls put_Handled(true) with NO NewWindow, so WebView2 opens nothing and window.open() returns null.
+                    // (Leaving browser null WITHOUT required=true does NOT block on Edge — a full chrome window opens,
+                    // sharing the WebView2 profile/session. Creating a throwaway Browser here can DEADLOCK — SWT warns.)
+                    // Sabotage 'noblock' leaves required=false so the popup appears (the smoke check then reds).
+                    event.required = (sabotage != "noblock")
+                    log("win08: REPORT OpenWindowListener fired — new-window ${if (event.required) "BLOCKED (required=true, no NewWindow)" else "ALLOWED (sabotage=noblock)"}")
                 }
             })
 

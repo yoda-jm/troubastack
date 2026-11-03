@@ -103,6 +103,23 @@ internal object Win08Native {
     fun clientSize(h: HWND): Pair<Int, Int> =
         runCatching { val r = RECT(); user32.GetClientRect(h, r); (r.right - r.left) to (r.bottom - r.top) }.getOrDefault(-1 to -1)
 
+    /**
+     * WIN08 item 7 — count VISIBLE TOP-LEVEL WebView2 host windows (class "Chrome_WidgetWin…"). The embedded browser
+     * is reparented WS_CHILD so it is NOT enumerated by EnumWindows (top-level only); a value > 0 therefore means a
+     * window.open/target=_blank popup opened its own chrome window. Blocked correctly, this is 0.
+     */
+    fun topLevelWebViewWindows(): Int = runCatching {
+        var count = 0
+        user32.EnumWindows(WNDENUMPROC { h, _ ->
+            if (user32.IsWindowVisible(h)) {
+                val buf = CharArray(256); val n = user32.GetClassName(h, buf, buf.size)
+                if (String(buf, 0, maxOf(0, n)).contains("Chrome_WidgetWin")) count++
+            }
+            true
+        }, Pointer.NULL)
+        count
+    }.getOrDefault(-1)
+
     private const val WS_CAPTION = 0x00C00000
     private const val MONITOR_DEFAULTTONEAREST = 0x00000002
 
