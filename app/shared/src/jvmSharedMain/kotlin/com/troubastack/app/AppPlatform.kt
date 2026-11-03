@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.ui.input.key.Key
+import com.troubastack.shared.buildinfo.UpdatePhase
 import com.troubastack.shared.buildinfo.UpdateVerdict
 import com.troubastack.shared.distribution.ServerDiscovery
 import com.troubastack.shared.seams.Storage
@@ -143,7 +144,8 @@ interface AppUpdate {
     val verdict: UpdateVerdict?
     val failed: Boolean
     val checking: Boolean
-    val progress: Float?
+    /** A96 — the update in progress (downloading, checking, Android confirming), or null: none. */
+    val phase: UpdatePhase?
     val bannerText: String?
     val autoChecks: Boolean
     fun chooseAutoChecks(on: Boolean)

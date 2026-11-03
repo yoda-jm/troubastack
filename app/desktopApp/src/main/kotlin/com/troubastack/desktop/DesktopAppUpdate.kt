@@ -13,6 +13,7 @@ import com.troubastack.shared.buildinfo.UPDATE_ASSET_APPIMAGE
 import com.troubastack.shared.buildinfo.UPDATE_ASSET_DMG
 import com.troubastack.shared.buildinfo.UPDATE_ASSET_MSI
 import com.troubastack.shared.buildinfo.UPDATE_RELEASE_URL
+import com.troubastack.shared.buildinfo.UpdatePhase
 import com.troubastack.shared.buildinfo.UpdateVerdict
 import com.troubastack.shared.buildinfo.appBuildBuiltAt
 import com.troubastack.shared.buildinfo.appBuildChannel
@@ -88,7 +89,9 @@ class DesktopAppUpdate(
     override var verdict by mutableStateOf<UpdateVerdict?>(null); private set
     override var failed by mutableStateOf(false); private set
     override var checking by mutableStateOf(false); private set
-    override var progress by mutableStateOf<Float?>(null); private set
+    /** A96 — downloading, then checking the MSI (never Android's Confirming: the app closes into the helper). Link mode
+     *  (Linux, macOS) never has one: Update opens the download in the browser. */
+    override var phase by mutableStateOf<UpdatePhase?>(null); private set
     var message by mutableStateOf<String?>(null)
     var ask by mutableStateOf<Ask?>(null); private set
     private var job: Job? = null
@@ -114,7 +117,7 @@ class DesktopAppUpdate(
     }
 
     override fun check(manual: Boolean) {
-        if (checking || progress != null) return
+        if (checking || phase != null) return
         checking = true
         scope.launch { checkNow(manual); checking = false }
     }
@@ -145,7 +148,7 @@ class DesktopAppUpdate(
         }
         if (installedExe == null) { message = CANNOT_INSTALL_LINE; return }
         if (job != null) return
-        progress = 0f
+        phase = UpdatePhase.Downloading(0f)
         job = scope.launch {
             try {
                 verified = downloadAndVerify(release)
@@ -157,7 +160,7 @@ class DesktopAppUpdate(
             } catch (e: Exception) {
                 message = "The update could not be downloaded. Check the connection and try again."
             } finally {
-                progress = null; job = null
+                phase = null; job = null
             }
         }
     }
@@ -191,11 +194,12 @@ class DesktopAppUpdate(
                         val n = input.read(buf)
                         if (n < 0) break
                         output.write(buf, 0, n); done += n
-                        progress = (done.toFloat() / release.assetSize).coerceIn(0f, 1f)
+                        phase = UpdatePhase.Downloading((done.toFloat() / release.assetSize).coerceIn(0f, 1f))
                     }
                 }
             }
         } finally { c.disconnect() }
+        phase = UpdatePhase.Checking
         verifyDownload(out, release, requireDigest = hookMode)
         out
     }

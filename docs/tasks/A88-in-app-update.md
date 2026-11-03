@@ -77,7 +77,9 @@ Android installs an update only if it is signed with **the same key** as the ins
        line before sending him there.
      - Needs `REQUEST_INSTALL_PACKAGES` in the manifest, plus a `FileProvider` (or a PackageInstaller session
        stream).
-  4. After the update, the app restarts on Home, and About shows the new hash.
+  4. After the update, About shows the new hash. *(A96 corrected this step: Android ends the app to replace it and
+     does not reopen it. A notification, "TroubaStage was updated" / "Tap to open.", reopens it on Home. That starts
+     with the update after A96; the update into A96 itself cannot post it.)*
 - **Never** delete app data, and never interrupt a concert.
 
 ## 3. versionCode
@@ -113,6 +115,7 @@ A84 left `versionCode` deliberately untouched; this task is the decision it defe
 - **Device (VLL's tablet):**
   1. install a CI APK over the current app with `adb install -r`: **notes intact**, counting files before and after;
   2. then publish a newer CI build and let the app find it;
-  3. Update → confirm → restart → About shows the new hash, and the notes are still intact;
+  3. Update → confirm → the app reopens from its notification (A96) → About shows the new hash, and the notes are
+     still intact;
   4. a dev build never shows the banner on its own.
 - **Regression:** the CI set (unit, assemble, both iOS compiles) is green.

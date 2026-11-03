@@ -73,6 +73,7 @@ class DesktopOsTest {
             u.update()
             assertEquals(listOf("https://github.com/yoda-jm/troubastack/releases/download/latest/$UPDATE_ASSET_APPIMAGE"), opened)
             assertNull(u.message)
+            assertNull(u.phase, "A96: Linux and macOS open the download; they never show an update phase")
         }
         withRelease("http://example.invalid/$UPDATE_ASSET_APPIMAGE") { url ->
             val u = linkUpdate(url)

@@ -1,5 +1,7 @@
 package com.troubastack.shared.home
 
+import com.troubastack.shared.buildinfo.UpdatePhase
+import com.troubastack.shared.ui.AppUpdateStatus
 import com.troubastack.shared.ui.LocalMaxContentWidth
 import com.troubastack.shared.ui.readableWidth
 import com.troubastack.shared.ui.LocalBrandAccents
@@ -408,13 +410,13 @@ fun HomeScreen(
     onCancelUpdate: () -> Unit = {},
     // A42②: one-tap re-bake of the resume concert (admin only — the row is hidden unless canReBake).
     onReBake: () -> Unit = {},
-    // A88 — a newer TroubaStage is published: the quiet banner (text), its download progress while updating, and
-    // its two actions. Null text ⇒ no banner. Home only — never on Stage.
+    // A88 — a newer TroubaStage is published: the quiet banner (text), and its two actions. Null text ⇒ no banner.
+    // A96 — while an update runs, its phase (the same status About shows). Home only — never on Stage.
     // A92 — "N concerts edited since their last bake →" (admins; null ⇒ nothing on Home) and its tap.
     editedLine: String? = null,
     onEdited: () -> Unit = {},
     appUpdateText: String? = null,
-    appUpdateProgress: Float? = null,
+    appUpdatePhase: UpdatePhase? = null,
     onAppUpdate: () -> Unit = {},
     onAppUpdateNotNow: () -> Unit = {},
     onAppUpdateCancel: () -> Unit = {},
@@ -466,25 +468,19 @@ fun HomeScreen(
                 }
             }
 
-            // A88 — the app-update banner: quiet (a surface, not a dialog), Update / Not now; a progress bar while the
-            // APK downloads. "App update", so it never reads as the concert-bake Update row further down.
-            if (appUpdateText != null || appUpdateProgress != null) {
+            // A88 — the app-update banner: quiet (a surface, not a dialog), Update / Not now. "App update", so it never
+            // reads as the concert-bake Update row further down. A96: while an update runs, its phase, as About shows it.
+            if (appUpdateText != null || appUpdatePhase != null) {
                 Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val p = appUpdateProgress
-                        if (p == null) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(appUpdateText ?: "", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                TextButton(onClick = onAppUpdateNotNow) { Text("Not now") }
-                                Button(onClick = onAppUpdate) { Text("Update") }
-                            }
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Downloading the app update… ${(p * 100).toInt()} %", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                TextButton(onClick = onAppUpdateCancel) { Text("Cancel") }
-                            }
-                            LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
+                    val phase = appUpdatePhase
+                    if (phase == null) {
+                        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(appUpdateText ?: "", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            TextButton(onClick = onAppUpdateNotNow) { Text("Not now") }
+                            Button(onClick = onAppUpdate) { Text("Update") }
                         }
+                    } else {
+                        AppUpdateStatus(phase, onAppUpdateCancel, MaterialTheme.colorScheme.onSecondaryContainer, Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
                     }
                 }
             }

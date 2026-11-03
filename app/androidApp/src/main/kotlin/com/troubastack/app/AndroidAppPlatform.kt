@@ -2,12 +2,14 @@ package com.troubastack.app
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
+import com.troubastack.shared.buildinfo.UpdatePhase
 import com.troubastack.shared.buildinfo.UpdateVerdict
 import com.troubastack.shared.distribution.ServerDiscovery
 import com.troubastack.shared.seams.Storage
@@ -77,7 +79,11 @@ class AndroidAppPlatform(private val activity: MainActivity) : AppPlatform {
     }
 
     override val appUpdate: (Storage, CoroutineScope) -> AppUpdate =
-        { storage, scope -> AndroidAppUpdate(AppUpdateController(context, storage, scope)) }
+        { storage, scope ->
+            // A96: Android's "should we explain first" answer needs the Activity (false after a refusal for good).
+            val rationale = { Build.VERSION.SDK_INT >= 33 && activity.shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS) }
+            AndroidAppUpdate(AppUpdateController(context, storage, scope, rationale))
+        }
 
     override val pedal: () -> PedalLink = { AndroidPedalLink(MidiPedal(context)) }
 
@@ -124,7 +130,7 @@ private class AndroidAppUpdate(private val c: AppUpdateController) : AppUpdate {
     override val verdict: UpdateVerdict? get() = c.verdict
     override val failed: Boolean get() = c.failed
     override val checking: Boolean get() = c.checking
-    override val progress: Float? get() = c.progress
+    override val phase: UpdatePhase? get() = c.phase
     override val bannerText: String? get() = c.bannerText
     override val autoChecks: Boolean get() = c.autoChecks
     override fun chooseAutoChecks(on: Boolean) = c.chooseAutoChecks(on)

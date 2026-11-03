@@ -25,6 +25,9 @@
     <!-- A95: the update asks before ~15 MB over mobile data, and reading whether the network is metered needs this
          (a normal permission, granted at install). Without it every Update crashed (SecurityException). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- A96: after the app updates itself, a notification reopens it (Android blocks a relaunch from a receiver).
+         API 33+ asks for it when Update is pressed; below 33 it needs no prompt. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -66,5 +69,11 @@
         </activity>
         <!-- A88: PackageInstaller's status callback (pending user confirmation → Android's own install prompt). -->
         <receiver android:name=".UpdateInstallReceiver" android:exported="false" />
+        <!-- A96: the new version's first moment — posts "TroubaStage was updated" for the update the app started. -->
+        <receiver android:name=".AppUpdatedReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
