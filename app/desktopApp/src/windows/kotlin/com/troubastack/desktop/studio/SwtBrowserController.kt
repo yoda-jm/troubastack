@@ -1,6 +1,7 @@
 package com.troubastack.desktop.studio
 
 import com.troubastack.shared.distribution.reloadUrl
+import com.sun.jna.platform.win32.WinDef.HWND
 import org.eclipse.swt.SWT
 import org.eclipse.swt.browser.Browser
 import org.eclipse.swt.browser.BrowserFunction
@@ -48,11 +49,20 @@ internal class SwtBrowserController(
     @Volatile var helloAnswered: Boolean = false; private set
     @Volatile var navVetoed: Boolean = false; private set
     @Volatile var started: Boolean = false; private set
+    @Volatile var engineMissingReported: Boolean = false; private set
+    // B2 DPI measurement (filled by measureDpi, read by the smoke).
+    @Volatile var swtThreadDpiAwareness: Int = -1; private set
+    @Volatile var canvasClient: String = "?"; private set
+    @Volatile var shellClient: String = "?"; private set
+    @Volatile var rectsMatch: Boolean = false; private set
 
     @Volatile private var display: Display? = null
     @Volatile private var shell: Shell? = null
     @Volatile private var browser: Browser? = null
+    @Volatile private var canvasHwnd: HWND? = null
     private val thread = Thread(::run, "win08-swt-display").apply { isDaemon = true }
+
+    private fun reportEngineMissing() { engineMissingReported = true; onEdt { onEngineMissing() } }
 
     fun start() = thread.start()
 
@@ -78,6 +88,27 @@ internal class SwtBrowserController(
         if (!shell.isDisposed) shell.setBounds(0, 0, maxOf(1, canvas.width), maxOf(1, canvas.height))
     }
 
+    /** B2 — on the SWT thread, read this thread's DPI awareness and compare the embedded Shell's client rect to the
+     *  canvas's (equal at 100 %). The process and EDT awareness are read by the smoke on their own threads. */
+    fun measureDpi() {
+        val d = display ?: return
+        if (d.isDisposed) return
+        runCatching {
+            d.syncExec {
+                swtThreadDpiAwareness = Win08Native.threadDpiAwareness()
+                val ch = canvasHwnd
+                val sh = shell?.takeIf { !it.isDisposed }?.let { Win08Native.hwnd(it.handle) }
+                if (ch != null && sh != null) {
+                    val (cw, chh) = Win08Native.clientSize(ch)
+                    val (sw, shh) = Win08Native.clientSize(sh)
+                    canvasClient = "${cw}x${chh}"
+                    shellClient = "${sw}x${shh}"
+                    rectsMatch = cw == sw && chh == shh && cw > 0 && chh > 0
+                }
+            }
+        }
+    }
+
     /** Ordered teardown + bounded join, from the screen's onDispose (every exitApplication path runs it). */
     fun dispose() {
         exec { shell?.takeIf { !it.isDisposed }?.dispose() }
@@ -97,13 +128,13 @@ internal class SwtBrowserController(
             if (forceNoWebview) {
                 // S1.6 CI path: behave as if WebView2 is absent, without creating a Shell/Browser.
                 log("ctrl: forceNoWebview — reporting engine missing")
-                onEdt(onEngineMissing)
+                reportEngineMissing()
                 return
             }
             // Wait for the AWT canvas to be realized (SwingPanel adds + shows it) before SWT_AWT.new_Shell.
             val deadline = System.currentTimeMillis() + 10_000
             while (!canvas.isDisplayable && System.currentTimeMillis() < deadline) Thread.sleep(20)
-            if (!canvas.isDisplayable) { log("ctrl: canvas never became displayable"); onEdt(onEngineMissing); return }
+            if (!canvas.isDisplayable) { log("ctrl: canvas never became displayable"); reportEngineMissing(); return }
             log("ctrl: canvas displayable; creating TOP-LEVEL Shell + Browser(SWT.EDGE)")
 
             // A top-level, SWT-thread-owned Shell (NOT SWT_AWT.new_Shell): WebView2's controller-ready callback then
@@ -117,7 +148,7 @@ internal class SwtBrowserController(
                 Browser(shell, SWT.EDGE)
             } catch (e: Throwable) {
                 log("win08: Browser(SWT.EDGE) threw: ${e.message}")
-                onEdt(onEngineMissing)
+                reportEngineMissing()
                 runLoopUntilDisposed(display, shell)
                 return
             }
@@ -127,7 +158,7 @@ internal class SwtBrowserController(
             if (type != "edge") {
                 // Never fall back to IE: a non-edge backend is "no WebView2".
                 browser.dispose()
-                onEdt(onEngineMissing)
+                reportEngineMissing()
                 runLoopUntilDisposed(display, shell)
                 return
             }
@@ -135,6 +166,7 @@ internal class SwtBrowserController(
 
             // Child-HWND embedding: reparent the Shell's HWND into the heavyweight AWT canvas and track its size.
             val canvasHwnd = Win08Native.hwndOf(canvas)
+            this.canvasHwnd = canvasHwnd
             if (canvasHwnd != null) {
                 Win08Native.embed(Win08Native.hwnd(shell.handle), canvasHwnd)
                 fitShellToCanvas(shell)

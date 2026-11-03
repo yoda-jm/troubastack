@@ -4,7 +4,10 @@ import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.platform.win32.User32
 import com.sun.jna.platform.win32.WinDef.HWND
+import com.sun.jna.platform.win32.WinDef.RECT
 import com.sun.jna.platform.win32.WinUser.WNDENUMPROC
+import com.sun.jna.ptr.IntByReference
+import com.sun.jna.win32.StdCallLibrary
 import java.awt.Component
 import java.awt.Window
 
@@ -16,8 +19,8 @@ import java.awt.Window
  */
 internal object Win08Native {
     private const val GWL_STYLE = -16
-    private const val WS_CHILD = 0x40000000.toInt()
-    private const val WS_POPUP = 0x80000000.toInt()
+    private const val WS_CHILD = 0x40000000     // fits in Int
+    private const val WS_POPUP = Int.MIN_VALUE  // 0x80000000
     private const val GA_ROOT = 2
 
     private val user32: User32 get() = User32.INSTANCE
@@ -59,4 +62,29 @@ internal object Win08Native {
         val root = user32.GetAncestor(wv, GA_ROOT)
         return (root != null && root == frameHwnd) to "webview=$wv root=$root frame=$frameHwnd"
     }
+
+    // --- B2: DPI awareness + client rects. Awareness: 0 unaware, 1 system, 2 per-monitor, -1 unavailable. ---
+
+    private interface User32Dpi : StdCallLibrary {
+        fun GetThreadDpiAwarenessContext(): Pointer?
+        fun GetAwarenessFromDpiAwarenessContext(ctx: Pointer?): Int
+        companion object { val I: User32Dpi by lazy { Native.load("user32", User32Dpi::class.java) } }
+    }
+
+    private interface Shcore : StdCallLibrary {
+        fun GetProcessDpiAwareness(hProcess: Pointer?, value: IntByReference): Int
+        companion object { val I: Shcore by lazy { Native.load("shcore", Shcore::class.java) } }
+    }
+
+    /** The calling thread's DPI-awareness value (call on the thread you want to measure). */
+    fun threadDpiAwareness(): Int =
+        runCatching { User32Dpi.I.GetAwarenessFromDpiAwarenessContext(User32Dpi.I.GetThreadDpiAwarenessContext()) }.getOrDefault(-1)
+
+    /** The process's DPI-awareness value. */
+    fun processDpiAwareness(): Int =
+        runCatching { val r = IntByReference(); Shcore.I.GetProcessDpiAwareness(null, r); r.value }.getOrDefault(-1)
+
+    /** A window's client size in physical pixels. */
+    fun clientSize(h: HWND): Pair<Int, Int> =
+        runCatching { val r = RECT(); user32.GetClientRect(h, r); (r.right - r.left) to (r.bottom - r.top) }.getOrDefault(-1 to -1)
 }

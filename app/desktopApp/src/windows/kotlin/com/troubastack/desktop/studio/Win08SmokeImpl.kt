@@ -134,6 +134,16 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             val c = controller
             if (c == null) { mark("controller-created", false); finish(results, null); return }
 
+            // S1.6 — forced no-WebView2 (CI sets TROUBA_WIN08_FORCE_NO_WEBVIEW=1). The host must report engine
+            // missing and show the exact message, never create a Browser, never fall back to IE.
+            if (System.getenv("TROUBA_WIN08_FORCE_NO_WEBVIEW") == "1") {
+                val reported = waitFor(20_000) { c.engineMissingReported }
+                mark("no-webview-engine-missing", reported && c.browserType == null)
+                mark("no-webview-message", NO_WEBVIEW_MESSAGE.contains("doesn't have Microsoft Edge WebView2"))
+                finish(results, c)
+                return
+            }
+
             waitFor(30_000) { c.browserType != null }
             mark("engine-is-edge", c.browserType == "edge")
 
@@ -160,6 +170,16 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             val underRoot = edgeDataDir.absolutePath.startsWith(File(desktopDataRoot()).absolutePath)
             val noDotSwt = !File(System.getProperty("user.home").orEmpty(), ".swt").exists()
             mark("data-dir-under-root-no-dotswt", edgeDataDir.exists() && underRoot && noDotSwt)
+
+            // B2 — DPI: log awareness on the process, the EDT and the SWT thread; at 100% assert the embedded
+            // Shell's client rect equals the canvas's. (Above 100% is VLL's Surface check, not asserted here.)
+            c.measureDpi()
+            val edtDpi = runCatching {
+                var v = -1; javax.swing.SwingUtilities.invokeAndWait { v = Win08Native.threadDpiAwareness() }; v
+            }.getOrDefault(-1)
+            win08log("dpi: process=${Win08Native.processDpiAwareness()} edt=$edtDpi swt=${c.swtThreadDpiAwareness} " +
+                "canvasClient=${c.canvasClient} shellClient=${c.shellClient} rectsMatch=${c.rectsMatch}")
+            mark("dpi-shell-rect-equals-canvas-at-100", c.rectsMatch)
 
             finish(results, c)
         } catch (e: Throwable) {

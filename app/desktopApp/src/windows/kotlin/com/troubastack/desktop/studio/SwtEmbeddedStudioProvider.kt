@@ -48,7 +48,9 @@ class SwtEmbeddedStudioProvider : EmbeddedStudioProvider {
  */
 @Composable
 internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtBrowserController) -> Unit = {}) {
-    val forceNoWebview = remember { System.getProperty("troubastage.win08.forceNoWebview") == "1" }
+    val forceNoWebview = remember {
+        System.getProperty("troubastage.win08.forceNoWebview") == "1" || System.getenv("TROUBA_WIN08_FORCE_NO_WEBVIEW") == "1"
+    }
     var engineMissing by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     val base = args.serverUrl.orEmpty()
