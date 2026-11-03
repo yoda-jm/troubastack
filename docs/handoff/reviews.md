@@ -63762,3 +63762,98 @@ In the packaged app a raw `WM_CLOSE` destroys the window at the Win32 level and 
 - **No SWT jar on Linux/macOS** asserted in CI; the SWT impls live in `src/windows` and are added to the jar only on a Windows host.
 
 Requesting: a verdict, and specifically a ruling on the F11 option (a/b/c). VLL's MSI pen-check on his Surface is the gate after your GO.
+
+## 2026-11-03 — Fable: WIN08 stage 1, second look (PR #95 @ 6818c5f1) — not yet, but close: F11 needs a diagnosis, not an option; three evidence gaps
+
+**Accepted now:**
+- items 0, 1, 3, 4, 5 and 6;
+- check 7's positive proof;
+- the `--win08-studio` hook;
+- the shared `sessionCookieSeed`.
+
+**How I checked them:**
+- **I read the diff `ab1fe33e..6818c5f1`:**
+  - `Edge.timeout` 30000 is set in `main`, and the warm-up is gone. A `createFunction` failure gives its own startup
+    words.
+  - `disposed` is checked at each step. The stray window exists only under `sabotage == "reparent"`.
+  - `GetClientRect`/`SetWindowPos` sizing, with the `logicalfit` sabotage.
+  - The bridge's `sameOrigin` guard.
+  - `sessionCookieSeed` and its test.
+  - The hook is loopback-only, takes credentials from the environment, and opens the platform's own `studio.Edit`.
+- **I looked at your shots3 screenshots myself:**
+  - 1 has no stroke. 5 has a freehand stroke over the real chart. 6 keeps it after Reload.
+  - 2 has the ⋮ menu drawn over Studio's toolbar.
+- **The MSI delta, measured by me:** the PR run's `troubastage-windows-msi` artifact is 71 355 100 B, against
+  68 356 525 B on main's A97 land run. That's **+2.86 MiB**, in line with WIN05's +2.78 MiB. You don't need to
+  re-measure it.
+
+### 1. F11 — the source says SWT does deliver it, so find which link breaks
+
+In SWT R4_40:
+- `Edge.handleAcceleratorKeyPressed` turns every WebView2 accelerator key into an SWT `KeyDown` on the Browser.
+  Shift, Ctrl and Alt alone are skipped.
+- `WebBrowser.sendKeyEvent` puts F11 in the `default` branch. It's not a traversal key, so `doit` stays true, and
+  `browser.notifyListeners(KeyDown)` runs your `KeyListener`.
+- F11 maps to no character, so WebView2 should treat it as an accelerator.
+
+So "SWT doesn't forward F11" is a hypothesis, not a finding. In 7a the window isn't full screen, but the zoom reads
+156 %, so a key did reach Studio. Something along the chain is breaking.
+
+**Do this:** in the shots run, log these:
+- every `keyPressed` in the Browser's `KeyListener`, with its keyCode;
+- entry to `onFullScreenKey`;
+- entry to `toggleFullScreen`, with the window placement before and after.
+
+Then send F11 inside Studio. **Positive controls:**
+- F5 and Ctrl+F, which are certainly accelerators;
+- F11 with focus on the app bar, which goes through Compose's own key path. That shows whether full screen works at
+  all with the heavyweight child present.
+
+Paste the lines, and fix the link they show.
+
+**Ruling on a/b/c:**
+- **(a) is out.** S1.7 says F11 works from inside Studio.
+- **(c) is out.** No reflection into SWT.
+- **(b) is pre-approved, only if your log proves** the `KeyListener` sees F5 or Ctrl+F but never F11. Then:
+  - in `bridge.ts`, and only for the function-shaped shell (`TroubaStageShellReceive`), a `keydown` listener for F11
+    sends `{type:"fullscreen"}` and calls `preventDefault`. The host acts on it through the same origin check.
+  - **A DOM test with teeth:** F11 with the function shell → sent; F11 with the object (Android) shell or no shell →
+    nothing; another key → nothing.
+  - Android's path stays byte-identical.
+
+### 2. Check 7's sabotage: show what ended the process
+
+You report that an ignored `onCloseRequest` still let the process exit. On Windows, AWT turns `WM_CLOSE` into
+`WINDOW_CLOSING`, and an ignored `onCloseRequest` keeps a Compose window open. So if the process still ended, something
+other than the app's close path ended it, and that is what needs explaining.
+
+**Do this:** for that run, paste the step's exit code and the last 15 lines of `win08.log`, and say which line ended
+the process.
+- If it's the backstop's `halt(1)`, the step should have gone red. Then check 7 can be sabotaged after all, and the
+  step's exit-code check is what was missing.
+- If it really ended with 0 and no close, find the second close path.
+
+### 3. Item 7 is still a report from the code, not a measurement
+
+Measure these in the shots workflow, each with SendInput and a screenshot:
+- a click on the file-name link in the song's file list (`target=_blank`): what appears, and the `REPORT` log line;
+- T208's "Download PDF…": what appears, and where the file lands (list the user's Downloads folder);
+- a right-click on the chart: the menu's items;
+- F12 and Ctrl+Shift+I: does DevTools open?
+- Ctrl+P and Ctrl+F: what appears;
+- F5: does it stay on the page?
+
+Report only. Stage 2 decides. VLL will hit some of these on his Surface, so I want to tell him what to expect.
+
+### 4. Item 8 is not done yet
+
+The ⋮ screenshot shows the menu over Studio. Item 8 asked about the *rest* of the app, because `WINDOW` layers apply
+to every popup on Windows. Screenshot the Connect dialog and a Stage tooltip with the head's MSI, next to main's MSI.
+
+### 5. Memory
+
+Measure only the TroubaStage process and its own `msedgewebview2` children, found by parent pid, with Studio open. The
+runner's Gradle daemons don't count.
+
+When 1–5 are in, re-present. I expect to GO then, and VLL gets the MSI link and his checklist. The screenshots you
+showed him are fine to share, but his install waits for the GO.
