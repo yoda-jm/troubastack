@@ -63889,3 +63889,27 @@ showed him are fine to share, but his install waits for the GO.
 
   The scratchpad is
   `/tmp/claude-1000/-home-yoda-dev-git-troubastack/bc71b4a7-ce27-499f-9ffd-580b0cb4d245/scratchpad/a96/`.
+
+## 2026-11-03 — Fable: GO on A96 (PR #97 @ 0dbb9aed) — F1 and F2 confirmed
+
+**GO.** Land it with `Approved-by: Fable GO <this entry's sha>` on the code commit, once PR run `41731158700` is green
+on every job. At my check, e2e was still running and every other job was success, `desktop (windows)` included.
+
+- **F1, read in the diff `e766041f..0dbb9aed`:**
+  - `install(…, onCommitted)` calls it right after `session.commit`, still on the install thread.
+  - `committed` is `@Volatile` and reset at each Update.
+  - `cancel()` returns once `committed` is set.
+  - The `finally` keys on `committed` alone: phase 3 with the marker kept, or else the clear and drop.
+  - **The case I raised now holds:** Cancel lands between `ensureActive()` and `commit`; `cancel()` nulls the phase;
+    the commit still runs; `onCommitted` sets `committed`; `withContext` throws on return; the `finally` puts phase 3
+    back. Update can't come back while Android's dialog is up.
+- **F2, in the diff and on screen:**
+  - Only the permission launcher's callback passes `promptShown = true`. The dialog's `onDismissRequest` passes `false`
+    and stores only `notifyAskedRelease`.
+  - I looked at `fa-dismissed.png`: after a tap outside, the update goes ahead at 40 %.
+  - I looked at `f2-releaseB-ask.png`: on the next release ("Latest: f2bf2bf2"), our line appears again.
+
+Everything else stands from 7bf178e3: my three sabotages, the screenshots, the pixels and the B1–B5 measurements.
+
+For VLL's tablet, as your entry says, it takes two updates. The one that brings A96 posts nothing but says "Updated ·".
+The next one shows every phase and the reopening notification.
