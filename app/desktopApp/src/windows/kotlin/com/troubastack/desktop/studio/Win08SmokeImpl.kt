@@ -45,6 +45,13 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             Runtime.getRuntime().halt(1)
         }.apply { isDaemon = true; start() }
         win08log("smoke: backstop armed")
+        // Check-7 sabotage: leak a non-daemon thread. After the window closes, this blocks JVM exit, so the process
+        // does NOT end on its own and the backstop must halt it — proving check 7 catches a leftover non-daemon
+        // thread. (The controller's own SWT thread is a daemon and ends on close, so it can't model this.)
+        if (System.getenv("WIN08_SABOTAGE") == "nondaemon") {
+            win08log("smoke: SABOTAGE nondaemon — leaking a non-daemon thread (process must NOT exit on its own)")
+            Thread { try { Thread.sleep(Long.MAX_VALUE) } catch (_: InterruptedException) {} }.apply { isDaemon = false; name = "win08-leak"; start() }
+        }
         try {
             win08log("smoke: opening loopback ServerSocket")
             val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())

@@ -64,10 +64,8 @@ internal class SwtBrowserController(
     @Volatile private var shell: Shell? = null
     @Volatile private var browser: Browser? = null
     @Volatile private var canvasHwnd: HWND? = null
-    // Daemon so a stuck SWT thread can't keep the JVM alive (B1). The "nondaemon" sabotage makes it non-daemon AND
-    // skips dispose, so the window close no longer ends the process — check 7 must then go red. Read the env directly
-    // (not the `sabotage` val) to avoid a property-init ordering dependency.
-    private val thread = Thread(::run, "win08-swt-display").apply { isDaemon = System.getenv("WIN08_SABOTAGE") != "nondaemon" }
+    // Daemon so a stuck SWT thread can never keep the JVM alive (B1) — the reliable close path is the window close.
+    private val thread = Thread(::run, "win08-swt-display").apply { isDaemon = true }
 
     private fun reportEngineMissing() { engineMissingReported = true; onEdt { onEngineMissing() } }
     private fun reportStartupTimeout() { startupTimedOut = true; onEdt { onStartupTimeout() } }
@@ -132,7 +130,6 @@ internal class SwtBrowserController(
      *  [disposed] FIRST and wakes the display, so a dispose() that arrives before the Shell exists is honoured by
      *  the run() thread (which checks [disposed] at each step) rather than silently dropped. */
     fun dispose() {
-        if (sabotage == "nondaemon") { log("ctrl: SABOTAGE nondaemon — skipping dispose (process must stay alive → check 7 red)"); return }
         disposed = true
         val d = display
         runCatching { d?.takeIf { !it.isDisposed }?.asyncExec { shell?.takeIf { !it.isDisposed }?.dispose() } }
@@ -300,12 +297,6 @@ internal class SwtBrowserController(
 
     private fun runLoopUntilDisposed(display: Display, shell: Shell) {
         while (!shell.isDisposed) { if (!display.readAndDispatch()) display.sleep() }
-        // "nondaemon" sabotage (check 7): the SWT thread is non-daemon (see `thread`) and keeps running after the
-        // window closed — a leftover non-daemon thread that blocks JVM exit, so the process must NOT end on its own.
-        if (sabotage == "nondaemon") {
-            log("ctrl: SABOTAGE nondaemon — non-daemon SWT thread staying alive after close (check 7 must red)")
-            while (true) Thread.sleep(100_000)
-        }
     }
 }
 
