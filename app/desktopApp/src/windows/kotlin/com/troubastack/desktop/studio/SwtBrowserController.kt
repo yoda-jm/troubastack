@@ -201,7 +201,29 @@ internal class SwtBrowserController(
                     }
                 }
             }
-            if (sabotage != "bridge" && sabotage != "bridge-late") registerBridge()
+            // The WebView2 controller can take longer than SWT's 5s synchronous wait to become ready on a cold CI
+            // VM (WIN05's "insurance"); createFunction then throws "Waiting for Edge operation to terminate timed
+            // out". Retry it, pumping the loop between attempts so the controller-ready callback is processed —
+            // once ready, createFunction (and the later setUrl) return at once. This still registers BEFORE the
+            // first load, so the bridge-shim ordering holds.
+            if (sabotage != "bridge" && sabotage != "bridge-late") {
+                var registered = false
+                for (attempt in 1..6) {
+                    try {
+                        registerBridge(); registered = true
+                        log("ctrl: bridge registered (attempt $attempt)")
+                        break
+                    } catch (e: Throwable) {
+                        log("ctrl: registerBridge attempt $attempt not ready: ${e.message}")
+                        val until = System.currentTimeMillis() + 1500
+                        while (System.currentTimeMillis() < until) { if (!display.readAndDispatch()) display.sleep() }
+                    }
+                }
+                if (!registered) {
+                    log("win08: WebView2 controller never became ready")
+                    reportEngineMissing(); runLoopUntilDisposed(display, shell); return
+                }
+            }
 
             // Origin lock: veto any navigation off the server's origin.
             if (sabotage != "nav") browser.addLocationListener(object : LocationAdapter() {
