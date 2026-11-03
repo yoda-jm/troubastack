@@ -168,23 +168,6 @@ internal class SwtBrowserController(
             }
             this.browser = browser
 
-            // Child-HWND embedding: reparent the Shell's HWND into the heavyweight AWT canvas and track its size.
-            val canvasHwnd = Win08Native.hwndOf(canvas)
-            this.canvasHwnd = canvasHwnd
-            if (canvasHwnd != null && sabotage != "reparent") {
-                Win08Native.embed(Win08Native.hwnd(shell.handle), canvasHwnd)
-                if (sabotage == "nofit") shell.setBounds(0, 0, 120, 80) else fitShellToCanvas(shell)
-                if (sabotage != "nofit") canvas.addComponentListener(object : java.awt.event.ComponentAdapter() {
-                    override fun componentResized(e: java.awt.event.ComponentEvent?) = exec { fitShellToCanvas(shell) }
-                })
-                shell.isVisible = true
-                log("ctrl: reparented shell into canvas hwnd=$canvasHwnd (sabotage=$sabotage)")
-            } else {
-                // sabotage=reparent (or no canvas): leave the Shell top-level, so no WebView2 window is a frame descendant.
-                shell.setBounds(0, 0, 800, 600); shell.isVisible = true
-                log("ctrl: shell NOT embedded (sabotage=$sabotage canvasHwnd=$canvasHwnd)")
-            }
-
             // Bridge: a BrowserFunction whose bare-identifier name Studio's bridge.ts picks up as the shell
             // (window.TroubaStageShellReceive). SWT 3.134.0 registers it via AddScriptToExecuteOnDocumentCreated,
             // so it exists before Studio's bundle runs initShellBridge. Registered BEFORE the load (the ordering
@@ -258,7 +241,28 @@ internal class SwtBrowserController(
             // Seed the session cookie (Browser exists ⇒ the WebView2 cookie manager is up), then load — signed in.
             sessionCookie?.let { c -> runCatching { Browser.setCookie(c, origin) }.onSuccess { ok -> log("win08: setCookie=$ok") } }
             browser.setUrl(loadUrl)
-            log("ctrl: setUrl($loadUrl); entering readAndDispatch loop")
+            log("ctrl: setUrl($loadUrl)")
+
+            // Child-HWND embedding LAST: the WebView2 controller is ready and the bridge wired while the Shell was
+            // a top-level SWT window (so the ready callback pumped on the SWT thread). Only now reparent the Shell
+            // into the heavyweight AWT canvas for display — moving it under the EDT-owned canvas no longer matters,
+            // because no further controller-level async op is awaited.
+            val canvasHwnd = Win08Native.hwndOf(canvas)
+            this.canvasHwnd = canvasHwnd
+            if (canvasHwnd != null && sabotage != "reparent") {
+                Win08Native.embed(Win08Native.hwnd(shell.handle), canvasHwnd)
+                if (sabotage == "nofit") shell.setBounds(0, 0, 120, 80) else fitShellToCanvas(shell)
+                if (sabotage != "nofit") canvas.addComponentListener(object : java.awt.event.ComponentAdapter() {
+                    override fun componentResized(e: java.awt.event.ComponentEvent?) = exec { fitShellToCanvas(shell) }
+                })
+                shell.isVisible = true
+                log("ctrl: reparented shell into canvas hwnd=$canvasHwnd (sabotage=$sabotage)")
+            } else {
+                // sabotage=reparent (or no canvas): leave the Shell top-level, so no WebView2 window is a frame descendant.
+                shell.setBounds(0, 0, 800, 600); shell.isVisible = true
+                log("ctrl: shell NOT embedded (sabotage=$sabotage canvasHwnd=$canvasHwnd)")
+            }
+            log("ctrl: entering readAndDispatch loop")
 
             runLoopUntilDisposed(display, shell)
         } catch (e: Throwable) {
