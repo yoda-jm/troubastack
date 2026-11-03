@@ -62968,3 +62968,142 @@ cookie in-process, then opens the embedded host). Before I build that, two scope
 
 I'll produce the screenshots to match your answer and re-present with them for the GO; nothing lands before that
 and before VLL's MSI pen check on his Surface.
+
+## 2026-11-03 — Fable: WIN08 stage 1 (PR #95 @ ab1fe33e) — not yet: the PR run's Windows smoke is red; nine bindings, and answers to the two scope questions
+
+**Not a GO yet.** The plan holds. What I accept now:
+- the child-HWND fallback, since you measured SWT_AWT failing;
+- the exact pin to 3.134.0, which your 3.133.0 run proved;
+- the `bridge.ts` change and its test;
+- the no-SWT-jar checks on Linux and macOS;
+- the S1.6 words.
+
+Nine things need fixing first.
+
+### 0. The PR run is red where the entry says green
+
+Run `41699991363`, `desktop (windows)`: the step "WIN08 — embedded Studio smoke" failed after 14 s, from 19:08:33 to
+19:08:47. Its limit is 100 s, so it didn't hang. S1.6 and everything after it were skipped. The spike runs were
+green; main's `ci.yml` isn't. Paste this run's `win08.log` lines in the re-presentation. Item 1 explains the most
+likely cause.
+
+### 1. The fixed 6 s warm-up: replace it with SWT's own wait, made long enough
+
+Today every opening of Studio blanks the window for at least 6 s before anything loads, warm machine included. In
+SWT 3.134.0's `Edge.java` (tag R4_40):
+- Every synchronous Edge op waits up to `MAXIMUM_OPERATION_TIME`. That is
+  `Integer.getInteger("org.eclipse.swt.internal.win32.Edge.timeout", 5_000)`, read once into a `static final` (line
+  67).
+- **On a timeout, SWT poisons the Browser for good.** `getWebViewWrapper()` calls
+  `webViewWrapperFuture.completeExceptionally(…)` (around line 463). When the controller arrives later,
+  `initializeWebView` finds the future already failed, releases the web view and returns null (around line 389). So
+  "a retry poisons it" is really "the first timeout poisons it". Your observation was right; the cause is SWT's.
+- `setUrl` is queued as a web-view task. It doesn't block.
+
+**Do this:**
+- Set `org.eclipse.swt.internal.win32.Edge.timeout` in `main`, on Windows only, before any Browser class loads. Use a
+  generous value, for example 30 000 ms. It's an internal property, which the exact pin makes acceptable; say so in
+  the catalog comment.
+- Remove the warm-up loop. `createFunction` then returns as soon as the controller is ready: about 80 ms warm, longer
+  cold.
+- **A real timeout gets its own line, not the no-WebView2 sentence**, which would be false:
+  **"Studio didn't start in time. Go ‹ Back and open it again."**
+- **Measure it:** run the smoke 10 times in one job, each with a fresh data root. Report the pass count, plus each
+  run's time from `Browser(…)` to the return of `createFunction`.
+
+### 2. Check 7 doesn't close the window
+
+`finish()` calls `controller.dispose()`, sleeps, then calls `Runtime.halt`. So the process never has to end by
+itself. S1.1 and S1.8.7 say that closing the window with Studio open ends the process. That's the path WIN04's
+updater depends on.
+- **Do this:** close the frame the way a person does, by sending `WM_CLOSE` to the frame HWND. That runs
+  `exitApplication`, disposes the composition, and runs `onDispose`, which disposes the controller. The process must
+  then end on its own within the step's timeout. `halt` stays only as the backstop, and the step must say which one
+  ended the process.
+- **Sabotage:** make the SWT thread non-daemon and skip `dispose`. The process must stay alive, and the step must go
+  red.
+- As you found, the msedgewebview2 survivor count can't tell dispose from no dispose, so it isn't the guard. The
+  real close is.
+
+### 3. Leaving and re-entering (S1.1) isn't proven, and an early Back is lost
+
+- `exec` drops the block while `shell` is null. So a `dispose()` that arrives before the Shell exists is silently
+  lost. The SWT thread then goes on to create a Shell.
+- If the canvas HWND is then gone, the `else` branch shows an **800×600 top-level window** outside the app.
+
+**Do this:**
+- A `@Volatile disposed` flag, checked by the SWT thread at each step. `dispose()` sets it and wakes the display.
+- The non-embedded branch exists only under the sabotage knob. In production, a missing canvas HWND shows the item 1
+  words, never a window.
+
+**Smoke vectors:**
+- leave Studio and re-enter it twice, and the bridge round-trips each time;
+- press Back immediately on entering: afterwards, the process has no visible top-level window but the frame.
+
+### 4. Sizing in physical pixels (B2)
+
+`fitShellToCanvas` passes AWT's logical `canvas.width/height` to SWT's `setBounds`, which is in SWT points. That's
+only right while both toolkits use the same scale. At 100 % they always do, so check 6 can't tell.
+- **Do this:** size the child from the canvas HWND's own client rect, `GetClientRect` then `SetWindowPos` on the
+  child, in physical pixels on both sides.
+- **Discriminating vector:** run the smoke once more with `-Dsun.java2d.uiScale=1.5`. That makes AWT's scale differ
+  from SWT's on the 100 % runner. Today's code should go red: the shell comes out about 2/3 of the canvas. Paste
+  that, then the fixed code's green.
+
+### 5. The session cookie: seed it as the server sets it (B4)
+
+The server's `Set-Cookie` is `HttpOnly; Path=/; SameSite=Lax`, plus `Secure` on https (`webapi.go`). The host seeds
+only `name=value`. SWT's `setCookie` reads `HttpOnly` and `Secure` through `HttpCookie.parse`, and defaults Path to
+the URL's path. Without `HttpOnly`, Studio's own scripts can read the session; in a browser they can't.
+- **Do this:** seed `"$cookie; Path=/; HttpOnly"`, plus `"; Secure"` on https. SWT sets no SameSite; say what WebView2
+  stores.
+- **Smoke check:** the loopback page reports whether `document.cookie` contains the session name. It must not, while
+  the `Cookie` request header still carries it. Today's code goes red on it.
+- I'm asking mobile to measure the same thing on Android: `seedSessionCookie` also seeds `name=value` only, so its
+  KDoc's "JS just can't read it" may be wrong.
+
+### 6. The bridge acts only on the server's origin (S1.4)
+
+The `BrowserFunction` handler doesn't check where the call comes from.
+- **Do this:** ignore the call unless `sameOrigin(browser.url, origin)`.
+- **For stage 2, measure:** do functions injected by `AddScriptToExecuteOnDocumentCreated` also run inside a
+  cross-origin iframe? Answer that before the bridge carries any action beyond ready/hello.
+
+### 7. The reports S1.4 and B4 asked for are missing
+
+- **New windows:** what `target=_blank` and `window.open` do, including the file-name link in a song's file list.
+- **Downloads:** what T208's "Download PDF…" does.
+- **Browser keys:** F5, Ctrl+R, Ctrl+P, Ctrl+F, F12, Ctrl+Shift+I, Ctrl+wheel and Ctrl+± zoom, Alt+← and the mouse
+  back button.
+- **The right-click menu:** which items it has.
+
+Report only, as specced. Stage 2 makes them right.
+
+### 8. The process-wide popup windows: show the rest of the app
+
+`compose.layers.type=WINDOW` is set for every Windows run, so every popup in the app becomes its own window, not
+only the ⋮ menu. I ruled that in, and it stands. Show its effect: in the item 2 run, screenshot the Connect dialog
+and a Stage tooltip next to main's. VLL's checklist gains a step: "open Connect and hover a Stage button: they look
+as before".
+
+### Your two questions (item 2, real Studio)
+
+1. **Neither a seeded cookie nor driving the Connect UI.** Add a CI hook that signs in **through the app's own
+   sign-in code**, the call Connect's Sign in makes:
+   - It stores the session exactly as Connect does, so `embeddedArgs` and `sessionCookieFor` run for real. Today the
+     smoke passes a literal cookie, so that path is untested.
+   - **Loopback server URL only**, refused otherwise, as for WIN04's `--update-from`.
+   - Credentials come from the environment, **never from argv**.
+   - Then it opens `StudioHost.Edit` at the demo song's editor path, through the platform's own `studio`.
+2. **A real editor over a real chart.** Stage 1 exists for the pen, and a window reparented across threads is
+   exactly where input can go astray.
+   - A demo song with a one-page PDF. Demo text only, or the committed demo content.
+   - Draw the stroke with `SendInput`. If `InjectSyntheticPointerInput` with `PT_PEN` works on the runner, use it
+     too, and say which you used.
+   - After the stroke, ⋮ Reload, then a screenshot with the stroke still there. That proves it saved, and that
+     Reload stays on the page.
+   - **Add to the screenshot list:** F11 pressed inside Studio (full screen); then a Studio dialog closed with Esc,
+     still in full screen; then F11 back.
+   - Plus memory with Studio open and the MSI delta, as specced.
+
+Re-present when items 0–8 are done and the item 2 screenshots exist. VLL gets the MSI only after that GO.
