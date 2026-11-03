@@ -63107,3 +63107,179 @@ as before".
    - Plus memory with Studio open and the MSI delta, as specced.
 
 Re-present when items 0–8 are done and the item 2 screenshots exist. VLL gets the MSI only after that GO.
+
+## 2026-11-03 — mobile: A96 design note (status where Update was pressed, the app comes back) — measured first; requesting GO — reviewer: Fable
+
+### 1. What I measured
+
+**The rig.** My own AVDs with Google's images, checksum-verified against the repository listing, on API 34 (google_apis
+x86_64 r14) and API 29 (google_apis x86), plus API 33 (x86_64 r17) for the refused-notification case. Nothing touched
+the tablet.
+- **"Today's code"** is main's build stamped like CI: `CI=true`, `GITHUB_RUN_NUMBER=100`, `-PbuiltAt=2026-11-01T00:00:00Z`,
+  signed with the stable debug key. apksigner shows the same certificate as `latest` (e9967532…).
+- **The mechanism probes** are throwaway builds, never committed:
+  - *old* (versionCode 100) has its release URL pointed at a local `latest` stand-in on 127.0.0.1:8791, reached as
+    10.0.2.2. The stand-in serves a release JSON in the shape `parseRelease` reads.
+  - *new* (versionCode 200) adds a `MY_PACKAGE_REPLACED` receiver that tries the relaunch and then posts the
+    notification, and it logs every session status.
+
+**M1 — API 34, today's code, Update pressed in Parameters → About, against the real `latest` (28eb0160, versionCode 2995):**
+- **About shows nothing for the whole download.** `cache/app-update` grew 1.3 → 15.9 MB over about 20 s. Meanwhile
+  the row still said "Latest: 28eb0160 · built 2026-11-02 23:55 UTC", with Update enabled.
+- Then Android asked "Do you want to update this app?", and I confirmed.
+- **The app does not come back:**
+  ```
+  I/ActivityManager( 1574): Force stopping com.troubastack.app appid=10192 user=-1: installPackageLI
+  I/ActivityManager( 1574): Killing 3175:com.troubastack.app/u0a192 (adj 0): stop com.troubastack.app due to installPackageLI
+  W/ActivityTaskManager( 1574): Force removing ActivityRecord{16f7f2 u0 com.troubastack.app/.MainActivity t8 f}}: app died, no saved state
+  I/ActivityManager( 1574): Start proc 11123:com.troubastack.app/u0a192 for broadcast {com.troubastack.app/com.troubastack.app.UpdateInstallReceiver}
+  ```
+  The launcher is on screen. The session's status broadcast does reach the new version, but nothing there opens the
+  app.
+
+**Mechanism 1, the relaunch — API 34, the real in-app path through the stand-in:**
+- `MY_PACKAGE_REPLACED` and the session's `STATUS_SUCCESS` both reach the new version.
+- **Both are blocked:**
+  ```
+  I/A96PROBE(12228): MY_PACKAGE_REPLACED received (versionName 0.1.0+a5b31fdc-dirty); starting the launcher activity
+  W/ActivityTaskManager( 1574): Background activity launch blocked [callingPackage: com.troubastack.app; callingUid: 10193; appSwitchState: 2; callingUidHasAnyVisibleWindow: false; callingUidProcState: RECEIVER; isCallingUidPersistentSystemProcess: false; balAllowedByPiSender: BackgroundStartPrivileges[allowsBac…
+  E/ActivityTaskManager( 1574): Abort background activity starts from 10193
+  I/ActivityTaskManager( 1574): START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10000000 pkg=com.troubastack.app cmp=com.troubastack.app/.MainActivity} with LAUNCH_SINGLE_TASK from uid 10193 (BAL_BLOCK) result code=102
+  I/A96PROBE(12228): session status 0 (INSTALL_SUCCEEDED: Session installed) in versionName 0.1.0+a5b31fdc-dirty
+  W/ActivityTaskManager( 1574): Background activity launch blocked [callingPackage: com.troubastack.app; callingUid: 10193; …
+  I/ActivityTaskManager( 1574): START u0 {… cmp=com.troubastack.app/.MainActivity} with LAUNCH_SINGLE_TASK from uid 10193 (BAL_BLOCK) result code=102
+  ```
+
+**Mechanism 2, the notification — API 34, same path, POST_NOTIFICATIONS granted to the old version:**
+- The relaunch is blocked again.
+- The notification is posted, and the shade shows "TroubaStage was updated" / "Tap to open.".
+- **Tapping it opens the app on Home at versionCode 200:**
+  ```
+  I/A96PROBE(12552): areNotificationsEnabled=true
+  I/A96PROBE(12552): notification posted
+  I/ActivityTaskManager( 1574): START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10000000 pkg=com.troubastack.app cmp=com.troubastack.app/.MainActivity} with LAUNCH_SINGLE_TASK from uid 10194 (realCallingUid=10167) (BAL_ALLOW_PENDING_INTENT) result code=0
+  ```
+
+**API 29:**
+- **Today's code can't update itself at all there** (A97): the download completes, then `verify` refuses with
+  "different key".
+- **So on 29 the new version was installed with `adb install -r`, because of A97.** The relaunch decision belongs
+  to the receiver, so the install route doesn't change it.
+- **The relaunch is blocked**, and the launcher stays on screen:
+  ```
+  I/A96PROBE( 7298): MY_PACKAGE_REPLACED received (versionCode 200); starting the launcher activity
+  W/ActivityTaskManager( 1957): Background activity start [callingPackage: com.troubastack.app; callingUid: 10147; isCallingUidForeground: false; isCallingUidPersistentSystemProcess: false; realCallingUid: 10147; isRealCallingUidForeground: false; isRealCallingUidPersistentSystemProcess: false; originatingPendingIntent: null; isBgStartWhitelisted: false; intent: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10000000 pkg=com.troubastack.app cmp=com.troubastack.app/.MainActivity }; callerApp: ProcessRecord{d854328 7298:com.troubastack.app/u0a147}]
+  ```
+- **The notification posts** (there's no runtime permission below 33). The tap opens the app, with MainActivity
+  resumed and Home on screen.
+
+**POST_NOTIFICATIONS refused (API 33, the in-app path through the stand-in, the permission revoked on the old version):**
+- `notify()` returns without an error but posts nothing:
+  ```
+  I/A96PROBE( 9684): MY_PACKAGE_REPLACED received (versionCode 200); starting the launcher activity
+  I/A96PROBE( 9684): areNotificationsEnabled=false
+  I/A96PROBE( 9684): notification posted
+  I/A96PROBE( 9684): session status 0 (INSTALL_SUCCEEDED: Session installed) in versionName 0.1.0+a5b31fdc-dirty
+  ```
+- `dumpsys notification` holds 0 entries for the app, and the shade shows nothing.
+- The launcher stays on screen, so the person has to reopen the app by hand.
+- **So phase 3 adds " Then open TroubaStage again." exactly when `areNotificationsEnabled()` is false.**
+
+**One more thing it showed (today's code):** after the first download has handed off to Android, About's Update is still
+enabled. A second tap starts a second download and a second install session. The log shows two `CONFIRM_INSTALL`
+starts, 3 s apart. With this design, Update is hidden for every phase, phase 3 included.
+
+**⇒ Mechanism 2 on both levels, with no per-API split.** The relaunch is blocked from a receiver at 29 and at 34,
+and the notification route works at both.
+
+### 2. The design
+
+**Shared words and phases** (`shared/buildinfo/AppUpdate.kt`, commonMain, pure):
+```kotlin
+sealed interface UpdatePhase {
+    data class Downloading(val fraction: Float) : UpdatePhase
+    data object Checking : UpdatePhase
+    /** Android owns this step. [reopenYourself]: no notification will be posted (refused, or switched off). */
+    data class Confirming(val reopenYourself: Boolean) : UpdatePhase
+}
+fun updatePhaseLine(phase: UpdatePhase): String
+//  "Downloading the app update… N %" · "Checking the download…" ·
+//  "Android will ask you to confirm the update." (+ " Then open TroubaStage again." when reopenYourself)
+const val UPDATE_NOT_INSTALLED_LINE = "The update was not installed. Nothing was changed."
+fun updatedLine(lastRunBuild: String?, runningBuild: String): String?   // "Updated · <build line>", or null
+```
+
+**One status composable for both surfaces** (`shared/ui`): `UpdateStatus(phase, onCancel)`.
+- It shows the line and a bar under it:
+  - Downloading: determinate;
+  - Checking: indeterminate;
+  - Confirming: none.
+- It shows Cancel while Downloading or Checking. Confirming has no Cancel, because Android owns that step.
+- Home's banner calls it in place of its current progress row. The words don't change.
+- About calls it in place of the "Latest: … [Update] [Check for updates]" row while a phase is set, so **Update is
+  gone while an update runs**.
+- `AppUpdate.progress: Float?` becomes `phase: UpdatePhase?`.
+
+**The desktop:** its download reports Downloading, and its digest check reports Checking. It never reports
+Confirming, because it closes into the WIN04 helper. **A side effect: the desktop's About gets the same status.**
+The words for those two phases fit any platform.
+
+**Android (`AppUpdateController`):**
+- **Phases:** download → Downloading; `verify` and the session write → Checking; after `session.commit` →
+  Confirming(reopenYourself).
+- **Failure or abort:** `UpdateInstallReceiver` reports `STATUS_FAILURE*` or `STATUS_ABORTED` through a small
+  process-wide `UpdateSessionEvents`, which the controller observes. The phase clears, so the row goes back to
+  Update, and the message is `UPDATE_NOT_INSTALLED_LINE`. It goes through the existing "App update" dialog, where the
+  other update errors already appear.
+- **The notification:** a manifest receiver for `MY_PACKAGE_REPLACED`.
+  - It posts only when the app itself started the update: `update()` stores a marker just before `commit`, and the
+    receiver clears it.
+  - So an `adb install -r`, or an install from Chrome, posts nothing.
+  - The words are "TroubaStage was updated" / "Tap to open.". The tap opens MainActivity, and the notification is
+    auto-cancelled. It uses an "App updates" channel at default importance.
+  - When the app opens any other way, the notification is cancelled, so it doesn't linger.
+- **POST_NOTIFICATIONS on API 33+:** asked only on Update, when not already granted.
+  - First a dialog with the line "Allow a notification so you can reopen TroubaStage when the update is done." and
+    Continue, which leads to Android's prompt.
+  - Whatever the answer, the update goes ahead.
+  - The ask happens at most once per release, so a refusal isn't asked again on the next tap for the same update.
+  - `reopenYourself` = not granted, or notifications switched off (`areNotificationsEnabled`).
+- **"Updated · <build line>":** at the controller's start, `updatedLine(stored last-run build, appBuildLine)` goes
+  into the same "App update" dialog, the kind of place the desktop uses for `HandoffResult.Updated`. Then the running
+  build is stored.
+  - A first install has nothing stored, so it shows nothing. An unchanged build shows nothing.
+  - An `adb install -r` of a different build counts.
+
+**The claims corrected:**
+- the `install` call's comment;
+- `UpdateInstallReceiver`'s KDoc;
+- A88 §2 step 4 and acceptance step 3. They will say: "→ the app reopens from its notification ('TroubaStage was
+  updated · Tap to open.')".
+
+### 3. Tests
+
+- **Pure** (commonTest):
+  - `updatePhaseLine` for each phase and both Confirming variants;
+  - `UPDATE_NOT_INSTALLED_LINE`;
+  - `updatedLine` for first install, unchanged and changed.
+
+  **Teeth:** map phase 3 to the download line → red.
+- **Shown once** (jvmSharedTest, with a real `Storage`): the read-and-store helper returns the line once, then
+  null. **Teeth:** drop the store → "once" goes red.
+- **UI** (desktopTest): About with a fake update in phase Downloading(0.4) shows the line, a determinate bar and
+  Cancel, and no Update. In phase Confirming it shows the line, no bar and no Cancel. **Teeth:** remove About's
+  branch → red. Home's banner keeps its test.
+- **The marker rule:** a pure decision, `shouldPostReopen(marker present)`, plus a manifest test asserting the
+  receiver is declared with `MY_PACKAGE_REPLACED`.
+- **Emulator:**
+  - At API 34, the acceptance as specified. Both APKs are built from the head with the same key. The old one has
+    its release URL pointed at the stand-in, a throwaway patch I'll state; the new one is the head as committed.
+  - At API 29, after A97 lands.
+  - **Pixels:** Home and About with no update running, identical to main.
+
+### 4. Questions for you
+
+1. **"Not installed" goes in the existing dialog, not inline on the row.** Every other update error is a dialog
+   today. OK?
+2. **The marker, so a non-app install posts nothing.** Or post on every `MY_PACKAGE_REPLACED`?
+3. **"At most once per release"** for the notification ask. Or every tap of Update?
