@@ -62572,3 +62572,81 @@ VLL answered three open items and left a note on the tablet update, on his decis
 **Queues:**
 - mobile: the ✕ names, then A96;
 - web-core: WIN08 stage 1.
+
+
+## 2026-11-03 — web-core: WIN08 stage 1 — DESIGN NOTE (requesting GO on the design before building)
+
+WIN08 routed to web-core (VLL: "Oui, WebView2, en commençant par l'étape à valider"; spec `docs/tasks/WIN08-studio-inside-the-windows-app.md` @ e2b2ffde). The engine is settled by WIN05 (WebView2 via SWT `Browser(SWT.EDGE)`). Stage 1 is the part WIN05 delta 2 named as the riskiest and unproven — SWT's `Browser` **inside the TroubaStage Compose window**, two UI threads, popups over it, real session-seeded Studio, pen/keyboard/focus. No SWT code exists on any branch yet; this note is the design, presented before building per [[new-designs-need-review]] and the routing. **Nothing is built or pushed beyond this entry until a GO on the design.**
+
+### What is already settled (WIN05, not re-proved here)
+Engine `org.eclipse.platform:org.eclipse.swt.win32.win32.x86_64` (EPL-2.0, spike used 3.134.0); +2.78 MiB MSI; ~289 MiB process-tree RAM (msedgewebview2.exe 199); WebView2 env creates in ~80 ms **only with a writable `EdgeDataDir`**; `Browser.setCookie` works once a Browser exists; bridge round-trip works (`BrowserFunction` web→app, `evaluate` app→web); `LocationListener.changing doit=false` vetoes a navigation; **SWT has no load-error event**. Prior prototypes ran a scratch page in a bare `Shell`; never inside Compose, never real Studio.
+
+### The seams (verified on e2b2ffde)
+- Replace `DesktopAppPlatform.kt`: the `studio: StudioHost` object — `Browse` renders `StudioComingSoon` (strings "‹  Back", "TroubaStudio", "Coming soon."); `Edit`/`PresentQr` `error("… WIN05")`; `clearCookies(){}`.
+- Replace `app/shared/src/desktopMain/.../seams/WebViewHost.desktop.kt` (throws everywhere). The common `expect class WebViewHost` has only `load`/`postToStudio`/`onStudioMessage`; Android adds `State`/`onState`/`currentUrl`/`canGoBack`/`goBack` as non-actual extras — desktop will do the same.
+- Reuse **as-is** from shared: `embeddedUrl(base,path)` + `reloadUrl(current,entry)` (`distribution/EditorUrl.kt`), `sessionCookieFor(getSecret,url)` + `dropSessionIfOriginChanged(storage,url,clearWebCookies)` (3-arg, `jvmSharedMain/HttpTransport.kt`), `Session.kt` keys. Mirror Android `EditScreen.kt` for the bar/Reload/ErrorCover/Back.
+- Window: `Main.kt` single `Window("TroubaStage")`, `windowKey` (F11→`toggleFullScreen`, Esc→`back.dispatch() || exitFullScreen`), shared `App()` hosts screens; `DesktopWindowControls` owns full screen. Build: `build.gradle.kts` already selects deps by host OS (`os.name startsWith "Mac"`); `jna`+`jna-platform` already present; Compose MP 1.9.0 / Kotlin 2.2.20 / JDK 21; **no SWT in `libs.versions.toml`**.
+
+---
+
+### S1.1 — Embedding and threading (the core decision)
+
+**Embedding: SWT_AWT heavyweight `Canvas` inside a Compose `SwingPanel`.** Rationale: `SWT_AWT.new_Shell(display, canvas)` is SWT's documented AWT bridge — it parents an SWT `Shell` onto a heavyweight AWT `Canvas` and owns the native-handle plumbing; the `Canvas` drops into Compose via `SwingPanel(factory = { canvas })`. The alternative — reparenting a bare SWT `Shell`'s HWND under the ComposeWindow's HWND by hand (JNA `SetParent`) — gives finer z-order control but hand-rolls native reparenting, focus and lifecycle that SWT_AWT already handles. **Chosen: SWT_AWT-in-SwingPanel; a child-HWND reparent is the fallback only if the popup or DPI answers below fail.** SwingPanel places the heavyweight *above* Compose's canvas, which is what makes Studio visible — and is exactly what creates the ⋮-menu problem in S1.7.
+
+**Threading model:**
+- A **dedicated SWT display thread** (non-daemon) creates the `Display`, the SWT `Shell` (via `SWT_AWT.new_Shell`), the `Browser(SWT.EDGE)`, and runs the `while(!shell.isDisposed) if(!display.readAndDispatch()) display.sleep()` loop. WebView2/Edge is COM-STA and needs OS-message pumping; `readAndDispatch` is that pump, so the thread that owns the Browser must be the one looping. (WIN05's own finding: SWT's `processOSMessagesUntil` pumps by itself — no separate pump needed.)
+- Compose/AWT stay on the **EDT**.
+- **Into SWT** (create/load/`setCookie`/`evaluate`/dispose): `display.asyncExec {…}` (or `syncExec` when a return is needed) from any thread.
+- **Into Compose state** (bridge `ready`, nav events, error state): a `BrowserFunction`/listener fires on the SWT thread → hop to the EDT (`SwingUtilities.invokeLater`) before touching Compose state.
+- Invariant, asserted in review: nothing calls SWT off the display thread; nothing writes Compose state off the EDT.
+- **Leave/re-enter** the Studio screen → dispose Browser + Shell on the SWT thread, dispose the Display, join the thread; re-entry builds a fresh Display/Shell. **Closing the window with Studio open ends the process:** the SWT thread is joined on dispose and `msedgewebview2.exe` is torn down with the WebView2 environment, so no non-daemon thread or child outlives the JVM (WIN04's updater waits for TroubaStage to close). Smoke check 7 is exactly this.
+
+### S1.2 — Where it writes
+- `org.eclipse.swt.browser.EdgeDataDir` set to `<data-root>/webview2` (WIN03's data-root seam; `Main.kt --print-data-root`), **set before the Browser is created**. Never temp, never install dir.
+- SWT natives: load from the install dir, or extract under `<data-root>/swt` via `swt.library.path`. **Never `~/.swt`** (WIN07's Skiko lesson). Same for test tasks — mirror `build.gradle.kts`'s existing `skiko.data.path`-under-build-dir `Test` config for `swt.library.path`.
+
+### S1.3 — Signed in, on the right page
+After the Browser exists and before the first load: `Browser.setCookie(value, origin)` with `value` taken **only** from `sessionCookieFor(storage::getSecret, serverUrl)` (its cross-origin replay guard stands). Then `load(embeddedUrl(serverUrl, path))`. Studio opens signed in; no Studio login screen.
+
+### S1.4 — Locked to the server (report in S1)
+- Navigation to another origin vetoed via `LocationListener.changing { it.doit = false }` unless the target is same-origin as the server.
+- The bridge `BrowserFunction` acts only when `browser.getUrl()`'s origin equals the server origin.
+- **New windows / downloads — S1 only REPORTS** (stage 2 fixes): a `target=_blank`/`window.open` (the file-name link in a song's file list) raises SWT's `OpenWindowListener`; I will report what it does with no handler (expected: suppressed/no window). A **download** — T208's "Download PDF…" saving a Blob through an anchor — I will report WebView2's behaviour (expected: WebView2's own download prompt, or nothing if suppressed). Both findings go in the stage-1 report; stage 2 routes them.
+
+### S1.5 — The bridge shim must exist before Studio's script (the trickiest binding)
+`web/studio/src/bridge.ts` `initShellBridge()` runs **synchronously in `main.tsx:19`, before `createRoot().render()`, once** — and Studio must not change (out of scope; a needed change gets its own task). So `window.TroubaStageShell.receive` has to be present when Studio's bundle evaluates, i.e. injected **at document-creation**, not after load. A plain SWT `BrowserFunction` is re-installed by SWT on each navigation, but **whether it lands before the page's own inline/module scripts is the open risk.** Plan, in order of preference:
+1. Use WebView2's `AddScriptToExecuteOnDocumentCreated` to install a shim `window.TroubaStageShell = { receive: j => __troubaReceive(j) }` (where `__troubaReceive` is the `BrowserFunction`). If SWT.EDGE surfaces this (directly or via the underlying `ICoreWebView2` reachable through SWT internals/JNA), it guarantees document-create ordering.
+2. If SWT re-installs `BrowserFunction`s via that same document-create hook internally (likely — that is how SWT.EDGE persists functions across navigations), a `BrowserFunction` named to present `window.TroubaStageShell.receive` is already early enough; confirm by test.
+3. If neither holds, that is a **reportable Studio-change need** (a tiny inline bootstrap before the bundle) — I would report it, not change Studio.
+Smoke check 4 (bridge round-trip against the loopback page running the real handshake) is the discriminating test for this ordering.
+
+### S1.6 — No WebView2
+If `Browser(SWT.EDGE)` throws, or `browser.getBrowserType() != "edge"`, show exactly **"Studio can't open here: this copy of Windows doesn't have Microsoft Edge WebView2."** + **‹ Back**. Never an IE fallback (force Edge; treat non-edge as missing). CI forces this path via a system property the host reads as engine-missing, so the words are tested (smoke S1.6 case).
+
+### S1.7 — Keyboard, focus, popups, DPI
+- **Focus model:** while Studio holds focus, the heavyweight WebView2 HWND owns native focus, so keystrokes go straight to Studio and do **not** reach Compose/AWT's `windowKey`. This gives S1.7's required behaviour for free:
+  - **Typing** goes into Studio's fields.
+  - **Esc reaches Studio** (closes T208's Download PDF dialog); it does not leave the screen and does not leave full screen, because the host never sees it. The host installs **no** global Esc hook.
+- **F11:** with the above, F11 pressed inside Studio also goes to Studio, which ignores it — so in stage 1 **F11 does not toggle full screen while focus is inside Studio**; full screen is reached from the app bar (which has AWT focus) and from the keyboard when the bar/Compose has focus. If we want F11 to toggle from inside Studio too, that needs WebView2's `AcceleratorKeyPressed` forwarded to the host — I flag it as a choice for you (default: leave F11 to Studio, consistent with Esc staying with Studio).
+- **⋮ menu over the heavyweight (the explicit S1.7 ask):** a Compose `DropdownMenu`/`Popup` renders lightweight *inside* the ComposeWindow and would be painted **under** the heavyweight browser. **Chosen answer:** render the app bar's ⋮ menu (the only app overlay that must sit over Studio in stage 1) in its **own borderless, always-on-top top-level window**, anchored just below the ⋮ button and dismissed on outside-click/Esc — so it floats above the native surface and is fully visible. Fallback if that proves fiddly: briefly hide the SWT Shell while the menu is open (a visible flash — less good). Smoke has no pixel check for this; it is covered by the throwaway-workflow screenshot "⋮ menu open over Studio".
+- **DPI:** the process is **Per-Monitor-V2** aware (JBR/Compose default on Windows). The `SwingPanel` gives the SWT Shell the canvas bounds in AWT's device-independent pixels; WebView2 applies the monitor scale to its own content, so Studio renders crisp at 150 % (VLL's Surface) and its bounds follow window resize/maximise. **Risk:** AWT↔SWT↔WebView2 scale alignment at non-100 % is the classic heavyweight-interop hazard — the smoke checks the WebView2 bounds track the frame at a forced scale, and VLL's Surface check is the human confirmation (blur/size/cut-off).
+
+### Browse vs Edit on desktop (a scope question for you)
+On Android, `Browse` is a native band list and `Edit` opens the WebView. With embedded Studio the **SPA does its own browsing and editing in one webview**, so desktop's `StudioHost.Browse` becomes "host embedded Studio at `embeddedUrl(server, path)`" and the native Browse list isn't needed. **Stage 1 wires `Browse` = the embedded-Studio host** (bar: ‹ Back, band title via A65, ⋮ Reload); I propose `Edit`/`PresentQr` route into the same host (or stay erroring until stage 2). Tell me if you want Edit wired now or deferred.
+
+---
+
+### S1.8 — Proof plan
+1. **Main's CI `desktop (windows)`:** a new step launches the packaged app into the Studio screen against a loopback test page (no core), each check with its own marker line: (1) engine is Edge; (2) `GetAncestor(hwnd, GA_ROOT)` == the TroubaStage frame HWND (via JNA, already a dep); (3) the seeded cookie arrives in the loopback `Cookie` header; (4) bridge round-trips; (5) cross-origin nav vetoed; (6) the data dir exists under the data root and `~/.swt` does not; (7) the process exits after the window closes. **Each sabotaged red at least once**, step conclusions pasted (job logs are admin-only for Fable), plus the S1.6 no-WebView2 case.
+2. **Throwaway `windows-latest` workflow, real Studio, demo data only:** core built with the SPA on a scratch data dir; open a demo song's editor in the TroubaStage window. Full-window screenshots: signed-in Studio in-window with the bar above; ⋮ open over Studio; a Studio dialog open then gone after Esc; text typed into a field; a `SendInput` pointer-drag stroke before/after. Measure process-tree memory and the MSI delta. Delete the branch.
+3. **Linux & macOS:** jobs green, "Coming soon." still tested, app image holds **no SWT jar** (the SWT dep is added only on a Windows host build — extending the existing `os.name` conditional; the Linux/macOS jobs assert no `swt` jar in the image).
+4. The rest of CI green, `desktop (windows)` included.
+
+### The open questions I want your ruling on before I build
+1. **Embedding:** SWT_AWT-in-SwingPanel (my choice) vs child-HWND reparent — agree, or do you want the child-HWND route for z-order certainty?
+2. **⋮-menu-over-heavyweight:** separate always-on-top borderless window (my choice) vs hide-Shell-while-open — agree?
+3. **F11 inside Studio:** leave it to Studio / inert (my default) vs forward via `AcceleratorKeyPressed`?
+4. **Edit/PresentQr on desktop:** wire into the embedded host in stage 1, or defer to stage 2 (stage 1 = Browse only)?
+5. **Bridge shim ordering (S1.5):** if `AddScriptToExecuteOnDocumentCreated` isn't reachable through SWT.EDGE and a plain `BrowserFunction` proves too late, I report a Studio-change need rather than touch Studio — confirm that's the right call.
+
+On a GO on the design I build stage 1 on a branch, present it here with the smoke sabotages + the throwaway-workflow screenshots + the MSI/memory numbers, you review and GO, then VLL runs the PR-run MSI pen check on his Surface before it lands.
