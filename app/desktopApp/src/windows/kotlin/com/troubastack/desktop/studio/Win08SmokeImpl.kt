@@ -9,84 +9,114 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import com.sun.net.httpserver.HttpServer
 import com.troubastack.shared.seams.desktopDataRoot
 import java.io.File
-import java.net.InetSocketAddress
+import java.net.InetAddress
+import java.net.ServerSocket
 import java.nio.charset.StandardCharsets
 
 /**
  * WIN08 S1.8 — the embedded-Studio CI smoke (see [Win08SmokeRunner]). Serves a loopback page that runs the bridge
  * handshake as a synchronous script at the top of `<head>` (earlier than Studio's module — binding B3's worst
  * case), opens it in the embedded host inside a real TroubaStage window, and checks: engine is Edge; the seeded
- * cookie arrived; the bridge round-trips (ready, then a hello answered); off-origin navigation is vetoed; the
- * EdgeDataDir is under the data root and `~/.swt` is absent. Each check prints `WIN08-CHECK …: PASS|FAIL`; the
- * window then closes and the process exits (the CI step asserts it exits and leaves no msedgewebview2.exe — check 7).
+ * cookie arrives; the bridge round-trips (ready, then a hello answered); off-origin navigation is vetoed; the
+ * EdgeDataDir is under the data root and `~/.swt` is absent. Each check prints a `WIN08-CHECK …: PASS|FAIL` marker
+ * to the durable [win08log] file (a packaged Windows app has no captured stdout); the window then closes and the
+ * process exits (the CI step asserts it exits and leaves no msedgewebview2.exe — check 7).
+ *
+ * The loopback server is a raw [ServerSocket] from `java.base`, not `com.sun.net.httpserver` (which would need the
+ * `jdk.httpserver` jlink module and, if missing, blows up a GUI-subsystem app with a blocking error dialog).
  */
 class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var cookieHeader: String? = null
     @Volatile private var served = false
+    @Volatile private var serverSocket: ServerSocket? = null
 
-    /** Markers and stages all go to the durable [win08log] file (a packaged Windows app has no captured stdout). */
     private fun line(s: String) = win08log(s)
 
     override fun run(outDir: File): Int {
         outDir.mkdirs()
         win08log("smoke: run start; outDir=$outDir log=$win08LogFile")
-        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        val port = server.address.port
-        val origin = "http://127.0.0.1:$port"
-        server.createContext("/") { ex ->
-            served = true
-            cookieHeader = ex.requestHeaders.getFirst("Cookie")
-            val body = PAGE.toByteArray(StandardCharsets.UTF_8)
-            ex.responseHeaders.add("Content-Type", "text/html; charset=utf-8")
-            ex.sendResponseHeaders(200, body.size.toLong())
-            ex.responseBody.use { it.write(body) }
-        }
-        server.start()
-        win08log("smoke: loopback server on $origin")
-
-        // Backstop: never hang the CI job — halt non-zero after 75 s if the checker has not already exited.
+        // Arm the backstop FIRST, so any hang — even before the loopback server is up — is logged and halted.
         Thread {
             try { Thread.sleep(75_000) } catch (_: InterruptedException) { return@Thread }
             win08log("smoke: BACKSTOP firing (>75s) — halting 1")
             Runtime.getRuntime().halt(1)
         }.apply { isDaemon = true; start() }
         win08log("smoke: backstop armed")
+        try {
+            win08log("smoke: opening loopback ServerSocket")
+            val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+            serverSocket = server
+            val port = server.localPort
+            val origin = "http://127.0.0.1:$port"
+            Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
+            win08log("smoke: loopback server on $origin")
 
-        val edgeDataDir = File(desktopDataRoot(), "webview2")
-        val args = EmbeddedStudioArgs(
-            serverUrl = origin,
-            initialPath = null,
-            title = "TroubaStudio",
-            sessionCookie = "win08sess=smoke",
-            edgeDataDir = edgeDataDir,
-            onBack = {},
-            toggleFullScreen = {},
-            isFullScreen = { false },
-            frameWindow = { null },
-        )
+            val edgeDataDir = File(desktopDataRoot(), "webview2")
+            val args = EmbeddedStudioArgs(
+                serverUrl = origin,
+                initialPath = null,
+                title = "TroubaStudio",
+                sessionCookie = "win08sess=smoke",
+                edgeDataDir = edgeDataDir,
+                onBack = {},
+                toggleFullScreen = {},
+                isFullScreen = { false },
+                frameWindow = { null },
+            )
 
-        win08log("smoke: entering application{}")
-        application {
-            Window(
-                onCloseRequest = ::exitApplication,
-                title = "TroubaStage",
-                state = rememberWindowState(width = 1200.dp, height = 820.dp),
-            ) {
-                var controller by remember { mutableStateOf<SwtBrowserController?>(null) }
-                EmbeddedStudioContent(args, onController = { controller = it })
-                LaunchedEffect(Unit) {
-                    win08log("smoke: window composed; starting checker thread")
-                    Thread { runChecks(controller, edgeDataDir, server) }.apply { isDaemon = true; start() }
+            win08log("smoke: entering application{}")
+            application {
+                Window(
+                    onCloseRequest = ::exitApplication,
+                    title = "TroubaStage",
+                    state = rememberWindowState(width = 1200.dp, height = 820.dp),
+                ) {
+                    var controller by remember { mutableStateOf<SwtBrowserController?>(null) }
+                    EmbeddedStudioContent(args, onController = { controller = it })
+                    LaunchedEffect(Unit) {
+                        win08log("smoke: window composed; starting checker thread")
+                        Thread { runChecks(controller, edgeDataDir) }.apply { isDaemon = true; start() }
+                    }
                 }
             }
+        } catch (e: Throwable) {
+            win08log("smoke: run FAILED: $e\n${e.stackTraceToString()}")
+            Runtime.getRuntime().halt(1)
         }
-        return 0 // unreached: runChecks halts
+        return 0 // unreached: runChecks/backstop halts
     }
 
-    private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File, server: HttpServer) {
+    /** A one-page HTTP/1.0 loopback: read the request headers (record the Cookie), reply with [PAGE]. */
+    private fun acceptLoop(server: ServerSocket) {
+        while (!server.isClosed) {
+            val sock = try { server.accept() } catch (_: Throwable) { break }
+            Thread {
+                runCatching {
+                    sock.use { s ->
+                        val reader = s.getInputStream().bufferedReader()
+                        var l = reader.readLine()
+                        while (l != null && l.isNotEmpty()) {
+                            if (l.startsWith("Cookie:", ignoreCase = true)) cookieHeader = l.substringAfter(":").trim()
+                            l = reader.readLine()
+                        }
+                        served = true
+                        val body = PAGE.toByteArray(StandardCharsets.UTF_8)
+                        val head = "HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
+                            "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
+                        s.getOutputStream().apply {
+                            write(head.toByteArray(StandardCharsets.US_ASCII))
+                            write(body)
+                            flush()
+                        }
+                    }
+                }
+            }.apply { isDaemon = true; start() }
+        }
+    }
+
+    private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File) {
         val results = LinkedHashMap<String, Boolean>()
         fun mark(name: String, ok: Boolean) {
             results[name] = ok
@@ -100,7 +130,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         try {
             win08log("checker: start (controller=${controller != null})")
             val c = controller
-            if (c == null) { mark("controller-created", false); finish(results, server); return }
+            if (c == null) { mark("controller-created", false); finish(results); return }
 
             waitFor(30_000) { c.browserType != null }
             mark("engine-is-edge", c.browserType == "edge")
@@ -119,15 +149,15 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             val noDotSwt = !File(System.getProperty("user.home").orEmpty(), ".swt").exists()
             mark("data-dir-under-root-no-dotswt", edgeDataDir.exists() && underRoot && noDotSwt)
         } catch (e: Throwable) {
-            System.err.println("win08-smoke: checker threw: ${e.message}")
+            win08log("smoke: checker threw: ${e.message}")
         }
-        finish(results, server)
+        finish(results)
     }
 
-    private fun finish(results: Map<String, Boolean>, server: HttpServer) {
+    private fun finish(results: Map<String, Boolean>) {
         val ok = results.isNotEmpty() && results.values.all { it }
         line("win08-smoke: ${results.count { it.value }}/${results.size} checks passed; served=$served cookie=[${cookieHeader ?: ""}]")
-        runCatching { server.stop(0) }
+        runCatching { serverSocket?.close() }
         System.out.flush(); System.err.flush()
         Runtime.getRuntime().halt(if (ok) 0 else 1)
     }
