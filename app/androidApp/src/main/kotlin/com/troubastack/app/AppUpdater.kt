@@ -32,6 +32,30 @@ import kotlin.coroutines.coroutineContext
 /** Why a downloaded update was refused (shown in plain words; never followed by an uninstall offer). */
 class UpdateRefused(message: String) : Exception(message)
 
+/** A97 — what the signer check decides. */
+enum class SignerVerdict { INSTALL, DIFFERENT_KEY, COULD_NOT_CHECK }
+
+/**
+ * A97 — the signer check, pure: [ours] are the installed app's current signers, [theirs] the downloaded file's; null
+ * (or empty) means that set could not be read. Install only when both were read and they are the same; "different
+ * key" only when both were read and they differ. An unreadable set is never a match and never a guess about the key.
+ */
+internal fun signerVerdict(ours: Set<String>?, theirs: Set<String>?): SignerVerdict = when {
+    ours.isNullOrEmpty() || theirs.isNullOrEmpty() -> SignerVerdict.COULD_NOT_CHECK
+    ours == theirs -> SignerVerdict.INSTALL
+    else -> SignerVerdict.DIFFERENT_KEY
+}
+
+/** A97 — the words for a refused [SignerVerdict]; null when the update may be installed. */
+internal fun signerRefusal(verdict: SignerVerdict): String? = when (verdict) {
+    SignerVerdict.INSTALL -> null
+    SignerVerdict.DIFFERENT_KEY -> DIFFERENT_KEY_LINE
+    SignerVerdict.COULD_NOT_CHECK -> COULD_NOT_CHECK_LINE
+}
+
+internal const val DIFFERENT_KEY_LINE = "This update is signed with a different key than the TroubaStage on this tablet, so Android would not install it over this one. Your notes are safe; nothing was changed."
+internal const val COULD_NOT_CHECK_LINE = "TroubaStage could not check who signed this update, so it did not install it. Your notes are safe; nothing was changed."
+
 object AppUpdater {
     private const val TIMEOUT_MS = 10_000
 
@@ -97,11 +121,7 @@ object AppUpdater {
         val archive = archiveInfo(pm, apk) ?: throw UpdateRefused("The downloaded file is not an app TroubaStage can install.")
         if (archive.packageName != context.packageName) throw UpdateRefused("The downloaded app is not TroubaStage (${archive.packageName}).")
         val installed = installedInfo(pm, context.packageName)
-        val mine = certDigests(installed)
-        val theirs = certDigests(archive)
-        if (mine.isEmpty() || theirs != mine) {
-            throw UpdateRefused("This update is signed with a different key than the TroubaStage on this tablet, so Android would not install it over this one. Your notes are safe; nothing was changed.")
-        }
+        signerRefusal(signerVerdict(certDigests(installed), archiveDigests(pm, apk, archive)))?.let { throw UpdateRefused(it) }
     }
 
     /** §2 step 3 — hand the verified APK to PackageInstaller. Android then shows its own confirmation. */
@@ -133,12 +153,32 @@ object AppUpdater {
         if (Build.VERSION.SDK_INT >= 28) pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
         else pm.getPackageInfo(pkg, PackageManager.GET_SIGNATURES)
 
-    /** SHA-256 of each signing certificate (current signers; a rotated key's history is not accepted as a match). */
+    /**
+     * SHA-256 of each signing certificate (current signers; a rotated key's history is not accepted as a match).
+     * A97: on the GET_SIGNATURES path that [archiveDigests] falls back to below API 33, Android reports the oldest
+     * certificate of a rotated lineage, not the current one, so a rotation is not told apart there; Android's own
+     * install check is the authority.
+     */
     @Suppress("DEPRECATION")
     internal fun certDigests(info: PackageInfo): Set<String> {
         val sigs = if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.let { si -> if (si.hasMultipleSigners()) si.apkContentsSigners else si.signingCertificateHistory?.takeLast(1)?.toTypedArray() } else info.signatures
-        return sigs.orEmpty().map { s -> MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) } }.toSet()
+        return digests(sigs)
     }
+
+    /**
+     * A97 — the downloaded file's own signers. Below API 33 `getPackageArchiveInfo` can return an archive with no
+     * `signingInfo` (measured: null at API 28 and 29, present at 32 and 33, while the installed app's is always there),
+     * so then, and only then, the file is read again with GET_SIGNATURES — still the downloaded file, never the
+     * installed app. From API 33 on there is no fallback: a missing `signingInfo` is "could not check".
+     */
+    @Suppress("DEPRECATION")
+    private fun archiveDigests(pm: PackageManager, apk: File, archive: PackageInfo): Set<String> {
+        if (Build.VERSION.SDK_INT < 28 || archive.signingInfo != null || Build.VERSION.SDK_INT >= 33) return certDigests(archive)
+        return digests(pm.getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNATURES)?.signatures)
+    }
+
+    private fun digests(sigs: Array<out android.content.pm.Signature>?): Set<String> =
+        sigs.orEmpty().map { s -> MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) } }.toSet()
 }
 
 /** PackageInstaller's status callback. When Android needs the person's confirmation, show its prompt; other statuses
