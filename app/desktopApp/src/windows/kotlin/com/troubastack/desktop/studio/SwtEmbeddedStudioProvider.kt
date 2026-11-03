@@ -32,6 +32,10 @@ import javax.swing.JPanel
 internal const val NO_WEBVIEW_MESSAGE =
     "Studio can't open here: this copy of Windows doesn't have Microsoft Edge WebView2."
 
+/** Item 1 — a real startup timeout (the WebView2 controller never readied) gets its OWN words, not the no-WebView2
+ *  sentence (which would be false). */
+internal const val TIMEOUT_MESSAGE = "Studio didn't start in time. Go ‹ Back and open it again."
+
 /**
  * WIN08 (Windows only) — hosts Studio through WebView2 via SWT's `Browser(SWT.EDGE)`, inside the TroubaStage
  * window: the app bar (‹ Back, title, ⋮ Reload) above a `SwingPanel` holding the heavyweight SWT browser.
@@ -52,6 +56,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
         System.getProperty("troubastage.win08.forceNoWebview") == "1" || System.getenv("TROUBA_WIN08_FORCE_NO_WEBVIEW") == "1"
     }
     var engineMissing by remember { mutableStateOf(false) }
+    var timedOut by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     val base = args.serverUrl.orEmpty()
     val loadUrl = remember(base, args.initialPath) { embeddedUrl(base, args.initialPath) }
@@ -67,6 +72,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             forceNoWebview = forceNoWebview,
             onReady = {},
             onEngineMissing = { engineMissing = true },
+            onStartupTimeout = { timedOut = true },
             onFullScreenKey = { args.toggleFullScreen() },
             log = ::win08log,
         ).also(onController)
@@ -92,9 +98,9 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
                 }
             }
         }
-        if (engineMissing) {
+        if (engineMissing || timedOut) {
             Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                Text(NO_WEBVIEW_MESSAGE, style = MaterialTheme.typography.titleMedium)
+                Text(if (timedOut) TIMEOUT_MESSAGE else NO_WEBVIEW_MESSAGE, style = MaterialTheme.typography.titleMedium)
             }
         } else {
             SwingPanel(

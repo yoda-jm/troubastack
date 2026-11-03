@@ -41,6 +41,7 @@ internal class SwtBrowserController(
     private val forceNoWebview: Boolean,
     private val onReady: () -> Unit,
     private val onEngineMissing: () -> Unit,
+    private val onStartupTimeout: () -> Unit,
     private val onFullScreenKey: () -> Unit,
     private val log: (String) -> Unit,
 ) {
@@ -50,6 +51,9 @@ internal class SwtBrowserController(
     @Volatile var navVetoed: Boolean = false; private set
     @Volatile var started: Boolean = false; private set
     @Volatile var engineMissingReported: Boolean = false; private set
+    @Volatile var startupTimedOut: Boolean = false; private set
+    @Volatile var docCookie: String? = null; private set   // what document.cookie sees (item 5 — must NOT hold the session)
+    @Volatile private var disposed: Boolean = false
     // B2 DPI measurement (filled by measureDpi, read by the smoke).
     @Volatile var swtThreadDpiAwareness: Int = -1; private set
     @Volatile var canvasClient: String = "?"; private set
@@ -60,9 +64,13 @@ internal class SwtBrowserController(
     @Volatile private var shell: Shell? = null
     @Volatile private var browser: Browser? = null
     @Volatile private var canvasHwnd: HWND? = null
-    private val thread = Thread(::run, "win08-swt-display").apply { isDaemon = true }
+    // Daemon so a stuck SWT thread can't keep the JVM alive (B1). The "nondaemon" sabotage makes it non-daemon AND
+    // skips dispose, so the window close no longer ends the process — check 7 must then go red. Read the env directly
+    // (not the `sabotage` val) to avoid a property-init ordering dependency.
+    private val thread = Thread(::run, "win08-swt-display").apply { isDaemon = System.getenv("WIN08_SABOTAGE") != "nondaemon" }
 
     private fun reportEngineMissing() { engineMissingReported = true; onEdt { onEngineMissing() } }
+    private fun reportStartupTimeout() { startupTimedOut = true; onEdt { onStartupTimeout() } }
 
     /** WIN08 sabotage knob (dormant unless WIN08_SABOTAGE is set — only the CI sabotage runs set it, never
      *  production). Each value breaks exactly one guarded behaviour so its smoke check can be shown to red. */
@@ -87,9 +95,16 @@ internal class SwtBrowserController(
     /** Smoke only: try to navigate off-origin; the LocationListener must veto it ([navVetoed] is the proof). */
     fun probeOffOriginNav(foreign: String) = exec { browser?.setUrl(foreign) }
 
-    /** Keep the reparented child Shell filling the AWT canvas (called on the SWT thread). */
+    /** Keep the reparented child Shell filling the AWT canvas, in PHYSICAL pixels (item 4): size from the canvas
+     *  HWND's own client rect via SetWindowPos, so it is right even when AWT's scale differs from SWT's (e.g.
+     *  -Dsun.java2d.uiScale=1.5). SWT's setBounds (SWT points) is only correct while both toolkits share a scale. */
     private fun fitShellToCanvas(shell: Shell) {
-        if (!shell.isDisposed) shell.setBounds(0, 0, maxOf(1, canvas.width), maxOf(1, canvas.height))
+        if (shell.isDisposed) return
+        val ch = canvasHwnd
+        // "logicalfit" sabotage (item 4): use SWT's logical setBounds instead of the physical GetClientRect, so at
+        // -Dsun.java2d.uiScale=1.5 the Shell comes out ~2/3 of the canvas and the DPI check reds.
+        if (ch != null && sabotage != "logicalfit") Win08Native.fitChildToParent(Win08Native.hwnd(shell.handle), ch)
+        else shell.setBounds(0, 0, maxOf(1, canvas.width), maxOf(1, canvas.height))
     }
 
     /** B2 — on the SWT thread, read this thread's DPI awareness and compare the embedded Shell's client rect to the
@@ -113,9 +128,15 @@ internal class SwtBrowserController(
         }
     }
 
-    /** Ordered teardown + bounded join, from the screen's onDispose (every exitApplication path runs it). */
+    /** Ordered teardown + bounded join, from the screen's onDispose (every exitApplication path runs it). Sets
+     *  [disposed] FIRST and wakes the display, so a dispose() that arrives before the Shell exists is honoured by
+     *  the run() thread (which checks [disposed] at each step) rather than silently dropped. */
     fun dispose() {
-        exec { shell?.takeIf { !it.isDisposed }?.dispose() }
+        if (sabotage == "nondaemon") { log("ctrl: SABOTAGE nondaemon — skipping dispose (process must stay alive → check 7 red)"); return }
+        disposed = true
+        val d = display
+        runCatching { d?.takeIf { !it.isDisposed }?.asyncExec { shell?.takeIf { !it.isDisposed }?.dispose() } }
+        runCatching { d?.wake() }
         runCatching { thread.join(2000) }
     }
 
@@ -148,6 +169,7 @@ internal class SwtBrowserController(
             this.shell = shell
             shell.layout = FillLayout()
 
+            val tBrowser = System.currentTimeMillis()
             val browser = try {
                 Browser(shell, SWT.EDGE)
             } catch (e: Throwable) {
@@ -182,35 +204,49 @@ internal class SwtBrowserController(
                 })
                 shell.isVisible = true
                 log("ctrl: reparented shell into canvas hwnd=$canvasHwnd (sabotage=$sabotage)")
-            } else {
-                // sabotage=reparent (or no canvas): leave the Shell top-level, so no WebView2 window is a frame descendant.
+            } else if (sabotage == "reparent") {
+                // SABOTAGE only: leave the Shell top-level so no WebView2 window is a frame descendant (GA_ROOT reds).
                 shell.setBounds(0, 0, 800, 600); shell.isVisible = true
-                log("ctrl: shell NOT embedded (sabotage=$sabotage canvasHwnd=$canvasHwnd)")
+                log("ctrl: shell NOT embedded (sabotage=reparent)")
+            } else {
+                // Production with no canvas HWND: never show a stray top-level window — report engine missing instead.
+                log("ctrl: no canvas HWND; reporting engine missing (no window shown)")
+                browser.dispose(); reportEngineMissing(); runLoopUntilDisposed(display, shell); return
             }
+            if (disposed) { log("ctrl: disposed during setup — tearing down"); shell.dispose(); runLoopUntilDisposed(display, shell); return }
 
-            // Give the WebView2 controller a head start on the LIVE loop before the first synchronous Edge op, so a
-            // cold first launch is usually ready by the time createFunction runs (SWT's own wait is only 5s, which a
-            // cold CI VM can just exceed). A SINGLE createFunction then follows — never a retry: repeated
-            // createFunction attempts on a slow controller were observed to poison it into never readying.
-            run { val warm = System.currentTimeMillis() + 6000; while (System.currentTimeMillis() < warm) { if (!display.readAndDispatch()) display.sleep() } }
-
-            // Bridge: a BrowserFunction whose bare-identifier name Studio's bridge.ts picks up as the shell
-            // (window.TroubaStageShellReceive). SWT 3.134.0 registers it via AddScriptToExecuteOnDocumentCreated,
-            // so it exists before Studio's bundle runs initShellBridge. Registered BEFORE the load (the ordering
-            // that matters); the "bridge-late" sabotage registers it after the first load instead (B3 sabotage b).
+            // Bridge: a BrowserFunction whose bare-identifier name Studio's bridge.ts picks up (TroubaStageShellReceive).
+            // SWT 3.134.0 injects it via AddScriptToExecuteOnDocumentCreated, so it exists before the page's scripts.
+            // The handler acts ONLY on calls from the server's origin (S1.4, item 6). SWT's Edge.timeout was raised to
+            // 30s in main(), so this SINGLE createFunction waits long enough for a cold controller — no warm-up, no
+            // retry (the first timeout would poison the Browser). The "bridge-late" sabotage registers it after load.
             fun registerBridge() {
                 object : BrowserFunction(browser, "TroubaStageShellReceive") {
                     override fun function(arguments: Array<out Any?>?): Any? {
+                        if (!sameOrigin(browser.url ?: "", origin)) return null
                         val json = arguments?.getOrNull(0) as? String ?: return null
-                        if (json.contains("\"ready\"")) {
-                            if (!bridgeReady) { bridgeReady = true; log("win08: bridge ready"); onEdt(onReady) }
-                            else helloAnswered = true // a second ready = our hello was answered
+                        when {
+                            json.contains("\"cookie\"") -> { docCookie = json; log("win08: document.cookie reported") }
+                            json.contains("\"ready\"") -> {
+                                if (!bridgeReady) { bridgeReady = true; log("win08: bridge ready"); onEdt(onReady) }
+                                else helloAnswered = true // a second ready = our hello was answered
+                            }
                         }
                         return null
                     }
                 }
             }
-            if (sabotage != "bridge" && sabotage != "bridge-late") registerBridge()
+            if (sabotage != "bridge" && sabotage != "bridge-late") {
+                try {
+                    registerBridge()
+                    log("ctrl: TIMING createFunction returned ${System.currentTimeMillis() - tBrowser} ms after Browser()")
+                } catch (e: Throwable) {
+                    // The controller did not become ready within SWT's (raised) timeout — a real startup timeout, NOT
+                    // "no WebView2". Its own words, Back offered, no IE fallback.
+                    log("win08: createFunction failed — controller not ready in time: ${e.message}")
+                    reportStartupTimeout(); runLoopUntilDisposed(display, shell); return
+                }
+            }
 
             // Origin lock: veto any navigation off the server's origin.
             if (sabotage != "nav") browser.addLocationListener(object : LocationAdapter() {
@@ -242,8 +278,14 @@ internal class SwtBrowserController(
                 }
             })
 
-            // Seed the session cookie (Browser exists ⇒ the WebView2 cookie manager is up), then load — signed in.
-            sessionCookie?.let { c -> runCatching { Browser.setCookie(c, origin) }.onSuccess { ok -> log("win08: setCookie=$ok") } }
+            // Seed the session cookie AS THE SERVER SETS IT (item 5): Path=/ + HttpOnly (+ Secure on https), so
+            // Studio's own scripts cannot read the session (document.cookie), while the request header still carries
+            // it. SWT's setCookie parses these attributes via HttpCookie.parse.
+            sessionCookie?.let { c ->
+                val https = origin.startsWith("https")
+                val value = "$c; Path=/; HttpOnly" + if (https) "; Secure" else ""
+                runCatching { Browser.setCookie(value, origin) }.onSuccess { ok -> log("win08: setCookie=$ok (HttpOnly${if (https) ",Secure" else ""})") }
+            }
             browser.setUrl(loadUrl)
             log("ctrl: setUrl($loadUrl); entering readAndDispatch loop")
 

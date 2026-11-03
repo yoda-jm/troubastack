@@ -88,7 +88,9 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             win08log("smoke: run FAILED: $e\n${e.stackTraceToString()}")
             Runtime.getRuntime().halt(1)
         }
-        return 0 // unreached: runChecks/backstop halts
+        // Reached on the pass path: the checker posted WM_CLOSE, application{} returned. Return 0 and let the caller
+        // let the JVM exit on its own (check 7). On a failed check the checker already halted(1).
+        return 0
     }
 
     /** A one-page HTTP/1.0 loopback: read the request headers (record the Cookie), reply with [PAGE]. */
@@ -133,7 +135,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         try {
             win08log("checker: start (controller=${controller != null})")
             val c = controller
-            if (c == null) { mark("controller-created", false); finish(results, null); return }
+            if (c == null) { mark("controller-created", false); finish(results, frame); return }
 
             // S1.6 — forced no-WebView2 (CI sets TROUBA_WIN08_FORCE_NO_WEBVIEW=1). The host must report engine
             // missing and show the exact message, never create a Browser, never fall back to IE.
@@ -141,7 +143,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 val reported = waitFor(20_000) { c.engineMissingReported }
                 mark("no-webview-engine-missing", reported && c.browserType == null)
                 mark("no-webview-message", NO_WEBVIEW_MESSAGE.contains("doesn't have Microsoft Edge WebView2"))
-                finish(results, c)
+                finish(results, frame)
                 return
             }
 
@@ -165,6 +167,11 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
 
             mark("seeded-cookie-arrives", (cookieHeader ?: "").contains("win08sess=smoke"))
 
+            // Item 5 — the HttpOnly session must NOT be visible to document.cookie (even though the request carried it).
+            waitFor(5_000) { c.docCookie != null }
+            win08log("doc.cookie=[${c.docCookie ?: "(none)"}]")
+            mark("cookie-httponly-hidden-from-document", !(c.docCookie ?: "").contains("win08sess"))
+
             c.probeOffOriginNav("https://example.org/win08")
             mark("off-origin-nav-vetoed", waitFor(10_000) { c.navVetoed })
 
@@ -183,30 +190,35 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 "canvasClient=${c.canvasClient} shellClient=${c.shellClient} rectsMatch=${c.rectsMatch}")
             mark("dpi-shell-rect-equals-canvas-at-100", c.rectsMatch)
 
-            finish(results, c)
+            finish(results, frame)
         } catch (e: Throwable) {
             win08log("smoke: checker threw: ${e.message}")
-            finish(results, controller)
+            finish(results, frame)
         }
     }
 
-    private fun finish(results: Map<String, Boolean>, controller: SwtBrowserController?) {
+    private fun finish(results: Map<String, Boolean>, frame: () -> java.awt.Window?) {
         val ok = results.isNotEmpty() && results.values.all { it }
         line("win08-smoke: ${results.count { it.value }}/${results.size} checks passed; served=$served cookie=[${cookieHeader ?: ""}]")
-        // Check 7 — tear down like a window close: dispose the controller so SWT closes the WebView2 environment
-        // and its msedgewebview2.exe children exit (a survivor would hold the EdgeDataDir — B1). Then halt.
-        // The "nodispose" sabotage skips teardown → msedgewebview2.exe children survive → CI check 7 reds.
-        if (System.getenv("WIN08_SABOTAGE") != "nodispose") {
-            win08log("smoke: disposing controller before exit")
-            runCatching { controller?.dispose() }
-        } else {
-            win08log("smoke: SABOTAGE nodispose — NOT disposing (expect survivors)")
+        if (!ok) {
+            win08log("smoke: a check failed — halting 1")
+            runCatching { serverSocket?.close() }
+            Runtime.getRuntime().halt(1)
+            return
         }
-        Thread.sleep(2500) // let the WebView2 child processes finish exiting after Close
-        runCatching { serverSocket?.close() }
-        win08log("smoke: exit code ${if (ok) 0 else 1}")
-        System.out.flush(); System.err.flush()
-        Runtime.getRuntime().halt(if (ok) 0 else 1)
+        // Check 7 — close the window the way a person does: WM_CLOSE to the frame → onCloseRequest=exitApplication →
+        // the composition disposes → onDispose disposes the controller → the PROCESS must end on its OWN. No halt here;
+        // the backstop halts only if it hangs (a check-7 failure), and the CI reports which path ended the process.
+        val hwnd = frame()?.let { Win08Native.hwndOf(it) }
+        if (hwnd == null) {
+            win08log("smoke: no frame HWND to close — halting 0")
+            runCatching { serverSocket?.close() }
+            Runtime.getRuntime().halt(0)
+            return
+        }
+        win08log("smoke: all checks passed — WM_CLOSE to the frame; the process must now exit on its own (check 7)")
+        Win08Native.postClose(hwnd)
+        // return — let application{} return and the JVM exit naturally (the daemon SWT thread + backstop don't block).
     }
 
     private companion object {
@@ -217,6 +229,9 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
   if (typeof window.TroubaStageShellReceive === "function") {
     window.__troubastageShell = { deliver: function(j){ try { if (JSON.parse(j).type === "hello") window.TroubaStageShellReceive(JSON.stringify({type:"ready"})); } catch(e){} } };
     window.TroubaStageShellReceive(JSON.stringify({type:"ready"}));
+    // Item 5 — report what document.cookie can see. With an HttpOnly session cookie it must NOT contain the session,
+    // while the request's Cookie header still carried it.
+    window.TroubaStageShellReceive(JSON.stringify({type:"cookie", value: document.cookie}));
     window.__win08 = "shell-present";
   } else {
     window.__win08 = "no-shell-at-head";

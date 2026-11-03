@@ -36,6 +36,10 @@ internal object Win08Native {
     /** Wrap an SWT `Control.handle` (a win32 HWND as a long). */
     fun hwnd(handle: Long): HWND = HWND(Pointer.createConstant(handle))
 
+    private const val SWP_NOZORDER = 0x0004
+    private const val SWP_NOACTIVATE = 0x0010
+    private const val WM_CLOSE = 0x0010
+
     /** Reparent [child] (a top-level SWT Shell's HWND) into [parent] (the AWT canvas): clear WS_POPUP, set WS_CHILD,
      *  then SetParent. The child stays owned by the SWT thread, so its message pump is unchanged. */
     fun embed(child: HWND, parent: HWND) {
@@ -43,6 +47,17 @@ internal object Win08Native {
         style = (style and WS_POPUP.inv()) or WS_CHILD
         user32.SetWindowLong(child, GWL_STYLE, style)
         user32.SetParent(child, parent)
+    }
+
+    /** Size [child] to fill [parent] in PHYSICAL pixels (item 4): the parent's own client rect → SetWindowPos. */
+    fun fitChildToParent(child: HWND, parent: HWND) {
+        val (w, h) = clientSize(parent)
+        if (w > 0 && h > 0) user32.SetWindowPos(child, null, 0, 0, w, h, SWP_NOZORDER or SWP_NOACTIVATE)
+    }
+
+    /** Close a window the way a person does (item 2): post WM_CLOSE to [frame] so the app's onCloseRequest runs. */
+    fun postClose(frame: HWND) {
+        user32.PostMessage(frame, WM_CLOSE, com.sun.jna.platform.win32.WinDef.WPARAM(0L), com.sun.jna.platform.win32.WinDef.LPARAM(0L))
     }
 
     /**

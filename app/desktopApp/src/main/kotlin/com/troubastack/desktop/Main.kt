@@ -134,6 +134,11 @@ fun main(args: Array<String>) {
         System.setProperty("compose.layers.type", "WINDOW")
         // WIN08 (S1.2 / WIN07) — SWT unpacks its native DLLs under the data root, never the shared ~/.swt.
         System.setProperty("swt.library.path", File(desktopDataRoot(), "swt").also { runCatching { it.mkdirs() } }.path)
+        // WIN08 — raise SWT's Edge operation timeout (R4_40 Edge.java: MAXIMUM_OPERATION_TIME, default 5000, read once
+        // into a static final before any Browser class loads). A cold WebView2 controller can exceed 5s; the FIRST
+        // timeout poisons the Browser (getWebViewWrapper completeExceptionally → the late controller is released), so
+        // raise the single wait instead of warming up or retrying. Internal property, acceptable under the exact 3.134.0 pin.
+        System.setProperty("org.eclipse.swt.internal.win32.Edge.timeout", "30000")
     }
     // F2.3 nit — CI reads the data root the app actually resolves, instead of hard-coding the folder name.
     // Writes to the given file (a GUI app's stdout is not captured on CI); falls back to stdout locally.
@@ -172,7 +177,11 @@ fun main(args: Array<String>) {
             ?: run { System.err.println("--win08-smoke needs an output dir"); exitProcess(2) }
         val runner = win08SmokeRunner
             ?: run { System.err.println("win08-smoke: no runner on this OS (Windows only)"); exitProcess(2) }
-        exitProcess(runner.run(File(outDir)))
+        val code = runner.run(File(outDir))
+        // Do NOT force-exit on success: the smoke posted WM_CLOSE and the process must end on its OWN (check 7).
+        // The runner halts(1) itself on a failed check, so this guard is belt-and-suspenders.
+        if (code != 0) exitProcess(code)
+        return
     }
     // WIN04 (C1) — the CI hook: a release on the loopback interface (refused otherwise), digest required.
     val updateFrom = args.indexOf("--update-from").takeIf { it >= 0 }?.let { i ->
