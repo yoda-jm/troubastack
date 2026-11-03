@@ -62892,3 +62892,79 @@ A96 goes on in parallel. Its API 29 step runs on top of A97 once A97 lands. VLL'
   B. It also carries the AppImage (71 481 848 B), the DMG (139 253 150 B; DESK02) and the MSI (69 137 116 B).
 - **Clean-up:** PR #94 is closed with a comment, its branch deleted, and its worktree removed.
 - **VLL's tablet:** the next update brings it. With TalkBack on, each ✕ reads "Close, button".
+
+
+## 2026-11-03 — web-core: WIN08 stage 1 — PRESENTING (mechanics + CI complete; real-Studio screenshots scope Q) — PR #95
+
+Built per the design GO (`2d0ba235`). Branch `win08-studio-embed`, PR #95 @ its tip; the real-`ci.yml` PR run is
+`41699991363` (in progress — I'll post the number per present-early-while-tests-run). Developed on a throwaway
+`win08-spike` workflow (windows+linux only, deleted before landing; never on main's ci.yml); its runs are the
+evidence below (job logs are admin-only for you, so I paste the step conclusions, as for WIN07).
+
+### What's built (all in `app/desktopApp/src/windows/…`, compiled ONLY on a Windows host)
+- **Embedding = child-HWND (ruling 1's fallback), and WHICH CHECK FAILED:** `SWT_AWT.new_Shell(display, canvas)`
+  embeds and `Browser(SWT.EDGE)` reports engine `edge`, but the **WebView2 controller never becomes ready** — under
+  SWT_AWT the embedded Shell is AWT-affine, so the ready callback isn't pumped on the SWT thread and the first Edge
+  op (`createFunction`) hits SWT's 5 s "Waiting for Edge operation to terminate timed out". A **top-level,
+  SWT-thread-owned `Shell`** readies normally (WIN05: ~80 ms), so: create the top-level Shell + Browser, show it,
+  then `SetParent` its HWND (clear WS_POPUP / set WS_CHILD) into the heavyweight AWT canvas and track its size.
+- **Init order matters (hard-won):** reparent+show FIRST, a ~6 s loop-warmup, then a SINGLE `createFunction` — NO
+  retry (repeated createFunction on a slow controller poisons it into never readying).
+- **Threading (B1):** a daemon SWT display thread owns the `readAndDispatch` pump; Compose on the EDT;
+  `display.asyncExec` into SWT, `SwingUtilities.invokeLater` into Compose; dispose = ordered teardown + bounded 2 s
+  join on every exitApplication path → the process can't be kept alive.
+- **Reuse:** `embeddedUrl`/`reloadUrl`/`sessionCookieFor` as-is. **Bridge:** the one additive `bridge.ts` change
+  (`window.TroubaStageShellReceive`); SWT pinned EXACTLY **3.134.0**. `compose.layers.type=WINDOW` (Windows only)
+  floats the ⋮ menu over the heavyweight. `EdgeDataDir`/`swt.library.path` under the data root, never `~/.swt`.
+- **Browse & Edit** both host embedded Studio (Browse = root, Edit = initialPath+bandTitle); PresentQr keeps
+  `error()` (unreachable). Linux/macOS: no provider → "Coming soon.", and no SWT jar in the image.
+
+### Proof — all green on `windows-latest` (spike run `41696310513`, and B3a run `41698184181`)
+**`--win08-smoke` 7/7** (each a `WIN08-CHECK …: PASS` marker in the per-line `win08.log`, echoed by the step —
+a packaged GUI app has no captured stdout):
+`engine-is-edge`, `bridge-round-trips` (ready + a hello answered), `frame-owns-webview` (the WebView2 window's
+`GetAncestor(…, GA_ROOT)` == the TroubaStage frame HWND), `seeded-cookie-arrives` (the loopback server's `Cookie`
+header carried the `sessionCookieFor` value), `off-origin-nav-vetoed`, `data-dir-under-root-no-dotswt`, and
+`dpi-shell-rect-equals-canvas-at-100` — logged `dpi: process=2 edt=2 swt=2` (Per-Monitor-V2 on all three; stock JDK,
+B2 measured not asserted) `canvasClient=1028x693 shellClient=1028x693 rectsMatch=true`. Then the process exits and
+`msedgewebview2 survivors after exit: 0` (check 7). The loopback page runs the handshake synchronously at the top of
+`<head>` — earlier than Studio's module (B3's worst case).
+
+**S1.6** (forced engine-missing via `TROUBA_WIN08_FORCE_NO_WEBVIEW=1`): `no-webview-engine-missing: PASS`,
+`no-webview-message: PASS` — the exact string, no Browser created, no IE fallback.
+
+**Sabotages — each check reds (one build, many runs via an env-gated `WIN08_SABOTAGE` knob, dormant in production
+so you can re-verify):**
+- `engine` (force non-edge) → engine-is-edge red (+ the never-IE guard fires) — 1/7.
+- `bridge` (skip the function) → bridge-round-trips red — 6/7.
+- `bridge-late` (register after load; **B3 sabotage b**) → bridge-round-trips red — 6/7.
+- `nav` (skip the LocationListener) → off-origin-nav-vetoed red — 6/7.
+- `reparent` (skip SetParent) → frame-owns-webview red — 5/7.
+- `nofit` (wrong Shell bounds) → dpi-shell-rect red — 6/7.
+- `dotswt` (create ~/.swt) → data-dir red — 6/7.
+- **B3 sabotage a:** built with `-PswtVersion=3.133.0` (run `41698184181`) → `engine-is-edge: PASS` but
+  `bridge-round-trips: FAIL`, everything else green (6/7) — 3.133.0 injects the BrowserFunction after
+  NavigationStarting, racing the page; the exact-pin to 3.134.0 is justified.
+- `nodispose`: the orphaned `msedgewebview2.exe` children self-reap within ~2–4 s regardless, so a survivor can't be
+  forced red; check 7's cleanup is proven POSITIVELY (survivors==0 after a real dispose) + the daemon-thread+join
+  structural guarantee.
+
+**bridge.ts** 3-vector DOM test (function-only / object-only / neither; object wins when both) — teeth: dropping the
+new branch reds exactly the function-only vector (run locally via an esbuild+node shim; CI's `web` job is the vitest
+authority).
+
+**ci.yml folded:** `desktop (windows)` gains the `--win08-smoke` gate + the S1.6 case; `desktop (linux)` and
+`desktop (macos)` assert the app image holds **no SWT jar**. SWT is added to `:desktopApp` only on a Windows host.
+
+### The one remaining S1.8 item — real-Studio screenshots (proof item 2): scope question
+The smoke proves every S1.x binding mechanically against a loopback page. Item 2 wants real Studio signed-in in the
+window, with screenshots + a `SendInput` stroke + memory + MSI delta. That needs a scratch core built with the SPA,
+demo band/song/PDF created via its API, and the app signed in to it — the app's session lives in its DPAPI-encrypted
+Storage, so a headless sign-in needs a small CI hook (e.g. `--win08-studio <coreUrl>` that seeds coreUrl + the session
+cookie in-process, then opens the embedded host). Before I build that, two scope questions:
+1. Is a CI session-seed hook + a minimal scratch band/song/PDF the approach you want (vs. driving the Connect UI)?
+2. The `SendInput` stroke — does it need a real editor over a real chart (so I must create a song WITH a PDF), or is
+   a stroke on any loaded Studio surface enough for the visual?
+
+I'll produce the screenshots to match your answer and re-present with them for the GO; nothing lands before that
+and before VLL's MSI pen check on his Surface.
