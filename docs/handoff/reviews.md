@@ -62374,3 +62374,55 @@ to VLL.
 **On GO:** squash `dc5bb091` onto origin/main with `Approved-by: Fable (GO <sha>)` + the session trailers; the land
 diff against origin/main equals `origin/main...dc5bb091`. Atomic CI check in the push command; verify on main; push
 the LANDED note; delete the branch.
+
+## 2026-11-03 — Fable: NOT YET on T208 (download a song file from its ⋯ menu) — PR #93 @ dc5bb091, two fixes
+
+The logic is right and the tests pin it. Two things are wrong in the dialog itself: the layer list's layout, and
+Escape. Fix both and re-present with fresh screenshots.
+
+What I checked myself:
+- **The code.**
+  - "With annotations" goes through `visibleLayerIdsForFile` and `api.filePdf`, so `layers=` is always present.
+  - Mandatory layers are left out of the request, and the server forces them on.
+  - `Files` has one call site (`Viewer.tsx:2673`), and it now passes `doc.layers` and `myUserId`.
+  - `usePanelDismiss` already treats a `[data-portal]` node as inside the panel.
+  - No server change, and no app code.
+- **PR run `41594415854`:** 10 jobs, all green (`web` unit tests and `e2e` included); `release-apk` skipped for the PR.
+- **My own sabotage of the DOM test** (throwaway branch `fable-t208-sabotage` @ 2ecde392, run `41596773935`, branch
+  deleted after). I used two sabotages, both different from the one web-core reported, and every step was green:
+  1. the test passes unchanged;
+  2. **S1**, `api.filePdf` omitting `layers` when nothing is ticked: "unticking everything" goes red;
+  3. **S2**, the dialog seeding its ticks with the server's default rule (role-tagged shared layers off): both the
+     checklist test and the role-tagged request test go red.
+- **The four screenshots**, which I looked at myself. The menu is right in both themes. The dialog is not:
+
+**1. The layer rows are stacked, not one line.**
+- The problem: in both themes, each layer is a tall box, with its checkbox **above** its name. The checkbox is also
+  centred over the name, so the checkboxes sit at a different x on each row ("Bass cues", "Form", "My notes" and
+  "Set list" each start at a different place).
+- The cause: `.card label` (`styles.css:226`) lays a label's children out in a column. `.download-layer-row label`
+  sets `display:flex` but does not reset `flex-direction`. `.download-choice` already does reset it, with `row
+  !important`. Each `<li>` also picks up the `.list li` box (padding, surface, border).
+- Wanted: one line per layer. The checkbox comes first, then the name, then "always printed" at the right end. All
+  checkboxes line up in one column at the left. The rows are compact, with no box per row.
+- Guard: in `file-download.spec.ts`, for every `download-layer` row, assert that:
+  - the checkbox's vertical centre lies inside the name's box;
+  - the checkbox's right edge is left of the name's left edge;
+  - every row's checkbox has the same left x, ±1 px.
+
+  Sabotage: put the column back. The assertion must go red. Report the red.
+
+**2. Escape does nothing while the dialog is open.**
+- The problem: `usePanelDismiss` gives way to any open `[data-portal]` node on Escape. Its contract
+  (`usePanelDismiss.ts:9-14`) says the overlay "closes itself on the same keydown". `DownloadPdfDialog` sets
+  `data-portal` but has no Escape handler, so neither the panel nor the dialog closes.
+- Wanted: Escape closes the dialog, except while it is busy, when it does nothing. Focus moves into the dialog when it
+  opens, as `components/Dialog.tsx` does.
+- Guard: a DOM test that Escape calls `onClose`, and that during "Preparing PDF…" it does not. Sabotage: remove the
+  handler. The test must go red. Report the red.
+
+**Re-present with:**
+- both sabotage reds;
+- the PR run's `/jobs`;
+- the four screenshots re-taken, plus one of the dialog at phone width (≤ 400 px). A long layer name must end in an
+  ellipsis and must not push "always printed" off the card.
