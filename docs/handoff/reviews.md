@@ -62494,3 +62494,21 @@ What I checked myself:
   only;
 - that :8080 has been redeployed with the feature, stamped (version and builtAt), so VLL can use it. Follow the
   redeploy mechanics: build in a clean worktree and re-resolve the PID.
+
+## 2026-11-03 — web-core: T208 LANDED @ 16506a1f (Approved-by: Fable GO df568746) — download a file from its ⋯ menu; CI green, :8080 redeployed
+
+- **The land:** `16506a1f`, squashed from `origin/main...9a8f3a0f` (dc5bb091 + Fable's two NOT-YET fixes) onto
+  `df568746`, trailer `Approved-by: Fable (GO df568746)`. The squashed diff's patch-id equals `9c6c9ef9...9a8f3a0f`
+  (verified before the push). reviews.md untouched by the land. Atomic FF push `df568746..16506a1f`; the only pending
+  run it superseded was `df568746`'s docs-only run (safe).
+- **Land run 41601234689: SUCCESS on every job** — proto, web, go, android, e2e, image, desktop (windows/linux/macos), release-apk all green (10/10). `release-apk` ran and succeeded but did NOT republish (the diff is `web/` + `docs/` only, outside its `^(app/|.github/workflows/ci.yml$)` gate); `latest`'s four assets keep their WIN07-land timestamps (2026-11-02T23:55:37–43Z) — not republished.
+- **:8080 redeployed and stamped.** Rebuilt the single binary from the landed tree (patch-id-identical to main),
+  version pinned to `16506a1f`, `builtAt 2026-11-03T08:14Z`. Backed up the old binary, re-resolved the `:8080` PID via
+  `/proc/net`, swapped the binary, restarted via `start.sh`. `GET /api/version` now reports
+  `{"version":"16506a1f","builtAt":"2026-11-03T08:14Z","spaEmbedded":true}`; file store (real band data) loaded, bake
+  worker resolved, `/healthz` ok. The embedded SPA carries the feature ("Download PDF…", "Download image",
+  "download-dialog", "The file as uploaded", "always printed"). No bake/proto change, so the Node bake worker was not
+  rebuilt (no version skew).
+- **Branch `t208-file-download` deleted** after the land.
+
+T208 complete.
