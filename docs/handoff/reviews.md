@@ -63487,3 +63487,161 @@ level, so it is correct either way.
   this `latest` APK, from Chrome, over the app. It has the same key, so concerts, notes and sign-in are kept. From then
   on, self-update works there. VLL's Android 14 tablet was never affected.
 - **Next:** A96 rebases onto ecec223e. Its API 29 run uses the rebased build.
+
+## 2026-11-03 — mobile presents A96: the update shows where it is wherever Update was pressed, and a notification reopens the app (GO 3e51e9c1) — reviewer: Fable
+
+Branch `mobile/a96-update-status` @ e766041f, PR #97, rebased onto A97's ecec223e. **PR CI:** run **`41726778803`** on e766041f: every app job is **success**: `desktop (windows)`, `desktop (linux)`,
+`desktop (macos)`, android, web, go and proto. e2e is still running; I'll post its result.
+
+### As built
+
+- **Shared, pure** (`shared/buildinfo/UpdatePhase.kt`):
+  - `UpdatePhase` is Downloading(fraction), Checking, or Confirming(reopenYourself).
+  - `updatePhaseLine` gives the three lines, plus " Then open TroubaStage again." when `reopenYourself`.
+  - `UPDATE_NOT_INSTALLED_LINE`.
+  - `updatedLine(lastRun, running, updatedSinceInstall)`, with B2's fallback.
+  - `shouldPostReopen(expected, running)`.
+  - `notifyAsk(granted, askedForRelease, askedBefore, showRationale)`.
+- **One status composable** (`shared/ui/AppUpdateStatus.kt`):
+  - the line, plus Cancel while Downloading or Checking;
+  - a determinate bar while Downloading, an indeterminate one while Checking, and none while Confirming.
+  - **Home's banner** uses it in place of its progress row. The words are unchanged.
+  - **About** shows it in place of the "Latest: … [Update] [Check for updates]" row while a phase is set, so there is
+    no Update to press twice. The same run showed that today's code starts a second download and a second session on
+    a second tap.
+  - `AppUpdate.progress` became `phase`.
+- **Android:**
+  - `AppUpdateController`: download → Downloading; `verify` (now off the main thread) and the session write →
+    Checking; after `commit` → Confirming(reopenYourself = !canShow).
+  - `UpdateInstallReceiver` maps every `STATUS_FAILURE*`, `STATUS_FAILURE_ABORTED` included, to "not installed",
+    through `UpdateSessionEvents`. The phase clears, and the message goes to the existing "App update" dialog
+    (your ruling 1).
+  - **The marker** (your ruling 2): `verify` returns the verified archive's versionCode, and `update()` stores it just
+    before `install`. `AppUpdatedReceiver` (`MY_PACKAGE_REPLACED`) posts only when the running versionCode equals the
+    marker, and clears it on every replace. It is also cleared on failure, abort, Cancel and any stop before the
+    handover.
+  - **The notification:** "TroubaStage was updated" / "Tap to open." on the "App updates" channel at **importance
+    HIGH** (B1). The tap opens the launcher activity, and the app's own start cancels a leftover notice.
+  - **POST_NOTIFICATIONS** (your ruling 3): asked on Update only when not granted, at most once per release, and
+    never when `askedBefore && !shouldShowRequestPermissionRationale` (Android would show nothing). Our line is
+    "Allow a notification so you can reopen TroubaStage when the update is done.", with Continue, and then Android's
+    prompt. **B5: the download starts after both are answered.**
+  - **"Updated · <build line>" once:** this is WIN04's `HandoffResult.Updated` wording, shown in the same dialog,
+    at the controller's start. **B2:** when nothing is stored, `firstInstallTime != lastUpdateTime` decides, once.
+  - **B4, Cancel during Checking:**
+    - the row goes back to Update at once;
+    - a `verify` already running finishes in the background, and its result is dropped;
+    - `install` checks for cancellation before `commit` and abandons the session;
+    - the downloaded file is deleted.
+- **The desktop (B3):**
+  - Windows reports Downloading during the MSI download and Checking during its digest check, then its own "Install"
+    dialog. It never reports Confirming.
+  - The desktop About when idle is unchanged. During a Windows download it shows the same status as Home's banner.
+  - **Linux and macOS never get a phase**: `DesktopOsTest`'s link-mode case now asserts `u.phase == null` after
+    Update.
+- **The claims corrected:** the comment on the `install` call, `UpdateInstallReceiver`'s KDoc, and A88 §2 step 4 and
+  acceptance step 3.
+  - **B2 in the docs:** A88 and A96 now say that the notification starts with the update after A96. The update into
+    A96 posts nothing, and its first run still says "Updated ·".
+
+### Tests
+
+- **`UpdatePhaseTest`** (commonTest, 4 cases):
+  - each phase's line, and both Confirming variants;
+  - the not-installed line;
+  - `updatedLine`: after an update, a fresh install, the same build, and **B2's vector** (nothing stored, updated
+    since install → "Updated ·");
+  - **the marker vectors**: match → post; another versionCode → none; no marker → none;
+  - `notifyAsk`: granted, never asked, refused once on a later release, once per release, and refused for good.
+- **`AppUpdateMemoryTest`** (desktopTest, real `Storage`):
+  - "Updated ·" once, and not on the next launch;
+  - the update into this build: once;
+  - the marker: match → post; consumed; another versionCode → none, and cleared; no marker → none; **after a
+    failure → cleared**.
+- **`AboutUpdateStatusUiTest`** (desktopTest):
+  - Downloading(0.4) gives the line, a 0.4 bar and Cancel (clicked → `onCancel`), with no Update, no Check and no
+    Latest line.
+  - Checking gives the indeterminate bar and Cancel.
+  - Confirming gives no bar and no Cancel, then the reopen variant, then null brings back Update and the Latest line.
+- **`UpdatePathTest`** (androidApp): POST_NOTIFICATIONS is declared; `.AppUpdatedReceiver` is not exported and
+  listens to `MY_PACKAGE_REPLACED` only; `sessionOutcome`: -1 → confirm, 0 → installed, 1..8 → not installed.
+- **Sabotage, one run:**
+  - **S1:** phase 3 mapped to the download line → `eachPhase_hasItsOwnLine` red ("expected: Android will ask you to
+    confirm the update. but was: Downloading the app update… 100 %").
+  - **S2:** About's phase branch never taken → both About cases red. The status line was not found.
+  - **S3:** the stored-build write dropped → "once" red, and B2's once red.
+
+  Everything else stayed green. Restored.
+- **Suites, before the rebase:** shared desktopTest 685, desktopApp 30, androidApp unit 5: all pass. After the rebase,
+  the androidApp unit tests are SignerCheck 3 and UpdatePath 5, all passing.
+
+### The emulator (A96_API34, google_apis x86_64; the same stand-in rig as A97)
+
+The APKs:
+- **old:** the head with its release URL pointed at a local stand-in on 127.0.0.1:8791 (a throwaway patch, never
+  committed), versionCode 100.
+- **new:** the head as committed, versionCode 200.
+
+The stand-in serves the APK at about 400 KB/s, so each phase can be screenshotted. The 34 runs used 537bcbdf, which
+is A96 before the rebase; the rebase only brings A97's signer check, which doesn't change API 34.
+
+1. **Update pressed in About**, with notifications not yet granted:
+   - our line, Continue, then Android's "Allow TroubaStage to send you notifications?", and Allow;
+   - **B5:** before that, the stand-in had served `release.json` only, with no APK request;
+   - then, on 2 s frames: "Downloading the app update… 0 %" → 10 → … → 94 % (bar and Cancel), then "Checking the
+     download…" (indeterminate bar and Cancel), then "Android will ask you to confirm the update." (no bar, no
+     Cancel), under Android's "Do you want to update this app?".
+2. **Confirmed. The heads-up appeared over the launcher** (B1): "✓ TroubaStage was updated · Tap to open.";
+   `dumpsys`: `importance=4`, channel `app-updates`.
+   ```
+   I/ActivityManager(  557): Force stopping com.troubastack.app appid=10198 user=-1: installPackageLI
+   I/ActivityManager(  557): Start proc 7719:com.troubastack.app/u0a198 for broadcast {com.troubastack.app/com.troubastack.app.AppUpdatedReceiver}
+   I/ActivityTaskManager(  557): START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] … cmp=com.troubastack.app/.MainActivity} with LAUNCH_SINGLE_TASK from uid 10198 (realCallingUid=10167) (BAL_ALLOW_PENDING_INTENT) …
+   ```
+3. **The tap opened Home** with "App update — Updated · TroubaStage 537bcbdf · built 2026-11-03 12:00 UTC". The
+   notification was gone (0 in `dumpsys`). After a force-stop and relaunch: **no line**.
+4. **Cancel in Android's dialog** → "The update was not installed. Nothing was changed.", and About shows "Latest: …
+   [Update]" again. **A tap outside Android's dialog** did the same, since Android reports an abort.
+5. **Once per release:** Update pressed again for the same release went straight to "Downloading… 19 %", with no line
+   from us.
+6. **B4:** I watched the downloaded file reach its full size (15 885 434 B) and tapped Cancel on "Checking the
+   download…". Within 1 s the row was "Latest: … [Update]". 30 s later Android had shown nothing, and
+   `cache/app-update` was gone.
+7. **The permanent refusal, measured:**
+   - Release A: Don't allow (the first refusal). Phase 3 read "Android will ask you to confirm the update. Then open
+     TroubaStage again."
+   - Release B: our line appeared again (askedBefore, with a rationale). Continue, then Don't allow a second time.
+     `dumpsys`: `POST_NOTIFICATIONS: granted=false, flags=[ USER_SET|USER_FIXED|…]`.
+   - **Release C: Update → no dialog**, straight to "Downloading the app update… 19 %", then "…Then open TroubaStage
+     again."
+   - Confirmed: installed (200), **no notification** (0), and the launcher stayed. Opened by hand, it showed "Updated ·
+     …".
+8. **B2, the update into A96:** the old app is main's code with the stand-in URL, versionCode 100, and notifications
+   granted. It updated to A96 (200): **no notification** (0, since there's no marker). Opened by hand, it showed
+   "Updated · TroubaStage 537bcbdf · …" once; the next launch showed nothing.
+
+**API 29 (A96_API29), after A97, with the rebased head** (e766041f; old 100 with the stand-in patch, new 200):
+- Update in About. There's no notification prompt below 33, so it went straight to the frames: "Downloading the app
+  update… 4 %" → 11 → … → 96 %, then "Checking the download…", then "Android will ask you to confirm the update."
+  (no reopen clause), under "Do you want to install an update to this existing application?".
+- I pressed Install. **versionCode 200 was installed**, and **the heads-up showed over the launcher** (importance 4).
+  Opened from the shade, the app came back on Home with "Updated · TroubaStage e766041f · built 2026-11-03 12:00 UTC"
+  (`mResumedActivity` = MainActivity). The notification left the active list; only the `mArchive` history keeps it.
+  ```
+  I/ActivityManager( 1949): Force stopping com.troubastack.app appid=10151 user=-1: installPackageLI
+  I/ActivityTaskManager( 1949): START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10000000 pkg=com.troubastack.app cmp=com.troubastack.app/.MainActivity} from uid 10151
+  ```
+- A97 is what makes this pass at 29. Before it, `verify` refused this same-key update.
+
+**Pixels.** On API 34, with airplane mode and SystemUI demo mode, from a fresh install each time, I compared main's
+plain APK (be43e628) twice against the head's (537bcbdf) twice:
+- Home: **identical** in every pair, main vs main, head vs head and main vs head (PIL bbox None).
+- About: the only difference is the build line ("TroubaStage <hash> · built …", which differs by design). With that
+  line masked, **identical** in every pair.
+
+### For VLL's tablet
+
+**Two updates.** The first brings A96. It shows no status yet, since it's still the old app updating, and it posts no
+notification, but its first run says "Updated · …". The second update shows every phase in About, asks once about the
+notification, and then a heads-up "TroubaStage was updated · Tap to open." brings it back. MIUI may suppress heads-ups,
+or stop the receiver with its Autostart setting; his pass checks both.
