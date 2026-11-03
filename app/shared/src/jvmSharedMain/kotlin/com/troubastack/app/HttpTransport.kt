@@ -95,6 +95,19 @@ fun sessionCookieFor(getSecret: (String) -> String?, url: String): String? {
 }
 
 /**
+ * A98/WIN08 — seed Studio's session cookie into a web view AS THE SERVER SET IT, so Studio's own scripts cannot read
+ * the session (`HttpOnly`) while the view still sends it. [cookie] is the stored `name=value` (from [sessionCookieFor]);
+ * [url] is the server origin. Adds `Path=/; HttpOnly; SameSite=Lax`, and `Secure` on https. **No `Expires`:** the cookie
+ * is re-seeded on every Studio open, so a session cookie in the view is enough. Both hosts (Android's `seedSessionCookie`
+ * and WIN08's `Browser.setCookie`) seed through this so they match. SWT's `HttpCookie.parse` reads `HttpOnly`/`Secure`
+ * (it sets no SameSite); the Android `CookieManager` keeps all three.
+ */
+fun sessionCookieSeed(cookie: String, url: String): String {
+    val secure = if (url.trim().startsWith("https://", ignoreCase = true)) "; Secure" else ""
+    return "$cookie; Path=/; HttpOnly; SameSite=Lax$secure"
+}
+
+/**
  * Call when the user changes the server URL: if the new origin differs from the session's, drop the
  * stored session AND the Studio web view's cookies ([clearWebCookies]) so nothing from the old server
  * survives against the new one. Defense-in-depth alongside [sessionCookieFor] (which already refuses a

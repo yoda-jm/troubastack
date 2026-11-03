@@ -125,14 +125,15 @@ internal fun clearWebViewCookies() {
 /**
  * Seed the WebView's shared cookie jar with the app's persisted session (B03) for [url]'s origin, so
  * Studio sees the same login the app made via Connect. [cookie] is the stored "name=value" (the app
- * keeps only that part); a blank/absent session is a no-op (offline / never connected). HttpOnly is
- * fine — the WebView still sends it; JS just can't read it.
+ * keeps only that part); a blank/absent session is a no-op (offline / never connected). A98: it is seeded
+ * HttpOnly ([sessionCookieSeed]), as the server sets it — the WebView sends it, Studio's scripts can't read
+ * it — and it replaces a cookie an older build seeded without the attribute (same name, domain and path).
  */
 private fun seedSessionCookie(url: String, cookie: String?) {
     if (cookie.isNullOrEmpty()) return
     val cm = android.webkit.CookieManager.getInstance()
     cm.setAcceptCookie(true)
-    cm.setCookie(url, cookie)
+    cm.setCookie(url, sessionCookieSeed(cookie, url))
     cm.flush()
 }
 
