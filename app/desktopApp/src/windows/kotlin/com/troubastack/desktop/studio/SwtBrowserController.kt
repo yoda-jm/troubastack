@@ -168,6 +168,32 @@ internal class SwtBrowserController(
             }
             this.browser = browser
 
+            // Child-HWND embedding FIRST (before any synchronous Edge op): reparent the top-level Shell's HWND into
+            // the heavyweight AWT canvas and show it. WebView2 initialises its controller for a shown window; doing
+            // this first is what the reliable runs did — reordering it after createFunction left the controller
+            // unready. Track the canvas size so the Shell keeps filling it.
+            val canvasHwnd = Win08Native.hwndOf(canvas)
+            this.canvasHwnd = canvasHwnd
+            if (canvasHwnd != null && sabotage != "reparent") {
+                Win08Native.embed(Win08Native.hwnd(shell.handle), canvasHwnd)
+                if (sabotage == "nofit") shell.setBounds(0, 0, 120, 80) else fitShellToCanvas(shell)
+                if (sabotage != "nofit") canvas.addComponentListener(object : java.awt.event.ComponentAdapter() {
+                    override fun componentResized(e: java.awt.event.ComponentEvent?) = exec { fitShellToCanvas(shell) }
+                })
+                shell.isVisible = true
+                log("ctrl: reparented shell into canvas hwnd=$canvasHwnd (sabotage=$sabotage)")
+            } else {
+                // sabotage=reparent (or no canvas): leave the Shell top-level, so no WebView2 window is a frame descendant.
+                shell.setBounds(0, 0, 800, 600); shell.isVisible = true
+                log("ctrl: shell NOT embedded (sabotage=$sabotage canvasHwnd=$canvasHwnd)")
+            }
+
+            // Give the WebView2 controller a head start on the LIVE loop before the first synchronous Edge op, so a
+            // cold first launch is usually ready by the time createFunction runs (SWT's own wait is only 5s, which a
+            // cold CI VM can just exceed). A SINGLE createFunction then follows — never a retry: repeated
+            // createFunction attempts on a slow controller were observed to poison it into never readying.
+            run { val warm = System.currentTimeMillis() + 6000; while (System.currentTimeMillis() < warm) { if (!display.readAndDispatch()) display.sleep() } }
+
             // Bridge: a BrowserFunction whose bare-identifier name Studio's bridge.ts picks up as the shell
             // (window.TroubaStageShellReceive). SWT 3.134.0 registers it via AddScriptToExecuteOnDocumentCreated,
             // so it exists before Studio's bundle runs initShellBridge. Registered BEFORE the load (the ordering
@@ -184,29 +210,7 @@ internal class SwtBrowserController(
                     }
                 }
             }
-            // The WebView2 controller can take longer than SWT's 5s synchronous wait to become ready on a cold CI
-            // VM (WIN05's "insurance"); createFunction then throws "Waiting for Edge operation to terminate timed
-            // out". Retry it, pumping the loop between attempts so the controller-ready callback is processed —
-            // once ready, createFunction (and the later setUrl) return at once. This still registers BEFORE the
-            // first load, so the bridge-shim ordering holds.
-            if (sabotage != "bridge" && sabotage != "bridge-late") {
-                var registered = false
-                for (attempt in 1..6) {
-                    try {
-                        registerBridge(); registered = true
-                        log("ctrl: bridge registered (attempt $attempt)")
-                        break
-                    } catch (e: Throwable) {
-                        log("ctrl: registerBridge attempt $attempt not ready: ${e.message}")
-                        val until = System.currentTimeMillis() + 1500
-                        while (System.currentTimeMillis() < until) { if (!display.readAndDispatch()) display.sleep() }
-                    }
-                }
-                if (!registered) {
-                    log("win08: WebView2 controller never became ready")
-                    reportEngineMissing(); runLoopUntilDisposed(display, shell); return
-                }
-            }
+            if (sabotage != "bridge" && sabotage != "bridge-late") registerBridge()
 
             // Origin lock: veto any navigation off the server's origin.
             if (sabotage != "nav") browser.addLocationListener(object : LocationAdapter() {
@@ -241,28 +245,7 @@ internal class SwtBrowserController(
             // Seed the session cookie (Browser exists ⇒ the WebView2 cookie manager is up), then load — signed in.
             sessionCookie?.let { c -> runCatching { Browser.setCookie(c, origin) }.onSuccess { ok -> log("win08: setCookie=$ok") } }
             browser.setUrl(loadUrl)
-            log("ctrl: setUrl($loadUrl)")
-
-            // Child-HWND embedding LAST: the WebView2 controller is ready and the bridge wired while the Shell was
-            // a top-level SWT window (so the ready callback pumped on the SWT thread). Only now reparent the Shell
-            // into the heavyweight AWT canvas for display — moving it under the EDT-owned canvas no longer matters,
-            // because no further controller-level async op is awaited.
-            val canvasHwnd = Win08Native.hwndOf(canvas)
-            this.canvasHwnd = canvasHwnd
-            if (canvasHwnd != null && sabotage != "reparent") {
-                Win08Native.embed(Win08Native.hwnd(shell.handle), canvasHwnd)
-                if (sabotage == "nofit") shell.setBounds(0, 0, 120, 80) else fitShellToCanvas(shell)
-                if (sabotage != "nofit") canvas.addComponentListener(object : java.awt.event.ComponentAdapter() {
-                    override fun componentResized(e: java.awt.event.ComponentEvent?) = exec { fitShellToCanvas(shell) }
-                })
-                shell.isVisible = true
-                log("ctrl: reparented shell into canvas hwnd=$canvasHwnd (sabotage=$sabotage)")
-            } else {
-                // sabotage=reparent (or no canvas): leave the Shell top-level, so no WebView2 window is a frame descendant.
-                shell.setBounds(0, 0, 800, 600); shell.isVisible = true
-                log("ctrl: shell NOT embedded (sabotage=$sabotage canvasHwnd=$canvasHwnd)")
-            }
-            log("ctrl: entering readAndDispatch loop")
+            log("ctrl: setUrl($loadUrl); entering readAndDispatch loop")
 
             runLoopUntilDisposed(display, shell)
         } catch (e: Throwable) {
