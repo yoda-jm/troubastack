@@ -140,6 +140,61 @@ test("downloads a file from its ⋯ menu — with annotations, then as uploaded"
   expect(popped).toBe(false); // no download ever opened a new tab
 });
 
+test("the dialog's layer rows are one line, checkboxes aligned in a left column", async ({ page }) => {
+  await register(page, `dlrows_${stamp()}`);
+  const band = await createBandAndOpen(page, `DlRowsBand ${stamp()}`);
+  const songId = await createSongAndOpen(page, `DlRowsSong ${stamp()}`);
+  await uploadPdf(page);
+  const fileId = await firstFileId(page, band.id, songId);
+  const me = await myUserId(page);
+
+  // Three layers of this file, including a mandatory one and a very long name (ellipsis path).
+  const layer = (id: string, name: string, zone: string, owner: string, order: number, mandatory = false) => ({
+    id, fileId, name, ownerId: owner, zone, order, access: "rw", mandatory, roleTag: "",
+  });
+  await page.evaluate(
+    async ([b, s, body]) => {
+      await fetch(`/api/bands/${b}/songs/${s}/annotations/import`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+    },
+    [band.id, songId, { layers: [
+      layer("row-a", "A very long annotation layer name that should ellipsise before it reaches the edge", "shared", "u-cond", 0),
+      layer("row-b", "Form", "conductor", "u-cond", 1),
+      layer("row-c", "Set list", "shared", "u-cond", 2, true),
+    ], objects: [] }] as const,
+  );
+  await page.reload();
+  await expect(page.getByTestId("pdf-page").first()).toBeVisible();
+
+  const panel = page.getByTestId("details-panel");
+  await page.getByTestId("my-files-edit").click();
+  await panel.getByTestId("file-row").first().waitFor();
+  await panel.getByTestId("file-menu").click();
+  await page.getByTestId("file-menu-download").click();
+  await expect(page.getByTestId("download-dialog")).toBeVisible();
+
+  const rows = page.getByTestId("download-layer");
+  const n = await rows.count();
+  expect(n).toBe(3);
+  let firstLeft: number | null = null;
+  for (let i = 0; i < n; i++) {
+    const row = rows.nth(i);
+    const cb = (await row.getByTestId("download-layer-toggle").boundingBox())!;
+    const name = (await row.getByTestId("download-layer-name").boundingBox())!;
+    expect(cb && name).toBeTruthy();
+    const cbMid = cb.y + cb.height / 2;
+    // the checkbox's vertical centre lies inside the name's box (one line, not stacked)
+    expect(cbMid).toBeGreaterThanOrEqual(name.y - 0.5);
+    expect(cbMid).toBeLessThanOrEqual(name.y + name.height + 0.5);
+    // the checkbox's right edge is left of the name's left edge (checkbox first, then name)
+    expect(cb.x + cb.width).toBeLessThanOrEqual(name.x + 0.5);
+    // every row's checkbox shares the same left x, ±1 px (one left column)
+    if (firstLeft === null) firstLeft = cb.x;
+    else expect(Math.abs(cb.x - firstLeft)).toBeLessThanOrEqual(1);
+  }
+});
+
 test("an image row downloads straight from the ⋯ menu, with no dialog", async ({ page }) => {
   await register(page, `dlimg_${stamp()}`);
   await createBandAndOpen(page, `DlImgBand ${stamp()}`);

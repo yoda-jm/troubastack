@@ -138,6 +138,31 @@ describe("T208 — a file with no annotations", () => {
   });
 });
 
+describe("T208 — Escape and focus", () => {
+  it("moves focus into the dialog (the Cancel button) on open", () => {
+    render(<DownloadPdfDialog bandId="B" songId="S" file={FILE} layers={LAYERS} myUserId={ME} onClose={() => {}} />);
+    expect(document.activeElement).toBe(screen.getByTestId("download-dialog-cancel"));
+  });
+
+  it("Escape closes the dialog when idle", () => {
+    const onClose = vi.fn();
+    render(<DownloadPdfDialog bandId="B" songId="S" file={FILE} layers={LAYERS} myUserId={ME} onClose={onClose} />);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape does NOTHING while composing (Preparing PDF…)", async () => {
+    const onClose = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {}))); // never resolves → stays busy
+    render(<DownloadPdfDialog bandId="B" songId="S" file={FILE} layers={LAYERS} myUserId={ME} onClose={onClose} />);
+    const btn = screen.getByTestId("download-dialog-confirm");
+    fireEvent.click(btn); // choice defaults to "with" → enters the busy state
+    await waitFor(() => expect(btn.textContent).toBe("Preparing PDF…"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
 describe("T208 — Without annotations", () => {
   it("downloads the stored file for the current revision (no layers endpoint)", async () => {
     const urls = stubFetch();

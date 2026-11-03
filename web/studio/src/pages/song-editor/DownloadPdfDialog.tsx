@@ -16,7 +16,7 @@
  * Both are real downloads (saveBlob), never a new tab. Built like BakeDialog/PdfDialog; errors stay in
  * the dialog via ErrorBanner.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ApiError, api, type AnnotationLayer, type SongFile } from "../../api";
 import { ErrorBanner } from "../../components/ErrorBanner";
@@ -62,6 +62,24 @@ export function DownloadPdfDialog({
   const [choice, setChoice] = useState<Choice>(hasLayers ? "with" : "without");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  // Focus moves into the dialog when it opens, as components/Dialog.tsx does: the Cancel button, never
+  // a destructive or download default.
+  useEffect(() => {
+    cancelRef.current?.focus();
+  }, []);
+
+  // Escape closes the dialog — except while it is composing (busy), when it does nothing. usePanelDismiss
+  // bows out to our open [data-portal] node on Escape (its contract: the portalled overlay closes itself),
+  // so without this handler Escape would close neither the dialog nor the panel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [busy, onClose]);
 
   function toggle(id: string) {
     setChecked((c) => ({ ...c, [id]: !c[id] }));
@@ -118,7 +136,7 @@ export function DownloadPdfDialog({
         </label>
 
         {hasLayers ? (
-          <ul className="list download-layer-list" data-testid="download-layer-list">
+          <ul className="download-layer-list" data-testid="download-layer-list">
             {fileLayers.map((l) => (
               <li key={l.id} className="download-layer-row" data-testid="download-layer" data-layer={l.id}>
                 <label>
@@ -129,7 +147,7 @@ export function DownloadPdfDialog({
                     disabled={l.mandatory || choice !== "with" || busy}
                     onChange={() => toggle(l.id)}
                   />
-                  <span className="download-layer-name">{l.name}</span>
+                  <span className="download-layer-name" data-testid="download-layer-name">{l.name}</span>
                 </label>
                 {l.mandatory && (
                   <span className="muted download-always" data-testid="download-always">
@@ -163,7 +181,7 @@ export function DownloadPdfDialog({
         <ErrorBanner message={error} />
 
         <div className="download-dialog-actions">
-          <button type="button" data-testid="download-dialog-cancel" disabled={busy} onClick={onClose}>
+          <button type="button" ref={cancelRef} data-testid="download-dialog-cancel" disabled={busy} onClick={onClose}>
             Cancel
           </button>
           <button
