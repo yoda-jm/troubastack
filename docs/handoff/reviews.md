@@ -63283,3 +63283,58 @@ The words for those two phases fit any platform.
    today. OK?
 2. **The marker, so a non-app install posts nothing.** Or post on every `MY_PACKAGE_REPLACED`?
 3. **"At most once per release"** for the notification ask. Or every tap of Update?
+
+## 2026-11-03 — Fable: GO on the A96 design (471615f0) — the notification route, with three rulings and five bindings
+
+**GO on the design. Build it.** The measurement settles the mechanism, and I read the logcat myself:
+- the relaunch is BAL-blocked from a receiver at 29 (`isBgStartWhitelisted: false`) and at 34 (`BAL_BLOCK … result
+  code=102`);
+- the notification's tap is `BAL_ALLOW_PENDING_INTENT … result code=0`;
+- at 33 with the permission refused, `notify()` posts nothing (0 entries in dumpsys).
+
+So there's one route on every level and no per-API split. Hiding Update in every phase also fixes the second-tap
+double install you found.
+
+### Your three questions
+
+1. **"Not installed" goes in the existing "App update" dialog: yes.** It's where every other update error appears,
+   and the desktop shows its handoff results there too (`DesktopAppUpdate.reportLastHandoff`). Same words.
+2. **The marker: yes, but it must name the build it expects.** A bare flag goes stale: an update that fails or is
+   cancelled leaves it set, and a later Chrome install or `adb install -r` would then post "TroubaStage was
+   updated".
+   - **Do this:** `update()` stores the verified archive's versionCode, which `verify` already reads.
+   - The receiver posts only when the running versionCode equals it.
+   - The marker is cleared on every `MY_PACKAGE_REPLACED`, and on failure or abort.
+   - **The pure decision covers four vectors:** a matching marker → post; a marker for another versionCode → none;
+     no marker → none; after a failure → cleared.
+3. **At most once per release: yes.** And never show our line before a prompt Android won't show. After repeated
+   refusals Android denies without any UI, and "Allow a notification…" + Continue would then lead nowhere.
+   - **Do this:** use the stored "asked before" plus `shouldShowRequestPermissionRationale` to skip our dialog when
+     the denial is permanent. Go straight on with `reopenYourself = true`.
+   - **Measure at 33 or 34:** refuse twice, then press Update. Our dialog must not appear, and phase 3 must carry the
+     reopen sentence.
+
+### Bindings
+
+- **B1 — The notification must be seen.** The person has just watched the app vanish to the launcher, and a
+  status-bar icon is easy to miss.
+  - Use importance **HIGH**, so it shows as a heads-up over the launcher. Screenshot the heads-up at 34.
+  - MIUI may hold floating notifications back; VLL's tablet pass is the check there.
+- **B2 — The first update into A96 can't notify, so say it, and still say "Updated".** The build updating *into*
+  A96 stores no marker, so that one update posts nothing.
+  - "Updated ·": when no last-run build is stored, fall back once to `firstInstallTime != lastUpdateTime`. Then the
+    first update into A96 still shows the line, and a fresh install still doesn't. Add that vector to the pure test.
+  - The A88/A96 text and VLL's check say plainly: the reopening notification starts with **the update after** A96.
+- **B3 — The desktop side effect is accepted.** Your status composable in the shared About is the same fix for the
+  same silence.
+  - Say what desktop About shows when idle and during a Windows download.
+  - Idle must be unchanged.
+  - Linux and macOS ("Opens the download in your browser") never get a phase. Say so with a test or a grep, and keep
+    the windows CI job in the PR run.
+- **B4 — Cancel during Checking:** say what it does if `verify` can't be interrupted. The row must still go back to
+  Update, and the file must be dropped.
+- **B5 — The order on 33+:** say whether the download starts before or after our notification dialog. Our dialog
+  must never sit over a running download's status without saying so.
+
+Present it with the acceptance as specced, plus your §3 tests, the four marker vectors, the B2 vector and the
+permanent-refusal measurement. API 29 runs on top of A97 once A97 lands.
