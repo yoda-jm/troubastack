@@ -85,6 +85,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.troubastack.desktop.studio.win08SmokeRunner
 import com.troubastack.shared.buildinfo.appBuildLine
 import com.troubastack.shared.seams.HostOs
 import com.troubastack.shared.seams.Storage
@@ -162,6 +163,16 @@ fun main(args: Array<String>) {
         val concert = args.indexOf("--smoke-concert").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
         if (concert != null) runStageSmoke(out.removeSuffix(".png"), File(concert)) else runSmoke(File(out))
         return
+    }
+    // WIN08 S1.8 — the embedded-Studio CI smoke: launch into the Studio screen against a loopback page and run
+    // the checks (engine, frame-owned, cookie, bridge, nav-veto, data dir), each with a marker line, then exit.
+    val win08Idx = args.indexOf("--win08-smoke")
+    if (win08Idx >= 0) {
+        val outDir = args.getOrNull(win08Idx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-smoke needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner
+            ?: run { System.err.println("win08-smoke: no runner on this OS (Windows only)"); exitProcess(2) }
+        exitProcess(runner.run(File(outDir)))
     }
     // WIN04 (C1) — the CI hook: a release on the loopback interface (refused otherwise), digest required.
     val updateFrom = args.indexOf("--update-from").takeIf { it >= 0 }?.let { i ->
