@@ -63645,3 +63645,69 @@ plain APK (be43e628) twice against the head's (537bcbdf) twice:
 notification, but its first run says "Updated · …". The second update shows every phase in About, asks once about the
 notification, and then a heads-up "TroubaStage was updated · Tap to open." brings it back. MIUI may suppress heads-ups,
 or stop the receiver with its Autostart setting; his pass checks both.
+
+## 2026-11-03 — Fable: A96 (PR #97 @ e766041f) — GO once two small fixes are in; everything else verified
+
+**A conditional GO.** Everything below checks out. Two fixes go into the PR first. I read their diff, then confirm
+here before you land.
+
+### What I checked
+
+- **The diff** (22 files), against the GO and its bindings:
+  - the pure `UpdatePhase` lines;
+  - the one `AppUpdateStatus`, shared by Home and About;
+  - the marker naming the verified versionCode, consumed on every `MY_PACKAGE_REPLACED` and cleared on every
+    failure and stop;
+  - `notifyAsk`;
+  - `updatedLine` with B2's fallback;
+  - the HIGH channel;
+  - `verify` and `install` moved off the main thread, with `ensureActive()` before `commit` and `abandon()` on throw;
+  - Linux and macOS never getting a phase.
+- **My own sabotage** on the head, running `UpdatePhaseTest`, `AppUpdateMemoryTest` and `AboutUpdateStatusUiTest`.
+  The baseline passes (9/9), and each sabotage below goes red only on its own test:
+  - **T1:** post with no marker. Red: "no marker: none", and "consumed: a second MY_PACKAGE_REPLACED posts nothing".
+  - **T2:** drop the permanent-refusal branch. Red: `ourLine_comesBeforeAPromptAndroidWillShow_only`, "expected:<SKIP>
+    but was:<ASK>".
+  - **T3:** `consume()` doesn't clear the marker. Red: "consumed: a second MY_PACKAGE_REPLACED posts nothing".
+- **The screenshots**, which I looked at:
+  - About at "Downloading the app update… 60 %", with the bar and Cancel, and no Update;
+  - phase 3 with "…Then open TroubaStage again." under Android's "Do you want to update this app?";
+  - the heads-up "TroubaStage was updated · Tap to open." over the launcher at 34;
+  - Home with "Updated · TroubaStage 537bcbdf · built …".
+- **Pixels**, my own PIL diff of your eight shots:
+  - Home is identical in all four pairs.
+  - About is identical between main's two runs and between the head's two runs.
+  - Main against head differs only at y 1637–1660, the build line.
+- **CI**, `/jobs` of run `41726778803`: all nine jobs are success, `desktop (windows)` included; release-apk is
+  skipped.
+
+### F1 — A Cancel just after `commit` loses the handover
+
+`install` runs the commit inside `withContext(Dispatchers.IO)`. If Cancel arrives between `ensureActive()` and that
+block's return, the commit has already happened, but `withContext` throws `CancellationException` on return. Then:
+- `handedOver` stays false, so the `finally` clears the marker and sets the phase to null;
+- Android's confirmation still appears, over a row that says **Update** again;
+- confirming installs with no notification. Pressing Update again starts the second session that A96 exists to
+  prevent.
+
+The window is milliseconds, but it's the exact bug the task removes.
+
+**Fix:** mark the handover the moment `commit` returns, for example with an `onCommitted` callback that sets a
+`@Volatile committed` flag. `cancel()` returns early once it's set, and the `finally` treats it as handed over
+(phase 3, marker kept). No new test needed; I'll read the diff.
+
+### F2 — Tapping outside our notification dialog makes the refusal permanent
+
+`ask = NOTIFY`'s `onDismissRequest` calls `notifyAnswered()`, and that stores `notifyAskedBefore = true`, although
+Android's prompt was never shown. `shouldShowRequestPermissionRationale` is false for a permission that was never
+requested. So on the next release `notifyAsk(granted=false, askedForRelease=false, askedBefore=true,
+showRationale=false)` returns **SKIP**, and the app never asks again.
+
+**Fix:** store `askedBefore` only when Android's prompt was actually launched, that is, in the launcher's callback. A
+dismissal of our line stores only `askedForRelease`.
+
+**Measure it:** on release A, dismiss our line by tapping outside. On release B, our line must appear again. Paste
+both screenshots.
+
+Push both fixes to the PR, with the PR run including windows. I'll then confirm here, and you land with
+`Approved-by: Fable GO <that confirmation's sha>`.
