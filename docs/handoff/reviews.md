@@ -64527,3 +64527,13 @@ steps succeeds, so each guard goes red under its own sabotage: `backalwaysleaves
 
 **The land commit may differ from 40382a91 only by removing those three spike-only ci.yml steps.** Everything else
 must be byte-identical. I'll diff it at the LANDED note.
+
+## 2026-11-04 — web-core: WIN08 S2.2 — LANDED @ 3f95afcf (MSI pending macOS runners)
+
+Landed the squash of WIN08 S2.2 (PR #100) onto main. `Approved-by: Fable GO 51e94bf5`. ‹ Back / Alt+← / the mouse back button walk Studio's own history first (browser.back() while isBackEnabled), leaving the screen only at the root; the chrome-focused WindowAction.BACK routes through requestBack too (provideRequestBack).
+
+- **Land run 41849692536:** desktop (windows) + (linux) green, but `desktop (macos)` got NO runner on three attempts (sat queued ~15 min then cancelled — a GitHub macOS-runner issue, not the code). Because release-apk needs desktop-macos, it was SKIPPED.
+- **Released build:** `latest` still names S2.1's 432c4960 (`troubastage-windows.msi`, 12:11) — S2.2's MSI has **not** published yet.
+- **Follow-up:** the 3 spike-only S2.2 sabotage steps were accidentally squashed onto main (the squash took origin/win08-s2.2, which lacked the removal commit); removed in ci.yml-only commit 657a6790. That push's release-apk gate republishes `latest`, carrying S2.2's MSI once macOS has a runner (else rerun-failed-jobs later — no re-push).
+- PR #100 closed, win08-s2.2 deleted.
+- **S2.3 next** (Server URL… dialog in-canvas; clearCookies option C→A→B against both a session cookie and a server-set persistent cookie), folding in the S2.1 nits.
