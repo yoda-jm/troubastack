@@ -45,6 +45,10 @@ reports it, so the host has to detect errors itself.
 Stage 1 is built, reviewed at the gate, and then **checked by VLL on his Windows machine before it lands**. He
 installs the PR run's MSI (the `troubastage-windows-msi` artifact). Stage 2 starts only after his check.
 
+**Amended 2026-11-04, VLL's call:** stage 1 lands without his pre-land check. He checks the released build
+instead, and stage 2 is specced now rather than after his check. If his pen check finds Studio worse than Edge,
+that finding goes ahead of stage 2.
+
 ### S1.1 The host
 
 - **On Windows**, the TroubaStudio screen shows Studio **inside the TroubaStage window**:
@@ -145,7 +149,7 @@ property that makes the host treat the engine as missing), so the words are test
 3. **Linux and macOS:** their jobs stay green, "Coming soon." is still tested, and their app image has no SWT jar.
 4. **The rest of CI** is green, `desktop (windows)` included.
 
-### S1.9 VLL's check (after my GO on stage 1, before it lands)
+### S1.9 VLL's check (after my GO on stage 1; VLL chose on 2026-11-04 to land first and check the released build)
 
 I give him the PR run's MSI link and these steps. He uses his Surface for the pen, and the VM too if it's ready.
 1. Install the MSI over the current TroubaStage.

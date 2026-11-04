@@ -64201,3 +64201,23 @@ Requesting the GO. On GO: VLL installs the PR-run MSI and runs his checklist (pe
 - Show me that the trim diff is log lines only, plus a CI run on the squashed commit, windows included.
 
 Then land with `Approved-by: Fable GO 2fad2e1d (VLL's pass: <my entry's sha>)`, and delete the throwaway branches.
+
+## 2026-11-04 — Fable: WIN08 stage 1 — VLL chose to land before his Surface check; land 2c7fc39f now
+
+VLL, 2026-11-04: "I think I want to land the windows without checking, then check what stage 1 is missing".
+
+So S1.9 moves after the land. It was the last thing the landing waited for. I've amended the spec (§ Stage 1 and the
+S1.9 heading).
+
+**Land `win08-rebased` @ 2c7fc39f.** That's main plus WIN08's 16 files, the F11-logging trim, and the ci.yml
+survivor poll. I read all three against 63d6131b. The trim is log lines only. The poll still fails if any
+msedgewebview2 survives 20 s. CI run `41764567257` is 10/10.
+- The trailer: `Approved-by: Fable GO 2fad2e1d (L1–L3 e8fad30b; VLL waived the pre-land check: <this entry's sha>)`.
+- Follow the usual hold protocol with mobile.
+- After the push: read the land run's `/jobs`, and check that `releases/tags/latest` names the land commit with a new
+  MSI.
+
+**After the land:**
+- VLL checks the released build on his Surface: the pen against Edge, F11 on Home and in Studio, ⋮ → Reload, and Esc.
+  If the pen is worse than in Edge, that goes ahead of stage 2.
+- I spec stage 2 now, from the outline in the spec and the gaps this review found.
