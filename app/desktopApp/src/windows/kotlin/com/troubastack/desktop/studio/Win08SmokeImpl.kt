@@ -264,9 +264,12 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         c.reload()                 // what the cover's Retry button does
         val recovered = waitFor(20_000) { c.readyCount > beforeReady }
         val sameController = System.identityHashCode(c) == idBefore
-        c.measureDpi(); waitFor(2_000) { false }
+        // Poll measureDpi until the 0.dp→full refit settles: after `ready` the SwingPanel recomposes to full size and
+        // fitShellToCanvas refits the Shell on the resize — a one-shot measure right after `ready` can catch the transient.
+        var rect = false
+        val rectEnd = System.currentTimeMillis() + 10_000
+        while (System.currentTimeMillis() < rectEnd && !rect) { c.measureDpi(); Thread.sleep(400); rect = c.rectsMatch }
         capture("studio")
-        val rect = c.rectsMatch
         val ok = recovered && sameController && rect
         win08log("retry: recovered=$recovered sameController=$sameController(id=$idBefore) rectsMatch=$rect OK=$ok")
         runCatching {
