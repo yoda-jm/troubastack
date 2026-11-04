@@ -144,7 +144,7 @@ internal class SwtBrowserController(
         }
         toolkit.addAWTEventListener(dismiss, java.awt.AWTEvent.MOUSE_EVENT_MASK)
         val browserFocus = object : org.eclipse.swt.events.FocusAdapter() {
-            override fun focusGained(e: org.eclipse.swt.events.FocusEvent) { onEdt { if (!w.isDisposed) w.dispose() } }
+            override fun focusGained(e: org.eclipse.swt.events.FocusEvent) { onEdt { if (w.isDisplayable) w.dispose() } }
         }
         // Sabotage 'menusticky': skip the Browser focus listener → a Studio click leaves the menu open → L1 vector reds.
         if (sabotage != "menusticky") exec { browser?.addFocusListener(browserFocus) }
