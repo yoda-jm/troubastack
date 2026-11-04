@@ -64295,3 +64295,72 @@ Plus the MSI size vs main (stage 1: +2.86 MiB).
 - S2.6: suppress-and-replace the whole menu (above), or keep WebView2's default and only strip items (needs the unexposed CoreWebView2 setting → native)? I lean suppress-and-replace.
 
 **Nothing is built until a GO on these choices.** Then S2.1→S2.11 as the spec orders, each with its smoke + sabotage + the screenshots, on a throwaway spike as in stage 1.
+
+## 2026-11-04 — Fable: GO on the WIN08 stage-2 design (f49316bb), with four rulings that change it
+
+**GO, with these changes.** S2.7's styled menu (a `ComposePanel` in the same owned, non-focusable, never-topmost
+window) and the S2.11 plan stand as written.
+
+### R1 — S2.1: use `probePresence()`, and never take the canvas out of the composition
+
+- **Reachability:** no new `reach()`. `HttpTransport.probePresence()` already exists and is what Home uses.
+  - `Unreachable` → the cover at once.
+  - `Online` or `Unauthorized` → load. Studio shows its own sign-in when the session is gone.
+  - `probePresence()` returns `Unauthorized` without any network call when no cookie is stored. In that case the
+    10 s no-`ready` timer is the only signal, and that's fine.
+- **The cover and "Loading…" can't "replace the SwingPanel area".** The SWT Shell is a child window of the canvas
+  HWND. If the canvas leaves the composition, Windows destroys the Shell and the Browser with it, so Retry would
+  rebuild everything.
+  - **Do this:** keep the canvas realized throughout. Hide the SWT Shell while the cover or "Loading…" shows. Draw
+    them in Compose in the Studio area, by giving the SwingPanel zero size or putting it behind; your choice. Show
+    the Shell again on `ready` or after Retry.
+  - Stage 1 found that WebView2 readies its controller only for a **shown** window. So hide the Shell only after
+    `createFunction` returns.
+  - **Measure it:** a hidden Browser still loads Studio and sends `ready`.
+- **Smoke vectors:**
+  - **The cover:** the server is down, so the cover shows. The server comes back, you press Retry, and the bridge
+    round-trips again **with the same controller**, not a new one.
+  - **The timer:** a page that never sends `ready` brings up the cover within about 12 s. That's your sabotage.
+
+### R2 — S2.3: add option C, test both kinds of cookie, and keep the dialog in-canvas
+
+- **Option C:** expire the named session cookie for the **old** origin. That's `Browser.setCookie("<name>=;
+  Path=/; Max-Age=0", oldOrigin)`. SWT turns `Max-Age` into `put_Expires`, and an expiry in the past deletes the
+  cookie.
+- **The smoke must cover both kinds:**
+  - the seeded session cookie (no Expires);
+  - **a persistent cookie the server set itself.** The real login sets `Expires` 30 days out. A person who signs in
+    inside Studio gets one.
+
+  `clearSessions()` (A) may miss the persistent one.
+- **The rule:** pick the least destructive option that passes both kinds, in the order C, A, B. Report all the
+  ones you measured. You decide by that rule, and I check it.
+- **The "Server URL…" dialog needs typing, so a non-focusable window can't host it.** Do this instead: while it's
+  open, hide the SWT Shell and show the dialog in Compose in the Studio area. It's in the main window, so it takes
+  the keyboard normally. Show Studio again when it closes. **This is the rule for any dialog over Studio that needs
+  typing.**
+
+### R3 — S2.6: neither suppress-and-replace nor native stripping
+
+Two facts rule out your lean:
+- **SWT's MenuDetect carries only coordinates** (R4_40 `Edge.handleContextMenuRequested`). The host can't tell a
+  text field from the chart.
+- **A replacement menu can't paste.** Chromium refuses `document.execCommand('paste')` to web content. You'd be
+  removing the native clipboard items from Studio's text fields.
+
+**Do this:** inject, from the host, a window-level, **bubbling** `contextmenu` listener on every completed load,
+guarded so it's added only once.
+- If the event isn't `defaultPrevented` and its target isn't editable (`input`, `textarea`, `contenteditable`), it
+  calls `preventDefault()`. WebView2 then shows no menu on the page.
+- Editable targets keep **WebView2's own edit menu**, with the real clipboard.
+- Studio's own right-click handlers run first and stay untouched, since they set `defaultPrevented`.
+- **This is host-side, not a Studio change.**
+- **Measure it, with screenshots and the item list:**
+  - right-click on the chart → no menu;
+  - right-click in a text field → WebView2's edit menu. "Inspect" must not be in it; if it is, report it.
+  - any right-click Studio handles itself → unchanged.
+
+### R4 — The order and the proof are as in the spec
+
+Do S2.1 to S2.11 in the spec's order. Each item gets its smoke check and its own sabotage, plus the screenshots, on a
+throwaway spike as in stage 1. One presentation per finished item group is fine.
