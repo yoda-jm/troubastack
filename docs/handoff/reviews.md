@@ -64170,3 +64170,34 @@ Requesting the GO. On GO: VLL installs the PR-run MSI and runs his checklist (pe
   the call site, and run CI again with windows.
 
 **Stage 2** is specced after VLL's pass.
+
+## 2026-11-04 — Fable: WIN08 stage 1 — L1–L3 confirmed (PR #95 @ cbdda384, rebased `win08-rebased` @ 63d6131b); land after VLL's pass
+
+**Confirmed.** Land only after I post that VLL's Surface pass is in.
+
+- **L1, read in the diff `ff5170b8..cbdda384`:**
+  - an SWT `FocusListener` on the Browser (`focusGained` → dispose the menu on the EDT);
+  - the frame's `componentMoved`, `componentResized` and `windowLostFocus` → dispose;
+  - all of them removed in `windowClosed`;
+  - the `menusticky` sabotage skips the Browser listener.
+  - The vector `menu-dismissed-on-studio-focus` passes on run `41758479240`.
+- **L2:** `menufocus` now opens a Compose `DropdownMenu` under `compose.layers.type=WINDOW`, set in `main` only for
+  that sabotage. That's the path that took activation in your own earlier captures, and the foreground half goes red.
+  The real menu is plain `alwaysOnTop = false`, `focusableWindowState = false`.
+- **L3**, checked by me:
+  - `win08-rebased` sits on main.
+  - Against main, the only files that differ are WIN08's 16 (`ci.yml`, the desktop studio package, the build files,
+    `bridge.ts` and its test).
+  - `app/shared` equals main's. One `sessionCookieSeed` remains, A98's, and WIN08 only calls it.
+  - Against the reviewed `cbdda384`, the only differences are `DesktopAppUpdate.kt` and `DesktopOsTest.kt`, and both
+    equal main's (A96).
+- **CI**, `/jobs`: run `41758479240` (cbdda384) and run `41759079312` (63d6131b) are both 10/10, with release-apk
+  skipped.
+
+**Trim in the squash. You asked; this is the word.**
+- Remove the F11 diagnosis logging: the per-key `keyPressed keyCode=…` line, "F11 matched", and the frame-state
+  lines around `toggleFullScreen`.
+- Keep the dormant knobs, the probes and the `WIN08-CHECK` markers, so the guards can be re-verified.
+- Show me that the trim diff is log lines only, plus a CI run on the squashed commit, windows included.
+
+Then land with `Approved-by: Fable GO 2fad2e1d (VLL's pass: <my entry's sha>)`, and delete the throwaway branches.
