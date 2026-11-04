@@ -298,8 +298,19 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             win08log("menu: fgBefore=$fgBefore foregroundIsFrameWithMenu=$fgIsFrame menuShown=${menuWin != null} menuTopmost=$menuTopmost")
             // Pass needs the frame to have been foreground to begin with (else the runner never activated it, so the
             // check is moot); given that, opening the ⋮ menu must keep the frame foreground AND the menu window must
-            // exist and not be WS_EX_TOPMOST. Sabotage 'menufocus' makes the menu focusable → it steals the foreground.
+            // exist and not be WS_EX_TOPMOST. Sabotage 'menufocus' opens the real bad path (a compose.layers DropdownMenu
+            // that DOES take activation on this runner) → fgIsFrame goes false → this reds (the foreground half proven).
             mark("menu-no-activation-steal", fgBefore && fgIsFrame && menuWin != null && !menuTopmost)
+
+            // L1 — a click into Studio must dismiss the ⋮ menu. The AWTEventListener can't see a press inside the WebView
+            // (another process's window under SWT's Shell), so the menu dismisses on the Browser's FocusIn. Model the
+            // click by focusing the Browser; the menu window must be gone. Sabotage 'menusticky' skips that listener → reds.
+            if (System.getenv("WIN08_SABOTAGE") != "menufocus") {  // (menufocus uses the Compose path; lastMenuWindow already null)
+                c.focusBrowserForSmoke()
+                Thread.sleep(1200)
+                win08log("menu: lastMenuWindow after Studio focus = ${c.lastMenuWindow}")
+                mark("menu-dismissed-on-studio-focus", c.lastMenuWindow == null)
+            }
 
             finish(results, frame)
         } catch (e: Throwable) {

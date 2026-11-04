@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +57,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
     }
     var engineMissing by remember { mutableStateOf(false) }
     var timedOut by remember { mutableStateOf(false) }
+    var sabotageMenu by remember { mutableStateOf(false) }  // L2 only: the Compose DropdownMenu, opened via requestComposeMenu
     val base = args.serverUrl.orEmpty()
     val loadUrl = remember(base, args.initialPath) { embeddedUrl(base, args.initialPath) }
     val origin = remember(base) { originOfUrl(base) }
@@ -85,6 +88,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
     }
     DisposableEffect(Unit) {
         win08log("content: DisposableEffect -> controller.start()")
+        controller.requestComposeMenu = { sabotageMenu = true }   // L2 sabotage only
         controller.start()
         onDispose { win08log("content: onDispose -> controller.dispose()"); controller.dispose() }
     }
@@ -97,9 +101,15 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             TextButton(onClick = args.onBack) { Text("‹  Back") }
             Text(args.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.weight(1f))
-            // The ⋮ menu is a HEAVYWEIGHT Swing JPopupMenu (openStudioMenu), not a Compose DropdownMenu: it floats over
-            // the heavyweight WebView without the process-wide compose.layers.type=WINDOW that stole frame activation.
-            TextButton(onClick = { controller.openStudioMenu() }) { Text("⋮") }
+            // The ⋮ menu is a HEAVYWEIGHT, non-activating owned Swing window (openStudioMenu), not a Compose DropdownMenu:
+            // it floats over the heavyweight WebView without the process-wide compose.layers.type=WINDOW that stole frame
+            // activation. The Compose DropdownMenu below is DORMANT — only the L2 sabotage opens it (the bad path).
+            Box {
+                TextButton(onClick = { controller.openStudioMenu() }) { Text("⋮") }
+                DropdownMenu(expanded = sabotageMenu, onDismissRequest = { sabotageMenu = false }) {
+                    DropdownMenuItem(text = { Text("Reload") }, onClick = { sabotageMenu = false; controller.reload() })
+                }
+            }
         }
         if (engineMissing || timedOut) {
             Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {

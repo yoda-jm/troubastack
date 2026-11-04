@@ -132,7 +132,10 @@ fun main(args: Array<String>) {
         // NB: WIN08 does NOT set compose.layers.type=WINDOW. Making ALL Compose popups separate windows stole window
         // activation from the frame on every tooltip/dialog (the frame's title bar went inactive) and drew over the
         // taskbar — unacceptable for Stage (a concert pedal). Only the Studio ⋮ menu floats over the heavyweight
-        // browser, as a heavyweight, never-activating, never-topmost Swing JPopupMenu (see SwtBrowserController.openStudioMenu).
+        // browser, as a heavyweight, never-activating, never-topmost owned Swing window (SwtBrowserController.openStudioMenu).
+        // L2 sabotage ONLY: re-enable the bad path so the smoke's foreground check has a proven red (a WINDOW-layer
+        // Compose popup DOES take activation on the CI runner, unlike a plain focusable JWindow). Dormant otherwise.
+        if (System.getenv("WIN08_SABOTAGE") == "menufocus") System.setProperty("compose.layers.type", "WINDOW")
         // WIN08 (S1.2 / WIN07) — SWT unpacks its native DLLs under the data root, never the shared ~/.swt.
         System.setProperty("swt.library.path", File(desktopDataRoot(), "swt").also { runCatching { it.mkdirs() } }.path)
         // WIN08 — raise SWT's Edge operation timeout (R4_40 Edge.java: MAXIMUM_OPERATION_TIME, default 5000, read once

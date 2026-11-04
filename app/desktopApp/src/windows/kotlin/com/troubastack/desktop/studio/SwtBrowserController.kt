@@ -108,16 +108,21 @@ internal class SwtBrowserController(
      * Sabotage 'menufocus': a FOCUSABLE menu window takes activation (GetForegroundWindow != frame) → the check reds.
      */
     @Volatile var lastMenuWindow: java.awt.Window? = null; private set  // the ⋮ menu window, for the smoke's topmost check
+    /** Set by EmbeddedStudioContent — the L2 sabotage opens the REAL bad path (a Compose DropdownMenu, under
+     *  compose.layers.type=WINDOW) through this, since that is what actually steals the frame's activation. */
+    @Volatile var requestComposeMenu: (() -> Unit)? = null
 
     fun openStudioMenu() = onEdt {
         if (!canvas.isShowing) return@onEdt
+        // L2 sabotage 'menufocus': take the REAL bad path — a Compose DropdownMenu with compose.layers.type=WINDOW
+        // (set in Main when the env is present). That popup is a separate window that DOES take activation on this
+        // runner, so the foreground half of menu-no-activation-steal goes red (SetForegroundWindow on a plain JWindow
+        // is restricted on CI, so the owned-window path couldn't prove the foreground red).
+        if (sabotage == "menufocus") { log("win08: SABOTAGE menufocus — opening a Compose DropdownMenu (WINDOW layer)"); requestComposeMenu?.invoke(); return@onEdt }
         val owner = javax.swing.SwingUtilities.getWindowAncestor(canvas) ?: return@onEdt
-        // sabotage 'menufocus' models a bad menu window — focusable AND topmost — so the check reds: topmost reliably
-        // (menuTopmost), and activation too where Windows allows SetForegroundWindow (restricted on the CI runner).
-        val bad = (sabotage == "menufocus")
         val w = javax.swing.JWindow(owner)
-        w.isAlwaysOnTop = bad                       // real: false → NEVER topmost (Fable's criterion)
-        w.focusableWindowState = bad                // real: false → never activating; so the frame keeps activation
+        w.isAlwaysOnTop = false                     // NEVER topmost (Fable's criterion)
+        w.focusableWindowState = false              // never activating → the frame keeps activation (title bar active)
         val panel = javax.swing.JPanel().apply {
             layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
             border = javax.swing.BorderFactory.createLineBorder(java.awt.Color(0x60, 0x60, 0x60))
@@ -127,9 +132,10 @@ internal class SwtBrowserController(
         val loc = canvas.locationOnScreen
         w.setLocation(loc.x + canvas.width - w.width - 8, loc.y + 2)
         w.isVisible = true
-        if (bad) { w.toFront(); w.requestFocus(); Win08Native.setForeground(w) }
         lastMenuWindow = w
-        // A non-focusable window gets no focus-lost; dismiss on a press outside it.
+        // --- L1 dismissal. A press inside the WebView is NOT an AWT event (it is another process's window under SWT's
+        // Shell), so the AWTEventListener never sees it. Dismiss on: a press on a Swing component outside the menu, the
+        // Browser gaining focus (a click in Studio → Edge handleGotFocus), and the frame moving/resizing/deactivating. ---
         val toolkit = java.awt.Toolkit.getDefaultToolkit()
         val dismiss = java.awt.event.AWTEventListener { ev ->
             val me = ev as? java.awt.event.MouseEvent ?: return@AWTEventListener
@@ -137,13 +143,31 @@ internal class SwtBrowserController(
                 javax.swing.SwingUtilities.getWindowAncestor(me.component) !== w) w.dispose()
         }
         toolkit.addAWTEventListener(dismiss, java.awt.AWTEvent.MOUSE_EVENT_MASK)
+        val browserFocus = object : org.eclipse.swt.events.FocusAdapter() {
+            override fun focusGained(e: org.eclipse.swt.events.FocusEvent) { onEdt { if (!w.isDisposed) w.dispose() } }
+        }
+        // Sabotage 'menusticky': skip the Browser focus listener → a Studio click leaves the menu open → L1 vector reds.
+        if (sabotage != "menusticky") exec { browser?.addFocusListener(browserFocus) }
+        val frameListener = object : java.awt.event.ComponentAdapter(), java.awt.event.WindowFocusListener {
+            override fun componentMoved(e: java.awt.event.ComponentEvent?) { w.dispose() }
+            override fun componentResized(e: java.awt.event.ComponentEvent?) { w.dispose() }
+            override fun windowLostFocus(e: java.awt.event.WindowEvent?) { w.dispose() }
+            override fun windowGainedFocus(e: java.awt.event.WindowEvent?) {}
+        }
+        owner.addComponentListener(frameListener); owner.addWindowFocusListener(frameListener)
         w.addWindowListener(object : java.awt.event.WindowAdapter() {
             override fun windowClosed(e: java.awt.event.WindowEvent?) {
-                toolkit.removeAWTEventListener(dismiss); if (lastMenuWindow === w) lastMenuWindow = null
+                toolkit.removeAWTEventListener(dismiss)
+                exec { runCatching { browser?.removeFocusListener(browserFocus) } }
+                owner.removeComponentListener(frameListener); owner.removeWindowFocusListener(frameListener)
+                if (lastMenuWindow === w) lastMenuWindow = null
             }
         })
-        log("win08: studio ⋮ menu shown (owned JWindow, focusable=${w.focusableWindowState}, alwaysOnTop=${w.isAlwaysOnTop})")
+        log("win08: studio ⋮ menu shown (owned JWindow, focusable=false, alwaysOnTop=false)")
     }
+
+    /** L1 smoke vector: model a click in Studio by giving the Browser focus → the menu's Focuslistener must dismiss it. */
+    fun focusBrowserForSmoke() = exec { runCatching { browser?.forceFocus() } }
 
     /** Keep the reparented child Shell filling the AWT canvas, in PHYSICAL pixels (item 4): size from the canvas
      *  HWND's own client rect via SetWindowPos, so it is right even when AWT's scale differs from SWT's (e.g.
