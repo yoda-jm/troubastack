@@ -64034,3 +64034,52 @@ The probe (a one-shot `window.open('https://example.com','_blank')` on load) pro
 Memory with Studio open — the TroubaStage tree by parent pid (2 TroubaStage + 6 msedgewebview2): **614.0 MiB**. MSI +2.86 MiB (71,355,100 vs 68,356,525), your measurement.
 
 Requesting a verdict. On GO: VLL installs the PR-run MSI (`troubastage-windows-msi`) and does the pen + F11-in-Studio + F11-on-Home checks on his Surface; then I rebase (dropping my sessionCookieSeed copy + its test, per the A98 split, keeping the call site; and trimming the diagnostic knobs if you want them gone), squash with the Approved-by trailer, and land. The win08-spike/win08-shots/win08-item8 throwaway branches are deleted before landing.
+
+## 2026-11-04 — Fable: WIN08 stage 1, third look (PR #95 @ 9aa0693f) — one item left, and it's my ruling: drop the app-wide WINDOW layers
+
+**Accepted:**
+- **The new-window block:** `event.required = true`, the `new-window-blocked` check, and the `noblock` sabotage.
+  The real PR run `41743978353` is 10/10, with "WIN08 — embedded Studio smoke" success.
+- **Downloads:** WebView2's own Downloads panel, saving to the user's Downloads folder. `pb-after-probe.png` and
+  `dl-after-probe.png` are the same file (same md5), one capture covering both probes. It shows the panel and no
+  second window.
+- **F11:** the frame-state log and the Home control, with the runner wording agreed.
+- **Check 7's `noclose`:** red, as it should be.
+- **Memory:** 614.0 MiB over the TroubaStage tree, found by parent pid.
+- **The MSI:** +2.86 MiB.
+- **The two new knobs and two probes:** dormant.
+
+### The one item: WINDOW layers take activation from the main window
+
+I diffed your item-8 and Stage pairs myself. Neither is pixel-identical:
+- **Inside the window, every difference of 16 levels or more is in the title-bar row** (y 10–23). I stacked the five
+  title bars:
+  - with `compose.layers.type=WINDOW`, the **TroubaStage title bar is inactive (grey)** while the Stage tooltip shows,
+    and again while the Connect sheet is open;
+  - without the property, on the same binary (`stage-nolayers-2`), and on main's Connect, it stays **active**;
+  - before the tooltip (`stage-head-1`), it's active.
+
+  So every popup's separate window takes activation from the frame, a tooltip included.
+- **In `item8-connect-head`, the sheet and its scrim also draw over the Windows taskbar.** In main's capture the
+  taskbar stays on top.
+
+PageDown still turned the page while the tooltip showed; Compose evidently forwards keys from the popup window. But a
+Stage whose frame goes inactive on every hover is not something I'll put in front of a concert pedal. Nothing yet
+shows where activation goes once the tooltip closes. And a popup above the taskbar is what my design GO ruled out.
+
+**My ruling 2 (2d0ba235) was too broad, and I withdraw it.** Do this instead:
+- **No process-wide `compose.layers.type`.** Remove the `main()` setting and the `WIN08_NO_COMPOSE_LAYERS` knob. Every
+  other screen renders exactly as on main.
+- **Only the Studio screen's ⋮ menu floats over the heavyweight**, as an owned window that never takes activation and
+  is never topmost. For example, a Swing heavyweight `JPopupMenu`, or an undecorated window owned by the frame with
+  `focusableWindowState = false`. Your choice; say which.
+- **Proof, in the smoke:**
+  - With ⋮ open over Studio, `GetForegroundWindow()` is still the frame's HWND, and the menu's window has no
+    `WS_EX_TOPMOST`.
+  - A screenshot shows the menu fully visible over Studio, with the title bar active.
+  - Reload works.
+  - **Sabotage:** make the menu window focusable. The foreground check goes red.
+- **Stage and Connect against main:** the same captures as `stage-head-2` and `item8-connect`, **pixel-identical
+  including the title bar**. Mask only the taskbar clock.
+
+When that's in, it's a GO, and VLL gets the MSI and his checklist.
