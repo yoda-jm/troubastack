@@ -234,6 +234,17 @@ fun main(args: Array<String>) {
         if (code != 0) exitProcess(code)
         return
     }
+    // WIN08 S2.2 (recon) — the mouse-back hook (`--win08-back <outDir>`): synthesise XBUTTON1 + Alt+← and record what
+    // SWT / the injected page listener see. Windows only (the runner renders with onController).
+    val backIdx = args.indexOf("--win08-back")
+    if (backIdx >= 0) {
+        val outDir = args.getOrNull(backIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-back needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner ?: run { System.err.println("win08-back: Windows only"); exitProcess(2) }
+        val code = runner.runBack(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
     // WIN08 S2.1 (R1) SPIKE — the cover render hook (`--win08-cover <out.png>`): point the embedded studio at an
     // UNREACHABLE server so the cover shows, then capture the window to prove the cover draws OVER the SwingPanel (the
     // open rendering question), not occluded by the heavyweight canvas. Windows only (needs the SWT provider).

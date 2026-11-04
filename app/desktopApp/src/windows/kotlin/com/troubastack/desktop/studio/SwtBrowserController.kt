@@ -148,6 +148,8 @@ internal class SwtBrowserController(
     @Volatile var wentBack: Boolean? = null; private set
     @Volatile var mouseBackListenerFired: Boolean = false; private set   // S2.2 recon: the injected page listener saw the mouse back
     @Volatile var swtSawMouseBack: Boolean = false; private set          // S2.2 recon: SWT's own MouseListener saw XBUTTON1
+    @Volatile var navCount: Int = 0; private set                         // S2.2 recon: completed navigations (to count one-vs-two on a back)
+    @Volatile var lastUrl: String = ""; private set                      // S2.2 recon: the URL after the last completed navigation
     fun requestBack() = exec {
         val b = browser
         // Sabotage backalwaysleaves: ignore Studio's history and always leave → the walk-first check reds.
@@ -446,6 +448,9 @@ internal class SwtBrowserController(
             var probedDownload = false
             browser.addProgressListener(object : ProgressAdapter() {
                 override fun completed(event: ProgressEvent) {
+                    // S2.2 recon: track the URL + a navigation count, so the --win08-back recon can tell whether the
+                    // mouse back walked exactly ONE entry (preventDefault held) or two (WebView2 double-navigated).
+                    navCount++; lastUrl = runCatching { browser.url ?: "" }.getOrDefault("")
                     // B3 sabotage (b): register the bridge only AFTER the load — the page's head script has already
                     // run without window.TroubaStageShellReceive, so no ready is sent and the bridge check reds.
                     if (sabotage == "bridge-late" && !lateBridgeDone) { lateBridgeDone = true; registerBridge() }
