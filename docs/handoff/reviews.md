@@ -64443,3 +64443,36 @@ Landed the squash of WIN08 S2.1 (PR #99) onto main. `Approved-by: Fable GO 5ac20
 - PR #99 closed, win08-s2 deleted. Dormant hooks kept (stage-1 pattern): `WIN08_SABOTAGE` (default ""), `--win08-cover`, `--win08-retry` — re-verify the guards; none runs in the normal smoke or the app.
 - Shots in the shots folder: win08-s2-loading.png, win08-s2-cover.png, win08-s2-studio.png.
 - **S2.2 next** (Back/history), folding in Fable's two nits: probeReachable's HttpTransport once per screen (not per-probe), and OutlinedButton for the cover's Back/Retry when S2.7 restyles.
+
+## 2026-11-04 — web-core: WIN08 stage 2 — S2.2 (Back / history) — GATE (PR #100)
+
+Stage 2 S2.2 per the spec (§ S2.2) + Fable's mouse-back ruling. Branch win08-s2.2; PR #100 → main; PR CI run 41842163625 (windows incl.). **Diff it, view the shot, read /jobs.**
+
+**What it does.** ‹ Back (app bar), Alt+←, and the mouse back button first walk Studio's own history (`browser.back()` while `isBackEnabled`), as Android's BackHandler does; they leave the Studio screen only when there's nothing left to go back to.
+- Controller `requestBack()`: `isBackEnabled` → `browser.back()` (walk); else → `onExitBack` (leave, = the app's Back). ‹ Back and Alt+← (consumed, so WebView2 doesn't also navigate) route through it; the bridge `{type:"back"}` does too.
+- **Mouse back (your ruling, measured):** SWT's MouseListener does NOT see XBUTTON1, so a host-injected window-level `mouseup`/`button===3` listener (once per completed load, like R3's plan) preventDefaults WebView2's own back-nav and forwards `{type:"back"}` → requestBack. The recon confirms it works — no fallback to option 1 needed.
+
+**Recon — run 41838586465 (`--win08-back`, Robot XBUTTON1 + Alt+←) verdict:**
+`swtSawMouseBack=false mouseListenerFired=true mouseNavDelta=1 altNavDelta=1 leftAtRoot=true extraMouseButtons=true`
+- A real mouse back fires the injected listener; `preventDefault` holds — **one** navigation per press (b3→b2), no double-nav.
+- Alt+← walks exactly one entry too.
+- At the root, Back **leaves the screen** (leftAtRoot).
+- SWT never sees XBUTTON1 (confirms the injection, not SWT routing, is the path).
+
+**Real checks (normal `desktop (windows)` smoke, this PR run):**
+- `host-back-walks-history` — build same-origin history, requestBack WALKS (wentBack=true).
+- `mouse-back-injection-forwards` — a synthetic `mouseup`/button===3 fires the injected listener → bridge `{type:"back"}` → requestBack.
+
+**Each guard's red — validation run 41838586465 (windows /jobs):**
+- `WIN08_SABOTAGE=backalwaysleaves` → `host-back-walks-history: FAIL` (requestBack ignores isBackEnabled, always leaves).
+- `WIN08_SABOTAGE=nomouseback` → `mouse-back-injection-forwards: FAIL` (the listener isn't injected → never fires).
+
+**Dormant hooks kept (stage-1 pattern; env/arg-gated, none runs in the normal smoke or the app):**
+- `WIN08_SABOTAGE` values: `backalwaysleaves`, `nomouseback`, `noaltback` (+ S2.1's + stage 1's).
+- `--win08-back <outDir>` (arg-gated → `Win08SmokeRunner.runBack`): the real-mouse recon — XBUTTON1 + Alt+←, writes back-verdict.txt + back.png.
+
+**Shot (in the shots folder):** `win08-s22-back.png` — Studio intact after the back/history walk.
+
+**Out of scope here:** S2.3–S2.11. This is S2.2 only. The S2.1 nits (probeReachable's HttpTransport once per screen; OutlinedButton for the cover buttons) are tracked for the items that touch that code (S2.3 / S2.7).
+
+Requesting GO to land (squash win08-s2.2 with your approval trailer).
