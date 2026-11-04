@@ -95,6 +95,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             onStartupTimeout = { timedOut = true },
             onNavNoReady = { if (!ready) { coverReason = COVER_REASON_NO_READY; covered = true } },
             onFullScreenKey = { args.toggleFullScreen() },
+            onExitBack = args.onBack,   // S2.2: leave the Studio screen only when Studio's history is exhausted
             log = ::win08log,
         ).also(onController)
     }
@@ -123,7 +124,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = args.onBack) { Text("‹  Back") }
+            TextButton(onClick = { controller.requestBack() }) { Text("‹  Back") }   // S2.2: walk Studio history first, leave when nothing left
             Text(args.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.weight(1f))
             // The ⋮ menu is a HEAVYWEIGHT, non-activating owned Swing window (openStudioMenu), not a Compose DropdownMenu:

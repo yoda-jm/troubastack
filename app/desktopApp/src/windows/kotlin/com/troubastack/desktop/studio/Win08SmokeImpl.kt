@@ -466,6 +466,24 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             win08log("retry: recovered=$recovered sameController=$sameController(id=$idBefore) rectsMatch=${c.rectsMatch}")
             mark("retry-recovers-same-controller", recovered && sameController && c.rectsMatch)
 
+            // ── S2.2 Back/history ─────────────────────────────────────────────────────────────────────────────────
+            // ‹ Back / Alt+← / the mouse back button walk Studio's own history first (browser.back() while isBackEnabled),
+            // leaving the screen only at the root. Build history (same-origin navs), then requestBack must WALK.
+            serveNoReady = false
+            c.smokeInPageNav("$origin/back1"); waitFor(4_000) { false }
+            c.smokeInPageNav("$origin/back2"); waitFor(4_000) { false }
+            // The injected mouse-back listener (button===3) forwards through the bridge → requestBack; dispatch a synthetic
+            // mouseup to exercise that chain. Sabotage nomouseback skips the injection → the listener never fires.
+            c.smokeDispatchMouseBack()
+            val mouseFwd = waitFor(5_000) { c.mouseBackListenerFired }
+            mark("mouse-back-injection-forwards", mouseFwd)
+            waitFor(2_000) { false }   // let that back settle
+            // requestBack with history left → walks (wentBack=true). Sabotage backalwaysleaves ignores history → reds.
+            c.requestBack()
+            val walked = waitFor(4_000) { c.wentBack == true }
+            win08log("back: mouseListenerFired=${c.mouseBackListenerFired} swtSawMouseBack=${c.swtSawMouseBack} wentBack=${c.wentBack}")
+            mark("host-back-walks-history", walked)
+
             finish(results, frame)
         } catch (e: Throwable) {
             win08log("smoke: checker threw: ${e.message}")
