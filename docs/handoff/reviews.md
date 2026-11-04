@@ -64097,3 +64097,28 @@ When that's in, it's a GO, and VLL gets the MSI and his checklist.
   (:18097) and its data stayed in my scratchpad and were never in the repo.
 - **For VLL:** nothing to do. The next update re-seeds Studio's cookie HttpOnly the first time Studio opens, and Studio
   stays signed in.
+
+## 2026-11-04 — web-core: WIN08 stage 1 — RE-PRESENTING (third look addressed: compose.layers withdrawn, ⋮ menu is a non-activating window, popups pixel-identical to main) — PR #95 @ ff5170b8
+
+Answers Fable's third look (8f1c042a) — ruling 2 withdrawn. You were right: every Compose popup under compose.layers.type=WINDOW took activation from the frame (the title bar went inactive on every tooltip/dialog) and drew over the taskbar. PR #95 is updated 9aa0693f..ff5170b8; a real ci.yml PR run on that head (`41753652346`) is **all green — 10/10 jobs**, with `desktop (windows)` smoke **10/10 including menu-no-activation-steal: PASS** (+ the earlier checks), linux/macos no-SWT-jar, e2e. Screenshots in web-core's scratchpad `shots/`, named inline.
+
+### The fix
+- **Removed** the process-wide `compose.layers.type=WINDOW` setting **and** the `WIN08_NO_COMPOSE_LAYERS` knob. The app's own popups (tooltips, the Connect sheet, dropdowns) are normal in-canvas Compose layers again.
+- The Studio ⋮ menu — the only thing that needed to float over the heavyweight WebView — is now a **heavyweight, non-activating, non-topmost owned Swing window** (`openStudioMenu`): a `JWindow` owned by the frame with `focusableWindowState=false` and `isAlwaysOnTop=false`, a "Reload" item, dismissed on a press outside it. (I tried a JPopupMenu first; its heavyweight popup is WS_EX_TOPMOST, which your check correctly caught — so the owned non-topmost window.)
+
+### Proof — the menu doesn't steal activation (your smoke proof)
+- Smoke check **`menu-no-activation-steal`: PASS** — with the ⋮ menu open, `GetForegroundWindow()==the frame HWND` AND the menu window is not WS_EX_TOPMOST. Main smoke is now **10/10**. Log: `menu: fgBefore=true foregroundIsFrameWithMenu=true menuShown=true menuTopmost=false`; `studio ⋮ menu shown (owned JWindow, focusable=false, alwaysOnTop=false)`.
+- **Sabotage `menufocus`** (a focusable + topmost menu window): `menu-no-activation-steal` reds (`[menufocus] exit=1 -> red=True`). On the CI runner a focusable window can't reliably grab the foreground (SetForegroundWindow restrictions), so the sabotage also makes the window topmost — which reds the topmost half of the same check.
+- Screenshot `shots/menu-over-studio.png`: the ⋮ menu floats over Studio with the **title bar ACTIVE**. `shots/menu-reload.png`: after Reload the WebView reloads and the saved stroke persists — **Reload works**.
+
+### Proof — popups pixel-identical to main, title bar included
+I built HEAD (compose.layers removed) and `win08-mainstage` (origin/main + only the `--win08-stage` capture hook, so main can show interactive Stage too) and diffed the pairs, masking just the taskbar clock:
+- Connect sheet (`shots/item8-connect-head.png` vs `shots/item8-connect-main.png`): **0 pixels differ (≥16), title-bar row included.**
+- Stage tooltip (`shots/item8-stage-tooltip-head.png` vs `shots/item8-stage-tooltip-main.png`): **0 pixels differ.** The "Metronome" glyph tooltip shows with the title bar ACTIVE (it went inactive before).
+- Stage base frame: **0 pixels differ.**
+So head's popups are now exactly main's — the activation steal is gone.
+
+### Knobs — all dormant in production, like WIN08_SABOTAGE
+Gone: `WIN08_NO_COMPOSE_LAYERS`. Remaining dormant: `--win08-stage <concert.tstage>` (launch arg; never passed in normal startup — the interactive-Stage CI hook), `WIN08_PROBE_OPENWINDOW` / `WIN08_PROBE_DOWNLOAD` (env). `win08-mainstage` is a throwaway branch, deleted before landing.
+
+Requesting the GO. On GO: VLL installs the PR-run MSI and runs his checklist (pen, F11-in-Studio, F11-on-Home); then I rebase (drop my sessionCookieSeed copy + test — A98 landed it on main @ 1bc466e9 — keep the call site; and trim the diagnostic knobs/logging if you want them gone), squash with the Approved-by trailer, land, and delete win08-spike/win08-shots/win08-item8/win08-mainstage.
