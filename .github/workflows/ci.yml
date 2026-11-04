@@ -725,6 +725,31 @@ jobs:
           if (-not $exited) { $p.Kill(); Write-Error "S1.6 smoke hung"; exit 1 }
           if ($p.ExitCode -ne 0) { Write-Error "S1.6 checks failed"; exit 1 }
           Write-Host "WIN08 S1.6: forced no-WebView2 shows the message, no Browser, no IE fallback"
+      # WIN08 S2.1 (R1) SPIKE-ONLY positive control — REMOVE before this branch merges to main. Proves the new
+      # hidden-browser-loads-and-readies check is discriminating: WIN08_SABOTAGE=hiddennoready skips the reload after
+      # hiding the Shell, so no fresh `ready` arrives and the check MUST red (the smoke MUST exit non-zero).
+      - name: WIN08 S2.1 positive control — hiddennoready reds the hidden-ready check (spike only)
+        if: runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        env:
+          WIN08_SABOTAGE: hiddennoready
+        run: |
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-s2sab-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "win08-s2sab-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-smoke", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(120000)
+          if (-not $exited) { $p.Kill() }
+          Start-Sleep -Seconds 2
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          $txt = if ($log) { Get-Content $log.FullName -Raw } else { "" }
+          if ($log) { Write-Host "---- win08.log (hiddennoready) ----"; Write-Host $txt }
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if ($txt -notmatch "WIN08-CHECK hidden-browser-loads-and-readies: FAIL") { Write-Error "positive control did NOT red the check — not discriminating"; exit 1 }
+          if ($p.ExitCode -eq 0) { Write-Error "sabotage smoke exited 0 — a reddened check didn't fail the run"; exit 1 }
+          Write-Host "WIN08 S2.1 positive control OK: hiddennoready reds hidden-browser-loads-and-readies"
       - name: secret store cost — DPAPI get/put p50/p95 (F2)
         if: runner.os == 'Windows'
         working-directory: app
