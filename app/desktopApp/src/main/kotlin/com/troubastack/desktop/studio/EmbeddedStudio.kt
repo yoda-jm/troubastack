@@ -36,6 +36,12 @@ class EmbeddedStudioArgs(
     val isFullScreen: () -> Boolean,
     /** The TroubaStage frame, for GA_ROOT checks and an owned menu window; null until the window exists. */
     val frameWindow: () -> java.awt.Window?,
+    /**
+     * S2.1 (R1): pre-load reachability. true if the server answered (Online or Unauthorized — Studio can load and
+     * handle its own sign-in); false if it couldn't be reached. The host shows the cover at once on false, instead of
+     * waiting out the 10s no-ready timer. null when there's no server configured. Runs the app's own `probePresence`.
+     */
+    val probeReachable: (suspend () -> Boolean)?,
 )
 
 /**

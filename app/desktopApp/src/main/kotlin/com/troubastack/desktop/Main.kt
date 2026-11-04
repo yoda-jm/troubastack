@@ -223,6 +223,16 @@ fun main(args: Array<String>) {
         runWin08Stage(concert)
         return
     }
+    // WIN08 S2.1 (R1) SPIKE — the cover render hook (`--win08-cover <out.png>`): point the embedded studio at an
+    // UNREACHABLE server so the cover shows, then capture the window to prove the cover draws OVER the SwingPanel (the
+    // open rendering question), not occluded by the heavyweight canvas. Windows only (needs the SWT provider).
+    val coverIdx = args.indexOf("--win08-cover")
+    if (coverIdx >= 0) {
+        val out = args.getOrNull(coverIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-cover needs an output PNG path"); exitProcess(2) }
+        runWin08Cover(out)
+        return
+    }
     // WIN04 (C1) — the CI hook: a release on the loopback interface (refused otherwise), digest required.
     val updateFrom = args.indexOf("--update-from").takeIf { it >= 0 }?.let { i ->
         val raw = args.getOrNull(i + 1) ?: run { System.err.println("--update-from needs a URL"); exitProcess(2) }
@@ -371,6 +381,42 @@ private fun runWin08Studio(url: String, user: String, pass: String, songPath: St
             LaunchedEffect(Unit) { platform.awtWindow = window }
             TroubaTheme(dark = false) {
                 platform.studio.Edit(storage, onBack = { exitApplication() }, initialPath = songPath, bandTitle = "CI Band")
+            }
+        }
+    }
+}
+
+/** WIN08 S2.1 (R1) SPIKE — render the embedded studio against an unreachable server (the cover shows), capture the
+ *  window after the probe + a paint beat, and write the PNG so the cover's rendering over the SwingPanel can be
+ *  eyeballed. Also prints a crude centre-strip light/dark count as a quick hint. Windows only (SWT provider). */
+private fun runWin08Cover(outPng: String) {
+    System.setProperty("win08.log", "1")
+    val storage = Storage()
+    storage.putSecret("coreUrl", "http://127.0.0.1:59999") // nothing listening → probePresence = Unreachable → cover
+    println("win08-cover: coreUrl = a dead loopback port; expecting the cover over the Studio area")
+    application {
+        val windowState = rememberWindowState(width = 1400.dp, height = 900.dp, position = WindowPosition(0.dp, 0.dp))
+        val platform = remember { DesktopAppPlatform(storage, windowState) }
+        Window(onCloseRequest = ::exitApplication, title = "TroubaStage", state = windowState) {
+            LaunchedEffect(Unit) {
+                platform.awtWindow = window
+                kotlinx.coroutines.delay(9000) // probe (3s) + a beat for the cover to paint
+                runCatching {
+                    val b = window.bounds
+                    val img = java.awt.Robot().createScreenCapture(java.awt.Rectangle(b.x, b.y, b.width, b.height))
+                    javax.imageio.ImageIO.write(img, "png", File(outPng))
+                    var light = 0; var dark = 0
+                    val y = img.height / 2
+                    for (x in 0 until img.width step 10) {
+                        val c = java.awt.Color(img.getRGB(x, y)); if (c.red + c.green + c.blue > 360) light++ else dark++
+                    }
+                    // A packaged GUI app has no captured stdout, so write the verdict to a sidecar file the CI echoes.
+                    File("$outPng.txt").writeText("bytes=${File(outPng).length()} centreStrip light=$light dark=$dark")
+                }.onFailure { runCatching { File("$outPng.txt").writeText("capture failed: ${it.message}") } }
+                exitApplication()
+            }
+            TroubaTheme(dark = false) {
+                platform.studio.Edit(storage, onBack = { exitApplication() }, initialPath = null, bandTitle = "CI Band")
             }
         }
     }

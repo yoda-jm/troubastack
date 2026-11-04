@@ -750,6 +750,34 @@ jobs:
           if ($txt -notmatch "WIN08-CHECK hidden-browser-loads-and-readies: FAIL") { Write-Error "positive control did NOT red the check — not discriminating"; exit 1 }
           if ($p.ExitCode -eq 0) { Write-Error "sabotage smoke exited 0 — a reddened check didn't fail the run"; exit 1 }
           Write-Host "WIN08 S2.1 positive control OK: hiddennoready reds hidden-browser-loads-and-readies"
+      # WIN08 S2.1 (R1) SPIKE-ONLY — REMOVE before merge. The open rendering question: does the Compose cover draw OVER
+      # the SwingPanel (Shell hidden) or is it occluded by the heavyweight canvas? Point the embedded studio at a dead
+      # server so the cover shows, capture the window, and upload the PNG to eyeball.
+      - name: WIN08 S2.1 cover render spike — capture the cover (spike only)
+        if: runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-cover-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $png = Join-Path (Get-Location) "win08-cover.png"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-cover", $png) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(60000)
+          if (-not $exited) { $p.Kill() }
+          Start-Sleep -Seconds 2
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Write-Host "---- win08.log (cover) ----"; Get-Content $log.FullName | Write-Host }
+          if (Test-Path "$png.txt") { Write-Host "---- cover verdict ----"; Get-Content "$png.txt" | Write-Host }
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if ((Test-Path $png) -and ((Get-Item $png).Length -gt 0)) { Write-Host "cover PNG: $((Get-Item $png).Length) bytes" } else { Write-Error "no cover PNG written"; exit 1 }
+      - name: upload the cover PNG (spike only)
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: win08-cover
+          path: app/win08-cover.png
+          if-no-files-found: warn
       - name: secret store cost — DPAPI get/put p50/p95 (F2)
         if: runner.os == 'Windows'
         working-directory: app

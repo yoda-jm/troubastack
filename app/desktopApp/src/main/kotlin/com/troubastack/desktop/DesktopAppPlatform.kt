@@ -28,6 +28,7 @@ import com.troubastack.app.BundlePicker
 import com.troubastack.app.FileRehearsalNotes
 import com.troubastack.app.HttpTransport
 import com.troubastack.app.PedalLink
+import com.troubastack.app.Presence
 import com.troubastack.app.RehearsalNotesStore
 import com.troubastack.app.SkiaImageDecoder
 import com.troubastack.app.SkiaNoteBitmapCodec
@@ -137,6 +138,8 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             toggleFullScreen = { window.toggleFullScreen() },
             isFullScreen = { window.fullScreen },
             frameWindow = { awtWindow },
+            // S2.1 (R1): reachable iff probePresence() is not Unreachable (Online or Unauthorized both let Studio load).
+            probeReachable = serverUrl?.let { { HttpTransport(storage, defaultServerUrl = null) {}.probePresence() !is Presence.Unreachable } },
         )
     }
 

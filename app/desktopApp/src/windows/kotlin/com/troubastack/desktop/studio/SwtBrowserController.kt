@@ -42,6 +42,8 @@ internal class SwtBrowserController(
     private val onReady: () -> Unit,
     private val onEngineMissing: () -> Unit,
     private val onStartupTimeout: () -> Unit,
+    // S2.1 (R1): a navigation completed but no `ready` arrived within 10s — a load that failed (server up, Studio silent).
+    private val onNavNoReady: () -> Unit = {},
     private val onFullScreenKey: () -> Unit,
     private val log: (String) -> Unit,
 ) {
@@ -94,6 +96,7 @@ internal class SwtBrowserController(
     /** ⋮ Reload — A93: stay on the page you are on (or the entry if it is blank / a different origin). */
     fun reload() = exec {
         val b = browser ?: return@exec
+        runCatching { shell?.takeIf { !it.isDisposed }?.isVisible = false }  // S2.1: Retry/Reload shows "Loading…" until the new ready reveals it
         b.url = reloadUrl(b.url, loadUrl)
     }
 
@@ -313,6 +316,9 @@ internal class SwtBrowserController(
                             json.contains("\"openwindow\"") -> { openWindowBlocked = json.contains("\"blocked\":true"); log("win08: openwindow reported blocked=$openWindowBlocked") }
                             json.contains("\"ready\"") -> {
                                 readyCount++   // S2.1: proves the page loaded & handshook, even with the Shell hidden
+                                // S2.1 (R1): Studio answered → reveal it (we hid the Shell during Loading to show "Loading…").
+                                // We're on the SWT thread here, so set visibility directly.
+                                runCatching { shell?.takeIf { !it.isDisposed }?.isVisible = true }
                                 if (!bridgeReady) { bridgeReady = true; log("win08: bridge ready (readyCount=$readyCount)"); onEdt(onReady) }
                                 else helloAnswered = true // a second ready = our hello was answered
                             }
@@ -377,6 +383,14 @@ internal class SwtBrowserController(
                     // run without window.TroubaStageShellReceive, so no ready is sent and the bridge check reds.
                     if (sabotage == "bridge-late" && !lateBridgeDone) { lateBridgeDone = true; registerBridge() }
                     runCatching { browser.execute("window.__troubastageShell&&window.__troubastageShell.deliver(JSON.stringify({type:'hello'}))") }
+                    // S2.1 (R1): a navigation completed; if no `ready` arrives within 10s, the load failed (server up,
+                    // Studio silent) → cover. SWT's own timer runs on this thread; the first `ready` sets bridgeReady so
+                    // a stale timer from an earlier navigation is a no-op. (In the smoke onNavNoReady defaults to {}.)
+                    runCatching {
+                        browser.display.timerExec(10_000) {
+                            if (!bridgeReady && !disposed) { log("win08: no ready 10s after a completed navigation — load failed"); onEdt(onNavNoReady) }
+                        }
+                    }
                     // S1.4 positive control (item 7): once, fire a window.open so the OpenWindowListener is exercised —
                     // it must log REPORT + suppress (no OS window). Dormant unless WIN08_PROBE_OPENWINDOW is set.
                     if (System.getenv("WIN08_PROBE_OPENWINDOW") == "1" && !probedOpen) {
@@ -401,8 +415,12 @@ internal class SwtBrowserController(
                 val value = com.troubastack.app.sessionCookieSeed(c, origin) // A98: HttpOnly; SameSite=Lax (+Secure https)
                 runCatching { Browser.setCookie(value, origin) }.onSuccess { ok -> log("win08: setCookie=$ok via sessionCookieSeed") }
             }
+            // S2.1 (R1): hide the Shell for the first load — AFTER createFunction returned (readies only when shown) —
+            // so Compose draws "Loading…" over the Studio area; the `ready` handler reveals it. A load that never
+            // readies keeps it hidden and the cover shows (onNavNoReady below / the host's probe).
+            runCatching { shell?.takeIf { !it.isDisposed }?.isVisible = false }
             browser.setUrl(loadUrl)
-            log("ctrl: setUrl($loadUrl); entering readAndDispatch loop")
+            log("ctrl: setUrl($loadUrl); Shell hidden for Loading; entering readAndDispatch loop")
 
             runLoopUntilDisposed(display, shell)
         } catch (e: Throwable) {

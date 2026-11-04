@@ -1,11 +1,13 @@
 package com.troubastack.desktop.studio
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenu
@@ -14,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +38,15 @@ internal const val NO_WEBVIEW_MESSAGE =
 /** Item 1 — a real startup timeout (the WebView2 controller never readied) gets its OWN words, not the no-WebView2
  *  sentence (which would be false). */
 internal const val TIMEOUT_MESSAGE = "Studio didn't start in time. Go ‹ Back and open it again."
+
+// S2.1 (R1) — the Loading placeholder and the cover shown when a load fails (server unreachable, or a navigation
+// completed with no `ready` within 10s). Android's EditScreen words; S2.9 greps every quoted label from here.
+internal const val LOADING_MESSAGE = "Loading…"
+internal const val COVER_TITLE = "Can't reach the server"
+internal const val COVER_REASON_UNREACHABLE = "The server didn't answer."
+internal const val COVER_REASON_NO_READY = "Studio didn't respond."
+internal const val COVER_BACK_LABEL = "Back"
+internal const val COVER_RETRY_LABEL = "Retry"
 
 /**
  * WIN08 (Windows only) — hosts Studio through WebView2 via SWT's `Browser(SWT.EDGE)`, inside the TroubaStage
@@ -58,6 +70,13 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
     var engineMissing by remember { mutableStateOf(false) }
     var timedOut by remember { mutableStateOf(false) }
     var sabotageMenu by remember { mutableStateOf(false) }  // L2 only: the Compose DropdownMenu, opened via requestComposeMenu
+    // S2.1 (R1) phase: `ready` once Studio handshakes (the controller reveals the Shell then); `covered` when a load
+    // failed (server unreachable, or a completed navigation with no `ready` in 10s) — the cover draws over the Studio
+    // area while the Shell stays hidden. Until either, "Loading…" shows.
+    var ready by remember { mutableStateOf(false) }
+    var covered by remember { mutableStateOf(false) }
+    var coverReason by remember { mutableStateOf(COVER_REASON_UNREACHABLE) }
+    var retryNonce by remember { mutableStateOf(0) }
     val base = args.serverUrl.orEmpty()
     val loadUrl = remember(base, args.initialPath) { embeddedUrl(base, args.initialPath) }
     val origin = remember(base) { originOfUrl(base) }
@@ -70,9 +89,10 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             edgeDataDir = args.edgeDataDir,
             sessionCookie = args.sessionCookie,
             forceNoWebview = forceNoWebview,
-            onReady = {},
+            onReady = { ready = true; covered = false },
             onEngineMissing = { engineMissing = true },
             onStartupTimeout = { timedOut = true },
+            onNavNoReady = { if (!ready) { coverReason = COVER_REASON_NO_READY; covered = true } },
             onFullScreenKey = { args.toggleFullScreen() },
             log = ::win08log,
         ).also(onController)
@@ -82,6 +102,16 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
         controller.requestComposeMenu = { sabotageMenu = true }   // L2 sabotage only
         controller.start()
         onDispose { win08log("content: onDispose -> controller.dispose()"); controller.dispose() }
+    }
+
+    // S2.1 (R1) pre-load reachability: on first show and on each Retry, probe the server through the app's own
+    // HttpTransport. Unreachable → the cover at once (not after the 10s no-ready timer). Online/Unauthorized → let the
+    // load proceed (Studio handles its own sign-in). A `ready` that has already arrived wins.
+    LaunchedEffect(retryNonce) {
+        if (!ready) {
+            val reachable = args.probeReachable?.invoke() ?: true
+            if (!reachable && !ready) { coverReason = COVER_REASON_UNREACHABLE; covered = true }
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -107,11 +137,46 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
                 Text(if (timedOut) TIMEOUT_MESSAGE else NO_WEBVIEW_MESSAGE, style = MaterialTheme.typography.titleMedium)
             }
         } else {
-            SwingPanel(
-                background = Color.Transparent,
-                modifier = Modifier.fillMaxSize(),
-                factory = { win08log("content: SwingPanel factory -> JPanel+Canvas"); JPanel(BorderLayout()).apply { add(canvas, BorderLayout.CENTER) } },
-            )
+            // S2.1 (R1): the SwingPanel (the canvas hosting the WebView Shell) stays in the composition ALWAYS —
+            // removing it would destroy the Browser, which Retry reloads. While the Shell is hidden (Loading/cover),
+            // Compose draws over the Studio area: "Loading…" until `ready`, or the cover when a load fails.
+            Box(Modifier.fillMaxSize()) {
+                SwingPanel(
+                    background = Color.Transparent,
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { win08log("content: SwingPanel factory -> JPanel+Canvas"); JPanel(BorderLayout()).apply { add(canvas, BorderLayout.CENTER) } },
+                )
+                if (!ready) {
+                    if (covered) {
+                        StudioCover(
+                            reason = coverReason,
+                            onBack = args.onBack,
+                            onRetry = { covered = false; controller.reload(); retryNonce++ },
+                        )
+                    } else {
+                        Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                            Text(LOADING_MESSAGE, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** S2.1 (R1) — the cover over the Studio area when a load fails: title, the one-line reason, Back and Retry. */
+@Composable
+private fun StudioCover(reason: String, onBack: () -> Unit, onRetry: () -> Unit) {
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(COVER_TITLE, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(reason, style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onBack) { Text(COVER_BACK_LABEL) }
+                TextButton(onClick = onRetry) { Text(COVER_RETRY_LABEL) }
+            }
         }
     }
 }

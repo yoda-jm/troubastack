@@ -66,6 +66,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 toggleFullScreen = {},
                 isFullScreen = { false },
                 frameWindow = { frameHolder.get() },
+                probeReachable = null,   // the loopback is always reachable; the smoke tests the controller, not the cover
             )
 
             // Check-7 discriminator: WIN08_SABOTAGE=noclose makes onCloseRequest ignore the close (log, don't exit).
@@ -112,7 +113,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         val origin = "http://127.0.0.1:${server.localPort}"
         Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
         val edgeDataDir = File(desktopDataRoot(), "webview2")
-        fun argsNow() = EmbeddedStudioArgs(origin, null, "TroubaStudio", "win08sess=smoke", edgeDataDir, {}, {}, { false }, { null })
+        fun argsNow() = EmbeddedStudioArgs(origin, null, "TroubaStudio", "win08sess=smoke", edgeDataDir, {}, {}, { false }, { null }, null)
         val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
         val shown = mutableStateOf(true)
         val cyc = mutableStateOf(0)
