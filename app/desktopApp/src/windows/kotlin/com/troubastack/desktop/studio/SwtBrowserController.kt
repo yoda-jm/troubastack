@@ -112,10 +112,12 @@ internal class SwtBrowserController(
     fun openStudioMenu() = onEdt {
         if (!canvas.isShowing) return@onEdt
         val owner = javax.swing.SwingUtilities.getWindowAncestor(canvas) ?: return@onEdt
-        val focusable = (sabotage == "menufocus")  // sabotage: a FOCUSABLE menu window takes activation → the check reds
+        // sabotage 'menufocus' models a bad menu window — focusable AND topmost — so the check reds: topmost reliably
+        // (menuTopmost), and activation too where Windows allows SetForegroundWindow (restricted on the CI runner).
+        val bad = (sabotage == "menufocus")
         val w = javax.swing.JWindow(owner)
-        w.isAlwaysOnTop = false                     // NEVER topmost (Fable's criterion)
-        w.focusableWindowState = focusable          // real: false → never activating; so the frame keeps activation
+        w.isAlwaysOnTop = bad                       // real: false → NEVER topmost (Fable's criterion)
+        w.focusableWindowState = bad                // real: false → never activating; so the frame keeps activation
         val panel = javax.swing.JPanel().apply {
             layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
             border = javax.swing.BorderFactory.createLineBorder(java.awt.Color(0x60, 0x60, 0x60))
@@ -125,7 +127,7 @@ internal class SwtBrowserController(
         val loc = canvas.locationOnScreen
         w.setLocation(loc.x + canvas.width - w.width - 8, loc.y + 2)
         w.isVisible = true
-        if (focusable) { w.toFront(); w.requestFocus() }
+        if (bad) { w.toFront(); w.requestFocus(); Win08Native.setForeground(w) }
         lastMenuWindow = w
         // A non-focusable window gets no focus-lost; dismiss on a press outside it.
         val toolkit = java.awt.Toolkit.getDefaultToolkit()
@@ -140,7 +142,7 @@ internal class SwtBrowserController(
                 toolkit.removeAWTEventListener(dismiss); if (lastMenuWindow === w) lastMenuWindow = null
             }
         })
-        log("win08: studio ⋮ menu shown (owned JWindow, focusable=$focusable, alwaysOnTop=false)")
+        log("win08: studio ⋮ menu shown (owned JWindow, focusable=${w.focusableWindowState}, alwaysOnTop=${w.isAlwaysOnTop})")
     }
 
     /** Keep the reparented child Shell filling the AWT canvas, in PHYSICAL pixels (item 4): size from the canvas

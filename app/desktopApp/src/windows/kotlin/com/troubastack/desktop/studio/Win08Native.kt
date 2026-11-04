@@ -137,6 +137,9 @@ internal object Win08Native {
         (user32.GetWindowLong(h, GWL_EXSTYLE) and WS_EX_TOPMOST) != 0
     }.getOrDefault(true)
 
+    /** Sabotage helper only: force [window] to the foreground to model a menu that steals activation from the frame. */
+    fun setForeground(window: Window) { runCatching { hwndOf(window)?.let { user32.SetForegroundWindow(it) } } }
+
     private const val WS_CAPTION = 0x00C00000
     private const val MONITOR_DEFAULTTONEAREST = 0x00000002
 
