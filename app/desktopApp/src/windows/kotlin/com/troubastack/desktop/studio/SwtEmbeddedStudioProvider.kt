@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -141,9 +142,13 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             // removing it would destroy the Browser, which Retry reloads. While the Shell is hidden (Loading/cover),
             // Compose draws over the Studio area: "Loading…" until `ready`, or the cover when a load fails.
             Box(Modifier.fillMaxSize()) {
+                // S2.1 (R1): while Loading/the cover shows, collapse the SwingPanel to 0.dp so its heavyweight hole
+                // closes and Compose draws over the Studio area (hiding the Shell or the canvas leaves the hole — the
+                // interop reserves the region regardless). On `ready` it returns to full size; fitShellToCanvas refits
+                // the embedded Shell on that resize. The SwingPanel stays in the composition, so the Browser survives.
                 SwingPanel(
                     background = Color.Transparent,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = if (ready) Modifier.fillMaxSize() else Modifier.size(0.dp),
                     factory = { win08log("content: SwingPanel factory -> JPanel+Canvas"); JPanel(BorderLayout()).apply { add(canvas, BorderLayout.CENTER) } },
                 )
                 if (!ready) {

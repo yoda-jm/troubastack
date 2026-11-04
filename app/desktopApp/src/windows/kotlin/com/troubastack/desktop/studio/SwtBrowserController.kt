@@ -96,7 +96,6 @@ internal class SwtBrowserController(
     /** ⋮ Reload — A93: stay on the page you are on (or the entry if it is blank / a different origin). */
     fun reload() = exec {
         val b = browser ?: return@exec
-        onEdt { runCatching { canvas.isVisible = false } }  // S2.1: Retry/Reload hides the canvas → "Loading…" shows until the new ready reveals it
         b.url = reloadUrl(b.url, loadUrl)
     }
 
@@ -315,9 +314,7 @@ internal class SwtBrowserController(
                             json.contains("\"cookie\"") -> { docCookie = json; log("win08: document.cookie reported") }
                             json.contains("\"openwindow\"") -> { openWindowBlocked = json.contains("\"blocked\":true"); log("win08: openwindow reported blocked=$openWindowBlocked") }
                             json.contains("\"ready\"") -> {
-                                readyCount++   // S2.1: proves the page loaded & handshook, even with the Shell hidden
-                                // S2.1 (R1): Studio answered → reveal it (we hid the canvas during Loading). Canvas is AWT, so on the EDT.
-                                onEdt { runCatching { canvas.isVisible = true } }
+                                readyCount++   // S2.1: proves the page loaded & handshook, even while the SwingPanel is collapsed/hidden
                                 if (!bridgeReady) { bridgeReady = true; log("win08: bridge ready (readyCount=$readyCount)"); onEdt(onReady) }
                                 else helloAnswered = true // a second ready = our hello was answered
                             }
@@ -414,13 +411,10 @@ internal class SwtBrowserController(
                 val value = com.troubastack.app.sessionCookieSeed(c, origin) // A98: HttpOnly; SameSite=Lax (+Secure https)
                 runCatching { Browser.setCookie(value, origin) }.onSuccess { ok -> log("win08: setCookie=$ok via sessionCookieSeed") }
             }
-            // S2.1 (R1): hide the CANVAS for the first load — AFTER createFunction returned (readies only when the
-            // canvas was shown). Hiding the heavyweight canvas (its child Shell hidden with it, not destroyed) closes
-            // the SwingPanel hole, so Compose draws "Loading…"/the cover over the Studio area; `ready` reveals it again.
-            // Canvas is AWT, so on the EDT. Hiding only the Shell left the canvas's own background covering the area.
-            onEdt { runCatching { canvas.isVisible = false } }
+            // S2.1 (R1): the host collapses the SwingPanel to 0.dp while Loading/the cover shows (the hole closes so
+            // Compose draws over the Studio area), and restores it on `ready` (fitShellToCanvas refits on the resize).
             browser.setUrl(loadUrl)
-            log("ctrl: setUrl($loadUrl); canvas hidden for Loading; entering readAndDispatch loop")
+            log("ctrl: setUrl($loadUrl); entering readAndDispatch loop")
 
             runLoopUntilDisposed(display, shell)
         } catch (e: Throwable) {
