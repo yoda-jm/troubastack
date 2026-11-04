@@ -53,6 +53,7 @@ internal class SwtBrowserController(
     @Volatile var engineMissingReported: Boolean = false; private set
     @Volatile var startupTimedOut: Boolean = false; private set
     @Volatile var shellEverShown: Boolean = false; private set   // true once the embedded Shell was made visible
+    @Volatile var readyCount: Int = 0; private set   // S2.1: each page handshake bumps this; a reload with the Shell HIDDEN must still bump it (R1)
     @Volatile var newWindowRequested: Boolean = false; private set // S1.4 report: a target=_blank/window.open fired
     @Volatile var docCookie: String? = null; private set   // what document.cookie sees (item 5 — must NOT hold the session)
     @Volatile var openWindowBlocked: Boolean? = null; private set  // item 7 — the page's window.open() must return null (popup blocked)
@@ -95,6 +96,13 @@ internal class SwtBrowserController(
         val b = browser ?: return@exec
         b.url = reloadUrl(b.url, loadUrl)
     }
+
+    /**
+     * S2.1 (R1): hide/show the embedded Shell WITHOUT removing the canvas from the composition — removing the canvas
+     * destroys the Browser (the Shell is a child of the canvas HWND). Hiding the Shell is how "Loading…"/the cover/a
+     * typing dialog draws in Compose over the Studio area. Only call after createFunction returns (readies when shown).
+     */
+    fun setShellVisible(visible: Boolean) = exec { shell?.takeIf { !it.isDisposed }?.isVisible = visible }
 
     /** Smoke only: try to navigate off-origin; the LocationListener must veto it ([navVetoed] is the proof). */
     fun probeOffOriginNav(foreign: String) = exec { browser?.setUrl(foreign) }
@@ -304,7 +312,8 @@ internal class SwtBrowserController(
                             json.contains("\"cookie\"") -> { docCookie = json; log("win08: document.cookie reported") }
                             json.contains("\"openwindow\"") -> { openWindowBlocked = json.contains("\"blocked\":true"); log("win08: openwindow reported blocked=$openWindowBlocked") }
                             json.contains("\"ready\"") -> {
-                                if (!bridgeReady) { bridgeReady = true; log("win08: bridge ready"); onEdt(onReady) }
+                                readyCount++   // S2.1: proves the page loaded & handshook, even with the Shell hidden
+                                if (!bridgeReady) { bridgeReady = true; log("win08: bridge ready (readyCount=$readyCount)"); onEdt(onReady) }
                                 else helloAnswered = true // a second ready = our hello was answered
                             }
                         }

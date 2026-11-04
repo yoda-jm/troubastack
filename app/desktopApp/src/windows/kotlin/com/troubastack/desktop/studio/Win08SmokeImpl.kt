@@ -265,6 +265,18 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             c.probeOffOriginNav("https://example.org/win08")
             mark("off-origin-nav-vetoed", waitFor(10_000) { c.navVetoed })
 
+            // S2.1 (R1): a HIDDEN Browser must still load and send `ready` — the premise of the Loading/cover state,
+            // which hides the Shell (never removing the canvas) so Compose draws over the Studio area. Hide, reload,
+            // and a fresh handshake must arrive. Sabotage `hiddennoready` skips the reload: no fresh ready → the check
+            // reds (the positive control that proves it detects a page that loads but never handshakes — S2.1's cover case).
+            val beforeReady = c.readyCount
+            c.setShellVisible(false)
+            if (System.getenv("WIN08_SABOTAGE") != "hiddennoready") c.reload()
+            val hiddenReady = waitFor(20_000) { c.readyCount > beforeReady }
+            mark("hidden-browser-loads-and-readies", hiddenReady)
+            c.setShellVisible(true)   // restore before the DPI rect read; the Shell's bounds survive hide/show
+            waitFor(1_500) { false }   // brief pause so the async re-show lands before measureDpi reads the rects
+
             val dotSwt = File(System.getProperty("user.home").orEmpty(), ".swt")
             if (System.getenv("WIN08_SABOTAGE") == "dotswt") runCatching { dotSwt.mkdirs() }
             val underRoot = edgeDataDir.absolutePath.startsWith(File(desktopDataRoot()).absolutePath)
