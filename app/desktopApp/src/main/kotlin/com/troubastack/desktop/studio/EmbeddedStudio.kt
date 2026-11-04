@@ -42,6 +42,12 @@ class EmbeddedStudioArgs(
      * waiting out the 10s no-ready timer. null when there's no server configured. Runs the app's own `probePresence`.
      */
     val probeReachable: (suspend () -> Boolean)?,
+    /**
+     * S2.2: the provider hands back the embedded screen's Back action (controller.requestBack) through this, so the
+     * host's registered BackHandler — which fires on WindowAction.BACK (Alt+← / Cmd+[ / Cmd+← with the Compose chrome
+     * focused) — walks Studio's history instead of leaving. null on "Coming soon." (keeps onBack).
+     */
+    val provideRequestBack: ((() -> Unit) -> Unit)? = null,
 )
 
 /**

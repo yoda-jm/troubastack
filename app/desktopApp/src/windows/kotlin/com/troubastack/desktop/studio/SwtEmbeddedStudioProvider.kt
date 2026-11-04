@@ -95,6 +95,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             onStartupTimeout = { timedOut = true },
             onNavNoReady = { if (!ready) { coverReason = COVER_REASON_NO_READY; covered = true } },
             onFullScreenKey = { args.toggleFullScreen() },
+            onExitBack = args.onBack,   // S2.2: leave the Studio screen only when Studio's history is exhausted
             log = ::win08log,
         ).also(onController)
     }
@@ -104,6 +105,10 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
         // S2.1 (R1): a host reload (⋮ Reload or the cover's Retry) resets to Loading and re-probes reachability; a
         // reload that fails then brings the cover back. In-page navigations don't call reload(), so they're unaffected.
         controller.onReloadStarted = { ready = false; covered = false; retryNonce++ }
+        // S2.2: hand the host the embedded Back action so WindowAction.BACK (chrome-focused Alt+← etc.) walks history.
+        // Sabotage backprovidesexit hands back onBack instead → the chrome Back leaves without walking (the check reds).
+        val backProvidesExit = System.getenv("WIN08_SABOTAGE") == "backprovidesexit"
+        args.provideRequestBack?.invoke { if (backProvidesExit) args.onBack() else controller.requestBack() }
         controller.start()
         onDispose { win08log("content: onDispose -> controller.dispose()"); controller.dispose() }
     }
@@ -123,7 +128,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = args.onBack) { Text("‹  Back") }
+            TextButton(onClick = { controller.requestBack() }) { Text("‹  Back") }   // S2.2: walk Studio history first, leave when nothing left
             Text(args.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.weight(1f))
             // The ⋮ menu is a HEAVYWEIGHT, non-activating owned Swing window (openStudioMenu), not a Compose DropdownMenu:

@@ -22,6 +22,10 @@ interface Win08SmokeRunner {
     /** S2.1 (R1) live Retry proof: start with the loopback server off (probe Unreachable → the cover), then turn it on
      *  and fire Retry; Studio returns on the SAME controller. Writes cover.png/studio.png + retry-verdict.txt. */
     fun runRetry(outDir: File): Int
+
+    /** S2.2 recon: build same-origin history, synthesise the real mouse back button (XBUTTON1) and Alt+←, and record
+     *  whether SWT/the injected page listener see them and how many navigations one press causes. Writes back-verdict.txt. */
+    fun runBack(outDir: File): Int
 }
 
 val win08SmokeRunner: Win08SmokeRunner? by lazy {

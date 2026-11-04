@@ -45,6 +45,8 @@ internal class SwtBrowserController(
     // S2.1 (R1): a navigation completed but no `ready` arrived within 10s — a load that failed (server up, Studio silent).
     private val onNavNoReady: () -> Unit = {},
     private val onFullScreenKey: () -> Unit,
+    // S2.2: leave the Studio screen (the app's Back) only when Studio's own history is exhausted.
+    private val onExitBack: () -> Unit = {},
     private val log: (String) -> Unit,
 ) {
     @Volatile var browserType: String? = null; private set
@@ -133,6 +135,31 @@ internal class SwtBrowserController(
     /** Smoke only (S2.1 R2): a same-origin IN-PAGE navigation (like a link click) — NOT host-initiated, so it does NOT
      *  arm the no-ready timer. Proof that S2.4's in-place links can't trip the cover (navNoReadyFired must stay false). */
     fun smokeInPageNav(sameOrigin: String) = exec { browser?.setUrl(sameOrigin) }
+
+    /** Smoke only (S2.2): dispatch a synthetic mouseup with button===3 in the page, to exercise the injected mouse-back
+     *  listener → bridge {type:"back"} → requestBack chain (not the real XBUTTON1; that's the --win08-back recon). */
+    fun smokeDispatchMouseBack() = exec { browser?.execute("window.dispatchEvent(new MouseEvent('mouseup',{button:3,bubbles:true}))") }
+
+    /**
+     * S2.2 Back: ‹ Back / Alt+← / the mouse back button first walk Studio's own history (`browser.back()` while
+     * `isBackEnabled`), as Android's BackHandler does; they leave the Studio screen ([onExitBack]) only when there is
+     * nothing left to go back to. [wentBack] records the last outcome for the smoke.
+     */
+    @Volatile var wentBack: Boolean? = null; private set
+    @Volatile var mouseBackListenerFired: Boolean = false; private set   // S2.2 recon: the injected page listener saw the mouse back
+    @Volatile var swtSawMouseBack: Boolean = false; private set          // S2.2 recon: SWT's own MouseListener saw XBUTTON1
+    @Volatile var navCount: Int = 0; private set                         // S2.2 recon: completed navigations (to count one-vs-two on a back)
+    @Volatile var lastUrl: String = ""; private set                      // S2.2 recon: the URL after the last completed navigation
+    fun requestBack() = exec {
+        val b = browser
+        // Sabotage backalwaysleaves: ignore Studio's history and always leave → the walk-first check reds.
+        if (sabotage == "backalwaysleaves") { wentBack = false; log("win08: SABOTAGE backalwaysleaves — leaving regardless of history"); onEdt { onExitBack() }; return@exec }
+        if (b != null && !b.isDisposed && runCatching { b.isBackEnabled }.getOrDefault(false)) {
+            wentBack = true; log("win08: Back — walking Studio history (browser.back())"); b.back()
+        } else {
+            wentBack = false; log("win08: Back — no Studio history, leaving the screen"); onEdt { onExitBack() }
+        }
+    }
 
     /**
      * Item 8 — the Studio ⋮ menu, over the heavyweight WebView. A HEAVYWEIGHT `JPopupMenu` (lightweight disabled) is a
@@ -339,6 +366,10 @@ internal class SwtBrowserController(
                         if (!sameOrigin(browser.url ?: "", origin)) return null
                         val json = arguments?.getOrNull(0) as? String ?: return null
                         when {
+                            // S2.2: the host-injected mouseup/button===3 listener forwards the mouse back button here;
+                            // we act on it like Alt+← — walk Studio's history, or leave the screen at the root.
+                            json.contains("\"back\"") -> { log("win08: mouse back via bridge — Back"); requestBack() }
+                            json.contains("\"mousebackseen\"") -> { mouseBackListenerFired = true; log("win08: mouse back listener fired in the page") }
                             json.contains("\"cookie\"") -> { docCookie = json; log("win08: document.cookie reported") }
                             json.contains("\"openwindow\"") -> { openWindowBlocked = json.contains("\"blocked\":true"); log("win08: openwindow reported blocked=$openWindowBlocked") }
                             json.contains("\"ready\"") -> {
@@ -377,9 +408,22 @@ internal class SwtBrowserController(
             })
 
             // F11 forwarded to the app's full screen (S1.7); nothing else consumed, so Esc still reaches Studio.
+            // S2.2: Alt+← walks Studio's own history (requestBack), like Android — consumed so WebView2 doesn't ALSO
+            // navigate (a double-back); when there's nothing left it leaves the screen. Sabotage 'noaltback' skips it.
             browser.addKeyListener(object : KeyAdapter() {
                 override fun keyPressed(e: KeyEvent) {
                     if (e.keyCode == SWT.F11) { e.doit = false; onEdt(onFullScreenKey) }
+                    else if (sabotage != "noaltback" && e.keyCode == SWT.ARROW_LEFT && (e.stateMask and SWT.ALT) != 0) {
+                        e.doit = false; log("win08: Alt+Left — Back"); requestBack()
+                    }
+                }
+            })
+
+            // S2.2 recon: does SWT's MouseListener on the Browser see the mouse back button (XBUTTON1 = button 4/5)?
+            // If it does, the host can route it straight to requestBack and skip the page injection below.
+            browser.addMouseListener(object : org.eclipse.swt.events.MouseAdapter() {
+                override fun mouseDown(e: org.eclipse.swt.events.MouseEvent) {
+                    if (e.button >= 4) { swtSawMouseBack = true; log("win08: SWT MouseListener saw button ${e.button} (mouse back/forward)") }  // recon: observe only
                 }
             })
 
@@ -404,10 +448,21 @@ internal class SwtBrowserController(
             var probedDownload = false
             browser.addProgressListener(object : ProgressAdapter() {
                 override fun completed(event: ProgressEvent) {
+                    // S2.2 recon: track the URL + a navigation count, so the --win08-back recon can tell whether the
+                    // mouse back walked exactly ONE entry (preventDefault held) or two (WebView2 double-navigated).
+                    navCount++; lastUrl = runCatching { browser.url ?: "" }.getOrDefault("")
                     // B3 sabotage (b): register the bridge only AFTER the load — the page's head script has already
                     // run without window.TroubaStageShellReceive, so no ready is sent and the bridge check reds.
                     if (sabotage == "bridge-late" && !lateBridgeDone) { lateBridgeDone = true; registerBridge() }
                     runCatching { browser.execute("window.__troubastageShell&&window.__troubastageShell.deliver(JSON.stringify({type:'hello'}))") }
+                    // S2.2: inject once a window-level mouseup listener for the back mouse button (event.button===3). It
+                    // preventDefaults WebView2's own back-nav and forwards {type:"back"} to the host → requestBack (walk
+                    // Studio history or leave at the root), like Alt+←. Sabotage nomouseback skips it (WebView2's own
+                    // back then takes over and never leaves at the root). The recon measures whether preventDefault holds.
+                    if (sabotage != "nomouseback") runCatching { browser.execute(
+                        "if(!window.__win08back){window.__win08back=1;window.addEventListener('mouseup',function(e){if(e.button===3){" +
+                        "e.preventDefault();var r=window.TroubaStageShellReceive;if(r){r(JSON.stringify({type:'mousebackseen'}));r(JSON.stringify({type:'back'}));}}},true);}"
+                    ) }
                     // S2.1 (R1, refinement 2): the no-ready → cover timer is armed by the HOST load paths only (first
                     // load / ⋮ Reload / Retry), NOT here in completed(). An in-page same-origin navigation — e.g. S2.4
                     // opening a song's PDF in place — also completes with no Studio `ready`; arming here would land the

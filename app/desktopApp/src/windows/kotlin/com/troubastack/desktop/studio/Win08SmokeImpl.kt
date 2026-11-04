@@ -35,6 +35,7 @@ import java.nio.charset.StandardCharsets
 class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var cookieHeader: String? = null
     @Volatile private var served = false
+    @Volatile private var capturedBack: (() -> Unit)? = null   // S2.2: the back action the provider hands the host (chrome-back check)
     @Volatile private var serveNoReady = false   // S2.1: when set, the loopback serves a page that never handshakes
     @Volatile private var accepting = true        // S2.1 retry: when false, the loopback closes connections at once (server "off")
     @Volatile private var serverSocket: ServerSocket? = null
@@ -74,6 +75,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 isFullScreen = { false },
                 frameWindow = { frameHolder.get() },
                 probeReachable = null,   // the loopback is always reachable; the smoke tests the controller, not the cover
+                provideRequestBack = { capturedBack = it },   // S2.2: capture the host's Back action (what WindowAction.BACK calls)
             )
 
             // Check-7 discriminator: WIN08_SABOTAGE=noclose makes onCloseRequest ignore the close (log, don't exit).
@@ -279,6 +281,79 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         Runtime.getRuntime().halt(if (ok) 0 else 1)
     }
 
+    /**
+     * S2.2 (recon) — the real mouse back button (XBUTTON1). Builds same-origin history, moves the cursor over the
+     * Studio area and synthesises XBUTTON1 with Robot, then records: did SWT's MouseListener see it (swtSawMouseBack)?
+     * did the injected page listener fire (mouseBackListenerFired)? how many navigations did one press cause (navDelta
+     * — 1 = preventDefault held, 2 = WebView2 double-navigated)? Also tries Alt+←. Writes back-verdict.txt + back.png.
+     */
+    override fun runBack(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        win08log("back: run start; outDir=$outDir")
+        Thread { try { Thread.sleep(90_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("back: BACKSTOP firing (>90s)"); Runtime.getRuntime().halt(2) }.apply { isDaemon = true; start() }
+        try {
+            val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+            serverSocket = server
+            val origin = "http://127.0.0.1:${server.localPort}"
+            Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
+            val edgeDataDir = File(desktopDataRoot(), "webview2")
+            val frameHolder = java.util.concurrent.atomic.AtomicReference<java.awt.Window?>()
+            val args = EmbeddedStudioArgs(origin, null, "TroubaStudio", "win08sess=smoke", edgeDataDir, {}, {}, { false }, { frameHolder.get() }, null)
+            val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+            application {
+                Window(onCloseRequest = ::exitApplication, title = "TroubaStage", state = rememberWindowState(width = 1200.dp, height = 820.dp)) {
+                    EmbeddedStudioContent(args, onController = { ctrlRef.set(it) })
+                    LaunchedEffect(Unit) { frameHolder.set(window); Thread { backFlow(outDir, origin, ctrlRef, frameHolder) }.apply { isDaemon = true; start() } }
+                }
+            }
+        } catch (e: Throwable) { win08log("back: run FAILED: $e\n${e.stackTraceToString()}"); Runtime.getRuntime().halt(2) }
+        return 0
+    }
+
+    private fun backFlow(
+        outDir: File, origin: String,
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+        frameHolder: java.util.concurrent.atomic.AtomicReference<java.awt.Window?>,
+    ) {
+        fun waitFor(ms: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + ms
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(100) }
+            return cond()
+        }
+        waitFor(25_000) { ctrlRef.get()?.bridgeReady == true }
+        val c = ctrlRef.get() ?: run { win08log("back: no controller"); Runtime.getRuntime().halt(2); return }
+        for (n in 1..3) { c.smokeInPageNav("$origin/b$n"); waitFor(3_500) { false } }   // same-origin history
+        val f = frameHolder.get() ?: run { win08log("back: no frame"); Runtime.getRuntime().halt(2); return }
+        val robot = java.awt.Robot()
+        val b = f.bounds
+        robot.mouseMove(b.x + b.width / 2, b.y + 60 + (b.height - 60) / 2)   // cursor over the Studio area
+        waitFor(400) { false }
+        val navBefore = c.navCount; val urlBefore = c.lastUrl
+        val extraOk = java.awt.Toolkit.getDefaultToolkit().areExtraMouseButtonsEnabled()
+        val mask = runCatching { java.awt.event.InputEvent.getMaskForButton(4) }.getOrDefault(0)
+        if (extraOk && mask != 0) runCatching { robot.mousePress(mask); robot.mouseRelease(mask) }
+        waitFor(5_000) { c.navCount > navBefore || c.mouseBackListenerFired }
+        val mouseNavDelta = c.navCount - navBefore
+        win08log("back: XBUTTON1 extraOk=$extraOk mask=$mask swtSaw=${c.swtSawMouseBack} listenerFired=${c.mouseBackListenerFired} navDelta=$mouseNavDelta urlBefore=$urlBefore urlAfter=${c.lastUrl}")
+        // Alt+← via Robot (focus the browser first).
+        c.focusBrowserForSmoke(); waitFor(600) { false }
+        val navBeforeAlt = c.navCount
+        runCatching { robot.keyPress(java.awt.event.KeyEvent.VK_ALT); robot.keyPress(java.awt.event.KeyEvent.VK_LEFT); robot.keyRelease(java.awt.event.KeyEvent.VK_LEFT); robot.keyRelease(java.awt.event.KeyEvent.VK_ALT) }
+        waitFor(4_000) { c.navCount > navBeforeAlt }
+        val altNavDelta = c.navCount - navBeforeAlt
+        win08log("back: Alt+Left navDelta=$altNavDelta wentBack=${c.wentBack}")
+        // Walk to the root and confirm the next Back LEAVES the screen (requestBack returns wentBack=false → onExitBack).
+        var leftAtRoot = false
+        for (i in 1..8) { c.requestBack(); waitFor(1_800) { false }; if (c.wentBack == false) { leftAtRoot = true; break } }   // fixed wait: requestBack is async
+        win08log("back: leftAtRoot=$leftAtRoot")
+        runCatching { val img = robot.createScreenCapture(java.awt.Rectangle(b.x, b.y, b.width, b.height)); javax.imageio.ImageIO.write(img, "png", File(outDir, "back.png")) }
+        runCatching { File(outDir, "back-verdict.txt").writeText(
+            "swtSawMouseBack=${c.swtSawMouseBack} mouseListenerFired=${c.mouseBackListenerFired} mouseNavDelta=$mouseNavDelta " +
+            "altNavDelta=$altNavDelta leftAtRoot=$leftAtRoot extraMouseButtons=$extraOk") }
+        Runtime.getRuntime().halt(0)
+    }
+
     /** A one-page HTTP/1.0 loopback: read the request headers (record the Cookie), reply with [PAGE]. */
     private fun acceptLoop(server: ServerSocket) {
         while (!server.isClosed) {
@@ -465,6 +540,34 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             c.measureDpi(); waitFor(1_500) { false }
             win08log("retry: recovered=$recovered sameController=$sameController(id=$idBefore) rectsMatch=${c.rectsMatch}")
             mark("retry-recovers-same-controller", recovered && sameController && c.rectsMatch)
+
+            // ── S2.2 Back/history ─────────────────────────────────────────────────────────────────────────────────
+            // ‹ Back / Alt+← / the mouse back button walk Studio's own history first (browser.back() while isBackEnabled),
+            // leaving the screen only at the root. Build history (same-origin navs), then requestBack must WALK.
+            serveNoReady = false
+            c.smokeInPageNav("$origin/back1"); waitFor(4_000) { false }
+            c.smokeInPageNav("$origin/back2"); waitFor(4_000) { false }
+            // The injected mouse-back listener (button===3) forwards through the bridge → requestBack; dispatch a synthetic
+            // mouseup to exercise that chain. Sabotage nomouseback skips the injection → the listener never fires.
+            c.smokeDispatchMouseBack()
+            val mouseFwd = waitFor(5_000) { c.mouseBackListenerFired }
+            mark("mouse-back-injection-forwards", mouseFwd)
+            waitFor(2_000) { false }   // let that back settle
+            // requestBack with history left → walks (wentBack=true). Sabotage backalwaysleaves ignores history → reds.
+            c.requestBack()
+            val walked = waitFor(4_000) { c.wentBack == true }
+            win08log("back: mouseListenerFired=${c.mouseBackListenerFired} swtSawMouseBack=${c.swtSawMouseBack} wentBack=${c.wentBack}")
+            mark("host-back-walks-history", walked)
+
+            // S2.2: WindowAction.BACK (chrome-focused Alt+←/Cmd+[/Cmd+←) must walk history too — the host's BackHandler
+            // calls the provider-supplied Back action (captured here). Build history, invoke it, assert a navigation
+            // happened (it WALKED, not left). Sabotage backprovidesexit hands back onBack → no nav → reds.
+            c.smokeInPageNav("$origin/chrome1"); waitFor(4_000) { false }
+            val navBeforeChrome = c.navCount
+            capturedBack?.invoke()
+            val chromeWalked = waitFor(5_000) { c.navCount > navBeforeChrome }
+            win08log("back: chrome capturedBack=${capturedBack != null} navDelta=${c.navCount - navBeforeChrome}")
+            mark("chrome-back-walks-history", chromeWalked)
 
             finish(results, frame)
         } catch (e: Throwable) {
