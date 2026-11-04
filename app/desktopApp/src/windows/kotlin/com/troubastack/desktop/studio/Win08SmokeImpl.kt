@@ -35,6 +35,7 @@ import java.nio.charset.StandardCharsets
 class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var cookieHeader: String? = null
     @Volatile private var served = false
+    @Volatile private var capturedBack: (() -> Unit)? = null   // S2.2: the back action the provider hands the host (chrome-back check)
     @Volatile private var serveNoReady = false   // S2.1: when set, the loopback serves a page that never handshakes
     @Volatile private var accepting = true        // S2.1 retry: when false, the loopback closes connections at once (server "off")
     @Volatile private var serverSocket: ServerSocket? = null
@@ -74,6 +75,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 isFullScreen = { false },
                 frameWindow = { frameHolder.get() },
                 probeReachable = null,   // the loopback is always reachable; the smoke tests the controller, not the cover
+                provideRequestBack = { capturedBack = it },   // S2.2: capture the host's Back action (what WindowAction.BACK calls)
             )
 
             // Check-7 discriminator: WIN08_SABOTAGE=noclose makes onCloseRequest ignore the close (log, don't exit).
@@ -556,6 +558,16 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             val walked = waitFor(4_000) { c.wentBack == true }
             win08log("back: mouseListenerFired=${c.mouseBackListenerFired} swtSawMouseBack=${c.swtSawMouseBack} wentBack=${c.wentBack}")
             mark("host-back-walks-history", walked)
+
+            // S2.2: WindowAction.BACK (chrome-focused Alt+←/Cmd+[/Cmd+←) must walk history too — the host's BackHandler
+            // calls the provider-supplied Back action (captured here). Build history, invoke it, assert a navigation
+            // happened (it WALKED, not left). Sabotage backprovidesexit hands back onBack → no nav → reds.
+            c.smokeInPageNav("$origin/chrome1"); waitFor(4_000) { false }
+            val navBeforeChrome = c.navCount
+            capturedBack?.invoke()
+            val chromeWalked = waitFor(5_000) { c.navCount > navBeforeChrome }
+            win08log("back: chrome capturedBack=${capturedBack != null} navDelta=${c.navCount - navBeforeChrome}")
+            mark("chrome-back-walks-history", chromeWalked)
 
             finish(results, frame)
         } catch (e: Throwable) {

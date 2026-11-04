@@ -101,17 +101,25 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             onBack: () -> Unit,
         ) {
             val provider = embeddedStudioProvider
-            if (provider != null) provider.Host(embeddedArgs(initialPath = null, title = "TroubaStudio", onBack = onBack))
-            else StudioComingSoon(onBack)
-            BackHandler(onBack)
+            if (provider != null) {
+                // S2.2: WindowAction.BACK (Alt+← etc. with the chrome focused) must walk Studio's history, not leave —
+                // the embedded screen hands back controller.requestBack, and the BackHandler calls it.
+                var embeddedBack by remember { mutableStateOf<(() -> Unit)?>(null) }
+                provider.Host(embeddedArgs(initialPath = null, title = "TroubaStudio", onBack = onBack, provideRequestBack = { embeddedBack = it }))
+                BackHandler { (embeddedBack ?: onBack).invoke() }
+            } else {
+                StudioComingSoon(onBack)
+                BackHandler(onBack)
+            }
         }
 
         @Composable
         override fun Edit(storage: Storage, onBack: () -> Unit, initialPath: String?, bandTitle: String?) {
             val provider = embeddedStudioProvider
             if (provider != null) {
-                provider.Host(embeddedArgs(initialPath = initialPath, title = bandTitle?.ifBlank { null } ?: "TroubaStudio", onBack = onBack))
-                BackHandler(onBack)
+                var embeddedBack by remember { mutableStateOf<(() -> Unit)?>(null) }
+                provider.Host(embeddedArgs(initialPath = initialPath, title = bandTitle?.ifBlank { null } ?: "TroubaStudio", onBack = onBack, provideRequestBack = { embeddedBack = it }))
+                BackHandler { (embeddedBack ?: onBack).invoke() }   // S2.2: chrome Back walks history
             } else {
                 error("Studio's editor is not on Windows yet (WIN05)")
             }
@@ -126,7 +134,7 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
 
     /** WIN08 — gather what the embedded-Studio host needs (the server, the session cookie bound to that origin,
      *  the EdgeDataDir under the data root, and the window hooks). The provider builds the URL + origin from these. */
-    private fun embeddedArgs(initialPath: String?, title: String, onBack: () -> Unit): EmbeddedStudioArgs {
+    private fun embeddedArgs(initialPath: String?, title: String, onBack: () -> Unit, provideRequestBack: (() -> Unit) -> Unit): EmbeddedStudioArgs {
         val serverUrl = storage.getSecret(CORE_URL_KEY)
         return EmbeddedStudioArgs(
             serverUrl = serverUrl,
@@ -140,6 +148,7 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             frameWindow = { awtWindow },
             // S2.1 (R1): reachable iff probePresence() is not Unreachable (Online or Unauthorized both let Studio load).
             probeReachable = serverUrl?.let { { HttpTransport(storage, defaultServerUrl = null) {}.probePresence() !is Presence.Unreachable } },
+            provideRequestBack = provideRequestBack,   // S2.2: the provider hands back controller.requestBack
         )
     }
 

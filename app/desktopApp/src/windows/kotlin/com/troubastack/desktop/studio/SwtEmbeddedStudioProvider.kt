@@ -105,6 +105,10 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
         // S2.1 (R1): a host reload (⋮ Reload or the cover's Retry) resets to Loading and re-probes reachability; a
         // reload that fails then brings the cover back. In-page navigations don't call reload(), so they're unaffected.
         controller.onReloadStarted = { ready = false; covered = false; retryNonce++ }
+        // S2.2: hand the host the embedded Back action so WindowAction.BACK (chrome-focused Alt+← etc.) walks history.
+        // Sabotage backprovidesexit hands back onBack instead → the chrome Back leaves without walking (the check reds).
+        val backProvidesExit = System.getenv("WIN08_SABOTAGE") == "backprovidesexit"
+        args.provideRequestBack?.invoke { if (backProvidesExit) args.onBack() else controller.requestBack() }
         controller.start()
         onDispose { win08log("content: onDispose -> controller.dispose()"); controller.dispose() }
     }
