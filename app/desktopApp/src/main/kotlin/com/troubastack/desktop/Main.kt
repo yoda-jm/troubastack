@@ -392,8 +392,13 @@ private fun runWin08Studio(url: String, user: String, pass: String, songPath: St
 private fun runWin08Cover(outPng: String) {
     System.setProperty("win08.log", "1")
     val storage = Storage()
-    storage.putSecret("coreUrl", "http://127.0.0.1:59999") // nothing listening → probePresence = Unreachable → cover
-    println("win08-cover: coreUrl = a dead loopback port; expecting the cover over the Studio area")
+    val dead = "http://127.0.0.1:59999"
+    storage.putSecret("coreUrl", dead)
+    // Seed a session cookie bound to the dead origin so probePresence() actually GETs /api/me (instead of returning
+    // Unauthorized for a missing cookie) → connection refused → Unreachable → the cover shows (not just Loading).
+    storage.putSecret(com.troubastack.shared.seams.SESSION_COOKIE_KEY, "win08cover=x")
+    storage.putSecret(com.troubastack.shared.seams.SESSION_ORIGIN_KEY, dead)
+    println("win08-cover: coreUrl = a dead loopback port + a seeded cookie; expecting the cover over the Studio area")
     application {
         val windowState = rememberWindowState(width = 1400.dp, height = 900.dp, position = WindowPosition(0.dp, 0.dp))
         val platform = remember { DesktopAppPlatform(storage, windowState) }
