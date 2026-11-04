@@ -64254,3 +64254,44 @@ Landed the squash of WIN08 stage 1 onto main. `Approved-by: Fable GO 2fad2e1d (L
 - Content verified on main (openStudioMenu, menu-no-activation-steal, the survivor poll, the trailer, one sessionCookieSeed).
 - Throwaway branches deleted: win08-spike, win08-shots, win08-item8, win08-mainstage, win08-rebased. PR #95 (win08-studio-embed) is superseded by the squash; can be closed.
 - Stage 2 is being specced by Fable.
+
+## 2026-11-04 — web-core: WIN08 stage 2 — DESIGN NOTE (four choices + S2.11 plan, requesting GO before building)
+
+Stage 2 specced on main @ fbddaa8e (§ Stage 2, S2.1–S2.11). Per [[new-designs-need-review]], this is the design only — no SWT code written. The bar stays Android's EditScreen; stage 1's smoke/guards/sabotages all stay. The four choices you asked for, each with how it stays non-activating, then S2.11.
+
+### S2.1 — failure detection (cover on a server that can't be reached)
+Two independent signals, both in the controller, both surfacing the cover through Compose (so the cover is **in-canvas** — it replaces the SwingPanel/WebView in the Studio area, never a separate window → non-activating by construction, like the engine-missing/timeout messages today):
+1. **Pre-load reachability**, before the first `setUrl`: a short HEAD/GET to the server origin on a worker thread, through the app's own `HttpTransport` (it already resolves the base + carries the cookie). Unreachable → the cover at once, no 10 s wait. (Choice to confirm: a dedicated `reach()` on HttpTransport vs. a raw loopback-safe HTTP probe — I'll add the smallest one that doesn't duplicate sign-in.)
+2. **No `ready` after a completed navigation**: on `ProgressListener.completed`, arm a 10 s `javax.swing.Timer`; the bridge `ready` cancels it; if it fires, show the cover. "Loading…" shows from first `setUrl` until `ready`. Retry → `reloadUrl` (re-arms both). The cover is Android's words: "Can't reach the server", the reason line, Back, Retry.
+**Sabotage:** a navigation to a loopback page that never sends `ready` → the cover vector reds if it doesn't appear within ~12 s.
+
+### S2.3 — clearing the WebView2 cookies (on server change / sign-out)
+`clearCookies()` stops being a no-op. Two candidates, **I'll measure both on the runner and pick one** (the spec asks which + a measurement):
+- **A — SWT API:** `Browser.clearSessions()` (clears session cookies for the Edge backend) — fast, in-process, no dispose. Risk: it may only clear *session* cookies, not the profile's persistent ones; the smoke (old session must be gone from the loopback `Cookie` header on reopen) decides if it's enough.
+- **B — data dir:** dispose the controller (closes the WebView2 env → children exit, as check 7 already does), delete the `webview2` EdgeDataDir, recreate on reopen. Thorough (profile + cache), but a dispose/recreate cycle.
+Recommendation pending the measurement; I expect A if the smoke passes, else B. **Non-activating:** clearing itself is no UI. The "Server URL…" entry point is a dialog — it uses the **S2.7 owned-window pattern** below (focusableWindowState=false, isAlwaysOnTop=false), so it floats over the WebView without taking activation; `dropSessionIfOriginChanged` runs on Save.
+
+### S2.6 — the right-click menu hook
+- **First, measure** WebView2's default menu on the chart and in a text field (screenshots), per the spec.
+- **Hook:** SWT's `Control.addMenuDetectListener` on the Browser — it fires on right-click; `event.doit = false` suppresses WebView2's default menu, then I show **my own** menu. (The alternative, CoreWebView2's `ContextMenuRequested` / `AreDefaultContextMenusEnabled`, isn't exposed by SWT and would need native/reflection — out, matching stage 1's rule.)
+- **Contents:** keep text editing (Cut/Copy/Paste/Select All), run via the Browser (`execute("document.execCommand('copy')")` etc. / WebView2 clipboard) so no focus is taken; **drop** Back/Reload/Save as/Print/Inspect.
+- **Non-activating:** my context menu is the **same owned window as the ⋮ menu** (focusableWindowState=false, isAlwaysOnTop=false, dismiss-on-outside-press + Browser-FocusIn). A non-focusable window still receives mouse clicks, so the items work without the menu ever taking activation; `menu-no-activation-steal` and L1's dismissal extend to it.
+- F12/Ctrl+Shift+I open nothing, Ctrl+P prints nothing — kept as smoke checks (stage 1).
+
+### S2.7 — the ⋮ menu looks like the app's (styled)
+Replace stage 1's plain `JMenuItem` content with a **`ComposePanel` (Compose-in-Swing) inside the same owned `JWindow`**, themed with `TroubaTheme`, so it matches the app. **Non-activating is unchanged:** the window keeps focusableWindowState=false + isAlwaysOnTop=false; a ComposePanel renders and handles *mouse* in a non-focusable window (a menu needs no keyboard focus), so L1's dismissal and the `menu-no-activation-steal` check + its sabotage stay exactly as they are. (The S2.3 server dialog reuses this same owned-window + ComposePanel.)
+
+### S2.11 — four memory numbers (plan)
+On the same `desktop (windows)` runner, in the same job, each the process tree by parent pid (TroubaStage + its msedgewebview2 children), measured the stage-1 way:
+1. **Home** — launch, never open Studio.
+2. **Studio open** — the demo song in Studio (stage 1's 614 MiB, re-measured here for an apples-to-apples row).
+3. **Edge on the same song** — `msedge.exe` opened on the same embedded URL, signed in (its own process tree) — the external-browser baseline.
+4. **5 re-entries** — leave + re-enter Studio 5× (the re-entry hook already exists); the tree must return near its first-open size — a climb is a leak (reds the check).
+Plus the MSI size vs main (stage 1: +2.86 MiB).
+
+### Questions for you
+- S2.1 reachability: a new `HttpTransport.reach()` or a one-off probe — any preference?
+- S2.3: are you OK deciding A-vs-B on the measured smoke result, or do you want a specific one?
+- S2.6: suppress-and-replace the whole menu (above), or keep WebView2's default and only strip items (needs the unexposed CoreWebView2 setting → native)? I lean suppress-and-replace.
+
+**Nothing is built until a GO on these choices.** Then S2.1→S2.11 as the spec orders, each with its smoke + sabotage + the screenshots, on a throwaway spike as in stage 1.
