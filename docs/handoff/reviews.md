@@ -64122,3 +64122,51 @@ So head's popups are now exactly main's — the activation steal is gone.
 Gone: `WIN08_NO_COMPOSE_LAYERS`. Remaining dormant: `--win08-stage <concert.tstage>` (launch arg; never passed in normal startup — the interactive-Stage CI hook), `WIN08_PROBE_OPENWINDOW` / `WIN08_PROBE_DOWNLOAD` (env). `win08-mainstage` is a throwaway branch, deleted before landing.
 
 Requesting the GO. On GO: VLL installs the PR-run MSI and runs his checklist (pen, F11-in-Studio, F11-on-Home); then I rebase (drop my sessionCookieSeed copy + test — A98 landed it on main @ 1bc466e9 — keep the call site; and trim the diagnostic knobs/logging if you want them gone), squash with the Approved-by trailer, land, and delete win08-spike/win08-shots/win08-item8/win08-mainstage.
+
+## 2026-11-04 — Fable: GO on WIN08 stage 1 for VLL's check (PR #95 @ ff5170b8); landing needs his pass plus three small items
+
+**GO for S1.9.** VLL gets the PR run's MSI now. **Landing waits for his pass** and for L1–L3 below.
+
+### The third look's item, verified
+
+- **No process-wide `compose.layers.type`:** `git grep` on the head finds it only in comments.
+  `WIN08_NO_COMPOSE_LAYERS` is gone.
+- **The ⋮ menu** is an owned `JWindow` with `isAlwaysOnTop = false` and `focusableWindowState = false`.
+- **I diffed your new pairs myself, masking only the taskbar clock** (x ≥ 900, y ≥ 720):
+  - `item8-connect-head/main`: **0 pixels differ**;
+  - `item8-stage-tooltip-head/main`: **0 pixels differ**.
+
+  Unmasked, the only difference is the clock (953–959, 732–740), so the two captures are really distinct.
+- **The title bars, stacked by me:** active in `menu-over-studio`, in the Stage tooltip and in Connect.
+  `menu-over-studio` shows Reload over Studio's toolbar.
+- **CI**, `/jobs` of run `41753652346` (#3045): all nine jobs are success. release-apk is skipped, as on any PR.
+
+### For VLL (S1.9)
+
+- **The MSI:** run `41753652346`, artifact `troubastage-windows-msi` (id 13286669090), version **1.0.3045**. `latest`
+  is 1.0.3040, so it installs as an upgrade. The next main land is numbered above 3045, so it upgrades back over the
+  test build.
+- **During the test, don't press Update.** `latest` has a lower version than the test build.
+- **Known, not to report:** links that open a new window do nothing (blocked, as decided). Download PDF uses Edge's
+  download panel and saves to Downloads. The ⋮ menu is plain Swing-styled.
+- **His steps** are S1.9's, plus F11 on Home as well as inside Studio, and the ⋮ menu.
+
+### Before landing (L1–L3)
+
+- **L1 — The ⋮ menu must close when you click into Studio.** The dismissal is an `AWTEventListener` on
+  `MOUSE_PRESSED`. A press inside the WebView lands in another process's window, under SWT's child Shell, so AWT
+  never sees it.
+  - **Measure it:** open ⋮, click in Studio, and count the menu windows.
+  - **Then dismiss** on the Browser's SWT `FocusIn` (Edge's `handleGotFocus` sends it), and when the frame moves,
+    resizes or deactivates.
+  - **Smoke vector:** a click in Studio leaves no menu window.
+- **L2 — `menu-no-activation-steal`'s foreground half still has no proven red.** `menufocus` reds the topmost half
+  only, and you say a focusable window can't take the foreground on the runner. But this runner's own earlier
+  captures show the frame going inactive under the WINDOW-layer popups.
+  - **Do this:** make the foreground half's sabotage that path, Compose's `DropdownMenu` with
+    `compose.layers.type=WINDOW`, set only when `WIN08_SABOTAGE=menufocus`.
+  - The foreground check must go red, and say so.
+- **L3 — Rebase onto main:** drop your copy of `sessionCookieSeed` and its test (A98 landed it at 1bc466e9), keep
+  the call site, and run CI again with windows.
+
+**Stage 2** is specced after VLL's pass.
