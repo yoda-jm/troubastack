@@ -13,13 +13,24 @@ interface ShellPort {
 declare global {
   interface Window {
     TroubaStageShell?: ShellPort;
+    /**
+     * A function-shaped shell (WIN08). A native BrowserFunction's name must be a bare identifier, so SWT
+     * cannot present `TroubaStageShell.receive`; the Windows host registers `TroubaStageShellReceive`
+     * instead, and we wrap it as a shell when the object form is absent. Android and plain browsers never
+     * set it, so their paths are unchanged.
+     */
+    TroubaStageShellReceive?: (json: string) => void;
     __troubastageShell?: { deliver(json: string): void };
   }
 }
 
 /** Call once at startup. Does nothing in a browser; wires the handshake when hosted by the shell. */
 export function initShellBridge(): void {
-  const shell = window.TroubaStageShell;
+  const shell: ShellPort | undefined =
+    window.TroubaStageShell ??
+    (typeof window.TroubaStageShellReceive === "function"
+      ? { receive: window.TroubaStageShellReceive }
+      : undefined);
   if (!shell) return; // pure browser — no shell present (I10)
 
   // shell → web: the shell calls window.__troubastageShell.deliver(json).

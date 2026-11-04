@@ -34,6 +34,7 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import androidx.compose.runtime.CompositionLocalProvider
 import com.troubastack.app.App
+import com.troubastack.app.HttpTransport
 import com.troubastack.app.AndroidImportFs
 import com.troubastack.app.FileBundleFiles
 import com.troubastack.app.SkiaImageDecoder
@@ -85,6 +86,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.troubastack.desktop.studio.win08SmokeRunner
 import com.troubastack.shared.buildinfo.appBuildLine
 import com.troubastack.shared.seams.HostOs
 import com.troubastack.shared.seams.Storage
@@ -126,6 +128,22 @@ private fun AppRoot(onDraw: () -> Unit = {}) {
 private var windowDrew = false
 
 fun main(args: Array<String>) {
+    if (isWindows()) {
+        // NB: WIN08 does NOT set compose.layers.type=WINDOW. Making ALL Compose popups separate windows stole window
+        // activation from the frame on every tooltip/dialog (the frame's title bar went inactive) and drew over the
+        // taskbar — unacceptable for Stage (a concert pedal). Only the Studio ⋮ menu floats over the heavyweight
+        // browser, as a heavyweight, never-activating, never-topmost owned Swing window (SwtBrowserController.openStudioMenu).
+        // L2 sabotage ONLY: re-enable the bad path so the smoke's foreground check has a proven red (a WINDOW-layer
+        // Compose popup DOES take activation on the CI runner, unlike a plain focusable JWindow). Dormant otherwise.
+        if (System.getenv("WIN08_SABOTAGE") == "menufocus") System.setProperty("compose.layers.type", "WINDOW")
+        // WIN08 (S1.2 / WIN07) — SWT unpacks its native DLLs under the data root, never the shared ~/.swt.
+        System.setProperty("swt.library.path", File(desktopDataRoot(), "swt").also { runCatching { it.mkdirs() } }.path)
+        // WIN08 — raise SWT's Edge operation timeout (R4_40 Edge.java: MAXIMUM_OPERATION_TIME, default 5000, read once
+        // into a static final before any Browser class loads). A cold WebView2 controller can exceed 5s; the FIRST
+        // timeout poisons the Browser (getWebViewWrapper completeExceptionally → the late controller is released), so
+        // raise the single wait instead of warming up or retrying. Internal property, acceptable under the exact 3.134.0 pin.
+        System.setProperty("org.eclipse.swt.internal.win32.Edge.timeout", "30000")
+    }
     // F2.3 nit — CI reads the data root the app actually resolves, instead of hard-coding the folder name.
     // Writes to the given file (a GUI app's stdout is not captured on CI); falls back to stdout locally.
     val pdrIdx = args.indexOf("--print-data-root")
@@ -153,6 +171,56 @@ fun main(args: Array<String>) {
         // WIN03 acceptance 1: with a concert, the smoke performs it in Stage (two PNGs, <out>-WxH.png).
         val concert = args.indexOf("--smoke-concert").takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
         if (concert != null) runStageSmoke(out.removeSuffix(".png"), File(concert)) else runSmoke(File(out))
+        return
+    }
+    // WIN08 S1.8 — the embedded-Studio CI smoke: launch into the Studio screen against a loopback page and run
+    // the checks (engine, frame-owned, cookie, bridge, nav-veto, data dir), each with a marker line, then exit.
+    val win08Idx = args.indexOf("--win08-smoke")
+    if (win08Idx >= 0) {
+        val outDir = args.getOrNull(win08Idx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-smoke needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner
+            ?: run { System.err.println("win08-smoke: no runner on this OS (Windows only)"); exitProcess(2) }
+        val code = runner.run(File(outDir))
+        // Do NOT force-exit on success: the smoke posted WM_CLOSE and the process must end on its OWN (check 7).
+        // The runner halts(1) itself on a failed check, so this guard is belt-and-suspenders.
+        if (code != 0) exitProcess(code)
+        return
+    }
+    // WIN08 S1.1 (item 3) — re-entry: leave and re-enter the embedded Studio screen twice, and an immediate Back.
+    val reentryIdx = args.indexOf("--win08-reentry")
+    if (reentryIdx >= 0) {
+        val outDir = args.getOrNull(reentryIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-reentry needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner
+            ?: run { System.err.println("win08-reentry: no runner on this OS (Windows only)"); exitProcess(2) }
+        val code = runner.runReentry(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
+    // WIN08 item 2 — the real-Studio CI hook (`--win08-studio <loopback URL>`): sign in THROUGH the app's own
+    // sign-in code (HttpTransport.connect, the call Connect's "Sign in" makes), storing the session exactly as
+    // Connect does, then open the embedded editor at the demo song. Loopback only; credentials from the environment
+    // (TROUBA_WIN08_USER / _PASS), never from argv; the song path from TROUBA_WIN08_SONG_PATH.
+    val studioIdx = args.indexOf("--win08-studio")
+    if (studioIdx >= 0) {
+        val url = args.getOrNull(studioIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-studio needs a loopback URL"); exitProcess(2) }
+        val host = runCatching { java.net.URI(url).host }.getOrNull()
+        if (host != "127.0.0.1" && host != "localhost") { System.err.println("--win08-studio: loopback URL only"); exitProcess(2) }
+        val user = System.getenv("TROUBA_WIN08_USER") ?: run { System.err.println("--win08-studio: TROUBA_WIN08_USER unset"); exitProcess(5) }
+        val pass = System.getenv("TROUBA_WIN08_PASS") ?: run { System.err.println("--win08-studio: TROUBA_WIN08_PASS unset"); exitProcess(5) }
+        runWin08Studio(url, user, pass, System.getenv("TROUBA_WIN08_SONG_PATH"))
+        return
+    }
+    // WIN08 item 8 — the Stage CI hook (`--win08-stage <concert.tstage>`): import the demo concert and show it
+    // INTERACTIVELY in Stage (no sign-in), with the desktop glyph-tooltip provider, so a screenshot can capture a
+    // Stage tooltip (a compose.layers popup) and check a page-turn key still turns the page while it shows.
+    val stageIdx = args.indexOf("--win08-stage")
+    if (stageIdx >= 0) {
+        val concert = args.getOrNull(stageIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-stage needs a .tstage path"); exitProcess(2) }
+        runWin08Stage(concert)
         return
     }
     // WIN04 (C1) — the CI hook: a release on the loopback interface (refused otherwise), digest required.
@@ -272,6 +340,73 @@ private fun runApp(updateFrom: String?, onWindow: (bringToFront: () -> Unit) -> 
                     confirmButton = { TextButton(onClick = ::exitApplication) { Text("Close") } },
                     dismissButton = { TextButton(onClick = { askClose = false }) { Text("Cancel") } },
                 )
+            }
+        }
+    }
+}
+
+/**
+ * WIN08 item 2 — sign in through the app's OWN sign-in code (HttpTransport.connect, what Connect's "Sign in" calls)
+ * against a loopback core, storing the session exactly as Connect does, then open the embedded editor at [songPath].
+ * The CI screenshots the window and injects a pen stroke. Windows only in practice (Edit shows the embedded host).
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+private fun runWin08Studio(url: String, user: String, pass: String, songPath: String?) {
+    System.setProperty("win08.log", "1") // diagnostic path: write the durable win08.log (F11 key trace etc.)
+    val storage = Storage()
+    storage.putSecret("coreUrl", url)
+    val transport = HttpTransport(storage, defaultServerUrl = null) { }
+    val err = runBlocking { transport.connect(user, pass) }
+    if (err != null) { System.err.println("win08-studio: sign-in failed: $err"); exitProcess(5) }
+    println("win08-studio: signed in as $user; opening ${songPath ?: "/"}")
+    application {
+        val windowState = rememberWindowState(width = 1400.dp, height = 900.dp, position = WindowPosition(0.dp, 0.dp))
+        val platform = remember { DesktopAppPlatform(storage, windowState) }
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "TroubaStage",
+            state = windowState,
+            onKeyEvent = { e -> windowKey(e, platform) },
+        ) {
+            LaunchedEffect(Unit) { platform.awtWindow = window }
+            TroubaTheme(dark = false) {
+                platform.studio.Edit(storage, onBack = { exitApplication() }, initialPath = songPath, bandTitle = "CI Band")
+            }
+        }
+    }
+}
+
+/** Item 8 — show the demo concert in Stage INTERACTIVELY (no sign-in), with the desktop glyph-tooltip provider, so a
+ *  screenshot can capture a Stage tooltip (a compose.layers popup) and verify a page-turn key still turns the page. */
+private fun runWin08Stage(tstagePath: String) {
+    System.setProperty("win08.log", "1")
+    val storage = Storage()
+    val fs = AndroidImportFs(storage)
+    val temp = File(storage.tempDir(), "win08stage-${System.nanoTime()}.tstage").also { File(tstagePath).copyTo(it) }
+    val imported = BundleImporter(fs).import(temp.path); temp.delete()
+    val concertId = (imported as? ImportResult.Imported)?.concertId
+        ?: run { System.err.println("win08-stage: import refused: $imported"); exitProcess(5) }
+    val dir = fs.bundleTargetDir(concertId)
+    val loaded = BundleLoader().load(dir, FileBundleFiles())
+    val roster = (loaded as? LoadResult.Loaded)?.bundle?.roster.orEmpty()
+    val vm = StageViewModel(loaded, identity = roster.firstOrNull()?.memberId ?: "")
+    val decoder = SkiaImageDecoder(File(dir))
+    println("win08-stage: concert $concertId in Stage")
+    application {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "TroubaStage",
+            state = rememberWindowState(width = 1400.dp, height = 900.dp, position = WindowPosition(0.dp, 0.dp)),
+        ) {
+            val stagePointer = remember { desktopStagePointerIcons() }
+            TroubaTheme(dark = false) {
+                CompositionLocalProvider(
+                    LocalStagePointerIcons provides stagePointer,
+                    LocalCommandModifier provides CommandModifier.CTRL,
+                    LocalGlyphTooltip provides desktopGlyphTooltip,
+                ) {
+                    StageScreen(vm, decoder, onExit = { exitApplication() }, fullScreen = false)
+                }
             }
         }
     }

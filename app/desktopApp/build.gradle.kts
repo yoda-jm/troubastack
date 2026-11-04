@@ -3,6 +3,10 @@
 // a skeleton window (title + build line) now; WIN03 puts the Stage app in it. Depends only on :shared (I14).
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
+// WIN08 — the SWT WebView2 code (src/windows/kotlin) and its dependency are added ONLY on a Windows host build.
+// Linux/macOS build the same module with neither, keep "Coming soon.", and their app images hold no SWT jar.
+val isWindowsHost: Boolean = System.getProperty("os.name").startsWith("Windows")
+
 plugins {
     // No version: the Kotlin Gradle Plugin is already on the build classpath (the KMP modules bring it), so
     // :desktopApp applies kotlin("jvm") WITHOUT a version — a version request is refused as "already on the
@@ -15,6 +19,15 @@ plugins {
 kotlin {
     // Same LTS compile toolchain as :shared / :androidApp — JDK 21 (see the catalog note).
     jvmToolchain(libs.versions.jdk.get().toInt())
+    // WIN08 — the SWT WebView2 implementation (and its META-INF/services registration) compile only on Windows.
+    // On Linux/macOS these dirs are never added, nothing imports SWT, and ServiceLoader finds no provider, so
+    // StudioHost keeps rendering "Coming soon." (the provider is resolved at runtime, not referenced at compile time).
+    if (isWindowsHost) {
+        sourceSets.getByName("main").kotlin.srcDir("src/windows/kotlin")
+    }
+}
+if (isWindowsHost) {
+    sourceSets.getByName("main").resources.srcDir("src/windows/resources")
 }
 
 dependencies {
@@ -30,6 +43,19 @@ dependencies {
     implementation(compose.material3)         // currentOs bundles Material 2; the app uses Material 3
     implementation(libs.jna)                   // WIN03: SetThreadExecutionState, GetTickCount64 (already :shared's)
     implementation(libs.jna.platform)
+    // WIN08 — WebView2 via SWT's Browser(SWT.EDGE), added ONLY on a Windows host build so the Linux/macOS app
+    // images carry no SWT jar (the CI jobs assert that). isTransitive = false: the SWT win32 POM declares a
+    // self-dependency on `org.eclipse.swt.${osgi.platform}` with an unresolved property, which breaks resolution;
+    // SWT win32 is self-contained (its own JNI), so no real transitive deps are dropped. `-PswtVersion=3.133.0`
+    // overrides the exact pin only for the B3 ordering sabotage (3.133.0 races the page); default is the catalog's.
+    if (isWindowsHost) {
+        val swtOverride = findProperty("swtVersion") as String?
+        if (swtOverride != null) {
+            implementation("org.eclipse.platform:org.eclipse.swt.win32.win32.x86_64:$swtOverride") { isTransitive = false }
+        } else {
+            implementation(libs.swt.win32) { isTransitive = false }
+        }
+    }
     testImplementation(kotlin("test"))
     // The real desktop tooltip over Stage (DesktopTooltipUiTest); :shared uses the same library, opted in the same way.
     @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
@@ -54,6 +80,9 @@ tasks.processResources {
 tasks.withType<Test>().configureEach {
     environment("TROUBASTAGE_HOME", layout.buildDirectory.dir("test-home").get().asFile.path)
     systemProperty("skiko.data.path", layout.buildDirectory.dir("skiko").get().asFile.path)
+    // WIN08 — SWT extracts its native DLLs to swt.library.path; pin it under this build dir, never the shared
+    // ~/.swt (WIN07's Skiko lesson: concurrent test JVMs racing one per-user unpack dir reddens Windows).
+    if (isWindowsHost) systemProperty("swt.library.path", layout.buildDirectory.dir("swt-natives").get().asFile.path)
     testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
 }
 

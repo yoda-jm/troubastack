@@ -676,6 +676,55 @@ jobs:
             if (-not ((Test-Path $png) -and ((Get-Item $png).Length -gt 0))) { Write-Error "smoke wrote no $png"; exit 1 }
             Write-Host "smoke OK — $png $((Get-Item $png).Length) bytes"
           }
+      # WIN08 — embedded Studio (WebView2 via SWT.EDGE). The packaged app opens its Studio screen against a loopback
+      # test page inside the real TroubaStage window and checks: engine is Edge; the browser's top window is the
+      # frame (GA_ROOT); the seeded cookie arrives; the bridge round-trips; off-origin nav is vetoed; the data dir is
+      # under the data root and ~/.swt is absent; DPI awareness + shell-rect==canvas-rect at 100%. Then it exits and
+      # no msedgewebview2.exe is left. The per-line win08.log is echoed (a packaged GUI app has no captured stdout).
+      - name: WIN08 — embedded Studio smoke
+        if: runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "win08-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-smoke", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(100000)
+          if (-not $exited) { $p.Kill() }
+          Start-Sleep -Seconds 2
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Write-Host "---- win08.log ----"; Get-Content $log.FullName | Write-Host } else { Write-Host "::warning::no win08.log" }
+          # Check 7's no-survivor half: orphaned msedgewebview2 children self-reap a few seconds after the WebView2 env
+          # closes, so poll to 0 (up to 20s) rather than reading once — reading immediately is a timing flake (the spike
+          # already polls this way). The PROCESS-exit half is $exited/$p.ExitCode above.
+          $sv = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue)
+          for ($i = 0; $i -lt 20 -and $sv.Count -ne 0; $i++) { Start-Sleep -Seconds 1; $sv = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue) }
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $exited) { Write-Error "win08-smoke hung (>100s)"; exit 1 }
+          Write-Host "win08-smoke exit $($p.ExitCode); msedgewebview2 survivors=$($sv.Count)"
+          if ($p.ExitCode -ne 0) { Write-Error "win08-smoke checks failed"; exit 1 }
+          if ($sv.Count -ne 0) { Write-Error "WIN08 check 7: $($sv.Count) msedgewebview2 survivor(s) held the data dir"; exit 1 }
+          Write-Host "WIN08 smoke: all checks passed; process exited; no survivor"
+      - name: WIN08 — forced no-WebView2 shows the message (S1.6)
+        if: runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        env:
+          TROUBA_WIN08_FORCE_NO_WEBVIEW: "1"
+        run: |
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-noengine-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "win08-noengine-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-smoke", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(60000)
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Write-Host "---- win08.log (no-engine) ----"; Get-Content $log.FullName | Write-Host }
+          if (-not $exited) { $p.Kill(); Write-Error "S1.6 smoke hung"; exit 1 }
+          if ($p.ExitCode -ne 0) { Write-Error "S1.6 checks failed"; exit 1 }
+          Write-Host "WIN08 S1.6: forced no-WebView2 shows the message, no Browser, no IE fallback"
       - name: secret store cost — DPAPI get/put p50/p95 (F2)
         if: runner.os == 'Windows'
         working-directory: app
@@ -883,6 +932,15 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: app
         run: ./gradlew :desktopApp:createDistributable "-PdesktopVersion=1.0.${{ github.run_number }}"
+      - name: WIN08 — no SWT jar in the Linux app image (SWT is a Windows-host-only dependency)
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: |
+          set -uo pipefail
+          root="desktopApp/build/compose/binaries/main/app/TroubaStage"
+          hits="$(find "$root" -iname '*swt*.jar' 2>/dev/null || true)"
+          if [ -n "$hits" ]; then echo "::error::WIN08: an SWT jar reached the Linux app image:"; echo "$hits"; exit 1; fi
+          echo "WIN08: no SWT jar in the Linux app image ($(find "$root" -name '*.jar' | wc -l) jars, none SWT)"
       - name: wrap it as one AppImage (appimagetool 1.9.1 + type2-runtime 20251108, pinned by sha256)
         if: runner.os == 'Linux'
         working-directory: app
@@ -998,6 +1056,12 @@ jobs:
       - name: one universal app (merge rule, two runtimes, universal stub, ad-hoc signed inside-out)
         working-directory: app
         run: desktopApp/packaging/macos/make-universal.sh "$RUNNER_TEMP/arm64/TroubaStage.app" "$RUNNER_TEMP/x64/TroubaStage.app" "$RUNNER_TEMP/universal/TroubaStage.app"
+      - name: WIN08 — no SWT jar in the macOS app (SWT is a Windows-host-only dependency)
+        run: |
+          set -uo pipefail
+          hits="$(find "$RUNNER_TEMP/universal/TroubaStage.app" -iname '*swt*.jar' 2>/dev/null || true)"
+          if [ -n "$hits" ]; then echo "::error::WIN08: an SWT jar reached the macOS app:"; echo "$hits"; exit 1; fi
+          echo "WIN08: no SWT jar in the macOS universal app"
       - name: launch smoke ×3 — natively, under Rosetta, and through LaunchServices; each draws, each on its own runtime
         working-directory: app
         run: |
