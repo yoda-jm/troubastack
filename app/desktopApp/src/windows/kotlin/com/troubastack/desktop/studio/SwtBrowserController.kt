@@ -129,7 +129,7 @@ internal class SwtBrowserController(
         lastMenuWindow = w
         // A non-focusable window gets no focus-lost; dismiss on a press outside it.
         val toolkit = java.awt.Toolkit.getDefaultToolkit()
-        val dismiss = java.awt.AWTEventListener { ev ->
+        val dismiss = java.awt.event.AWTEventListener { ev ->
             val me = ev as? java.awt.event.MouseEvent ?: return@AWTEventListener
             if (me.id == java.awt.event.MouseEvent.MOUSE_PRESSED &&
                 javax.swing.SwingUtilities.getWindowAncestor(me.component) !== w) w.dispose()
