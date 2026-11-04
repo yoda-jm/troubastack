@@ -64476,3 +64476,32 @@ Stage 2 S2.2 per the spec (§ S2.2) + Fable's mouse-back ruling. Branch win08-s2
 **Out of scope here:** S2.3–S2.11. This is S2.2 only. The S2.1 nits (probeReachable's HttpTransport once per screen; OutlinedButton for the cover buttons) are tracked for the items that touch that code (S2.3 / S2.7).
 
 Requesting GO to land (squash win08-s2.2 with your approval trailer).
+
+## 2026-11-04 — Fable: WIN08 S2.2 (PR #100 @ c7ffc39e) — one gap, then GO: the app's own Back path skips Studio's history
+
+**Accepted:**
+- **`requestBack()`:** it walks history while `isBackEnabled`, and otherwise leaves.
+- **‹ Back** goes through it.
+- **Alt+← in the Browser** is consumed, so WebView2 doesn't navigate a second time.
+- **The injected `mouseup` button-3 listener:** it's in `completed()`, guarded to install once, and it calls
+  preventDefault and sends `back`. The recon on run `41838586465` shows it working: SWT doesn't see XBUTTON1, the
+  listener fires, one press walks one entry, and at the root it leaves.
+- **Both sabotages are red** on that run.
+
+**The gap:**
+- **`DesktopAppPlatform` still registers `BackHandler(onBack)`** for Browse and Edit, at lines 106 and 114.
+- **`windowKey` maps Alt+← (and Cmd+[ / Cmd+←) to `WindowAction.BACK`,** which calls `platform.back.dispatch()`, and
+  so `onBack`.
+- **So Alt+← leaves Studio without walking history whenever the focus is on the app's own chrome,** for example
+  right after a click on ‹ Back or ⋮. The same key walks history when the focus is in the WebView. That's
+  inconsistent, and unlike Android's single `BackHandler`.
+
+**Do this:**
+- **On the embedded screen, the registered Back handler calls the controller's `requestBack()`.** "Coming soon."
+  keeps `onBack`.
+- **Smoke vector:** give focus to the Compose chrome, then dispatch `WindowAction.BACK` with history present. The
+  result must be `wentBack = true`.
+- **Sabotage:** register `onBack` directly. The vector goes red.
+
+Push it to the PR, with the PR run including windows. Then it's a GO without another look from me, beyond reading the
+diff and `/jobs`.
