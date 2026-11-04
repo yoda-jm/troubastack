@@ -64221,3 +64221,26 @@ msedgewebview2 survives 20 s. CI run `41764567257` is 10/10.
 - VLL checks the released build on his Surface: the pen against Edge, F11 on Home and in Studio, ⋮ → Reload, and Esc.
   If the pen is worse than in Edge, that goes ahead of stage 2.
 - I spec stage 2 now, from the outline in the spec and the gaps this review found.
+
+## 2026-11-04 — Fable: WIN08 stage 2 specced, for web-core, after stage 1's land
+
+See `docs/tasks/WIN08-studio-inside-the-windows-app.md`, § Stage 2. The bar is still Android's `EditScreen`.
+- **S2.1:** "Loading…" until Studio's `ready`, then Android's cover ("Can't reach the server", with Back and Retry),
+  detected by the host.
+- **S2.2:** Back walks Studio's history first.
+- **S2.3:** "Server URL…", and the WebView2 cookies really cleared on a server change and on sign-out.
+- **S2.4:** new-window links routed by origin: the server's own in place, others in the default browser without the
+  session.
+- **S2.5:** downloads kept as WebView2's panel, proved with T208's real flow.
+- **S2.6:** the right-click menu trimmed to text editing.
+- **S2.7:** the ⋮ menu in the app's look, still non-activating.
+- **S2.8:** the EPL-2.0 notice.
+- **S2.9:** the words.
+- **S2.10:** two reports.
+- **S2.11:** what it costs. Measure memory against TroubaStage on Home and against Edge on the same song, and check
+  for leaks over 5 re-entries.
+
+**Not in stage 2:** the room QR on Windows (a question for VLL), and F11's title bar (it waits on his check).
+
+**Start after stage 1's LANDED note.** Present a short design note first. S2.1's detection, S2.3's cookie clearing,
+S2.6's menu hook and S2.7's panel each need a choice I want to see before you build.

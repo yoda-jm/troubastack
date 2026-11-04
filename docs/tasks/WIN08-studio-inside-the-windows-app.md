@@ -162,20 +162,128 @@ I give him the PR run's MSI link and these steps. He uses his Surface for the pe
 
 If he says the pen is worse than in Edge, we stop and look at why before stage 2.
 
-## Stage 2 — the rest (specced in full after VLL's check)
+## Stage 2 — Studio on Windows behaves like Studio on the tablet
 
-The outline, so the size is honest:
-- **Errors:** the error cover with **Retry**, detected by the host, since SWT has no load-error event. A93's
-  words; Retry goes through `reloadUrl`.
-- **Navigation:** Back walks Studio's history first, as on Android. Mouse back button too.
-- **Server changes:** "Server URL…" and dropping the session when the origin changes. The WebView2 profile's
-  cookies are cleared through the data dir or SWT's API.
-- **New windows and downloads**, from S1.4's report: downloads land where a person expects, with a visible result.
-- **Licences:** EPL-2.0 for SWT. Ship the licence text and the source-availability notice with the MSI, and say
-  where the app shows them.
-- **Words:** USER-JOURNEY, the site's Windows paragraph and the README lose "Coming soon" for Windows. Linux and
-  macOS keep it. Every quoted label is grepped from the code.
-- **CI:** the stage-1 smoke stays, and gains the error cover.
+Specced 2026-11-04, after stage 1 landed. **The bar is still Android's `EditScreen`.** Each item names what Android
+does, or says why Windows differs. Stage 1's smoke, guards and sabotages all stay.
+
+### S2.1 Loading, and a server that can't be reached
+
+SWT has no load-error event, so the host decides for itself. **Studio's own `ready` over the bridge is the signal
+that Studio loaded.**
+- **While loading:** "Loading…" in the Studio area, as on Android, until `ready` arrives. Today the area is blank.
+- **A load that fails:** the server is unreachable, or a navigation completes and no `ready` arrives within 10 s.
+  Show Android's cover in its words:
+  - **"Can't reach the server"**;
+  - the reason, in one line;
+  - **Back** and **Retry**.
+
+  Retry goes through `reloadUrl`, so it retries the page that failed (A93).
+- **Before the first load,** check that the server can be reached through the app's own `HttpTransport`. A server
+  that's down shows the cover at once, not after 10 s.
+
+### S2.2 Back
+
+- **‹ Back in the app bar, and the mouse's back button,** first walk Studio's own history
+  (`browser.back()` while `isBackEnabled`). They leave the screen only when there's nothing left, as Android's
+  `BackHandler` does.
+- **Alt+←** inside Studio does the same.
+
+### S2.3 Changing the server, and signing out
+
+- **⋮ gains "Server URL…"**, with Android's dialog: **"Core server URL"**, Save and Cancel.
+- **Saving a different origin** calls `dropSessionIfOriginChanged`. Desktop's `clearCookies()` stops being a no-op:
+  it clears the WebView2 profile's cookies, through SWT's API or the data dir. Say which, and measure it.
+- **Signing out of the app** clears them too.
+- **The proof, in the smoke:** after a server change or a sign-out, reopen Studio. The loopback server's `Cookie`
+  header must no longer carry the old session.
+
+### S2.4 Links that open a new window
+
+Stage 1 blocks them all. Stage 2 routes them by origin:
+- **The server's origin** (for example, a file-name link in a song's file list) opens in the embedded view, in place.
+  Android's WebView does the same with `target=_blank`.
+- **Any other origin** opens in the person's default browser, **without** the session.
+- **No new window ever opens inside the app.**
+
+The proof: one smoke vector for each origin. The same-origin one ends on the right page. The other one ends with the
+default browser invoked (a stub in CI) and no new window in the process.
+
+### S2.5 Downloads
+
+Keep WebView2's default: its own Downloads panel, saving to the person's Downloads folder. That's what a person
+expects from Edge, and it already works. Prove it with **T208's real "Download PDF…"**, reached from the song's file
+list, not with a probe:
+- the panel appears;
+- the file in Downloads is the PDF, with its name and size.
+
+### S2.6 The right-click menu and browser keys
+
+- **Measure WebView2's default right-click menu** in Studio, on the chart and in a text field, and screenshot both.
+- **Keep text editing** (cut, copy, paste, select all). **Drop** page items that duplicate the app or leave it:
+  Back, Reload, Save as, Print, Inspect. Use SWT's menu hooks (`MenuDetect`, or the Browser's menu), and say which.
+- **Stage 1's key results stand:** F12 and Ctrl+Shift+I open nothing, and Ctrl+P prints nothing. Keep them as smoke
+  checks.
+
+### S2.7 The ⋮ menu looks like the app's
+
+Stage 1's menu is a plain Swing window. Give it the app's look, for example a `ComposePanel` inside the same owned
+window. It must stay **non-activating and never topmost**: L1's dismissal and the `menu-no-activation-steal` check,
+with its sabotage, stay as they are.
+
+### S2.8 Licences
+
+- SWT is **EPL-2.0**. Ship its licence text and a source-availability notice with the MSI.
+- Parameters → About gets one line pointing to them. The words are yours; I'll check them.
+
+### S2.9 Words
+
+- **USER-JOURNEY, the site's Windows paragraph and the README** lose "Coming soon" for Windows, and say what's there:
+  Studio inside the window, plus S2.4's rule for links.
+- **Linux and macOS keep "Coming soon."**
+- Every quoted label is grepped from the code.
+
+### S2.10 Report only
+
+- **A session that expires inside Studio:** what Studio shows, and whether signing in there leaves the app's stored
+  session stale.
+- **Whether functions injected with `AddScriptToExecuteOnDocumentCreated` run in cross-origin iframes.** Stage 2
+  adds no bridge actions, so this stays a report, needed before any task that does.
+
+### S2.11 What it costs
+
+Stage 1 measured **614 MiB** with real Studio open: TroubaStage plus its `msedgewebview2` children, found by parent
+pid. WIN05's 289 MiB was a bare test Shell on a scratch page, so the two don't compare. Measure, on the same runner,
+in the same job:
+- **TroubaStage on Home**, with Studio never opened;
+- **TroubaStage with the demo song open in Studio** (stage 1's number);
+- **Microsoft Edge on the same demo song**, signed in (Edge's own process tree);
+- **after leaving and re-entering Studio 5 times:** the tree must come back near its first-open size. A climb is a
+  leak.
+
+Report the four numbers, and the MSI size against main (stage 1: +2.86 MiB).
+
+### Not in stage 2
+
+- **The band's room QR on Windows** (A65's present-QR screen is Android-only code). It's a question on VLL's page,
+  not part of this stage.
+- **F11's title bar:** depends on VLL's check. If it stays on Home too, that's a DESK01 follow-up for all of
+  Windows.
+
+### Proof
+
+- **Each item above gets a smoke check with its own sabotage,** in `desktop (windows)`: S2.1's cover, S2.2's history
+  walk, S2.3's dropped cookie, S2.4's two vectors, S2.6's menu.
+- **Screenshots, from the real-Studio workflow:**
+  - Loading…;
+  - the cover;
+  - Back walking history;
+  - the server dialog;
+  - the download panel;
+  - both right-click menus;
+  - the restyled ⋮ menu with the title bar active.
+- **Linux and macOS:** unchanged, still "Coming soon.", and still no SWT jar.
+- **The rest of CI** is green, `desktop (windows)` included.
 
 ## Not in this task
 
