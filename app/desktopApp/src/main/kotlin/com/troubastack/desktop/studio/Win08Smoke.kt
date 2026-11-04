@@ -18,6 +18,10 @@ interface Win08SmokeRunner {
     /** S1.1 re-entry (item 3): leave and re-enter the embedded Studio screen twice (the bridge round-trips each
      *  time), and an immediate Back on entering leaves no window. Returns the exit code (0 = passed). */
     fun runReentry(outDir: File): Int
+
+    /** S2.1 (R1) live Retry proof: start with the loopback server off (probe Unreachable → the cover), then turn it on
+     *  and fire Retry; Studio returns on the SAME controller. Writes cover.png/studio.png + retry-verdict.txt. */
+    fun runRetry(outDir: File): Int
 }
 
 val win08SmokeRunner: Win08SmokeRunner? by lazy {

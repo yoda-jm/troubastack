@@ -822,6 +822,36 @@ jobs:
           name: win08-cover
           path: app/win08-cover.png
           if-no-files-found: warn
+      # WIN08 S2.1 (R1) SPIKE-ONLY — REMOVE before merge. The live Retry proof: server off → the probe's cover → server
+      # on → Retry → Studio on the SAME controller. Captures cover.png + studio.png + retry-verdict.txt (recovered,
+      # sameController, rect). A green step means the runner halted 0 (all three true).
+      - name: WIN08 S2.1 live Retry proof (spike only)
+        if: runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-retry-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "win08-retry-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-retry", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(90000)
+          if (-not $exited) { $p.Kill() }
+          Start-Sleep -Seconds 2
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Write-Host "---- win08.log (retry) ----"; Get-Content $log.FullName | Write-Host }
+          if (Test-Path "$out\retry-verdict.txt") { Write-Host "---- retry verdict ----"; Get-Content "$out\retry-verdict.txt" | Write-Host }
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $exited) { Write-Error "win08-retry hung (>90s)"; exit 1 }
+          if ($p.ExitCode -ne 0) { Write-Error "win08-retry: recovered/sameController/rect not all true (exit $($p.ExitCode))"; exit 1 }
+          Write-Host "WIN08 S2.1 live Retry proof OK"
+      - name: upload the retry PNGs (spike only)
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: win08-retry
+          path: app/win08-retry-out/*.png
+          if-no-files-found: warn
       - name: secret store cost — DPAPI get/put p50/p95 (F2)
         if: runner.os == 'Windows'
         working-directory: app

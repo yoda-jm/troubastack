@@ -223,6 +223,17 @@ fun main(args: Array<String>) {
         runWin08Stage(concert)
         return
     }
+    // WIN08 S2.1 (R1) SPIKE — the live Retry proof (`--win08-retry <outDir>`): server off → the probe's cover →
+    // server on → Retry → Studio on the same controller. Windows only (the runner renders with onController).
+    val retryIdx = args.indexOf("--win08-retry")
+    if (retryIdx >= 0) {
+        val outDir = args.getOrNull(retryIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-retry needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner ?: run { System.err.println("win08-retry: Windows only"); exitProcess(2) }
+        val code = runner.runRetry(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
     // WIN08 S2.1 (R1) SPIKE — the cover render hook (`--win08-cover <out.png>`): point the embedded studio at an
     // UNREACHABLE server so the cover shows, then capture the window to prove the cover draws OVER the SwingPanel (the
     // open rendering question), not occluded by the heavyweight canvas. Windows only (needs the SWT provider).

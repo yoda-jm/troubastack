@@ -9,6 +9,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.troubastack.app.HttpTransport
+import com.troubastack.app.Presence
+import com.troubastack.shared.seams.SESSION_COOKIE_KEY
+import com.troubastack.shared.seams.SESSION_ORIGIN_KEY
+import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.seams.desktopDataRoot
 import java.io.File
 import java.net.InetAddress
@@ -31,6 +36,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var cookieHeader: String? = null
     @Volatile private var served = false
     @Volatile private var serveNoReady = false   // S2.1: when set, the loopback serves a page that never handshakes
+    @Volatile private var accepting = true        // S2.1 retry: when false, the loopback closes connections at once (server "off")
     @Volatile private var serverSocket: ServerSocket? = null
 
     private fun line(s: String) = win08log(s)
@@ -177,6 +183,99 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         finish(results) { null }
     }
 
+    /**
+     * S2.1 (R1, refinement 1) — the live Retry proof from the pre-load probe's Unreachable cover (the "VLL's server is
+     * off" case). The loopback owns its port but starts OFF (accepting=false → sockets closed at once), so the probe
+     * and first load can't reach it → the cover. Then it turns ON and fires Retry (controller.reload()); Studio comes
+     * back on the SAME controller. Captures `cover.png` + `studio.png`; asserts recovered + same controller + rect.
+     */
+    override fun runRetry(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        win08log("retry: run start; outDir=$outDir")
+        Thread {
+            try { Thread.sleep(90_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("retry: BACKSTOP firing (>90s) — halting 1"); Runtime.getRuntime().halt(1)
+        }.apply { isDaemon = true; start() }
+        try {
+            accepting = false   // server OFF: the probe + first load get the socket closed → Unreachable → cover
+            val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+            serverSocket = server
+            val port = server.localPort
+            val origin = "http://127.0.0.1:$port"
+            Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
+            win08log("retry: loopback bound on $origin (OFF)")
+
+            val storage = Storage()
+            storage.putSecret("coreUrl", origin)
+            storage.putSecret(SESSION_COOKIE_KEY, "win08retry=x")   // so probePresence GETs /api/me (not short-circuit)
+            storage.putSecret(SESSION_ORIGIN_KEY, origin)
+            val edgeDataDir = File(desktopDataRoot(), "webview2")
+            val frameHolder = java.util.concurrent.atomic.AtomicReference<java.awt.Window?>()
+            val args = EmbeddedStudioArgs(
+                serverUrl = origin, initialPath = null, title = "TroubaStudio",
+                sessionCookie = "win08retry=x", edgeDataDir = edgeDataDir,
+                onBack = {}, toggleFullScreen = {}, isFullScreen = { false }, frameWindow = { frameHolder.get() },
+                probeReachable = { HttpTransport(storage, defaultServerUrl = null) {}.probePresence() !is Presence.Unreachable },
+            )
+            val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+            application {
+                Window(onCloseRequest = ::exitApplication, title = "TroubaStage",
+                    state = rememberWindowState(width = 1200.dp, height = 820.dp)) {
+                    EmbeddedStudioContent(args, onController = { ctrlRef.set(it) })
+                    LaunchedEffect(Unit) {
+                        frameHolder.set(window)
+                        Thread { retryFlow(outDir, ctrlRef, frameHolder) }.apply { isDaemon = true; start() }
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            win08log("retry: run FAILED: $e\n${e.stackTraceToString()}"); Runtime.getRuntime().halt(1)
+        }
+        return 0
+    }
+
+    private fun retryFlow(
+        outDir: File,
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+        frameHolder: java.util.concurrent.atomic.AtomicReference<java.awt.Window?>,
+    ) {
+        fun waitFor(ms: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + ms
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(100) }
+            return cond()
+        }
+        fun capture(name: String) {
+            runCatching {
+                val w = frameHolder.get() ?: return
+                val b = w.bounds
+                val img = java.awt.Robot().createScreenCapture(java.awt.Rectangle(b.x, b.y, b.width, b.height))
+                javax.imageio.ImageIO.write(img, "png", File(outDir, "$name.png"))
+                win08log("retry: captured $name (${File(outDir, "$name.png").length()} bytes)")
+            }.onFailure { win08log("retry: capture $name failed: ${it.message}") }
+        }
+        waitFor(20_000) { ctrlRef.get() != null }
+        val c = ctrlRef.get() ?: run { win08log("retry: no controller"); Runtime.getRuntime().halt(1); return }
+        waitFor(9_000) { false }   // the probe (3s, OFF server) brings up the cover; let it paint
+        capture("cover")
+        val idBefore = System.identityHashCode(c)
+        val beforeReady = c.readyCount
+        accepting = true           // server ON
+        win08log("retry: server ON; firing Retry (reload) on controller id=$idBefore")
+        c.reload()                 // what the cover's Retry button does
+        val recovered = waitFor(20_000) { c.readyCount > beforeReady }
+        val sameController = System.identityHashCode(c) == idBefore
+        c.measureDpi(); waitFor(2_000) { false }
+        capture("studio")
+        val rect = c.rectsMatch
+        val ok = recovered && sameController && rect
+        win08log("retry: recovered=$recovered sameController=$sameController(id=$idBefore) rectsMatch=$rect OK=$ok")
+        runCatching {
+            File(outDir, "retry-verdict.txt").writeText(
+                "recovered=$recovered sameController=$sameController rectsMatch=$rect OK=$ok")
+        }
+        Runtime.getRuntime().halt(if (ok) 0 else 1)
+    }
+
     /** A one-page HTTP/1.0 loopback: read the request headers (record the Cookie), reply with [PAGE]. */
     private fun acceptLoop(server: ServerSocket) {
         while (!server.isClosed) {
@@ -184,6 +283,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             Thread {
                 runCatching {
                     sock.use { s ->
+                        if (!accepting) return@use   // S2.1 retry: server "off" — close the socket at once (connection refused/reset)
                         val reader = s.getInputStream().bufferedReader()
                         val requestLine = reader.readLine() ?: ""   // "GET /path HTTP/1.1"
                         var l = reader.readLine()
