@@ -56,6 +56,7 @@ internal class SwtBrowserController(
     @Volatile var startupTimedOut: Boolean = false; private set
     @Volatile var shellEverShown: Boolean = false; private set   // true once the embedded Shell was made visible
     @Volatile var readyCount: Int = 0; private set   // S2.1: each page handshake bumps this; a reload with the Shell HIDDEN must still bump it (R1)
+    @Volatile var navNoReadyFired: Boolean = false; private set   // S2.1 (R1): a host load went 10s with no ready → cover (smoke checks this)
     @Volatile var newWindowRequested: Boolean = false; private set // S1.4 report: a target=_blank/window.open fired
     @Volatile var docCookie: String? = null; private set   // what document.cookie sees (item 5 — must NOT hold the session)
     @Volatile var openWindowBlocked: Boolean? = null; private set  // item 7 — the page's window.open() must return null (popup blocked)
@@ -97,17 +98,41 @@ internal class SwtBrowserController(
     fun reload() = exec {
         val b = browser ?: return@exec
         b.url = reloadUrl(b.url, loadUrl)
+        armNoReadyTimer()   // S2.1 (R1): ⋮ Reload / Retry is host-initiated → cover if it doesn't ready in 10s
+        onEdt { onReloadStarted?.invoke() }   // host resets to "Loading…" (so a failed reload can show the cover again)
     }
 
     /**
-     * S2.1 (R1): hide/show the embedded Shell WITHOUT removing the canvas from the composition — removing the canvas
-     * destroys the Browser (the Shell is a child of the canvas HWND). Hiding the Shell is how "Loading…"/the cover/a
-     * typing dialog draws in Compose over the Studio area. Only call after createFunction returns (readies when shown).
+     * S2.1 (R1, refinement 2): arm the 10s no-ready → cover timer for a HOST-initiated load (first load / ⋮ Reload /
+     * Retry) only. Captures readyCount; if no fresh `ready` arrives within 10s, the load failed → onNavNoReady. In-page
+     * navigations (S2.4's in-place same-origin links, e.g. opening a PDF) never call this, so they can't trip the cover.
+     */
+    private fun armNoReadyTimer() {
+        if (sabotage == "noreadytimer") { log("win08: SABOTAGE noreadytimer — not arming the no-ready timer"); return }  // → never-ready check reds
+        val before = readyCount
+        val d = browser?.display ?: return
+        d.timerExec(10_000) {
+            if (!disposed && readyCount == before) {
+                navNoReadyFired = true
+                log("win08: no ready 10s after a host-initiated load — cover")
+                onEdt(onNavNoReady)
+            }
+        }
+    }
+
+    /**
+     * SMOKE ONLY (S2.1): hide/show the embedded Shell, to prove a not-visible Browser still loads and sends `ready`.
+     * It is NOT how the host shows "Loading…"/the cover — that collapses the SwingPanel to 0.dp (see the provider).
+     * Hiding the Shell (or the canvas) does not reveal Compose: the SwingPanel's heavyweight interop reserves the hole.
      */
     fun setShellVisible(visible: Boolean) = exec { shell?.takeIf { !it.isDisposed }?.isVisible = visible }
 
     /** Smoke only: try to navigate off-origin; the LocationListener must veto it ([navVetoed] is the proof). */
     fun probeOffOriginNav(foreign: String) = exec { browser?.setUrl(foreign) }
+
+    /** Smoke only (S2.1 R2): a same-origin IN-PAGE navigation (like a link click) — NOT host-initiated, so it does NOT
+     *  arm the no-ready timer. Proof that S2.4's in-place links can't trip the cover (navNoReadyFired must stay false). */
+    fun smokeInPageNav(sameOrigin: String) = exec { browser?.setUrl(sameOrigin) }
 
     /**
      * Item 8 — the Studio ⋮ menu, over the heavyweight WebView. A HEAVYWEIGHT `JPopupMenu` (lightweight disabled) is a
@@ -121,6 +146,9 @@ internal class SwtBrowserController(
     /** Set by EmbeddedStudioContent — the L2 sabotage opens the REAL bad path (a Compose DropdownMenu, under
      *  compose.layers.type=WINDOW) through this, since that is what actually steals the frame's activation. */
     @Volatile var requestComposeMenu: (() -> Unit)? = null
+    // S2.1 (R1): a host-initiated reload started (⋮ Reload or the cover's Retry) — the host resets to "Loading…" so a
+    // reload that fails can bring the cover back (even after a prior success, since bridgeReady stays latched).
+    @Volatile var onReloadStarted: (() -> Unit)? = null
 
     fun openStudioMenu() = onEdt {
         if (!canvas.isShowing) return@onEdt
@@ -315,8 +343,9 @@ internal class SwtBrowserController(
                             json.contains("\"openwindow\"") -> { openWindowBlocked = json.contains("\"blocked\":true"); log("win08: openwindow reported blocked=$openWindowBlocked") }
                             json.contains("\"ready\"") -> {
                                 readyCount++   // S2.1: proves the page loaded & handshook, even while the SwingPanel is collapsed/hidden
-                                if (!bridgeReady) { bridgeReady = true; log("win08: bridge ready (readyCount=$readyCount)"); onEdt(onReady) }
-                                else helloAnswered = true // a second ready = our hello was answered
+                                if (!bridgeReady) bridgeReady = true else helloAnswered = true // first ready latches bridgeReady; a later one = our hello answered
+                                log("win08: ready (readyCount=$readyCount)")
+                                onEdt(onReady)   // S2.1 (R1): EVERY ready reveals the studio — the first load AND a host reload/Retry (bridgeReady stays latched)
                             }
                         }
                         return null
@@ -379,14 +408,13 @@ internal class SwtBrowserController(
                     // run without window.TroubaStageShellReceive, so no ready is sent and the bridge check reds.
                     if (sabotage == "bridge-late" && !lateBridgeDone) { lateBridgeDone = true; registerBridge() }
                     runCatching { browser.execute("window.__troubastageShell&&window.__troubastageShell.deliver(JSON.stringify({type:'hello'}))") }
-                    // S2.1 (R1): a navigation completed; if no `ready` arrives within 10s, the load failed (server up,
-                    // Studio silent) → cover. SWT's own timer runs on this thread; the first `ready` sets bridgeReady so
-                    // a stale timer from an earlier navigation is a no-op. (In the smoke onNavNoReady defaults to {}.)
-                    runCatching {
-                        browser.display.timerExec(10_000) {
-                            if (!bridgeReady && !disposed) { log("win08: no ready 10s after a completed navigation — load failed"); onEdt(onNavNoReady) }
-                        }
-                    }
+                    // S2.1 (R1, refinement 2): the no-ready → cover timer is armed by the HOST load paths only (first
+                    // load / ⋮ Reload / Retry), NOT here in completed(). An in-page same-origin navigation — e.g. S2.4
+                    // opening a song's PDF in place — also completes with no Studio `ready`; arming here would land the
+                    // cover over a perfectly good PDF after 10s. See armNoReadyTimer().
+                    // SABOTAGE armoncompleted: re-create that old bug (arm on EVERY completed nav) → an in-page nav to a
+                    // never-ready page then trips the cover, so the in-page-nav-no-cover check reds.
+                    if (sabotage == "armoncompleted") armNoReadyTimer()
                     // S1.4 positive control (item 7): once, fire a window.open so the OpenWindowListener is exercised —
                     // it must log REPORT + suppress (no OS window). Dormant unless WIN08_PROBE_OPENWINDOW is set.
                     if (System.getenv("WIN08_PROBE_OPENWINDOW") == "1" && !probedOpen) {
@@ -414,6 +442,7 @@ internal class SwtBrowserController(
             // S2.1 (R1): the host collapses the SwingPanel to 0.dp while Loading/the cover shows (the hole closes so
             // Compose draws over the Studio area), and restores it on `ready` (fitShellToCanvas refits on the resize).
             browser.setUrl(loadUrl)
+            armNoReadyTimer()   // S2.1 (R1): the first load is host-initiated → cover if it doesn't ready in 10s
             log("ctrl: setUrl($loadUrl); entering readAndDispatch loop")
 
             runLoopUntilDisposed(display, shell)

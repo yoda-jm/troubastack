@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets
 class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var cookieHeader: String? = null
     @Volatile private var served = false
+    @Volatile private var serveNoReady = false   // S2.1: when set, the loopback serves a page that never handshakes
     @Volatile private var serverSocket: ServerSocket? = null
 
     private fun line(s: String) = win08log(s)
@@ -40,8 +41,8 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         win08log("smoke: run start; outDir=$outDir log=$win08LogFile")
         // Arm the backstop FIRST, so any hang — even before the loopback server is up — is logged and halted.
         Thread {
-            try { Thread.sleep(75_000) } catch (_: InterruptedException) { return@Thread }
-            win08log("smoke: BACKSTOP firing (>75s) — halting 1")
+            try { Thread.sleep(120_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("smoke: BACKSTOP firing (>120s) — halting 1")
             Runtime.getRuntime().halt(1)
         }.apply { isDaemon = true; start() }
         win08log("smoke: backstop armed")
@@ -88,7 +89,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                     LaunchedEffect(Unit) {
                         frameHolder.set(window)
                         win08log("smoke: window composed; starting checker thread")
-                        Thread { runChecks(controller, edgeDataDir) { frameHolder.get() } }.apply { isDaemon = true; start() }
+                        Thread { runChecks(controller, edgeDataDir, origin) { frameHolder.get() } }.apply { isDaemon = true; start() }
                     }
                 }
             }
@@ -184,19 +185,27 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 runCatching {
                     sock.use { s ->
                         val reader = s.getInputStream().bufferedReader()
+                        val requestLine = reader.readLine() ?: ""   // "GET /path HTTP/1.1"
                         var l = reader.readLine()
                         while (l != null && l.isNotEmpty()) {
                             if (l.startsWith("Cookie:", ignoreCase = true)) cookieHeader = l.substringAfter(":").trim()
                             l = reader.readLine()
                         }
                         served = true
-                        val body = PAGE.toByteArray(StandardCharsets.UTF_8)
-                        val head = "HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
-                            "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
-                        s.getOutputStream().apply {
-                            write(head.toByteArray(StandardCharsets.US_ASCII))
-                            write(body)
-                            flush()
+                        val path = requestLine.substringAfter(' ', "").substringBefore(' ')
+                        val out = s.getOutputStream()
+                        if (path.startsWith("/api/me")) {
+                            // S2.1: answer probePresence()'s reachability GET with 401 → Presence.Unauthorized (reachable),
+                            // not a 200 HTML body it would fail to parse (→ a false Unreachable).
+                            out.write("HTTP/1.0 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(StandardCharsets.US_ASCII))
+                            out.flush()
+                        } else {
+                            // S2.1: a never-ready page (loads but never handshakes) while serveNoReady is set.
+                            val pageStr = if (serveNoReady) PAGE_NOREADY else PAGE
+                            val body = pageStr.toByteArray(StandardCharsets.UTF_8)
+                            val head = "HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
+                                "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
+                            out.write(head.toByteArray(StandardCharsets.US_ASCII)); out.write(body); out.flush()
                         }
                     }
                 }
@@ -204,7 +213,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         }
     }
 
-    private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File, frame: () -> java.awt.Window?) {
+    private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File, origin: String, frame: () -> java.awt.Window?) {
         val results = LinkedHashMap<String, Boolean>()
         fun mark(name: String, ok: Boolean) {
             results[name] = ok
@@ -325,6 +334,35 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 mark("menu-dismissed-on-studio-focus", c.lastMenuWindow == null)
             }
 
+            // ── S2.1 (R1) — the no-ready → cover timer, scoped to host-initiated loads ─────────────────────────────
+            // Refinement 2: an IN-PAGE same-origin navigation (a link; S2.4's in-place PDF) must NOT trip the cover —
+            // it doesn't go through a host load path, so the timer is never armed. Navigate in-page to a page that
+            // never handshakes and confirm navNoReadyFired stays false. Sabotage 'armoncompleted' re-arms on every
+            // completed nav → it fires → this reds.
+            serveNoReady = true
+            c.smokeInPageNav("$origin/inpage")
+            val inPageFired = waitFor(12_000) { c.navNoReadyFired }
+            mark("in-page-nav-no-cover", !inPageFired)
+
+            // Refinement 3 (the real S2.1 cover check): a HOST-initiated load of a never-ready page brings the cover up
+            // within ~12s (navNoReadyFired). Sabotage 'noreadytimer' disables the timer → this reds.
+            c.reload()   // host-initiated → arms the timer; serveNoReady still set → the page never readies
+            val coverFired = waitFor(13_000) { c.navNoReadyFired }
+            mark("host-load-never-ready-covers", coverFired)
+
+            // Refinement 1 (second vector): Retry on the SAME controller recovers. Serve the ready page and reload
+            // (what the cover's Retry does) — `ready` must arrive on the same controller instance and the shell rect
+            // must match the canvas again (back to full size).
+            val idBefore = System.identityHashCode(c)
+            val beforeRetry = c.readyCount
+            serveNoReady = false
+            c.reload()
+            val recovered = waitFor(15_000) { c.readyCount > beforeRetry }
+            val sameController = System.identityHashCode(c) == idBefore
+            c.measureDpi(); waitFor(1_500) { false }
+            win08log("retry: recovered=$recovered sameController=$sameController(id=$idBefore) rectsMatch=${c.rectsMatch}")
+            mark("retry-recovers-same-controller", recovered && sameController && c.rectsMatch)
+
             finish(results, frame)
         } catch (e: Throwable) {
             win08log("smoke: checker threw: ${e.message}")
@@ -377,5 +415,9 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
   }
 })();
 </script></head><body><h1>win08 loopback</h1></body></html>"""
+
+        // S2.1: loads and completes, but NEVER calls TroubaStageShellReceive → no `ready`. Used for the never-ready
+        // cover check and the in-page-nav-no-cover vector.
+        const val PAGE_NOREADY = """<!doctype html><html><head><meta charset="utf-8"></head><body><h1>no ready</h1></body></html>"""
     }
 }

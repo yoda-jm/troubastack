@@ -101,6 +101,9 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
     DisposableEffect(Unit) {
         win08log("content: DisposableEffect -> controller.start()")
         controller.requestComposeMenu = { sabotageMenu = true }   // L2 sabotage only
+        // S2.1 (R1): a host reload (⋮ Reload or the cover's Retry) resets to Loading and re-probes reachability; a
+        // reload that fails then brings the cover back. In-page navigations don't call reload(), so they're unaffected.
+        controller.onReloadStarted = { ready = false; covered = false; retryNonce++ }
         controller.start()
         onDispose { win08log("content: onDispose -> controller.dispose()"); controller.dispose() }
     }
@@ -143,9 +146,14 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             // Compose draws over the Studio area: "Loading…" until `ready`, or the cover when a load fails.
             Box(Modifier.fillMaxSize()) {
                 // S2.1 (R1): while Loading/the cover shows, collapse the SwingPanel to 0.dp so its heavyweight hole
-                // closes and Compose draws over the Studio area (hiding the Shell or the canvas leaves the hole — the
-                // interop reserves the region regardless). On `ready` it returns to full size; fitShellToCanvas refits
-                // the embedded Shell on that resize. The SwingPanel stays in the composition, so the Browser survives.
+                // closes and Compose draws over the Studio area. On `ready` it returns to full size; fitShellToCanvas
+                // refits the embedded Shell on that resize. The SwingPanel stays in the composition, so the Browser
+                // survives (removing it would dispose the canvas peer and destroy the Shell).
+                // DO NOT "simplify" this to hiding the Shell (shell.isVisible=false) or the canvas (canvas.isVisible=
+                // false): both were measured and leave the area blank. Compose Desktop renders a heavyweight SwingPanel
+                // through an interop layer that reserves (punches) that rectangle in the Compose surface for the whole
+                // time the component is laid out, regardless of whether its content is visible. Only taking the
+                // component out of the layout (0.dp) closes the hole; disposing it would kill the Browser. So: 0.dp.
                 SwingPanel(
                     background = Color.Transparent,
                     modifier = if (ready) Modifier.fillMaxSize() else Modifier.size(0.dp),
@@ -156,7 +164,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
                         StudioCover(
                             reason = coverReason,
                             onBack = args.onBack,
-                            onRetry = { covered = false; controller.reload(); retryNonce++ },
+                            onRetry = { controller.reload() },   // reload() fires onReloadStarted → Loading + re-probe
                         )
                     } else {
                         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
