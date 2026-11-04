@@ -63999,3 +63999,38 @@ it drops its copy of the function and test, and keeps its call site (agreed with
   - an authenticated `GET /api/bands` returns 200, against 401 with credentials omitted.
 - **CI**, `/jobs` of run `41739242838`: all nine jobs are success, `desktop (windows)` and image included;
   release-apk is skipped.
+
+## 2026-11-04 — web-core: WIN08 stage 1 — RE-PRESENTING (second look addressed: popup block, downloads, Stage tooltip; two corrections) — PR #95 @ 9aa0693f
+
+Answers Fable's second look (86094571). PR #95 is updated 6818c5f1..9aa0693f; a real ci.yml PR run on that head (`41743978353`) is **all green — 10/10 jobs**: `desktop (windows)` smoke **9/9 including new-window-blocked** + S1.6 2/2 + check 7, `desktop (linux)`/`(macos)` no-SWT-jar, e2e, web, android, go, image. (So it's in the real PR run, not only the spike.) Screenshots are in web-core's scratchpad `shots/`, named inline below.
+
+### Two corrections (I was wrong; verified the right answer)
+- **check-7 is NOT un-sabotageable — I retract that.** The `noclose` sabotage (onCloseRequest ignored) run: `exited=True exitCode=1 elapsed=76s`, win08.log tail `WM_CLOSE → onCloseRequest fired (AWT WINDOW_CLOSING) → IGNORING, window stays open → BACKSTOP firing (>75s) — halting 1`. So AWT does turn WM_CLOSE into WINDOW_CLOSING; an ignored handler keeps the window open; the process does not self-exit; the 75 s backstop halts it. check 7 is a proper discriminating vector — `noclose` is now in the sabotage set and reds it.
+- **F11 — the runner, not a claim about any machine.** The frame-state log around the toggle shows the window really changes: `winRect` goes to the monitor rect `[0,0,1024,768]` and back, `isFullScreen` tracks it — but WS_CAPTION is never cleared. Positive control, same runner, no Studio (Home screen, no WebView): F11 behaves the same. So, in your words: **"Home and Studio behave the same on the runner: the window fills the monitor but keeps its title bar. Whether the title bar goes away on a real machine is VLL's check."** F11-on-Home and F11-in-Studio are both on VLL's S1.9 checklist; if his Surface keeps the title bar in both, that's a DESK01-wide follow-up, not WIN08. The placement path stays; no native borderless.
+
+### Item 7 — new-window popup is now BLOCKED (was a real escape)
+The probe (a one-shot `window.open('https://example.com','_blank')` on load) proved the gap: the OpenWindowListener fired but a FULL chrome browser window opened, sharing the WebView2 profile/session. **Fix, your way:** in OpenWindowListener.open, `event.required = true` with `event.browser` left null → SWT's Edge.handleNewWindowRequested calls `put_Handled(true)` with no NewWindow, so WebView2 opens nothing and `window.open()` returns null. No throwaway Browser (the deadlock you flagged). Verified:
+- Smoke check `new-window-blocked` (the loopback page calls window.open and reports via the bridge whether the result was null, plus a top-level-WebView2-window count): **PASS** — `openwindow: blocked=true topLevelWebViewWindows=0`. Main smoke is now **9/9**.
+- Sabotage `noblock` (required=false): the popup appears and `new-window-blocked` reds.
+- Visual `shots/pb-after-probe.png` + the log line `popup-check windows (2): TroubaStage | WindowsTerminal` — only the app + the terminal, NO "Example Domain" window (before the fix a third, chrome-ful window opened).
+
+### Item 7 — the rest, observed
+- F5 → reaches the SWT KeyListener + content, reloads in place (stroke persists). Ctrl+F → reaches the listener + content (find; no window).
+- F12 / Ctrl+Shift+I on the main embedded Studio → NO DevTools window (they don't even reach the host listener). Ctrl+P → NO print dialog. (window counts unchanged for each.)
+- Right-click → no separate OS window (WebView2's menu is in-content, if any).
+- Downloads (`shots/dl-after-probe.png`): a probe `<a download>` shows WebView2's OWN default download flyout in the top-right of the WebView ("Downloads · win08-download.bin · Open file"), and the file lands in the user's Downloads folder (`C:\Users\runneradmin\Downloads\win08-download.bin`), not the data root. The WebView2 default — no Stage-1 interception; VLL can confirm on his Surface.
+
+### Item 8 — compose.layers.type=WINDOW doesn't break the app's own popups (head vs main / with vs without)
+- The account/Connect dialog (Guest → bottom sheet "Join or sign in · Parameters"): `shots/item8-connect-head.png` vs `shots/item8-connect-main.png` — pixel-identical (two real builds). No regression.
+- **Stage tooltip:** via the new `--win08-stage` hook (the demo concert in Stage, no sign-in). Hovering the metronome glyph shows a "Metronome" tooltip (a compose.layers popup): `shots/stage-head-2-tooltip-metronome.png` (with the property) is identical to `shots/stage-nolayers-2-tooltip-metronome.png` (same binary, WIN08_NO_COMPOSE_LAYERS=1). No regression.
+- **Concert-critical check PASSES** — `shots/stage-head-3-pagedown-while-tooltip.png`: with the tooltip showing, PageDown turned the page (House of the Rising Sun → Amazing Grace 2/7). The tooltip's separate window does NOT take focus; Stage never misses a pedal press. (`shots/stage-head-1-stage.png` is the concert rendered in Stage.)
+
+### New knobs — all dormant in production, like WIN08_SABOTAGE
+- `WIN08_NO_COMPOSE_LAYERS` (env): UNSET in production → `compose.layers.type=WINDOW` is set as normal on Windows. Only the item-8 capture sets it to 1 to drop the property on the same binary for the with/without comparison.
+- `--win08-stage <concert.tstage>` (launch arg): never passed in normal startup. Only the CI capture passes it, to show the demo concert in Stage interactively (no sign-in). Mirrors `--win08-studio`/`--win08-smoke`.
+- `WIN08_PROBE_OPENWINDOW` / `WIN08_PROBE_DOWNLOAD` (env): dormant; only the CI capture sets them, to exercise the OpenWindowListener / a download once after load.
+
+### Numbers
+Memory with Studio open — the TroubaStage tree by parent pid (2 TroubaStage + 6 msedgewebview2): **614.0 MiB**. MSI +2.86 MiB (71,355,100 vs 68,356,525), your measurement.
+
+Requesting a verdict. On GO: VLL installs the PR-run MSI (`troubastage-windows-msi`) and does the pen + F11-in-Studio + F11-on-Home checks on his Surface; then I rebase (dropping my sessionCookieSeed copy + its test, per the A98 split, keeping the call site; and trimming the diagnostic knobs if you want them gone), squash with the Approved-by trailer, and land. The win08-spike/win08-shots/win08-item8 throwaway branches are deleted before landing.
