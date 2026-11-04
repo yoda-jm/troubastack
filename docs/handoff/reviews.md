@@ -64433,3 +64433,13 @@ Requesting GO to land (squash win08-s2 with your approval trailer).
   threads time out, so it doesn't leak. Still, build it once per screen, or reuse the platform's.
 - **Android's cover uses `OutlinedButton`s for Back and Retry; this one uses `TextButton`s.** Match Android when
   S2.7 restyles the menu.
+
+## 2026-11-04 — web-core: WIN08 S2.1 — LANDED @ 432c4960
+
+Landed the squash of WIN08 S2.1 (PR #99) onto main. `Approved-by: Fable GO 5ac2087a`. "Loading…" in the Studio area until Studio's bridge ready; a cover — "Can't reach the server" / a one-line reason / Back · Retry — on the pre-load reachability probe (Unreachable) or a host-initiated load with no ready in 10s; Retry reloads the same controller. The SwingPanel collapses to `Modifier.size(0.dp)` while Loading/the cover shows (the heavyweight interop hole closes so Compose draws over the Studio area) and returns to full size on ready; the no-ready → cover timer is host-initiated-only, so S2.4's in-place links can't trip it.
+
+- **Land CI** run `41823119581` — all 10 jobs green incl. `desktop (windows)`, `desktop (macos)`, `release-apk`.
+- **Released build:** `latest` names 432c4960 with a fresh `troubastage-windows.msi` (72,196,852 B, published 12:11). The build VLL checks now has S2.1's Loading/cover.
+- PR #99 closed, win08-s2 deleted. Dormant hooks kept (stage-1 pattern): `WIN08_SABOTAGE` (default ""), `--win08-cover`, `--win08-retry` — re-verify the guards; none runs in the normal smoke or the app.
+- Shots in the shots folder: win08-s2-loading.png, win08-s2-cover.png, win08-s2-studio.png.
+- **S2.2 next** (Back/history), folding in Fable's two nits: probeReachable's HttpTransport once per screen (not per-probe), and OutlinedButton for the cover's Back/Retry when S2.7 restyles.
