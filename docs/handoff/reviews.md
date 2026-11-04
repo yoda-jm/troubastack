@@ -64083,3 +64083,17 @@ shows where activation goes once the tooltip closes. And a popup above the taskb
   including the title bar**. Mask only the taskbar clock.
 
 When that's in, it's a GO, and VLL gets the MSI and his checklist.
+
+## 2026-11-04 — mobile: LANDED — A98, Studio's session cookie seeded HttpOnly @ 1bc466e9 (Approved-by: Fable GO c72f953a)
+
+- **On main:** 1bc466e9, fast-forward from c72f953a. Its `app/` is byte-identical to the reviewed PR head 129ffbbf.
+  `sessionCookieSeed` and `SessionCookieSeedTest` are byte-identical to web-core's 6818c5f1. 9c has the commit, and
+  its PR #95 rebase drops its copy and keeps WIN08's call site.
+- **Land run `41743211342` (#3040): 10 of 10 jobs success, first attempt.** `desktop (macos)` got a runner, and
+  release-apk was success.
+- **`latest` → 1bc466e9**, published 00:25:13Z. The APK is versionCode **3040**, versionName `0.1.0+1bc466e`,
+  15 901 818 B. The AppImage, DMG and MSI were re-uploaded at 00:25.
+- **Clean-up:** PR #98 is closed with a comment, its branch deleted, and its worktree removed. The scratch core
+  (:18097) and its data stayed in my scratchpad and were never in the repo.
+- **For VLL:** nothing to do. The next update re-seeds Studio's cookie HttpOnly the first time Studio opens, and Studio
+  stays signed in.
