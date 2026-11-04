@@ -341,10 +341,14 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         waitFor(4_000) { c.navCount > navBeforeAlt }
         val altNavDelta = c.navCount - navBeforeAlt
         win08log("back: Alt+Left navDelta=$altNavDelta wentBack=${c.wentBack}")
+        // Walk to the root and confirm the next Back LEAVES the screen (requestBack returns wentBack=false → onExitBack).
+        var leftAtRoot = false
+        for (i in 1..8) { c.requestBack(); waitFor(1_800) { false }; if (c.wentBack == false) { leftAtRoot = true; break } }   // fixed wait: requestBack is async
+        win08log("back: leftAtRoot=$leftAtRoot")
         runCatching { val img = robot.createScreenCapture(java.awt.Rectangle(b.x, b.y, b.width, b.height)); javax.imageio.ImageIO.write(img, "png", File(outDir, "back.png")) }
         runCatching { File(outDir, "back-verdict.txt").writeText(
             "swtSawMouseBack=${c.swtSawMouseBack} mouseListenerFired=${c.mouseBackListenerFired} mouseNavDelta=$mouseNavDelta " +
-            "altNavDelta=$altNavDelta wentBack=${c.wentBack} extraMouseButtons=$extraOk") }
+            "altNavDelta=$altNavDelta leftAtRoot=$leftAtRoot extraMouseButtons=$extraOk") }
         Runtime.getRuntime().halt(0)
     }
 
