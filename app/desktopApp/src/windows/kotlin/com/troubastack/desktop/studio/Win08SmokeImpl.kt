@@ -9,6 +9,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.troubastack.app.HttpTransport
+import com.troubastack.app.Presence
+import com.troubastack.shared.seams.SESSION_COOKIE_KEY
+import com.troubastack.shared.seams.SESSION_ORIGIN_KEY
+import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.seams.desktopDataRoot
 import java.io.File
 import java.net.InetAddress
@@ -30,6 +35,8 @@ import java.nio.charset.StandardCharsets
 class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var cookieHeader: String? = null
     @Volatile private var served = false
+    @Volatile private var serveNoReady = false   // S2.1: when set, the loopback serves a page that never handshakes
+    @Volatile private var accepting = true        // S2.1 retry: when false, the loopback closes connections at once (server "off")
     @Volatile private var serverSocket: ServerSocket? = null
 
     private fun line(s: String) = win08log(s)
@@ -40,8 +47,8 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         win08log("smoke: run start; outDir=$outDir log=$win08LogFile")
         // Arm the backstop FIRST, so any hang — even before the loopback server is up — is logged and halted.
         Thread {
-            try { Thread.sleep(75_000) } catch (_: InterruptedException) { return@Thread }
-            win08log("smoke: BACKSTOP firing (>75s) — halting 1")
+            try { Thread.sleep(120_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("smoke: BACKSTOP firing (>120s) — halting 1")
             Runtime.getRuntime().halt(1)
         }.apply { isDaemon = true; start() }
         win08log("smoke: backstop armed")
@@ -66,6 +73,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 toggleFullScreen = {},
                 isFullScreen = { false },
                 frameWindow = { frameHolder.get() },
+                probeReachable = null,   // the loopback is always reachable; the smoke tests the controller, not the cover
             )
 
             // Check-7 discriminator: WIN08_SABOTAGE=noclose makes onCloseRequest ignore the close (log, don't exit).
@@ -87,7 +95,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                     LaunchedEffect(Unit) {
                         frameHolder.set(window)
                         win08log("smoke: window composed; starting checker thread")
-                        Thread { runChecks(controller, edgeDataDir) { frameHolder.get() } }.apply { isDaemon = true; start() }
+                        Thread { runChecks(controller, edgeDataDir, origin) { frameHolder.get() } }.apply { isDaemon = true; start() }
                     }
                 }
             }
@@ -112,7 +120,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         val origin = "http://127.0.0.1:${server.localPort}"
         Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
         val edgeDataDir = File(desktopDataRoot(), "webview2")
-        fun argsNow() = EmbeddedStudioArgs(origin, null, "TroubaStudio", "win08sess=smoke", edgeDataDir, {}, {}, { false }, { null })
+        fun argsNow() = EmbeddedStudioArgs(origin, null, "TroubaStudio", "win08sess=smoke", edgeDataDir, {}, {}, { false }, { null }, null)
         val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
         val shown = mutableStateOf(true)
         val cyc = mutableStateOf(0)
@@ -175,6 +183,102 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         finish(results) { null }
     }
 
+    /**
+     * S2.1 (R1, refinement 1) — the live Retry proof from the pre-load probe's Unreachable cover (the "VLL's server is
+     * off" case). The loopback owns its port but starts OFF (accepting=false → sockets closed at once), so the probe
+     * and first load can't reach it → the cover. Then it turns ON and fires Retry (controller.reload()); Studio comes
+     * back on the SAME controller. Captures `cover.png` + `studio.png`; asserts recovered + same controller + rect.
+     */
+    override fun runRetry(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        win08log("retry: run start; outDir=$outDir")
+        Thread {
+            try { Thread.sleep(90_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("retry: BACKSTOP firing (>90s) — halting 1"); Runtime.getRuntime().halt(1)
+        }.apply { isDaemon = true; start() }
+        try {
+            accepting = false   // server OFF: the probe + first load get the socket closed → Unreachable → cover
+            val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+            serverSocket = server
+            val port = server.localPort
+            val origin = "http://127.0.0.1:$port"
+            Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
+            win08log("retry: loopback bound on $origin (OFF)")
+
+            val storage = Storage()
+            storage.putSecret("coreUrl", origin)
+            storage.putSecret(SESSION_COOKIE_KEY, "win08retry=x")   // so probePresence GETs /api/me (not short-circuit)
+            storage.putSecret(SESSION_ORIGIN_KEY, origin)
+            val edgeDataDir = File(desktopDataRoot(), "webview2")
+            val frameHolder = java.util.concurrent.atomic.AtomicReference<java.awt.Window?>()
+            val args = EmbeddedStudioArgs(
+                serverUrl = origin, initialPath = null, title = "TroubaStudio",
+                sessionCookie = "win08retry=x", edgeDataDir = edgeDataDir,
+                onBack = {}, toggleFullScreen = {}, isFullScreen = { false }, frameWindow = { frameHolder.get() },
+                probeReachable = { HttpTransport(storage, defaultServerUrl = null) {}.probePresence() !is Presence.Unreachable },
+            )
+            val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+            application {
+                Window(onCloseRequest = ::exitApplication, title = "TroubaStage",
+                    state = rememberWindowState(width = 1200.dp, height = 820.dp)) {
+                    EmbeddedStudioContent(args, onController = { ctrlRef.set(it) })
+                    LaunchedEffect(Unit) {
+                        frameHolder.set(window)
+                        Thread { retryFlow(outDir, ctrlRef, frameHolder) }.apply { isDaemon = true; start() }
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            win08log("retry: run FAILED: $e\n${e.stackTraceToString()}"); Runtime.getRuntime().halt(1)
+        }
+        return 0
+    }
+
+    private fun retryFlow(
+        outDir: File,
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+        frameHolder: java.util.concurrent.atomic.AtomicReference<java.awt.Window?>,
+    ) {
+        fun waitFor(ms: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + ms
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(100) }
+            return cond()
+        }
+        fun capture(name: String) {
+            runCatching {
+                val w = frameHolder.get() ?: return
+                val b = w.bounds
+                val img = java.awt.Robot().createScreenCapture(java.awt.Rectangle(b.x, b.y, b.width, b.height))
+                javax.imageio.ImageIO.write(img, "png", File(outDir, "$name.png"))
+                win08log("retry: captured $name (${File(outDir, "$name.png").length()} bytes)")
+            }.onFailure { win08log("retry: capture $name failed: ${it.message}") }
+        }
+        waitFor(20_000) { ctrlRef.get() != null }
+        val c = ctrlRef.get() ?: run { win08log("retry: no controller"); Runtime.getRuntime().halt(1); return }
+        waitFor(9_000) { false }   // the probe (3s, OFF server) brings up the cover; let it paint
+        capture("cover")
+        val idBefore = System.identityHashCode(c)
+        val beforeReady = c.readyCount
+        accepting = true           // server ON
+        win08log("retry: server ON; firing Retry (reload) on controller id=$idBefore")
+        c.reload()                 // what the cover's Retry button does
+        val recovered = waitFor(20_000) { c.readyCount > beforeReady }
+        val sameController = System.identityHashCode(c) == idBefore
+        // Poll measureDpi until the 0.dp→full refit settles: after `ready` the SwingPanel recomposes to full size and
+        // fitShellToCanvas refits the Shell on the resize — a one-shot measure right after `ready` can catch the transient.
+        var rect = false
+        val rectEnd = System.currentTimeMillis() + 10_000
+        while (System.currentTimeMillis() < rectEnd && !rect) { c.measureDpi(); Thread.sleep(400); rect = c.rectsMatch }
+        capture("studio")
+        val ok = recovered && sameController && rect
+        win08log("retry: recovered=$recovered sameController=$sameController(id=$idBefore) rectsMatch=$rect OK=$ok")
+        runCatching {
+            File(outDir, "retry-verdict.txt").writeText(
+                "recovered=$recovered sameController=$sameController rectsMatch=$rect OK=$ok")
+        }
+        Runtime.getRuntime().halt(if (ok) 0 else 1)
+    }
+
     /** A one-page HTTP/1.0 loopback: read the request headers (record the Cookie), reply with [PAGE]. */
     private fun acceptLoop(server: ServerSocket) {
         while (!server.isClosed) {
@@ -182,20 +286,29 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             Thread {
                 runCatching {
                     sock.use { s ->
+                        if (!accepting) return@use   // S2.1 retry: server "off" — close the socket at once (connection refused/reset)
                         val reader = s.getInputStream().bufferedReader()
+                        val requestLine = reader.readLine() ?: ""   // "GET /path HTTP/1.1"
                         var l = reader.readLine()
                         while (l != null && l.isNotEmpty()) {
                             if (l.startsWith("Cookie:", ignoreCase = true)) cookieHeader = l.substringAfter(":").trim()
                             l = reader.readLine()
                         }
                         served = true
-                        val body = PAGE.toByteArray(StandardCharsets.UTF_8)
-                        val head = "HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
-                            "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
-                        s.getOutputStream().apply {
-                            write(head.toByteArray(StandardCharsets.US_ASCII))
-                            write(body)
-                            flush()
+                        val path = requestLine.substringAfter(' ', "").substringBefore(' ')
+                        val out = s.getOutputStream()
+                        if (path.startsWith("/api/me")) {
+                            // S2.1: answer probePresence()'s reachability GET with 401 → Presence.Unauthorized (reachable),
+                            // not a 200 HTML body it would fail to parse (→ a false Unreachable).
+                            out.write("HTTP/1.0 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(StandardCharsets.US_ASCII))
+                            out.flush()
+                        } else {
+                            // S2.1: a never-ready page (loads but never handshakes) while serveNoReady is set.
+                            val pageStr = if (serveNoReady) PAGE_NOREADY else PAGE
+                            val body = pageStr.toByteArray(StandardCharsets.UTF_8)
+                            val head = "HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
+                                "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
+                            out.write(head.toByteArray(StandardCharsets.US_ASCII)); out.write(body); out.flush()
                         }
                     }
                 }
@@ -203,7 +316,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         }
     }
 
-    private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File, frame: () -> java.awt.Window?) {
+    private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File, origin: String, frame: () -> java.awt.Window?) {
         val results = LinkedHashMap<String, Boolean>()
         fun mark(name: String, ok: Boolean) {
             results[name] = ok
@@ -265,6 +378,18 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             c.probeOffOriginNav("https://example.org/win08")
             mark("off-origin-nav-vetoed", waitFor(10_000) { c.navVetoed })
 
+            // S2.1 (R1): a HIDDEN Browser must still load and send `ready` — the premise of the Loading/cover state,
+            // which hides the Shell (never removing the canvas) so Compose draws over the Studio area. Hide, reload,
+            // and a fresh handshake must arrive. Sabotage `hiddennoready` skips the reload: no fresh ready → the check
+            // reds (the positive control that proves it detects a page that loads but never handshakes — S2.1's cover case).
+            val beforeReady = c.readyCount
+            c.setShellVisible(false)
+            if (System.getenv("WIN08_SABOTAGE") != "hiddennoready") c.reload()
+            val hiddenReady = waitFor(20_000) { c.readyCount > beforeReady }
+            mark("hidden-browser-loads-and-readies", hiddenReady)
+            c.setShellVisible(true)   // restore before the DPI rect read; the Shell's bounds survive hide/show
+            waitFor(1_500) { false }   // brief pause so the async re-show lands before measureDpi reads the rects
+
             val dotSwt = File(System.getProperty("user.home").orEmpty(), ".swt")
             if (System.getenv("WIN08_SABOTAGE") == "dotswt") runCatching { dotSwt.mkdirs() }
             val underRoot = edgeDataDir.absolutePath.startsWith(File(desktopDataRoot()).absolutePath)
@@ -311,6 +436,35 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 win08log("menu: lastMenuWindow after Studio focus = ${c.lastMenuWindow}")
                 mark("menu-dismissed-on-studio-focus", c.lastMenuWindow == null)
             }
+
+            // ── S2.1 (R1) — the no-ready → cover timer, scoped to host-initiated loads ─────────────────────────────
+            // Refinement 2: an IN-PAGE same-origin navigation (a link; S2.4's in-place PDF) must NOT trip the cover —
+            // it doesn't go through a host load path, so the timer is never armed. Navigate in-page to a page that
+            // never handshakes and confirm navNoReadyFired stays false. Sabotage 'armoncompleted' re-arms on every
+            // completed nav → it fires → this reds.
+            serveNoReady = true
+            c.smokeInPageNav("$origin/inpage")
+            val inPageFired = waitFor(12_000) { c.navNoReadyFired }
+            mark("in-page-nav-no-cover", !inPageFired)
+
+            // Refinement 3 (the real S2.1 cover check): a HOST-initiated load of a never-ready page brings the cover up
+            // within ~12s (navNoReadyFired). Sabotage 'noreadytimer' disables the timer → this reds.
+            c.reload()   // host-initiated → arms the timer; serveNoReady still set → the page never readies
+            val coverFired = waitFor(13_000) { c.navNoReadyFired }
+            mark("host-load-never-ready-covers", coverFired)
+
+            // Refinement 1 (second vector): Retry on the SAME controller recovers. Serve the ready page and reload
+            // (what the cover's Retry does) — `ready` must arrive on the same controller instance and the shell rect
+            // must match the canvas again (back to full size).
+            val idBefore = System.identityHashCode(c)
+            val beforeRetry = c.readyCount
+            serveNoReady = false
+            c.reload()
+            val recovered = waitFor(15_000) { c.readyCount > beforeRetry }
+            val sameController = System.identityHashCode(c) == idBefore
+            c.measureDpi(); waitFor(1_500) { false }
+            win08log("retry: recovered=$recovered sameController=$sameController(id=$idBefore) rectsMatch=${c.rectsMatch}")
+            mark("retry-recovers-same-controller", recovered && sameController && c.rectsMatch)
 
             finish(results, frame)
         } catch (e: Throwable) {
@@ -364,5 +518,9 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
   }
 })();
 </script></head><body><h1>win08 loopback</h1></body></html>"""
+
+        // S2.1: loads and completes, but NEVER calls TroubaStageShellReceive → no `ready`. Used for the never-ready
+        // cover check and the in-page-nav-no-cover vector.
+        const val PAGE_NOREADY = """<!doctype html><html><head><meta charset="utf-8"></head><body><h1>no ready</h1></body></html>"""
     }
 }

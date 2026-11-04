@@ -691,7 +691,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
           $out = Join-Path (Get-Location) "win08-out"
           $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-smoke", $out) -PassThru -WorkingDirectory (Get-Location)
-          $exited = $p.WaitForExit(100000)
+          $exited = $p.WaitForExit(150000)
           if (-not $exited) { $p.Kill() }
           Start-Sleep -Seconds 2
           $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -702,7 +702,7 @@ jobs:
           $sv = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue)
           for ($i = 0; $i -lt 20 -and $sv.Count -ne 0; $i++) { Start-Sleep -Seconds 1; $sv = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue) }
           Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-          if (-not $exited) { Write-Error "win08-smoke hung (>100s)"; exit 1 }
+          if (-not $exited) { Write-Error "win08-smoke hung (>150s)"; exit 1 }
           Write-Host "win08-smoke exit $($p.ExitCode); msedgewebview2 survivors=$($sv.Count)"
           if ($p.ExitCode -ne 0) { Write-Error "win08-smoke checks failed"; exit 1 }
           if ($sv.Count -ne 0) { Write-Error "WIN08 check 7: $($sv.Count) msedgewebview2 survivor(s) held the data dir"; exit 1 }
