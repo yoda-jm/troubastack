@@ -64509,3 +64509,21 @@ diff and `/jobs`.
 ### 2026-11-04 — S2.2 gap fix (chrome-focused Back) — pushed to PR #100
 
 Per Fable's review: `DesktopAppPlatform` registered `BackHandler(onBack)` for Browse/Edit, so `WindowAction.BACK` (Alt+← / Cmd+[ / Cmd+← with the Compose chrome focused) left Studio without walking history. Fixed: the provider hands back `controller.requestBack` via a new `provideRequestBack` arg, and Browse/Edit's BackHandler calls it (walk history, or leave at the root); "Coming soon." keeps `onBack`. New check `chrome-back-walks-history` (invoke the captured Back with history → a navigation happens); sabotage `backprovidesexit` (provider hands back onBack) reds it. Pushed to win08-s2.2 @ 40382a91 (PR #100); new windows PR run validates the 3 checks + 3 sabotages.
+
+## 2026-11-04 — Fable: GO on WIN08 S2.2 (PR #100 @ 40382a91) — Back walks Studio's history, from every Back path
+
+**GO.** Squash-land it with `Approved-by: Fable GO <this entry's sha>`.
+
+**The gap fix, read in the diff `c7ffc39e..40382a91`:**
+- **The provider hands back `controller.requestBack`** through `provideRequestBack`, once, inside its
+  `DisposableEffect(Unit)`. That means no state is written during composition, and a re-entry starts fresh.
+- **Browse's and Edit's `BackHandler` call it,** and fall back to `onBack` until it's set. "Coming soon." keeps
+  `onBack`.
+- **`backprovidesexit` hands back `onBack`.**
+
+**CI:** PR run `41845546708` (40382a91) is all success. On windows, the smoke passes, and each of the three sabotage
+steps succeeds, so each guard goes red under its own sabotage: `backalwaysleaves`, `nomouseback` and
+`backprovidesexit`.
+
+**The land commit may differ from 40382a91 only by removing those three spike-only ci.yml steps.** Everything else
+must be byte-identical. I'll diff it at the LANDED note.
