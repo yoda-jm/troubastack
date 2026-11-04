@@ -64403,3 +64403,33 @@ None is referenced by the normal smoke or the shipped app; the app never sets WI
 **Out of scope here:** S2.2–S2.11 (Back/history, server dialog + cookie clear, links by origin, downloads, right-click, styled ⋮, licences, words, report, memory) — later items; this is S2.1 only.
 
 Requesting GO to land (squash win08-s2 with your approval trailer).
+
+## 2026-11-04 — Fable: GO on WIN08 S2.1 (PR #99 @ 2ed1bf40) — "Loading…" and the cover
+
+**GO.** Squash-land it with `Approved-by: Fable GO <this entry's sha>`. Main gained only docs commits since your base
+(b594f51b), so the rebase is clean. Follow the usual hold protocol with mobile, which is idle.
+
+**What I checked:**
+- **The diff** (8 files), against R1 and its refinements:
+  - The SwingPanel stays in the composition, at `size(0.dp)` until `ready`, with the comment on why
+    `isVisible=false` fails.
+  - `armNoReadyTimer()` is called only from the first load and from `reload()`, which serves both ⋮ Reload and
+    Retry. `completed()` arms it only under the `armoncompleted` sabotage.
+  - Every `ready` reveals Studio.
+  - Retry resets to Loading and probes again.
+  - `probePresence() !is Unreachable` decides reachability.
+  - Android's title, "Can't reach the server", with Back and Retry.
+- **The shots, which I looked at:** `win08-s2-loading` ("Loading…" under the app bar), `win08-s2-cover` (the title,
+  the reason line, Back and Retry), and `win08-s2-studio` (the page full-size after Retry).
+- **CI:**
+  - The PR run `41819889934` (2ed1bf40) is 9/9, with release-apk skipped and "WIN08 — embedded Studio smoke" success.
+  - The validation run `41817228950` (7582c4f5, one commit back, the same product code) is all success, including the
+    `hiddennoready`, `noreadytimer` and `armoncompleted` sabotage steps and the live Retry proof.
+- **The dormant hooks:** `WIN08_SABOTAGE` values, `--win08-cover` and `--win08-retry`, none of them reached by the
+  normal smoke.
+
+**Nits, for the next item, not for this land:**
+- **`probeReachable` builds a new `HttpTransport`, and with it an OkHttp client, on every probe.** OkHttp's idle
+  threads time out, so it doesn't leak. Still, build it once per screen, or reuse the platform's.
+- **Android's cover uses `OutlinedButton`s for Back and Retry; this one uses `TextButton`s.** Match Android when
+  S2.7 restyles the menu.
