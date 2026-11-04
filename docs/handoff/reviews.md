@@ -64364,3 +64364,42 @@ guarded so it's added only once.
 
 Do S2.1 to S2.11 in the spec's order. Each item gets its smoke check and its own sabotage, plus the screenshots, on a
 throwaway spike as in stage 1. One presentation per finished item group is fine.
+
+## 2026-11-04 — web-core: WIN08 stage 2 — S2.1 (Loading, cover, Retry) — GATE (PR #99)
+
+Stage 2 S2.1 per the spec (fbddaa8e § S2.1) + Fable's rulings R1 (b594f51b) and the three refinements. Branch win08-s2; PR #99 → main; PR CI run 41819889934 (windows included). **Diff it, view the three shots, read /jobs.**
+
+**What it does.** Studio no longer shows a blank area while it loads or when the server is down:
+- **"Loading…"** in the Studio area until Studio's bridge `ready` (as Android does).
+- **A cover** — "Can't reach the server" / a one-line reason / **Back** · **Retry** — on either (a) the pre-load reachability probe (`HttpTransport.probePresence()` — Unreachable → cover at once; Online/Unauthorized → load) or (b) a host-initiated load that completes with no `ready` within 10s. **Retry** reloads the same controller.
+
+**The rendering mechanism (R1, refined).** Hiding the Shell OR the canvas leaves the Studio area blank — Compose Desktop's SwingPanel interop reserves (punches) the heavyweight rectangle for as long as the component is laid out. The fix is to collapse the SwingPanel to `Modifier.size(0.dp)` while Loading/the cover shows (the hole closes; Compose draws over the area) and restore it to full size on `ready` (`fitShellToCanvas` refits the Shell on the resize). The SwingPanel stays in the composition the whole time, so the Browser survives for Retry. A comment at the call site records why `shell.isVisible`/`canvas.isVisible` don't work, so nobody simplifies back to them. The 0.dp-from-start embed still readies (bridge-round-trips, below).
+
+**The no-ready → cover timer is host-only (R1 refinement 2).** Armed only by host loads (first load, ⋮ Reload, Retry) via `armNoReadyTimer`, never in `completed()` — so S2.4's in-place same-origin links (e.g. opening a song's PDF) can't land the cover over a good page.
+
+**Real checks (normal `desktop (windows)` smoke, this PR run):**
+- `in-page-nav-no-cover` — an in-page same-origin nav to a never-ready page leaves no cover (the timer stays un-armed).
+- `host-load-never-ready-covers` — a host load of a never-ready page brings the cover up (~12s).
+- `retry-recovers-same-controller` — serve the ready page and reload: `ready` returns on the SAME controller instance and the shell rect matches the canvas again.
+- (Stage 1's checks unchanged, incl. `hidden-browser-loads-and-readies`, `bridge-round-trips` now with the collapse, `dpi-shell-rect-equals-canvas-at-100`.)
+
+**Each guard's red — validation run 41817228950 (windows /jobs):** the land-ready PR run doesn't run sabotages (stage-1 pattern); that run does, each a discriminating red:
+- `WIN08_SABOTAGE=hiddennoready` → `hidden-browser-loads-and-readies: FAIL` (skips the post-hide reload → no fresh ready).
+- `WIN08_SABOTAGE=noreadytimer` → `host-load-never-ready-covers: FAIL` (armNoReadyTimer returns early → the timer never fires); in-page stays PASS.
+- `WIN08_SABOTAGE=armoncompleted` → `in-page-nav-no-cover: FAIL` (re-arms in `completed()` → in-page navs trip it); host-load stays PASS.
+- `--win08-cover` captured cover.png; `--win08-retry` captured studio.png + `recovered=true sameController=true rectsMatch=true OK=true`.
+
+**Dormant hooks kept in the code (stage-1 pattern — how anyone re-verifies the guards). None runs unless its env var or argument is set:**
+- `WIN08_SABOTAGE` (read once as `System.getenv("WIN08_SABOTAGE").orEmpty()`, default "" = off): the S2.1 values above, plus stage 1's (engine, bridge, bridge-late, nav, reparent, nofit, dotswt, noblock, menufocus, menusticky, noclose).
+- `--win08-cover <out.png>` (Main.kt, arg-gated): renders the embedded studio against a dead server and Robot-captures the cover.
+- `--win08-retry <outDir>` (arg-gated → `Win08SmokeRunner.runRetry`): the live Retry proof — loopback OFF (probe Unreachable → cover) → ON → Retry → Studio on the same controller; writes cover.png/studio.png/retry-verdict.txt.
+None is referenced by the normal smoke or the shipped app; the app never sets WIN08_SABOTAGE and passes none of the `--win08-*` args.
+
+**Shots (in the shots folder):**
+- `win08-s2-loading.png` — "Loading…" centred in the Studio area (the WebView hidden behind the 0.dp collapse).
+- `win08-s2-cover.png` — the cover: "Can't reach the server" / "The server didn't answer." / Back · Retry.
+- `win08-s2-studio.png` — Studio back after Retry (the loopback page full-size), proving the recovery.
+
+**Out of scope here:** S2.2–S2.11 (Back/history, server dialog + cookie clear, links by origin, downloads, right-click, styled ⋮, licences, words, report, memory) — later items; this is S2.1 only.
+
+Requesting GO to land (squash win08-s2 with your approval trailer).
