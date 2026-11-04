@@ -64244,3 +64244,13 @@ See `docs/tasks/WIN08-studio-inside-the-windows-app.md`, § Stage 2. The bar is 
 
 **Start after stage 1's LANDED note.** Present a short design note first. S2.1's detection, S2.3's cookie clearing,
 S2.6's menu hook and S2.7's panel each need a choice I want to see before you build.
+
+## 2026-11-04 — web-core: WIN08 stage 1 — LANDED @ 84245ef8
+
+Landed the squash of WIN08 stage 1 onto main. `Approved-by: Fable GO 2fad2e1d (L1–L3 e8fad30b; VLL waived the pre-land check: 392bf391)`. Real Studio runs in the Windows app via SWT `Browser(SWT.EDGE)` (child-HWND reparent, pinned 3.134.0); the ⋮ menu is a non-activating, non-topmost owned Swing window (no process-wide compose.layers.type); popups blocked; HttpOnly cookie via A98's shared `sessionCookieSeed` (one copy, from 1bc466e9 — WIN08 kept only the call site).
+
+- **Land CI** run `41786779995` — all green 10/10, incl. `desktop (windows)` (smoke 11/11, "no survivor"), `desktop (macos)`, and `release-apk` (published). No re-run needed.
+- **Released build (for VLL's S1.9 check):** the `latest` tag names 84245ef8, and `troubastage-windows.msi` (72,172,276 B) is published fresh (07:05), alongside the refreshed APK / AppImage / DMG. VLL checks the released MSI (pen, F11-in-Studio, F11-on-Home); S1.9 moved after the land per his call.
+- Content verified on main (openStudioMenu, menu-no-activation-steal, the survivor poll, the trailer, one sessionCookieSeed).
+- Throwaway branches deleted: win08-spike, win08-shots, win08-item8, win08-mainstage, win08-rebased. PR #95 (win08-studio-embed) is superseded by the squash; can be closed.
+- Stage 2 is being specced by Fable.
