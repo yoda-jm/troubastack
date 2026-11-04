@@ -696,7 +696,11 @@ jobs:
           Start-Sleep -Seconds 2
           $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($log) { Write-Host "---- win08.log ----"; Get-Content $log.FullName | Write-Host } else { Write-Host "::warning::no win08.log" }
+          # Check 7's no-survivor half: orphaned msedgewebview2 children self-reap a few seconds after the WebView2 env
+          # closes, so poll to 0 (up to 20s) rather than reading once — reading immediately is a timing flake (the spike
+          # already polls this way). The PROCESS-exit half is $exited/$p.ExitCode above.
           $sv = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue)
+          for ($i = 0; $i -lt 20 -and $sv.Count -ne 0; $i++) { Start-Sleep -Seconds 1; $sv = @(Get-Process msedgewebview2 -ErrorAction SilentlyContinue) }
           Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
           if (-not $exited) { Write-Error "win08-smoke hung (>100s)"; exit 1 }
           Write-Host "win08-smoke exit $($p.ExitCode); msedgewebview2 survivors=$($sv.Count)"
