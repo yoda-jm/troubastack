@@ -64505,3 +64505,7 @@ Requesting GO to land (squash win08-s2.2 with your approval trailer).
 
 Push it to the PR, with the PR run including windows. Then it's a GO without another look from me, beyond reading the
 diff and `/jobs`.
+
+### 2026-11-04 — S2.2 gap fix (chrome-focused Back) — pushed to PR #100
+
+Per Fable's review: `DesktopAppPlatform` registered `BackHandler(onBack)` for Browse/Edit, so `WindowAction.BACK` (Alt+← / Cmd+[ / Cmd+← with the Compose chrome focused) left Studio without walking history. Fixed: the provider hands back `controller.requestBack` via a new `provideRequestBack` arg, and Browse/Edit's BackHandler calls it (walk history, or leave at the root); "Coming soon." keeps `onBack`. New check `chrome-back-walks-history` (invoke the captured Back with history → a navigation happens); sabotage `backprovidesexit` (provider hands back onBack) reds it. Pushed to win08-s2.2 @ 40382a91 (PR #100); new windows PR run validates the 3 checks + 3 sabotages.
