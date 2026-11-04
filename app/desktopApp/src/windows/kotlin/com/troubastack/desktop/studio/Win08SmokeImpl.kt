@@ -283,6 +283,22 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 "canvasClient=${c.canvasClient} shellClient=${c.shellClient} rectsMatch=${c.rectsMatch}")
             mark("dpi-shell-rect-equals-canvas-at-100", c.rectsMatch)
 
+            // Item 8 — the ⋮ menu floats over the WebView WITHOUT stealing activation: open it, then the OS foreground
+            // window is still the frame AND no window of this process is WS_EX_TOPMOST. Sabotage 'menufocus' shows a
+            // FOCUSABLE menu window instead → GetForegroundWindow != frame → this reds.
+            val frameWin = frame()
+            if (frameWin != null) runCatching { javax.swing.SwingUtilities.invokeAndWait { frameWin.toFront(); frameWin.requestFocus() } }
+            Thread.sleep(600)
+            val fgBefore = frameWin != null && Win08Native.foregroundIsFrame(frameWin)
+            c.openStudioMenu()
+            Thread.sleep(1500) // let the popup show on the EDT
+            val fgIsFrame = frameWin != null && Win08Native.foregroundIsFrame(frameWin)
+            val noTopmost = !Win08Native.anyProcessWindowTopmost()
+            win08log("menu: fgBefore=$fgBefore foregroundIsFrameWithMenu=$fgIsFrame anyProcessWindowTopmost=${!noTopmost}")
+            // Pass needs the frame to have been foreground to begin with (else the runner never activated it, and the
+            // check is moot); given that, opening the menu must keep it foreground and add no topmost window.
+            mark("menu-no-activation-steal", fgBefore && fgIsFrame && noTopmost)
+
             finish(results, frame)
         } catch (e: Throwable) {
             win08log("smoke: checker threw: ${e.message}")

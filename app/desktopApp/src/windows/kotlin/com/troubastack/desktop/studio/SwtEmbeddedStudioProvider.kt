@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,8 +45,8 @@ class SwtEmbeddedStudioProvider : EmbeddedStudioProvider {
 
 /**
  * The embedded screen, factored so the CI smoke can drive the same path and read the controller's flags via
- * [onController]. The heavyweight SWT browser draws over Compose content in this window; `compose.layers.type=WINDOW`
- * (set in Main, Windows only) makes the ⋮ menu a separate undecorated window so it floats over the browser.
+ * [onController]. The heavyweight SWT browser draws over Compose content in this window; the ⋮ menu floats over it as a
+ * heavyweight, never-activating Swing JPopupMenu (controller.openStudioMenu) — NOT via compose.layers.type=WINDOW.
  */
 @Composable
 internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtBrowserController) -> Unit = {}) {
@@ -57,7 +55,6 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
     }
     var engineMissing by remember { mutableStateOf(false) }
     var timedOut by remember { mutableStateOf(false) }
-    var menuOpen by remember { mutableStateOf(false) }
     val base = args.serverUrl.orEmpty()
     val loadUrl = remember(base, args.initialPath) { embeddedUrl(base, args.initialPath) }
     val origin = remember(base) { originOfUrl(base) }
@@ -100,12 +97,9 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             TextButton(onClick = args.onBack) { Text("‹  Back") }
             Text(args.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.weight(1f))
-            Box {
-                TextButton(onClick = { menuOpen = true }) { Text("⋮") }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text("Reload") }, onClick = { menuOpen = false; controller.reload() })
-                }
-            }
+            // The ⋮ menu is a HEAVYWEIGHT Swing JPopupMenu (openStudioMenu), not a Compose DropdownMenu: it floats over
+            // the heavyweight WebView without the process-wide compose.layers.type=WINDOW that stole frame activation.
+            TextButton(onClick = { controller.openStudioMenu() }) { Text("⋮") }
         }
         if (engineMissing || timedOut) {
             Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {

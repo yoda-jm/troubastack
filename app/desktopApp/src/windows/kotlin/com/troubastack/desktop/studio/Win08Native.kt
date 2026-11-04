@@ -120,6 +120,30 @@ internal object Win08Native {
         count
     }.getOrDefault(-1)
 
+    private const val GWL_EXSTYLE = -20
+    private const val WS_EX_TOPMOST = 0x00000008
+
+    /** Item 8 — is the OS foreground window the given [frame]? With the ⋮ menu open this must hold (the menu, a
+     *  non-activating JPopupMenu, must not take activation from the frame). */
+    fun foregroundIsFrame(frame: Window): Boolean = runCatching {
+        val fg = user32.GetForegroundWindow(); val fh = hwndOf(frame)
+        fg != null && fh != null && fg == fh
+    }.getOrDefault(false)
+
+    /** Item 8 — does any VISIBLE window of THIS process carry WS_EX_TOPMOST? The ⋮ menu must not be topmost. */
+    fun anyProcessWindowTopmost(): Boolean = runCatching {
+        val myPid = com.sun.jna.platform.win32.Kernel32.INSTANCE.GetCurrentProcessId()
+        var topmost = false
+        user32.EnumWindows(WNDENUMPROC { h, _ ->
+            if (user32.IsWindowVisible(h)) {
+                val pid = IntByReference(); user32.GetWindowThreadProcessId(h, pid)
+                if (pid.value == myPid && (user32.GetWindowLong(h, GWL_EXSTYLE) and WS_EX_TOPMOST) != 0) topmost = true
+            }
+            true
+        }, Pointer.NULL)
+        topmost
+    }.getOrDefault(true)
+
     private const val WS_CAPTION = 0x00C00000
     private const val MONITOR_DEFAULTTONEAREST = 0x00000002
 

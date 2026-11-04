@@ -99,6 +99,32 @@ internal class SwtBrowserController(
     /** Smoke only: try to navigate off-origin; the LocationListener must veto it ([navVetoed] is the proof). */
     fun probeOffOriginNav(foreign: String) = exec { browser?.setUrl(foreign) }
 
+    /**
+     * Item 8 — the Studio ⋮ menu, over the heavyweight WebView. A HEAVYWEIGHT `JPopupMenu` (lightweight disabled) is a
+     * transient popup: it floats over the browser's child HWND, is NEVER activating (its window is non-focusable) and
+     * is NEVER topmost — so the frame keeps activation (title bar stays active). This replaces the Compose DropdownMenu,
+     * which needed process-wide compose.layers.type=WINDOW (that stole activation from the frame on every popup).
+     * Smoke proof: with it open, GetForegroundWindow()==the frame AND no process window is WS_EX_TOPMOST.
+     * Sabotage 'menufocus': a FOCUSABLE menu window takes activation (GetForegroundWindow != frame) → the check reds.
+     */
+    fun openStudioMenu() = onEdt {
+        if (!canvas.isShowing) return@onEdt
+        if (sabotage == "menufocus") {
+            val w = javax.swing.JWindow(javax.swing.SwingUtilities.getWindowAncestor(canvas))
+            w.focusableWindowState = true
+            w.contentPane.add(javax.swing.JButton("Reload").apply { addActionListener { reload(); w.dispose() } })
+            w.pack()
+            val loc = canvas.locationOnScreen; w.setLocation(loc.x + canvas.width - w.width - 8, loc.y + 2)
+            w.isVisible = true; w.toFront(); w.requestFocus()
+            log("win08: SABOTAGE menufocus — a FOCUSABLE menu JWindow was shown (should steal activation)")
+            return@onEdt
+        }
+        val menu = javax.swing.JPopupMenu().apply { isLightWeightPopupEnabled = false }
+        menu.add(javax.swing.JMenuItem("Reload").apply { addActionListener { reload() } })
+        menu.show(canvas, canvas.width - 170, 2)
+        log("win08: studio ⋮ menu shown (heavyweight JPopupMenu — non-activating, not topmost)")
+    }
+
     /** Keep the reparented child Shell filling the AWT canvas, in PHYSICAL pixels (item 4): size from the canvas
      *  HWND's own client rect via SetWindowPos, so it is right even when AWT's scale differs from SWT's (e.g.
      *  -Dsun.java2d.uiScale=1.5). SWT's setBounds (SWT points) is only correct while both toolkits share a scale. */
