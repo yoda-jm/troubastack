@@ -107,22 +107,40 @@ internal class SwtBrowserController(
      * Smoke proof: with it open, GetForegroundWindow()==the frame AND no process window is WS_EX_TOPMOST.
      * Sabotage 'menufocus': a FOCUSABLE menu window takes activation (GetForegroundWindow != frame) → the check reds.
      */
+    @Volatile var lastMenuWindow: java.awt.Window? = null; private set  // the ⋮ menu window, for the smoke's topmost check
+
     fun openStudioMenu() = onEdt {
         if (!canvas.isShowing) return@onEdt
-        if (sabotage == "menufocus") {
-            val w = javax.swing.JWindow(javax.swing.SwingUtilities.getWindowAncestor(canvas))
-            w.focusableWindowState = true
-            w.contentPane.add(javax.swing.JButton("Reload").apply { addActionListener { reload(); w.dispose() } })
-            w.pack()
-            val loc = canvas.locationOnScreen; w.setLocation(loc.x + canvas.width - w.width - 8, loc.y + 2)
-            w.isVisible = true; w.toFront(); w.requestFocus()
-            log("win08: SABOTAGE menufocus — a FOCUSABLE menu JWindow was shown (should steal activation)")
-            return@onEdt
+        val owner = javax.swing.SwingUtilities.getWindowAncestor(canvas) ?: return@onEdt
+        val focusable = (sabotage == "menufocus")  // sabotage: a FOCUSABLE menu window takes activation → the check reds
+        val w = javax.swing.JWindow(owner)
+        w.isAlwaysOnTop = false                     // NEVER topmost (Fable's criterion)
+        w.focusableWindowState = focusable          // real: false → never activating; so the frame keeps activation
+        val panel = javax.swing.JPanel().apply {
+            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            border = javax.swing.BorderFactory.createLineBorder(java.awt.Color(0x60, 0x60, 0x60))
         }
-        val menu = javax.swing.JPopupMenu().apply { isLightWeightPopupEnabled = false }
-        menu.add(javax.swing.JMenuItem("Reload").apply { addActionListener { reload() } })
-        menu.show(canvas, canvas.width - 170, 2)
-        log("win08: studio ⋮ menu shown (heavyweight JPopupMenu — non-activating, not topmost)")
+        panel.add(javax.swing.JMenuItem("Reload").apply { addActionListener { reload(); w.dispose() } })
+        w.contentPane.add(panel); w.pack()
+        val loc = canvas.locationOnScreen
+        w.setLocation(loc.x + canvas.width - w.width - 8, loc.y + 2)
+        w.isVisible = true
+        if (focusable) { w.toFront(); w.requestFocus() }
+        lastMenuWindow = w
+        // A non-focusable window gets no focus-lost; dismiss on a press outside it.
+        val toolkit = java.awt.Toolkit.getDefaultToolkit()
+        val dismiss = java.awt.AWTEventListener { ev ->
+            val me = ev as? java.awt.event.MouseEvent ?: return@AWTEventListener
+            if (me.id == java.awt.event.MouseEvent.MOUSE_PRESSED &&
+                javax.swing.SwingUtilities.getWindowAncestor(me.component) !== w) w.dispose()
+        }
+        toolkit.addAWTEventListener(dismiss, java.awt.AWTEvent.MOUSE_EVENT_MASK)
+        w.addWindowListener(object : java.awt.event.WindowAdapter() {
+            override fun windowClosed(e: java.awt.event.WindowEvent?) {
+                toolkit.removeAWTEventListener(dismiss); if (lastMenuWindow === w) lastMenuWindow = null
+            }
+        })
+        log("win08: studio ⋮ menu shown (owned JWindow, focusable=$focusable, alwaysOnTop=false)")
     }
 
     /** Keep the reparented child Shell filling the AWT canvas, in PHYSICAL pixels (item 4): size from the canvas

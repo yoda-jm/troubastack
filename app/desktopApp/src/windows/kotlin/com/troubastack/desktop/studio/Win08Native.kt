@@ -130,18 +130,11 @@ internal object Win08Native {
         fg != null && fh != null && fg == fh
     }.getOrDefault(false)
 
-    /** Item 8 — does any VISIBLE window of THIS process carry WS_EX_TOPMOST? The ⋮ menu must not be topmost. */
-    fun anyProcessWindowTopmost(): Boolean = runCatching {
-        val myPid = com.sun.jna.platform.win32.Kernel32.INSTANCE.GetCurrentProcessId()
-        var topmost = false
-        user32.EnumWindows(WNDENUMPROC { h, _ ->
-            if (user32.IsWindowVisible(h)) {
-                val pid = IntByReference(); user32.GetWindowThreadProcessId(h, pid)
-                if (pid.value == myPid && (user32.GetWindowLong(h, GWL_EXSTYLE) and WS_EX_TOPMOST) != 0) topmost = true
-            }
-            true
-        }, Pointer.NULL)
-        topmost
+    /** Item 8 — does [window] (the ⋮ menu) carry WS_EX_TOPMOST? It must not — the menu floats over the WebView because
+     *  it is a top-level window above the frame's child HWNDs, not because it is forced above every other window. */
+    fun isWindowTopmost(window: Window): Boolean = runCatching {
+        val h = hwndOf(window) ?: return false
+        (user32.GetWindowLong(h, GWL_EXSTYLE) and WS_EX_TOPMOST) != 0
     }.getOrDefault(true)
 
     private const val WS_CAPTION = 0x00C00000

@@ -293,11 +293,13 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             c.openStudioMenu()
             Thread.sleep(1500) // let the popup show on the EDT
             val fgIsFrame = frameWin != null && Win08Native.foregroundIsFrame(frameWin)
-            val noTopmost = !Win08Native.anyProcessWindowTopmost()
-            win08log("menu: fgBefore=$fgBefore foregroundIsFrameWithMenu=$fgIsFrame anyProcessWindowTopmost=${!noTopmost}")
-            // Pass needs the frame to have been foreground to begin with (else the runner never activated it, and the
-            // check is moot); given that, opening the menu must keep it foreground and add no topmost window.
-            mark("menu-no-activation-steal", fgBefore && fgIsFrame && noTopmost)
+            val menuWin = c.lastMenuWindow
+            val menuTopmost = menuWin != null && Win08Native.isWindowTopmost(menuWin)
+            win08log("menu: fgBefore=$fgBefore foregroundIsFrameWithMenu=$fgIsFrame menuShown=${menuWin != null} menuTopmost=$menuTopmost")
+            // Pass needs the frame to have been foreground to begin with (else the runner never activated it, so the
+            // check is moot); given that, opening the ⋮ menu must keep the frame foreground AND the menu window must
+            // exist and not be WS_EX_TOPMOST. Sabotage 'menufocus' makes the menu focusable → it steals the foreground.
+            mark("menu-no-activation-steal", fgBefore && fgIsFrame && menuWin != null && !menuTopmost)
 
             finish(results, frame)
         } catch (e: Throwable) {
