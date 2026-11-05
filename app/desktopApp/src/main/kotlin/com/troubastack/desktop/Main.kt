@@ -245,6 +245,17 @@ fun main(args: Array<String>) {
         if (code != 0) exitProcess(code)
         return
     }
+    // WIN08 S2.3 — the sign-out reopen cookie clear (`--win08-cookieclear <outDir>`): a persistent cookie is set, Studio
+    // is closed, the clear is requested with no live Browser, and the reopen (signed out) must carry no old session.
+    val cookieClearIdx = args.indexOf("--win08-cookieclear")
+    if (cookieClearIdx >= 0) {
+        val outDir = args.getOrNull(cookieClearIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-cookieclear needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner ?: run { System.err.println("win08-cookieclear: Windows only"); exitProcess(2) }
+        val code = runner.runCookieClear(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
     // WIN08 S2.1 (R1) SPIKE — the cover render hook (`--win08-cover <out.png>`): point the embedded studio at an
     // UNREACHABLE server so the cover shows, then capture the window to prove the cover draws OVER the SwingPanel (the
     // open rendering question), not occluded by the heavyweight canvas. Windows only (needs the SWT provider).
@@ -282,6 +293,10 @@ fun main(args: Array<String>) {
  */
 private fun runUpdateNow(releaseUrl: String) {
     val storage = Storage()
+    // WIN04 diagnosability: a packaged GUI app has no captured stdout/stderr, so a non-success outcome (why no update
+    // was offered, or why it was refused) also goes to update-now.log under the data root; the CI step prints it on an
+    // unexpected exit (as the WIN08 step does with win08.log). That turns "transient, reason unknown" into a cause.
+    fun diag(s: String) { System.err.println(s); runCatching { File(desktopDataRoot(), "update-now.log").appendText(s + "\n") } }
     val u = DesktopAppUpdate(
         storage, CoroutineScope(Dispatchers.Default), dataRoot = File(desktopDataRoot()), installedExe = installedMsiExe(),
         releaseUrl = releaseUrl, hookMode = true, exitForInstall = { Runtime.getRuntime().halt(0) },
@@ -290,13 +305,13 @@ private fun runUpdateNow(releaseUrl: String) {
         val release = when (val v = u.checkNow(manual = true)) {
             is UpdateVerdict.Available -> v.release
             is UpdateVerdict.Dismissed -> v.release
-            else -> { System.err.println("update-now: no update offered ($v, failed=${u.failed})"); exitProcess(3) }
+            else -> { diag("update-now: no update offered ($v, failed=${u.failed})"); exitProcess(3) }
         }
-        if (installedMsiExe() == null) { System.err.println("update-now: $CANNOT_INSTALL_LINE"); exitProcess(4) }
+        if (installedMsiExe() == null) { diag("update-now: $CANNOT_INSTALL_LINE"); exitProcess(4) }
         val msi = try {
             u.downloadAndVerify(release)
         } catch (e: UpdateRefused) {
-            System.err.println("update-now: refused: ${e.message}"); exitProcess(4)
+            diag("update-now: refused: ${e.message}"); exitProcess(4)
         }
         println("update-now: verified ${msi.name}; handing off")
         System.out.flush()
@@ -387,7 +402,7 @@ private fun runWin08Studio(url: String, user: String, pass: String, songPath: St
     System.setProperty("win08.log", "1") // diagnostic path: write the durable win08.log (F11 key trace etc.)
     val storage = Storage()
     storage.putSecret("coreUrl", url)
-    val transport = HttpTransport(storage, defaultServerUrl = null) { }
+    val transport = HttpTransport(storage, defaultServerUrl = null) { _, _ -> }
     val err = runBlocking { transport.connect(user, pass) }
     if (err != null) { System.err.println("win08-studio: sign-in failed: $err"); exitProcess(5) }
     println("win08-studio: signed in as $user; opening ${songPath ?: "/"}")

@@ -140,6 +140,43 @@ internal class SwtBrowserController(
      *  listener → bridge {type:"back"} → requestBack chain (not the real XBUTTON1; that's the --win08-back recon). */
     fun smokeDispatchMouseBack() = exec { browser?.execute("window.dispatchEvent(new MouseEvent('mouseup',{button:3,bubbles:true}))") }
 
+    // ── S2.3: WebView2 cookie clearing (server change / sign-out) ────────────────────────────────────────────────
+    private val pendingClearFile get() = java.io.File(edgeDataDir, "pending-cookie-clear")
+
+    /** Clear the old session's WebView2 cookie. Option C — expire the exact cookie by (name, host-only origin, Path=/):
+     *  a cookie is keyed by (name, domain, path), so Max-Age=0 deletes it whether it was a session or a persistent
+     *  (+30d) cookie. Then option A — clearSessions() as a backup. Runs on the SWT thread. */
+    private fun applyCookieClear(oldOrigin: String?, cookieName: String?) {
+        // Sabotage clearonlya: skip option C (do only clearSessions). The smoke's persistent cookie then survives, which
+        // proves C — not clearSessions — is what deletes the persistent half (the cleared-cookie check reds).
+        val skipC = System.getenv("WIN08_SABOTAGE") == "clearonlya"
+        if (!skipC && !cookieName.isNullOrEmpty() && !oldOrigin.isNullOrEmpty()) {
+            runCatching { Browser.setCookie("$cookieName=; Path=/; Max-Age=0", oldOrigin) }
+                .onSuccess { ok -> log("win08: cookie clear C setCookie($cookieName Max-Age=0 @ $oldOrigin)=$ok") }
+                .onFailure { log("win08: cookie clear C failed: ${it.message}") }
+        }
+        runCatching { Browser.clearSessions() }.onSuccess { log("win08: cookie clear A clearSessions()") }
+    }
+
+    /** Applied in run() before seeding (S2.3): a clear requested while no Browser was live was persisted here. */
+    private fun applyPendingCookieClear() {
+        // Sabotage nopending: never apply the pending clear. The reopen then carries the old persistent cookie → the
+        // pending-clear-applied-on-reopen check reds, proving the pre-seed clear is what keeps the reopen clean.
+        if (System.getenv("WIN08_SABOTAGE") == "nopending") { log("win08: WIN08_SABOTAGE=nopending — skipping pending clear"); return }
+        val f = pendingClearFile
+        if (!f.exists()) return
+        val records = runCatching { f.readLines() }.getOrDefault(emptyList()).filter { it.isNotBlank() }
+        log("win08: applying ${records.size} pending cookie clear record(s)")
+        for (rec in records) {
+            val parts = rec.split('\t')
+            applyCookieClear(parts.getOrNull(0)?.takeIf { it.isNotEmpty() }, parts.getOrNull(1)?.takeIf { it.isNotEmpty() })
+        }
+        runCatching { f.delete() }
+    }
+
+    /** S2.3: clear the WebView2 cookies NOW on this live Browser (server change from inside Studio). */
+    fun clearCookiesNow(oldOrigin: String?, cookieName: String?) = exec { applyCookieClear(oldOrigin, cookieName) }
+
     /**
      * S2.2 Back: ‹ Back / Alt+← / the mouse back button first walk Studio's own history (`browser.back()` while
      * `isBackEnabled`), as Android's BackHandler does; they leave the Studio screen ([onExitBack]) only when there is
@@ -486,6 +523,10 @@ internal class SwtBrowserController(
                     }
                 }
             })
+
+            // S2.3: apply a pending cookie clear (persisted by a sign-out / server change while no Browser was live)
+            // BEFORE seeding — clear-then-seed, so signing out and back in as someone else on the same server is clean.
+            applyPendingCookieClear()
 
             // Seed the session cookie AS THE SERVER SETS IT (item 5): Path=/ + HttpOnly (+ Secure on https), so
             // Studio's own scripts cannot read the session (document.cookie), while the request header still carries

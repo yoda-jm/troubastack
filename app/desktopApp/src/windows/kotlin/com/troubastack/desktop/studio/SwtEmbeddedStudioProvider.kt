@@ -55,7 +55,20 @@ internal const val COVER_RETRY_LABEL = "Retry"
  */
 class SwtEmbeddedStudioProvider : EmbeddedStudioProvider {
     @Composable
-    override fun Host(args: EmbeddedStudioArgs) = EmbeddedStudioContent(args)
+    override fun Host(args: EmbeddedStudioArgs) = EmbeddedStudioContent(args, onController = { liveController = it })
+
+    // S2.3: clear the old session's WebView2 cookies. A live Browser clears at once (server change from inside Studio);
+    // with none live (sign-out from Home), persist a pending clear the next Studio open applies before seeding. A stale
+    // (disposed) controller has a dead thread, so threadAlive() routes it to the pending-clear path.
+    override fun clearCookies(edgeDataDir: java.io.File, oldOrigin: String?, cookieName: String?) {
+        val live = liveController
+        if (live != null && live.threadAlive()) live.clearCookiesNow(oldOrigin, cookieName)
+        // APPEND one record per clear (origin<TAB>name), so signing out of A then B before any reopen keeps BOTH — a
+        // single overwritten record would let the first origin's cookie survive. The next open applies every record.
+        else runCatching { edgeDataDir.mkdirs(); java.io.File(edgeDataDir, "pending-cookie-clear").appendText("${oldOrigin ?: ""}\t${cookieName ?: ""}\n") }
+    }
+
+    companion object { @Volatile internal var liveController: SwtBrowserController? = null }
 }
 
 /**

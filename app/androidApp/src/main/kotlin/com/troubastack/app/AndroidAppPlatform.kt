@@ -75,7 +75,7 @@ class AndroidAppPlatform(private val activity: MainActivity) : AppPlatform {
             QrPresentScreen(transport = transport, bandId = bandId, bandName = bandName, onManageInStudio = onManageInStudio, onBack = onBack)
         }
 
-        override fun clearCookies() = clearWebViewCookies()
+        override fun clearCookies(oldOrigin: String?, cookieName: String?) = clearWebViewCookies()  // S2.3: Android drops all cookies; args ignored
     }
 
     override val appUpdate: (Storage, CoroutineScope) -> AppUpdate =

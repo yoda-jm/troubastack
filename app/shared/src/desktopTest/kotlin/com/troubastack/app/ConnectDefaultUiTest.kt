@@ -23,7 +23,7 @@ class ConnectDefaultUiTest {
     fun noDefault_connectStartsAtTheBareScheme_andTheTransportContactsNothing() = runComposeUiTest {
         // TEETH: the old shared default prefilled (and probed) http://10.0.2.2:8080 on the desktop too.
         val storage = emptyStorage()
-        val transport = HttpTransport(storage, defaultServerUrl = null, clearWebCookies = {})
+        val transport = HttpTransport(storage, defaultServerUrl = null, clearWebCookies = { _, _ -> })
         setContent { ConnectDialog(storage, transport, onClose = {}) }
         onNodeWithText("http://", useUnmergedTree = true).assertExists()
         assertFalse(transport.isConnected)
@@ -34,7 +34,7 @@ class ConnectDefaultUiTest {
     @Test
     fun androidsDefault_isStillWhereConnectStarts() = runComposeUiTest {
         val storage = emptyStorage()
-        val transport = HttpTransport(storage, defaultServerUrl = "http://10.0.2.2:8080", clearWebCookies = {})
+        val transport = HttpTransport(storage, defaultServerUrl = "http://10.0.2.2:8080", clearWebCookies = { _, _ -> })
         setContent { ConnectDialog(storage, transport, onClose = {}) }
         onNodeWithText("http://10.0.2.2:8080", useUnmergedTree = true).assertExists()
     }

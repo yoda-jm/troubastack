@@ -15,6 +15,10 @@ interface EmbeddedStudioProvider {
     /** Render the embedded Studio screen: the app bar (‹ Back, [title], ⋮ Reload) above Studio in a SwingPanel. */
     @Composable
     fun Host(args: EmbeddedStudioArgs)
+
+    /** S2.3: drop the WebView2 cookies for [oldOrigin]'s session ([cookieName]). Applied at once on a live Browser,
+     *  else persisted under [edgeDataDir] as a pending clear the next Studio open runs before seeding + the first load. */
+    fun clearCookies(edgeDataDir: java.io.File, oldOrigin: String?, cookieName: String?)
 }
 
 /**

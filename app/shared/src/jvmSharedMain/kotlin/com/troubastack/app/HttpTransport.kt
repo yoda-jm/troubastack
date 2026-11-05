@@ -113,11 +113,13 @@ fun sessionCookieSeed(cookie: String, url: String): String {
  * survives against the new one. Defense-in-depth alongside [sessionCookieFor] (which already refuses a
  * cross-origin replay).
  */
-fun dropSessionIfOriginChanged(storage: Storage, newUrl: String, clearWebCookies: () -> Unit) {
+fun dropSessionIfOriginChanged(storage: Storage, newUrl: String, clearWebCookies: (oldOrigin: String?, cookieName: String?) -> Unit) {
     if (originOf(newUrl) != storage.getSecret(SESSION_ORIGIN_KEY).orEmpty()) {
+        val oldOrigin = storage.getSecret(SESSION_ORIGIN_KEY)                               // S2.3: capture BEFORE clearing
+        val cookieName = storage.getSecret(SESSION_COOKIE_KEY)?.substringBefore('=')?.takeIf { it.isNotEmpty() }
         clearSession(storage::putSecret)              // A38 review: consolidated onto the tested helper
         storage.putSecret(LAST_USERNAME_KEY, "")      // A41: the remembered username belongs to a server
-        clearWebCookies()
+        clearWebCookies(oldOrigin, cookieName)
     }
 }
 
@@ -132,8 +134,10 @@ class HttpTransport(
     private val storage: Storage,
     /** WIN03 — where to start when no server is saved (AppPlatform.defaultServerUrl); null: none, nothing is contacted. */
     val defaultServerUrl: String?,
-    /** Drops the Studio web view's cookies (Android: the WebView cookie jar), with the session. */
-    val clearWebCookies: () -> Unit,
+    /** Drops the Studio web view's cookies with the session. [oldOrigin] + [cookieName] are the session's values
+     *  captured BEFORE it was cleared (S2.3), so the web view can target that exact cookie (WIN08 option C); Android
+     *  ignores them (removeAllCookies). */
+    val clearWebCookies: (oldOrigin: String?, cookieName: String?) -> Unit,
 ) : ManifestTransport {
     private val json = Json { ignoreUnknownKeys = true }
     private val client = HttpClient(OkHttp) {
@@ -452,8 +456,10 @@ class HttpTransport(
     /** Clear the persisted session (Storage is overwrite-only, so empty == signed out) — and drop the
      *  Studio web view's cookies too ([clearWebCookies]), so signing out signs out everywhere. */
     fun signOut() {
+        val oldOrigin = storage.getSecret(SESSION_ORIGIN_KEY)                               // S2.3: capture BEFORE clearing
+        val cookieName = storage.getSecret(SESSION_COOKIE_KEY)?.substringBefore('=')?.takeIf { it.isNotEmpty() }
         clearSession(storage::putSecret) // the tested storage half — keeps CORE_URL_KEY, touches no files
-        clearWebCookies()
+        clearWebCookies(oldOrigin, cookieName)
     }
 
     private fun cookie(): String? = server?.let { sessionCookieFor(storage::getSecret, it) }

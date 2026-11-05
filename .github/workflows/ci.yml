@@ -19,6 +19,14 @@ on:
   # Manual republish of the Docker image without a code change — the escape hatch latest-only needs
   # (no immutable tag to re-point). Runs the full suite; the image job publishes green-gated (below).
   workflow_dispatch:
+    inputs:
+      # WIN08 S2.3: set the embedded-Studio sabotage for a measurement spike (e.g. clearonlya, nopending). The WIN08
+      # smoke/cookieclear steps pass it as WIN08_SABOTAGE; empty on push/PR, so normal CI runs un-sabotaged. A measured
+      # discriminator run is EXPECTED to red the targeted check (proof the guard has teeth), so it is never landed.
+      win08_sabotage:
+        description: "WIN08_SABOTAGE value for a measurement spike (leave empty for a normal run)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -685,6 +693,8 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: app
         shell: pwsh
+        env:
+          WIN08_SABOTAGE: ${{ github.event.inputs.win08_sabotage }}   # S2.3: empty on push/PR; set for a measurement spike
         run: |
           $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
           $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-home"
@@ -725,6 +735,31 @@ jobs:
           if (-not $exited) { $p.Kill(); Write-Error "S1.6 smoke hung"; exit 1 }
           if ($p.ExitCode -ne 0) { Write-Error "S1.6 checks failed"; exit 1 }
           Write-Host "WIN08 S1.6: forced no-WebView2 shows the message, no Browser, no IE fallback"
+      # WIN08 S2.3 — the sign-out reopen cookie clear: a persistent cookie is set, Studio closes, the clear is requested
+      # with no live Browser (a pending-clear file), and the reopen (signed out) applies it before loading, so the reopen
+      # request carries no old session. The nopending sabotage reds pending-clear-applied-on-reopen (proving it has teeth).
+      - name: WIN08 — sign-out reopen cookie clear (S2.3)
+        if: runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        env:
+          WIN08_SABOTAGE: ${{ github.event.inputs.win08_sabotage }}   # S2.3: empty on push/PR; set for a measurement spike
+        run: |
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-cookieclear-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "win08-cookieclear-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-cookieclear", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(120000)
+          if (-not $exited) { $p.Kill() }
+          Start-Sleep -Seconds 2
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Write-Host "---- win08.log (cookieclear) ----"; Get-Content $log.FullName | Write-Host } else { Write-Host "::warning::no win08.log" }
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $exited) { Write-Error "win08-cookieclear hung (>120s)"; exit 1 }
+          Write-Host "win08-cookieclear exit $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { Write-Error "win08-cookieclear checks failed"; exit 1 }
+          Write-Host "WIN08 S2.3: sign-out reopen carries no old session"
       - name: secret store cost — DPAPI get/put p50/p95 (F2)
         if: runner.os == 'Windows'
         working-directory: app
@@ -834,7 +869,11 @@ jobs:
           $bad = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -PassThru
           if (-not $bad.WaitForExit(120000)) { Write-Error "the app did not exit on the wrong-digest pass (>120 s)"; exit 1 }
           Write-Host "wrong-digest pass: exit $($bad.ExitCode)"
-          if ($bad.ExitCode -ne 4) { Write-Error "the app did not refuse a wrong SHA-256 (exit $($bad.ExitCode), expected 4)"; exit 1 }
+          if ($bad.ExitCode -ne 4) {
+            $ulog = Join-Path $dataRoot "update-now.log"
+            if (Test-Path $ulog) { Write-Host "---- update-now.log ----"; Get-Content $ulog | Write-Host } else { Write-Host "::warning::no update-now.log at $ulog" }
+            Write-Error "the app did not refuse a wrong SHA-256 (exit $($bad.ExitCode), expected 4)"; exit 1
+          }
           if ((Test-Path (Join-Path $updDir "msiexec.log")) -or (Test-Path (Join-Path $updDir "result.txt"))) { Write-Error "msiexec ran on a refused update"; exit 1 }
           $stillN = @(Entries)
           if ($stillN.Count -ne 1 -or $stillN[0].DisplayVersion -ne $n) { Write-Error "after the refused update: expected ONE entry at $n"; exit 1 }

@@ -110,7 +110,7 @@ fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null
     if (showSettings) {
         ServerDialog(serverUrl, onDismiss = { showSettings = false }) { newUrl ->
             serverUrl = newUrl.trim()
-            dropSessionIfOriginChanged(storage, serverUrl, ::clearWebViewCookies) // pointing at a new server ⇒ drop the old session
+            dropSessionIfOriginChanged(storage, serverUrl) { _, _ -> clearWebViewCookies() } // new server ⇒ drop old session (Android drops all)
             storage.putSecret(CORE_URL_KEY, serverUrl)
             showSettings = false
         }

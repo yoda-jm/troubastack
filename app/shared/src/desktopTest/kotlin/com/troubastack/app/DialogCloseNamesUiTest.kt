@@ -30,7 +30,7 @@ class DialogCloseNamesUiTest {
     @Test
     fun connect_theCrossIsNamedClose_notCancel() = runComposeUiTest {
         val storage = emptyStorage()
-        val transport = HttpTransport(storage, defaultServerUrl = null, clearWebCookies = {})
+        val transport = HttpTransport(storage, defaultServerUrl = null, clearWebCookies = { _, _ -> })
         var closed = 0
         setContent { ConnectDialog(storage, transport, onClose = { closed++ }) }
         assertNamedClickable("Close")
@@ -43,7 +43,7 @@ class DialogCloseNamesUiTest {
     @Test
     fun join_theCrossIsNamedClose_onTheFirstStep_andBesideTheBlockedStepsCloseButton() = runComposeUiTest {
         val storage = emptyStorage()
-        val transport = HttpTransport(storage, defaultServerUrl = null, clearWebCookies = {})
+        val transport = HttpTransport(storage, defaultServerUrl = null, clearWebCookies = { _, _ -> })
         var link by mutableStateOf("https://band.example/join/tok_123") // a first-ever server: Confirm, nothing contacted
         var closed = 0
         setContent { JoinDialog(link, storage, transport, onClose = { closed++ }, onJoined = {}) }

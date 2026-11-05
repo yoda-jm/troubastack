@@ -135,8 +135,10 @@ interface StudioHost {
     @Composable
     fun PresentQr(transport: HttpTransport, bandId: String, bandName: String, onManageInStudio: () -> Unit, onBack: () -> Unit)
 
-    /** Drop the Studio web view's cookies (sign-out, or the server's origin changed). */
-    fun clearCookies()
+    /** Drop the Studio web view's cookies (sign-out, or the server's origin changed). [oldOrigin] + [cookieName] are
+     *  the session's values captured BEFORE it was cleared, so Windows can target that exact cookie (WIN08 S2.3);
+     *  Android ignores them (removeAllCookies). */
+    fun clearCookies(oldOrigin: String?, cookieName: String?)
 }
 
 /** A88 — the in-app update: the latest release, its download and install, the once-a-day automatic check. */

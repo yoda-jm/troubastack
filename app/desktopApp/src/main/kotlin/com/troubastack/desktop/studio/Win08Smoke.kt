@@ -26,6 +26,11 @@ interface Win08SmokeRunner {
     /** S2.2 recon: build same-origin history, synthesise the real mouse back button (XBUTTON1) and Alt+←, and record
      *  whether SWT/the injected page listener see them and how many navigations one press causes. Writes back-verdict.txt. */
     fun runBack(outDir: File): Int
+
+    /** S2.3 sign-out reopen: controller 1 lets the server set a PERSISTENT win08sess, then closes; a clear is requested
+     *  with no live Browser (→ a pending-clear file); controller 2 reopens SIGNED OUT (no seed) and applies the pending
+     *  clear before loading, so its request carries no win08sess. Returns 0 if the reopen's Cookie header is clean. */
+    fun runCookieClear(outDir: File): Int
 }
 
 val win08SmokeRunner: Win08SmokeRunner? by lazy {

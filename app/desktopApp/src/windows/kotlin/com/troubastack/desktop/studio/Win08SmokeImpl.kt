@@ -39,6 +39,8 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var serveNoReady = false   // S2.1: when set, the loopback serves a page that never handshakes
     @Volatile private var accepting = true        // S2.1 retry: when false, the loopback closes connections at once (server "off")
     @Volatile private var serverSocket: ServerSocket? = null
+    @Volatile private var serveSetCookie = false  // S2.3: when set, the page response sets win08sess as a PERSISTENT cookie (Expires +30d)
+    @Volatile private var reqCount = 0            // S2.3: count served page requests, so a post-clear reload can be confirmed to have arrived
 
     private fun line(s: String) = win08log(s)
 
@@ -217,7 +219,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 serverUrl = origin, initialPath = null, title = "TroubaStudio",
                 sessionCookie = "win08retry=x", edgeDataDir = edgeDataDir,
                 onBack = {}, toggleFullScreen = {}, isFullScreen = { false }, frameWindow = { frameHolder.get() },
-                probeReachable = { HttpTransport(storage, defaultServerUrl = null) {}.probePresence() !is Presence.Unreachable },
+                probeReachable = { HttpTransport(storage, defaultServerUrl = null) { _, _ -> }.probePresence() !is Presence.Unreachable },
             )
             val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
             application {
@@ -354,6 +356,95 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         Runtime.getRuntime().halt(0)
     }
 
+    override fun runCookieClear(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        win08log("cookieclear: run start; log=$win08LogFile")
+        Thread { try { Thread.sleep(90_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("cookieclear: BACKSTOP firing (>90s)"); Runtime.getRuntime().halt(1) }.apply { isDaemon = true; start() }
+        val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+        serverSocket = server
+        val origin = "http://127.0.0.1:${server.localPort}"
+        Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
+        val edgeDataDir = File(desktopDataRoot(), "webview2")
+        // Controller 1 carries a session cookie; controller 2 reopens SIGNED OUT (seed = null), so nothing re-seeds
+        // win08sess after the pending clear — the reopen's Cookie header is clean only if the clear actually ran.
+        fun argsFor(cyc: Int) = EmbeddedStudioArgs(
+            origin, null, "TroubaStudio", if (cyc == 0) "win08sess=smoke" else null, edgeDataDir, {}, {}, { false }, { null }, null)
+        val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+        val cyc = mutableStateOf(0)
+        val shown = mutableStateOf(true)
+        application {
+            Window(onCloseRequest = ::exitApplication, title = "TroubaStage", state = rememberWindowState(width = 1200.dp, height = 820.dp)) {
+                androidx.compose.runtime.key(cyc.value) { if (shown.value) EmbeddedStudioContent(argsFor(cyc.value), onController = { ctrlRef.set(it) }) }
+                LaunchedEffect(Unit) { Thread { cookieClearFlow(origin, edgeDataDir, ctrlRef, cyc, shown) }.apply { isDaemon = true; start() } }
+            }
+        }
+        return 0
+    }
+
+    private fun cookieClearFlow(
+        origin: String, edgeDataDir: File,
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+        cyc: androidx.compose.runtime.MutableState<Int>,
+        shown: androidx.compose.runtime.MutableState<Boolean>,
+    ) {
+        val results = LinkedHashMap<String, Boolean>()
+        fun mark(name: String, ok: Boolean) { results[name] = ok; line("WIN08-CHECK $name: ${if (ok) "PASS" else "FAIL"}") }
+        fun waitFor(ms: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + ms
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(100) }
+            return cond()
+        }
+        try {
+            // Controller 1: let the server set win08sess as a PERSISTENT cookie, and confirm it round-trips.
+            val c1 = if (waitFor(40_000) { ctrlRef.get()?.bridgeReady == true }) ctrlRef.get() else null
+            if (c1 == null) { mark("cookieclear-controller1", false); finish(results) { null }; return }
+            // Register controller 1 as the provider's live controller (Host does this in production). After it is
+            // disposed, the provider sees threadAlive()==false and routes the clear to the pending-file path — so the
+            // smoke exercises the real live-vs-pending routing, not just a null liveController.
+            SwtEmbeddedStudioProvider.liveController = c1
+            serveSetCookie = true
+            c1.reload(); waitFor(4_000) { false }
+            var n = reqCount; c1.reload()
+            val hadPersist = waitFor(5_000) { reqCount > n } && (cookieHeader ?: "").contains("win08sess=persist")
+            serveSetCookie = false
+            win08log("cookieclear: hadPersist=$hadPersist cookie=[${cookieHeader ?: ""}]")
+
+            // Sign out while Studio is OPEN→CLOSED: dispose controller 1 FIRST (shown=false, no rebuild yet), then
+            // request the clear with no live Browser — the provider has no live controller (threadAlive false) → it
+            // persists a pending-clear file. Disposing before the clear is what makes this the pending path, not the
+            // live path, and it must finish before controller 2 starts, or 2 could read the file before it is written.
+            val old = c1
+            shown.value = false
+            waitFor(4_000) { !old.threadAlive() }
+            ctrlRef.set(null)
+            SwtEmbeddedStudioProvider().clearCookies(edgeDataDir, origin, "win08sess")
+            // A SECOND sign-out (switch to another server, sign out again) BEFORE reopening: a single-record file would
+            // overwrite origin's record with this decoy, so origin's persistent cookie would survive the reopen. The
+            // append fix keeps both records and applies them all — so applied-on-reopen below discriminates that bug.
+            SwtEmbeddedStudioProvider().clearCookies(edgeDataDir, "http://127.0.0.1:1", "win08sess")
+            val pendingWritten = File(edgeDataDir, "pending-cookie-clear").exists()
+            win08log("cookieclear: controller1 disposed; pendingWritten=$pendingWritten records=${runCatching { File(edgeDataDir, "pending-cookie-clear").readLines().count { it.isNotBlank() } }.getOrDefault(-1)}")
+            mark("pending-clear-file-written-when-closed", pendingWritten)
+
+            // Reopen SIGNED OUT: a fresh key + controller (seed = null). Its run() applies the pending clear BEFORE
+            // seeding, and nothing re-seeds. Confirm its load carries no win08sess.
+            cookieHeader = null; n = reqCount
+            cyc.value = 1; shown.value = true
+            val c2 = if (waitFor(40_000) { ctrlRef.get().let { it != null && it !== old && it.bridgeReady } }) ctrlRef.get() else null
+            if (c2 == null) { mark("cookieclear-controller2", false); finish(results) { null }; return }
+            val reloaded = waitFor(8_000) { reqCount > n }
+            val clean = reloaded && !(cookieHeader ?: "").contains("win08sess")
+            val pendingGone = !File(edgeDataDir, "pending-cookie-clear").exists()
+            win08log("cookieclear: reopen reloaded=$reloaded header=[${cookieHeader ?: ""}] pendingGone=$pendingGone")
+            mark("pending-clear-applied-on-reopen", hadPersist && clean)
+            mark("pending-clear-record-consumed", pendingGone)
+        } catch (e: Throwable) {
+            win08log("cookieclear: flow threw: ${e.message}")
+        }
+        finish(results) { null }
+    }
+
     /** A one-page HTTP/1.0 loopback: read the request headers (record the Cookie), reply with [PAGE]. */
     private fun acceptLoop(server: ServerSocket) {
         while (!server.isClosed) {
@@ -378,10 +469,16 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                             out.write("HTTP/1.0 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(StandardCharsets.US_ASCII))
                             out.flush()
                         } else {
+                            reqCount++
                             // S2.1: a never-ready page (loads but never handshakes) while serveNoReady is set.
                             val pageStr = if (serveNoReady) PAGE_NOREADY else PAGE
                             val body = pageStr.toByteArray(StandardCharsets.UTF_8)
-                            val head = "HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
+                            // S2.3: the server sets win08sess as a PERSISTENT cookie — same name, Path=/, no Domain (host-only),
+                            // Expires +30d — so the clear test proves Max-Age=0 on (name,domain,path) deletes a persistent cookie,
+                            // which clearSessions() (option A) alone would NOT. HttpOnly matches the seeded session cookie.
+                            val setCookie = if (serveSetCookie)
+                                "Set-Cookie: win08sess=persist; Path=/; Expires=Tue, 01 Dec 2026 00:00:00 GMT; HttpOnly\r\n" else ""
+                            val head = "HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" + setCookie +
                                 "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
                             out.write(head.toByteArray(StandardCharsets.US_ASCII)); out.write(body); out.flush()
                         }
@@ -393,9 +490,14 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
 
     private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File, origin: String, frame: () -> java.awt.Window?) {
         val results = LinkedHashMap<String, Boolean>()
+        // S2.3: time each check (since the previous mark) and the cumulative, so the backstop + engine wait get sized
+        // from real green-run numbers (slowest of 3 + margin) instead of by feel. Totals logged at finish().
+        val t0 = System.currentTimeMillis(); var lastMark = t0
         fun mark(name: String, ok: Boolean) {
             results[name] = ok
-            line("WIN08-CHECK $name: ${if (ok) "PASS" else "FAIL"}")
+            val now = System.currentTimeMillis()
+            line("WIN08-CHECK $name: ${if (ok) "PASS" else "FAIL"} (+${now - lastMark}ms, @${now - t0}ms)")
+            lastMark = now
         }
         fun waitFor(timeoutMs: Long, cond: () -> Boolean): Boolean {
             val end = System.currentTimeMillis() + timeoutMs
@@ -569,6 +671,25 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             win08log("back: chrome capturedBack=${capturedBack != null} navDelta=${c.navCount - navBeforeChrome}")
             mark("chrome-back-walks-history", chromeWalked)
 
+            // ── S2.3 cookie clearing (server change from inside Studio, live Browser) ────────────────────────────────
+            // Upgrade win08sess to a PERSISTENT cookie (server Set-Cookie +Expires), confirm it round-trips, then
+            // clearCookiesNow (C: Max-Age=0 on win08sess + A: clearSessions) and reload: the request must carry NO
+            // win08sess. Sabotage clearonlya skips C (A only) → the persistent cookie SURVIVES → this check reds,
+            // proving C — not clearSessions — is what deletes the persistent half (Fable #3 "measure it").
+            serveNoReady = false
+            serveSetCookie = true
+            c.reload(); waitFor(4_000) { false }                                   // server sets win08sess=persist
+            var n = reqCount; c.reload()
+            val hadPersist = waitFor(5_000) { reqCount > n } && (cookieHeader ?: "").contains("win08sess=persist")
+            serveSetCookie = false
+            c.clearCookiesNow(origin, "win08sess"); waitFor(2_000) { false }
+            cookieHeader = null; n = reqCount; c.reload()
+            val reloaded = waitFor(5_000) { reqCount > n }
+            val cleared = reloaded && !(cookieHeader ?: "").contains("win08sess")
+            win08log("cookieclear(live): hadPersist=$hadPersist reloaded=$reloaded afterClear=[${cookieHeader ?: ""}]")
+            mark("cookie-clear-removes-persistent-session", hadPersist && cleared)
+
+            line("WIN08 TIMING total=${System.currentTimeMillis() - t0}ms for ${results.size} checks (size the backstop + engine wait from this)")
             finish(results, frame)
         } catch (e: Throwable) {
             win08log("smoke: checker threw: ${e.message}")

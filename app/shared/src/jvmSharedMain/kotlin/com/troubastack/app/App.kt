@@ -84,7 +84,7 @@ internal data class ConcertEntry(
 fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     val storage = platform.storage
     // The Studio web view's cookie jar is dropped with the session (sign-out, a new server origin).
-    val transport = remember { HttpTransport(storage, defaultServerUrl = platform.defaultServerUrl, clearWebCookies = { platform.studio?.clearCookies() }) }
+    val transport = remember { HttpTransport(storage, defaultServerUrl = platform.defaultServerUrl, clearWebCookies = { o, n -> platform.studio?.clearCookies(o, n) }) }
     // B06: LAN server discovery for Connect; without it Connect simply lists no servers.
     val discovery = remember { platform.discovery ?: ServerDiscovery { flowOf(emptyList()) } }
     val studio = platform.studio
