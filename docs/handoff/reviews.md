@@ -64552,3 +64552,64 @@ See `docs/tasks/A99-studio-downloads-on-the-tablet.md`:
 - "Saved to Downloads: <name>", with Open.
 
 Studio's code is untouched.
+
+## 2026-11-05 — mobile: A99 measured, and a short design note (requesting GO) — reviewer: Fable
+
+### 1. Measured on the app today (API 34, A96_API34; `latest` 1bc466e9, versionCode 3040)
+
+The rig is a copy of the demo `troubacore` on **:18097**, with throwaway data, the demo seed only (marie/demo), the bake
+tool enabled, an empty bands folder and mDNS off; :8080 was never touched. The concert was baked through the API. Studio
+was opened from the app, and each control pressed with a trusted touch through DevTools, with Network logged.
+**Downloads** is `/storage/emulated/0/Download`, empty before and after **every one**.
+
+| # | Control, as Studio wires it on main | Request seen | Saved |
+|---|---|---|---|
+| 1 | Song file ⋯ → **Download PDF…** → Download (T208, `DownloadPdfDialog` → `saveBlob`: a `blob:` URL, **revoked right after `a.click()`**) | 200 `…/files/…`, `attachment; filename="The Open Road - Lead sheet.pdf"`, 202 957 B | nothing; the dialog closed as if done |
+| 2 | Setlist detail → **Setlist PDF** (`export-setlist-pdf`: `blob:`, **revoked**) | 200 `…/export`, `filename="The-Troubadours---Sat-@-The-Anchor.pdf"`, 1 999 B | nothing |
+| 3 | Band settings → **Export band (.zip)** (`blob:`, **revoked**) | 200 `…/export`, `filename="The-Troubadours-2026-11-05.tband.zip"`, 193 917 B | nothing |
+| 4 | Setlists ⋯ → **Download PDF** (opens `PdfDialog` → Make PDF: a `blob:` URL, *not* revoked until the dialog closes; a "Download again" `<a download href=blob:>` stays) | the job, then 200 `filename="Sat @ The Anchor — Marie.pdf"`, **1 247 972 B** | nothing, **while the dialog reads "Downloaded. Download again"** |
+| 5 | **Download .tstage**: on the detail page (`<a href=/api/…/bundle download="Sat @ The Anchor.tstage">`) and in the setlist menu (`triggerDownload`) | **none at all**: the WebView drops the download navigation (server size 660 613 B) | nothing |
+
+- **A correction to the spec's table:** the setlist menu's "Download PDF" is a `blob:` download, through `PdfDialog`.
+  The server-URL downloads are the two "Download .tstage". There's also a sixth, AccountMenu's "Download for Android"
+  (a server URL with `download`), which the same listener covers.
+- **Found on the way, not A99's:** this image's WebView is **Chromium 113** (google_apis gets no WebView updates). There,
+  the song editor's viewer fails with **"Promise.withResolvers is not a function"** (pdfjs-dist 4.10 needs Chromium
+  119+). Download #1 still works through Details → file ⋯. A real tablet whose WebView isn't updated can't open songs in
+  Studio. For you to file or not.
+- Screenshots: `scratchpad/a99rig/m1…m5*.png`
+  (`/tmp/claude-1000/-home-yoda-dev-git-troubastack/bc71b4a7-ce27-499f-9ffd-580b0cb4d245/scratchpad/a99rig/`).
+
+### 2. Design: as specced, with three choices to confirm
+
+- **Injection timing:** the app has no `androidx.webkit`, so there's no document-start script. The capture script is
+  injected with `evaluateJavascript` in `onPageFinished`, guarded so it runs once per document. That's enough here:
+  Studio only calls `createObjectURL` on a user's action, long after load, and SPA navigation keeps the same document.
+  **The alternative** is to add `androidx.webkit` for `addDocumentStartJavaScript`, which isn't available on old WebViews
+  anyway. I'd rather not add the dependency.
+- **The capture:** the script wraps `createObjectURL` and `revokeObjectURL` to keep a `url → Blob` map. It adds a
+  capture-phase `click` listener on `document`. Every Studio download appends its anchor to `body` before `a.click()`,
+  so the listener runs **synchronously, before the revoke**, and takes the `Blob` reference. Then it calls
+  `preventDefault` and reads the blob asynchronously; a revoked URL no longer matters.
+- **The chunks:** 384 KiB raw slices, 512 KiB of base64 each, sent through a **separate**
+  `@JavascriptInterface` (`TroubaStageDownloads`), so Studio's bridge is untouched: `begin(id, name, mime, size)`,
+  `chunk(id, index, b64)`, `end(id)`.
+  - The app appends them in order to a temp file under `cacheDir`.
+  - A pure `ChunkAssembler` rejects an out-of-order index and checks the total at the end. **Teeth:** drop the size
+    check → red.
+  - Then it writes the file to Downloads: `MediaStore.Downloads` with `IS_PENDING` on 29+, or the public folder plus a
+    media scan on 26–28.
+- **Choice 1, the server-URL names:** `onDownloadStart` gives the URL, the UA, `contentDisposition` and the mime type,
+  but not the `download` attribute, and #5 makes no request first, so there's no `Content-Disposition`. **The script also
+  tells the app the `download` attribute of a clicked non-blob `<a download>`**, and the pure `downloadFileName(cd,
+  attr, url)` uses `Content-Disposition`, then that, then the URL's last segment. It is sanitized to one safe file name.
+- **Choice 2, the line for server-URL downloads too:** `DownloadManager` (with `Cookie` from `CookieManager.getCookie(url)`
+  and the WebView's UA, to the public Downloads folder, notification on completion) reports through
+  `ACTION_DOWNLOAD_COMPLETE`. While the Studio screen is open, that shows the same **"Saved to Downloads: <name>"** with
+  **Open**, which opens `getUriForDownloadedFile`; a failed status shows **"Couldn't save <name>."**. So all five read
+  the same.
+- **Choice 3, storage on 26–28:** `WRITE_EXTERNAL_STORAGE` with `maxSdkVersion="28"`, asked at the first save of
+  **either** kind, since DownloadManager into the public folder needs it there too. Our line comes first, and a refusal
+  shows "Couldn't save <name>.".
+- **The interface's reach:** it only writes into Downloads, under a sanitized name, and any page loaded in the WebView
+  could call it, as a browser download could. I'm not adding a size cap; say if you want one.
