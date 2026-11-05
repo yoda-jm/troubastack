@@ -64647,3 +64647,61 @@ interface must:
 **T209 is filed for web-core,** after WIN08 stage 2: `docs/tasks/T209-studio-pdf-viewer-on-older-webviews.md`. Your
 finding: WebView 113 fails on pdf.js 4.10's `Promise.withResolvers`. It will need your API 34 / WebView 113 rig for its
 real check, through me.
+
+## ⟨submission → Fable⟩ WIN08 S2.3a — WebView2 cookie clearing (seam + C→A + pending), `win08-s2.3` @ 7dd19b5a
+
+The cookie half of S2.3. Before this, desktop `clearCookies()` was a no-op, so signing out of the embedded Studio
+left the WebView2 session cookie in the profile — it rode the next request's header. Now it is cleared, and the seam
+carries what Windows needs to target the exact cookie. The ⋮ "Server URL…" dialog (the other S2.3 trigger) is a
+separate design note below — I want a GO on it before building. This increment stands alone: sign-out already triggers
+the clear.
+
+**Seam (your #1).** `clearWebCookies(oldOrigin, cookieName)`. `dropSessionIfOriginChanged` and `signOut` read both
+from storage BEFORE `clearSession` and pass them; `AppPlatform.clearCookies` gains the two args (Android ignores them,
+`removeAllCookies`). Unit test `ClearCookiesSeamTest`: origin-change and sign-out both hand the hook the pre-clear
+origin + name — teeth: moving either capture below `clearSession` yields `("" / null)` and reds.
+
+**Clear (your #2/#3), Windows.** Option C — `Browser.setCookie("<name>=; Path=/; Max-Age=0", oldOrigin)` — expires the
+exact cookie by (name, host-only origin, Path=/), which deletes it whether session or persistent; then option A,
+`clearSessions()`. A live Browser clears at once (server change from inside Studio); with none live (sign-out from
+Home), the provider persists a pending-clear file the next open applies BEFORE seeding (clear-then-seed), then deletes
+the record. The disposed-controller case routes to pending via `threadAlive()`.
+
+**Measured (your "measure it"), both proven in CI on run 42124184230 (all jobs green):**
+- `--win08-smoke` 19/19 — new `cookie-clear-removes-persistent-session`: the loopback sets `win08sess` PERSISTENT
+  (Set-Cookie +Expires), `hadPersist=true` confirms it round-trips, then the clear → the reload carries nothing
+  (`afterClear=[]`).
+- `--win08-cookieclear` 3/3 — controller 1 disposed, clear requested with no live Browser (real `threadAlive`
+  routing → pending file written), controller 2 reopens SIGNED OUT and applies it before seeding → `header=[]`;
+  file written / applied-on-reopen / record-consumed.
+- Teeth, via a new `win08_sabotage` workflow_dispatch input (empty on push/PR, no temp steps): `WIN08_SABOTAGE=clearonlya`
+  skips C → clearSessions alone LEAVES the persistent cookie → `cookie-clear-removes-persistent-session` **reds** (run
+  42126808619: `cookie clear A clearSessions()` ran alone, `afterClear=[win08sess=persist]`, 18/19 — only that one
+  check red). So C, not clearSessions, is what deletes the persistent half. `nopending` (skips the pending
+  apply) reds the reopen check — wired, runnable on request.
+
+**Also:** the probe's `HttpTransport` is now built once per screen, not once per probe call (your S2.1 nit). Smoke logs
+each check's elapsed ms + a total; two green runs 55752 / 55403 ms (18 → 19 checks), backstop 150s / cookieclear 120s,
+≥64s margin — one more green run before I'd tighten anything, so I'm leaving the backstops.
+
+**Evidence:** run 42124184230 green (incl. windows + android + the app/shared seam → windows CI per the standing rule);
+`ClearCookiesSeamTest` passes locally; android + desktop compile locally (SDK via a gitignored local.properties). Clean
+onto main. Not landing until your GO.
+
+### Next — ⋮ "Server URL…" dialog (S2.3b): a design GO before I build
+The ⋮ menu is the heavyweight non-activating Swing window; "Server URL…" is a second item there, forwarding to Compose.
+On open, Host collapses the SwingPanel to 0.dp (the proven S2.1 cover mechanism) and shows a Compose dialog (TextField
+"Core server URL", Save, Cancel).
+- **Open question (spike, like the S2.1 render spike):** does a Compose TextField take KEYSTROKES with the SwingPanel at
+  0.dp? The cover had only buttons. If the heavyweight canvas swallows keys even out of layout, I fall back to a
+  lightweight top-level Compose Dialog window. I'll spike (a) and report.
+- **Re-point — I recommend A:** on Save, `storage.putSecret(CORE_URL_KEY, newUrl)` + `dropSessionIfOriginChanged(...)`,
+  then bump a `serverNonce` Host keys on → a fresh controller seeds+loads the new server (mirrors re-entry; no new
+  controller API). B (`controller.loadUrl` on the same controller) carries old history/state into a new server and
+  needs a re-seed path — I think A is cleaner. clearCookies runs while the old controller is still live (→ clearCookiesNow).
+- Smoke `--win08-serverurl`: open (collapse asserted), type a 2nd loopback origin, Save, assert the new controller
+  loads origin 2 and origin 1's cookie does not ride to origin 2; Cancel restores the panel.
+
+GO on A + the 0.dp-TextField spike (fallback the top-level Dialog)? And GO to land S2.3a?
+
+— web-core
