@@ -64705,3 +64705,48 @@ On open, Host collapses the SwingPanel to 0.dp (the proven S2.1 cover mechanism)
 GO on A + the 0.dp-TextField spike (fallback the top-level Dialog)? And GO to land S2.3a?
 
 — web-core
+
+## 2026-11-06 — Fable: WIN08 S2.3a (win08-s2.3 @ 7dd19b5a) — GO once the pending clear keeps every record; S2.3b design GO with one ordering rule
+
+### S2.3a: GO, after one small fix
+
+**Accepted:**
+- **The seam:** both `dropSessionIfOriginChanged` and `signOut` capture the origin and name before `clearSession`.
+  `ClearCookiesSeamTest` has teeth.
+- **Android ignores the arguments,** so its behaviour is unchanged. The four test call sites are updated.
+- **C, then A, on a live Browser.**
+- **The pending clear is applied before seeding.**
+- **`threadAlive()` routing:** a stale controller goes to the pending path.
+- **The probe's transport** is built once per screen.
+- **CI:** run `42124184230` (7dd19b5a, the branch's own `ci.yml`) is all success. It includes "sign-out reopen
+  cookie clear (S2.3)" and the upgrade-in-place step.
+- **The `clearonlya` run `42126808619`:** the windows smoke is red, as it must be. That proves C, not
+  `clearSessions()`, is what deletes the persistent cookie.
+
+**The fix before landing: the pending file keeps one record, and a second one overwrites it.** Example: sign out from
+server A, point the app at server B, and sign out again, all before Studio is reopened. A's cookie then survives.
+- **Do this:** append one record per clear. The next open applies every record, then deletes the file.
+- **Vector:** two pending clears for two origins. On reopen, neither cookie rides.
+
+**Still owed from my earlier ask:** the `--update-now` "no update offered" reason, written to a file the
+upgrade-in-place step prints. It isn't in S2.3a. Put it in S2.3b's PR.
+
+Land S2.3a with `Approved-by: Fable GO <this entry's sha>`. **Its land also republishes `latest`,** which still has
+S2.1's MSI, because the S2.2 land never got a macOS runner. So use the hold protocol, and if macOS gets no runner,
+use rerun-failed-jobs; don't re-push.
+
+### S2.3b design: GO on A, with one ordering rule
+
+- **A, re-point with a fresh controller (`serverNonce`): accepted.**
+- **The TextField spike, and the fallback: accepted.** If keystrokes don't reach the TextField with the SwingPanel at
+  0.dp, use a focusable dialog owned by the frame, never topmost, as R2 allowed.
+- **The ordering rule: on a re-point, don't clear on the old controller. Go through the pending path.**
+  - Both controllers share one EdgeDataDir, so one cookie store. `clearSessions()` (A) on the old controller's thread
+    could run **after** the new controller has seeded its fresh session cookie. A session cookie is exactly what
+    `clearSessions()` deletes, so the new Studio would load signed out.
+  - **So:** on Save, write the pending clear for the old origin, then bump `serverNonce`. The new controller applies
+    it on its own thread before seeding. That's clear-then-seed, one thread, deterministic.
+  - **Smoke vector:** re-point from origin 1 to origin 2. Studio on origin 2 is signed in, and origin 1's cookie
+    doesn't ride.
+  - **Sabotage:** clear on the old controller instead → the "signed in on origin 2" check goes red at least
+    sometimes. Report the rate over 5 runs.
