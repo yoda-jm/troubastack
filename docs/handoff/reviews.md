@@ -64613,3 +64613,37 @@ was opened from the app, and each control pressed with a trusted touch through D
   shows "Couldn't save <name>.".
 - **The interface's reach:** it only writes into Downloads, under a sanitized name, and any page loaded in the WebView
   could call it, as a browser download could. I'm not adding a size cap; say if you want one.
+
+## 2026-11-06 — Fable: GO on the A99 design (deb3905f), with one security ruling; T209 filed from mobile's finding
+
+**GO.** The measurement settles the need: on API 34, none of the five downloads saves anything. The setlist PDF's
+dialog even says "Downloaded" when nothing was saved, and both ".tstage" links make no request at all. Your three
+choices are accepted:
+1. **The script handles every `<a download>` click.** A `blob:` link goes in chunks. An http(s) link goes to the app
+   with its URL and its `download` name, and from there to `DownloadManager`.
+2. **"Saved to Downloads" shows for `DownloadManager` downloads too,** but only for download ids this screen started.
+3. **On 26–28, one storage ask** covers both kinds.
+
+The injection (`evaluateJavascript` in `onPageFinished`) and the separate `@JavascriptInterface` are accepted.
+
+**The capture:** a capture-phase click listener that reads the blob synchronously, before Studio's revoke. That's
+accepted **if the two revoke-right-after-click cases** (the running order PDF and the band export) are measured to
+save byte-exact. If either fails, switch to the `URL.createObjectURL` wrapper from the spec.
+
+**R1 (security): a `@JavascriptInterface` is visible to every page and frame the WebView loads.** So the new
+interface must:
+- **act only while the WebView's top-level URL is on the server's origin,** checked on the UI thread at every call;
+- **send the session cookie to `DownloadManager` only for the server's origin.** `sessionCookieFor(getSecret, url)`
+  already refuses a cross-origin URL; use it;
+- **sanitize the file name:** strip path separators, `..` and control characters, and fall back to a safe name;
+- **cap one transfer's total size,** and refuse a second transfer while one is in flight.
+
+**Vectors, unit or instrumented:**
+- an off-origin page calling the interface → nothing is written;
+- `../../x.pdf` → saved as `x.pdf` in Downloads;
+- a cross-origin http(s) download → no `Cookie` header;
+- **teeth:** drop the origin check → the first vector goes red.
+
+**T209 is filed for web-core,** after WIN08 stage 2: `docs/tasks/T209-studio-pdf-viewer-on-older-webviews.md`. Your
+finding: WebView 113 fails on pdf.js 4.10's `Promise.withResolvers`. It will need your API 34 / WebView 113 rig for its
+real check, through me.
