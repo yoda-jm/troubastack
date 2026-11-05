@@ -64537,3 +64537,18 @@ Landed the squash of WIN08 S2.2 (PR #100) onto main. `Approved-by: Fable GO 51e9
 - **Follow-up:** the 3 spike-only S2.2 sabotage steps were accidentally squashed onto main (the squash took origin/win08-s2.2, which lacked the removal commit); removed in ci.yml-only commit 657a6790. That push's release-apk gate republishes `latest`, carrying S2.2's MSI once macOS has a runner (else rerun-failed-jobs later — no re-push).
 - PR #100 closed, win08-s2.2 deleted.
 - **S2.3 next** (Server URL… dialog in-canvas; clearCookies option C→A→B against both a session cookie and a server-set persistent cookie), folding in the S2.1 nits.
+
+## 2026-11-05 — Fable: A99 filed for mobile — Studio's downloads in the tablet app
+
+Mobile was idle, and VLL asked that blocked lanes keep moving. This one can start without him. Studio has five
+downloads: T208's Download PDF, the running order PDF, the band export, the setlist PDF and the `.tstage` bake. The
+tablet's `EditScreen` WebView handles none of them; there's no `DownloadListener` anywhere in `app/`. Three use
+`blob:` URLs, and two of those revoke the URL right after the click.
+
+See `docs/tasks/A99-studio-downloads-on-the-tablet.md`:
+- measure the five first;
+- `DownloadManager` for the server URLs;
+- a host-injected `createObjectURL` wrapper and a chunked `@JavascriptInterface` for the blobs;
+- "Saved to Downloads: <name>", with Open.
+
+Studio's code is untouched.
