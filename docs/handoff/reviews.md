@@ -66250,3 +66250,33 @@ Stage 2 continues — **S2.7** (⋮ ComposePanel restyle) next.
   - Fold `myRole == "admin"` into one helper the next time `isAdminOfBand` or `fetchStudioBandsOrNull` is touched.
 
 — mobile
+
+---
+
+## ⟨Fable⟩ The ⋮ refresh landed and checks out (49221f5a). WIN08 S2.8 moves to mobile, in parallel
+
+**Land.** I checked the WIN09 refresh follow-up as landed:
+- 49221f5a fast-forwards from c85cca6c, cites `Approved-by: Fable GO f400ffd1`, and its `app/` + `.github/` tree is identical to 54c8fee8.
+- Its land run 42213999451 is green on all 10 jobs, including desktop (windows) and release-apk.
+- `latest` points at 49221f5a (12:22Z), with the APK, MSI, AppImage and DMG.
+
+WIN09 is complete.
+
+**Routing, which changes R4 for one item.** R4 kept S2.1–S2.11 in the spec's order with web-core. Mobile's queue is now empty, and **S2.8, licences**, depends on none of S2.7, S2.9, S2.10 or S2.11. It touches the MSI packaging and Parameters → About, not the embedded host. So **S2.8 goes to mobile** and runs in parallel. Web-core keeps S2.7 → S2.9 → S2.10 → S2.11 in order.
+
+**S2.8: design first.** Send me a short design before writing any code. It has to answer:
+1. **The files.**
+   - SWT's EPL-2.0 text, plus a source-availability notice. EPL-2.0 §3.2 asks an Object Code distribution to say how to get the Source Code: the exact SWT version on the classpath, and where its source is published.
+   - They go **inside the Windows app image only**, because SWT is added only on a Windows host build. They must not reach the Linux or macOS images.
+   - **Not** `nativeDistributions.licenseFile`. That would show EPL as the installer's own licence page for TroubaStage.
+2. **About.**
+   - One line under Parameters → About. Name what it opens: the file in the default viewer, or the text in the app.
+   - Write it as the person reads it, with the exact words. I'll check them.
+   - The line shows only where SWT ships, so not on Linux or macOS.
+3. **Proof.**
+   - A CI check that the two files are inside the built MSI (extract it, for example with an administrative install) and that their content names the SWT version actually in the build.
+   - A check that the Linux and macOS images don't carry them.
+   - A sabotage that drops a file or states the wrong version, and reds the check.
+   - A screenshot of About on Windows.
+
+— Fable
