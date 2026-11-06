@@ -171,8 +171,13 @@ internal class SwtBrowserController(
             val parts = rec.split('\t')
             applyCookieClear(parts.getOrNull(0)?.takeIf { it.isNotEmpty() }, parts.getOrNull(1)?.takeIf { it.isNotEmpty() })
         }
+        appliedPendingRecords += records.size   // S2.3b: the serverurl smoke asserts the re-point's record was applied
         runCatching { f.delete() }
     }
+
+    /** S2.3b smoke: how many pending-clear records this controller applied in run() before seeding — a re-point writes
+     *  a record and the new controller must apply it, so this is >0 after a re-point (0 if the write or apply is skipped). */
+    @Volatile var appliedPendingRecords = 0; private set
 
     /** S2.3: clear the WebView2 cookies NOW on this live Browser (server change from inside Studio). */
     fun clearCookiesNow(oldOrigin: String?, cookieName: String?) = exec { applyCookieClear(oldOrigin, cookieName) }
@@ -210,6 +215,9 @@ internal class SwtBrowserController(
     /** Set by EmbeddedStudioContent — the L2 sabotage opens the REAL bad path (a Compose DropdownMenu, under
      *  compose.layers.type=WINDOW) through this, since that is what actually steals the frame's activation. */
     @Volatile var requestComposeMenu: (() -> Unit)? = null
+    /** S2.3b: set by EmbeddedStudioContent when a server is configured — the ⋮ "Server URL…" item calls it to open the
+     *  in-canvas re-point dialog. null hides the item (no server set). */
+    @Volatile var requestServerDialog: (() -> Unit)? = null
     // S2.1 (R1): a host-initiated reload started (⋮ Reload or the cover's Retry) — the host resets to "Loading…" so a
     // reload that fails can bring the cover back (even after a prior success, since bridgeReady stays latched).
     @Volatile var onReloadStarted: (() -> Unit)? = null
@@ -230,6 +238,8 @@ internal class SwtBrowserController(
             border = javax.swing.BorderFactory.createLineBorder(java.awt.Color(0x60, 0x60, 0x60))
         }
         panel.add(javax.swing.JMenuItem("Reload").apply { addActionListener { reload(); w.dispose() } })
+        // S2.3b: "Server URL…" opens the in-canvas re-point dialog (only when a server is set → requestServerDialog != null).
+        requestServerDialog?.let { req -> panel.add(javax.swing.JMenuItem("Server URL…").apply { addActionListener { w.dispose(); req() } }) }
         w.contentPane.add(panel); w.pack()
         val loc = canvas.locationOnScreen
         w.setLocation(loc.x + canvas.width - w.width - 8, loc.y + 2)
@@ -526,7 +536,10 @@ internal class SwtBrowserController(
 
             // S2.3: apply a pending cookie clear (persisted by a sign-out / server change while no Browser was live)
             // BEFORE seeding — clear-then-seed, so signing out and back in as someone else on the same server is clean.
-            applyPendingCookieClear()
+            // Sabotage clearafterseed defers it to AFTER the seed (below): clearSessions() then wipes the fresh session,
+            // which proves clear-BEFORE-seed is the load-bearing ordering the re-point's pending path relies on.
+            val clearAfterSeed = System.getenv("WIN08_SABOTAGE") == "clearafterseed"
+            if (!clearAfterSeed) applyPendingCookieClear()
 
             // Seed the session cookie AS THE SERVER SETS IT (item 5): Path=/ + HttpOnly (+ Secure on https), so
             // Studio's own scripts cannot read the session (document.cookie), while the request header still carries
@@ -535,6 +548,7 @@ internal class SwtBrowserController(
                 val value = com.troubastack.app.sessionCookieSeed(c, origin) // A98: HttpOnly; SameSite=Lax (+Secure https)
                 runCatching { Browser.setCookie(value, origin) }.onSuccess { ok -> log("win08: setCookie=$ok via sessionCookieSeed") }
             }
+            if (clearAfterSeed) applyPendingCookieClear()   // WRONG order: wipes the just-seeded session → survival reds
             // S2.1 (R1): the host collapses the SwingPanel to 0.dp while Loading/the cover shows (the hole closes so
             // Compose draws over the Studio area), and restores it on `ready` (fitShellToCanvas refits on the resize).
             browser.setUrl(loadUrl)

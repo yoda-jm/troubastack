@@ -29,6 +29,7 @@ import com.troubastack.app.AppUpdate
 import com.troubastack.app.BackDispatcher
 import com.troubastack.app.BundlePicker
 import com.troubastack.app.FileRehearsalNotes
+import com.troubastack.app.dropSessionIfOriginChanged
 import com.troubastack.app.HttpTransport
 import com.troubastack.app.PedalLink
 import com.troubastack.app.Presence
@@ -108,7 +109,10 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
                 // S2.2: WindowAction.BACK (Alt+← etc. with the chrome focused) must walk Studio's history, not leave —
                 // the embedded screen hands back controller.requestBack, and the BackHandler calls it.
                 var embeddedBack by remember { mutableStateOf<(() -> Unit)?>(null) }
-                provider.Host(embeddedArgs(initialPath = null, title = "TroubaStudio", onBack = onBack, provideRequestBack = { embeddedBack = it }))
+                var serverNonce by remember { mutableStateOf(0) }   // S2.3b: a re-point bumps it → a fresh controller
+                androidx.compose.runtime.key(serverNonce) {
+                    provider.Host(embeddedArgs(initialPath = null, title = "TroubaStudio", onBack = onBack, provideRequestBack = { embeddedBack = it }, onServerUrlChange = { repointServer(it); serverNonce++ }))
+                }
                 BackHandler { (embeddedBack ?: onBack).invoke() }
             } else {
                 StudioComingSoon(onBack)
@@ -121,7 +125,10 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             val provider = embeddedStudioProvider
             if (provider != null) {
                 var embeddedBack by remember { mutableStateOf<(() -> Unit)?>(null) }
-                provider.Host(embeddedArgs(initialPath = initialPath, title = bandTitle?.ifBlank { null } ?: "TroubaStudio", onBack = onBack, provideRequestBack = { embeddedBack = it }))
+                var serverNonce by remember { mutableStateOf(0) }   // S2.3b: a re-point bumps it → a fresh controller
+                androidx.compose.runtime.key(serverNonce) {
+                    provider.Host(embeddedArgs(initialPath = initialPath, title = bandTitle?.ifBlank { null } ?: "TroubaStudio", onBack = onBack, provideRequestBack = { embeddedBack = it }, onServerUrlChange = { repointServer(it); serverNonce++ }))
+                }
                 BackHandler { (embeddedBack ?: onBack).invoke() }   // S2.2: chrome Back walks history
             } else {
                 error("Studio's editor is not on Windows yet (WIN05)")
@@ -138,9 +145,19 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             embeddedStudioProvider?.clearCookies(File(desktopDataRoot(), "webview2"), oldOrigin, cookieName) ?: Unit
     }
 
+    // S2.3b: ⋮ "Server URL…" re-point. Clear the OLD origin's cookie through the NEXT-OPEN path (never the live
+    // controller — both controllers share one EdgeDataDir, and clearing on the old thread could wipe the new session),
+    // then save the new URL. The caller bumps the serverNonce, so a fresh controller loads the new server and applies
+    // the pending clear before seeding.
+    private fun repointServer(newUrl: String) {
+        val edge = File(desktopDataRoot(), "webview2")
+        dropSessionIfOriginChanged(storage, newUrl) { o, n -> embeddedStudioProvider?.clearCookiesOnNextOpen(edge, o, n) }
+        storage.putSecret(CORE_URL_KEY, newUrl.trim())
+    }
+
     /** WIN08 — gather what the embedded-Studio host needs (the server, the session cookie bound to that origin,
      *  the EdgeDataDir under the data root, and the window hooks). The provider builds the URL + origin from these. */
-    private fun embeddedArgs(initialPath: String?, title: String, onBack: () -> Unit, provideRequestBack: (() -> Unit) -> Unit): EmbeddedStudioArgs {
+    private fun embeddedArgs(initialPath: String?, title: String, onBack: () -> Unit, provideRequestBack: (() -> Unit) -> Unit, onServerUrlChange: (String) -> Unit): EmbeddedStudioArgs {
         val serverUrl = storage.getSecret(CORE_URL_KEY)
         // S2.1 nit (Fable): build the probe's transport ONCE per screen, not once per probe call (the cover re-probes
         // on every Retry). It carries no real server default and a no-op cookie clear — it only does probePresence().
@@ -158,6 +175,7 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             // S2.1 (R1): reachable iff probePresence() is not Unreachable (Online or Unauthorized both let Studio load).
             probeReachable = probeTransport?.let { t -> { t.probePresence() !is Presence.Unreachable } },
             provideRequestBack = provideRequestBack,   // S2.2: the provider hands back controller.requestBack
+            onServerUrlChange = serverUrl?.let { onServerUrlChange },   // S2.3b: only offer "Server URL…" when a server is set
         )
     }
 

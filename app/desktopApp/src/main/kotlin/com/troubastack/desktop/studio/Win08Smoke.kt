@@ -31,6 +31,11 @@ interface Win08SmokeRunner {
      *  with no live Browser (→ a pending-clear file); controller 2 reopens SIGNED OUT (no seed) and applies the pending
      *  clear before loading, so its request carries no win08sess. Returns 0 if the reopen's Cookie header is clean. */
     fun runCookieClear(outDir: File): Int
+
+    /** S2.3b ⋮ "Server URL…": open the in-canvas dialog (a Compose TextField focusable with the SwingPanel at 0.dp),
+     *  then re-point between two loopback origins N times. Each re-point clears the old origin through the next-open
+     *  path and a fresh controller seeds a new session, which must survive (the old controller never clears live). */
+    fun runServerUrl(outDir: File): Int
 }
 
 val win08SmokeRunner: Win08SmokeRunner? by lazy {

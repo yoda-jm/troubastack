@@ -256,6 +256,17 @@ fun main(args: Array<String>) {
         if (code != 0) exitProcess(code)
         return
     }
+    // WIN08 S2.3b — the ⋮ "Server URL…" re-point (`--win08-serverurl <outDir>`): open the in-canvas dialog, prove the
+    // TextField takes keystrokes at 0.dp, then re-point between two loopback origins; the new session must survive.
+    val serverUrlIdx = args.indexOf("--win08-serverurl")
+    if (serverUrlIdx >= 0) {
+        val outDir = args.getOrNull(serverUrlIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-serverurl needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner ?: run { System.err.println("win08-serverurl: Windows only"); exitProcess(2) }
+        val code = runner.runServerUrl(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
     // WIN08 S2.1 (R1) SPIKE — the cover render hook (`--win08-cover <out.png>`): point the embedded studio at an
     // UNREACHABLE server so the cover shows, then capture the window to prove the cover draws OVER the SwingPanel (the
     // open rendering question), not occluded by the heavyweight canvas. Windows only (needs the SWT provider).

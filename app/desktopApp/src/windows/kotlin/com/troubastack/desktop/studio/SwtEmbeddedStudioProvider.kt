@@ -13,8 +13,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -48,6 +53,10 @@ internal const val COVER_REASON_UNREACHABLE = "The server didn't answer."
 internal const val COVER_REASON_NO_READY = "Studio didn't respond."
 internal const val COVER_BACK_LABEL = "Back"
 internal const val COVER_RETRY_LABEL = "Retry"
+internal const val SERVER_URL_TITLE = "Core server URL"
+internal const val SERVER_URL_LABEL = "Server address"
+internal const val SERVER_URL_SAVE = "Save"
+internal const val SERVER_URL_CANCEL = "Cancel"
 
 /**
  * WIN08 (Windows only) — hosts Studio through WebView2 via SWT's `Browser(SWT.EDGE)`, inside the TroubaStage
@@ -63,12 +72,31 @@ class SwtEmbeddedStudioProvider : EmbeddedStudioProvider {
     override fun clearCookies(edgeDataDir: java.io.File, oldOrigin: String?, cookieName: String?) {
         val live = liveController
         if (live != null && live.threadAlive()) live.clearCookiesNow(oldOrigin, cookieName)
-        // APPEND one record per clear (origin<TAB>name), so signing out of A then B before any reopen keeps BOTH — a
-        // single overwritten record would let the first origin's cookie survive. The next open applies every record.
-        else runCatching { edgeDataDir.mkdirs(); java.io.File(edgeDataDir, "pending-cookie-clear").appendText("${oldOrigin ?: ""}\t${cookieName ?: ""}\n") }
+        else appendPending(edgeDataDir, oldOrigin, cookieName)
     }
 
-    companion object { @Volatile internal var liveController: SwtBrowserController? = null }
+    // S2.3b: a re-point from inside Studio must NOT clear on the old controller — both controllers share one
+    // EdgeDataDir, so the old thread's clearSessions() could run AFTER the new controller has seeded its fresh session
+    // cookie and sign it out. So ALWAYS persist the clear; the new controller applies it before seeding, on its thread.
+    override fun clearCookiesOnNextOpen(edgeDataDir: java.io.File, oldOrigin: String?, cookieName: String?) {
+        // Sabotage repointnowrite: skip the write, as if repointServer forgot to request the clear. The next controller
+        // then finds no pending record and applies nothing → the serverurl re-point-applied check reds.
+        if (System.getenv("WIN08_SABOTAGE") == "repointnowrite") return
+        appendPending(edgeDataDir, oldOrigin, cookieName)
+    }
+
+    // APPEND one record per clear (origin<TAB>name), so signing out of A then B before any reopen keeps BOTH — a single
+    // overwritten record would let the first origin's cookie survive. The next open applies every record, then deletes.
+    private fun appendPending(edgeDataDir: java.io.File, oldOrigin: String?, cookieName: String?) {
+        runCatching { edgeDataDir.mkdirs(); java.io.File(edgeDataDir, "pending-cookie-clear").appendText("${oldOrigin ?: ""}\t${cookieName ?: ""}\n") }
+    }
+
+    companion object {
+        @Volatile internal var liveController: SwtBrowserController? = null
+        /** S2.3b smoke only: the Server URL dialog's current text, so the focus check can confirm the TextField took
+         *  the Robot's keystrokes with the SwingPanel collapsed to 0.dp. */
+        @Volatile internal var smokeDialogText: String? = null
+    }
 }
 
 /**
@@ -91,6 +119,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
     var covered by remember { mutableStateOf(false) }
     var coverReason by remember { mutableStateOf(COVER_REASON_UNREACHABLE) }
     var retryNonce by remember { mutableStateOf(0) }
+    var showServerDialog by remember { mutableStateOf(false) }   // S2.3b: the ⋮ "Server URL…" in-canvas dialog
     val base = args.serverUrl.orEmpty()
     val loadUrl = remember(base, args.initialPath) { embeddedUrl(base, args.initialPath) }
     val origin = remember(base) { originOfUrl(base) }
@@ -115,6 +144,8 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
     DisposableEffect(Unit) {
         win08log("content: DisposableEffect -> controller.start()")
         controller.requestComposeMenu = { sabotageMenu = true }   // L2 sabotage only
+        // S2.3b: the ⋮ "Server URL…" item opens the in-canvas dialog — only offered when the host set onServerUrlChange.
+        controller.requestServerDialog = args.onServerUrlChange?.let { { showServerDialog = true } }
         // S2.1 (R1): a host reload (⋮ Reload or the cover's Retry) resets to Loading and re-probes reachability; a
         // reload that fails then brings the cover back. In-page navigations don't call reload(), so they're unaffected.
         controller.onReloadStarted = { ready = false; covered = false; retryNonce++ }
@@ -172,9 +203,11 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
                 // through an interop layer that reserves (punches) that rectangle in the Compose surface for the whole
                 // time the component is laid out, regardless of whether its content is visible. Only taking the
                 // component out of the layout (0.dp) closes the hole; disposing it would kill the Browser. So: 0.dp.
+                // S2.3b: the Server URL dialog ALSO collapses the panel to 0.dp — the same proven mechanism — so the
+                // Compose dialog (and its focusable TextField) draws over the Studio area, not behind the heavyweight hole.
                 SwingPanel(
                     background = Color.Transparent,
-                    modifier = if (ready) Modifier.fillMaxSize() else Modifier.size(0.dp),
+                    modifier = if (ready && !showServerDialog) Modifier.fillMaxSize() else Modifier.size(0.dp),
                     factory = { win08log("content: SwingPanel factory -> JPanel+Canvas"); JPanel(BorderLayout()).apply { add(canvas, BorderLayout.CENTER) } },
                 )
                 if (!ready) {
@@ -189,6 +222,13 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
                             Text(LOADING_MESSAGE, style = MaterialTheme.typography.titleMedium)
                         }
                     }
+                }
+                if (showServerDialog) {
+                    ServerUrlDialog(
+                        current = base,
+                        onSave = { newUrl -> showServerDialog = false; args.onServerUrlChange?.invoke(newUrl) },
+                        onCancel = { showServerDialog = false },
+                    )
                 }
             }
         }
@@ -207,6 +247,37 @@ private fun StudioCover(reason: String, onBack: () -> Unit, onRetry: () -> Unit)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onBack) { Text(COVER_BACK_LABEL) }
                 TextButton(onClick = onRetry) { Text(COVER_RETRY_LABEL) }
+            }
+        }
+    }
+}
+
+/**
+ * S2.3b — the in-canvas "Server URL…" dialog. Drawn while the SwingPanel is collapsed to 0.dp (the heavyweight hole
+ * closed), so this Compose TextField can hold keyboard focus. Save hands the new URL to the host, which clears the old
+ * origin's cookie through the next-open path and re-points to a fresh controller; Cancel just restores the panel.
+ */
+@Composable
+private fun ServerUrlDialog(current: String, onSave: (String) -> Unit, onCancel: () -> Unit) {
+    // TextFieldValue with the caret at the end, so the prefilled URL is edited (not prepended to) when the user types.
+    var url by remember { mutableStateOf(TextFieldValue(current, selection = TextRange(current.length))) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { SwtEmbeddedStudioProvider.smokeDialogText = current; runCatching { focus.requestFocus() } }
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(SERVER_URL_TITLE, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it; SwtEmbeddedStudioProvider.smokeDialogText = it.text },   // S2.3b smoke reads this
+                label = { Text(SERVER_URL_LABEL) },
+                singleLine = true,
+                modifier = Modifier.focusRequester(focus),
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onCancel) { Text(SERVER_URL_CANCEL) }
+                TextButton(onClick = { onSave(url.text.trim()) }, enabled = url.text.isNotBlank()) { Text(SERVER_URL_SAVE) }
             }
         }
     }

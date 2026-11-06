@@ -760,6 +760,35 @@ jobs:
           Write-Host "win08-cookieclear exit $($p.ExitCode)"
           if ($p.ExitCode -ne 0) { Write-Error "win08-cookieclear checks failed"; exit 1 }
           Write-Host "WIN08 S2.3: sign-out reopen carries no old session"
+      # WIN08 S2.3b — the ⋮ "Server URL…" re-point: the in-canvas dialog's TextField takes keystrokes with the SwingPanel
+      # at 0.dp, and re-pointing to a second loopback origin keeps the new session and applies the re-point's pending clear.
+      # Two guards, each a deterministic red via win08_sabotage: clearafterseed reds survives-repoint (the clear must run
+      # BEFORE the new seed); repointnowrite reds repoint-applies-pending (the re-point must WRITE the pending record for
+      # the new controller to apply — repointnowrite does not touch cookieclear's own clearCookies path, so cookieclear
+      # stays green under it). nopending reds cookieclear above (so this step is skipped under nopending, which is fine).
+      - name: WIN08 — Server URL re-point (S2.3b)
+        if: runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        env:
+          WIN08_SABOTAGE: ${{ github.event.inputs.win08_sabotage }}   # S2.3: empty on push/PR; set for a measurement spike
+        run: |
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-serverurl-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "win08-serverurl-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-serverurl", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(170000)
+          if (-not $exited) { $p.Kill() }
+          Start-Sleep -Seconds 2
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Write-Host "---- win08.log (serverurl) ----"; Get-Content $log.FullName | Write-Host } else { Write-Host "::warning::no win08.log" }
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $exited) { Write-Error "win08-serverurl hung (>170s)"; exit 1 }
+          Write-Host "win08-serverurl exit $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { Write-Error "win08-serverurl checks failed"; exit 1 }
+          Write-Host "WIN08 S2.3b: Server URL dialog focuses, re-point keeps the new session and applies the pending clear"
+          Write-Host "WIN08 S2.3: sign-out reopen carries no old session"
       - name: secret store cost — DPAPI get/put p50/p95 (F2)
         if: runner.os == 'Windows'
         working-directory: app
@@ -888,7 +917,10 @@ jobs:
           $brk = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -PassThru
           if (-not $brk.WaitForExit(120000)) { Write-Error "the app did not exit on the broken-MSI pass (>120 s)"; exit 1 }
           Write-Host "broken-MSI pass: exit $($brk.ExitCode)"
-          if ($brk.ExitCode -ne 0) { Write-Error "the app did not hand off the broken MSI (exit $($brk.ExitCode))"; exit 1 }
+          if ($brk.ExitCode -ne 0) {
+            $ulog = Join-Path $dataRoot "update-now.log"; if (Test-Path $ulog) { Write-Host "---- update-now.log (broken pass) ----"; Get-Content $ulog | Write-Host }
+            Write-Error "the app did not hand off the broken MSI (exit $($brk.ExitCode))"; exit 1
+          }
           $deadline = (Get-Date).AddSeconds(240)
           while (-not (Test-Path $lastUpdate) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 3 }
           if (-not (Test-Path (Join-Path $updDir "msiexec.log"))) { Write-Error "msiexec did not run on the broken MSI"; exit 1 }
@@ -910,7 +942,10 @@ jobs:
           $good = Start-Process -FilePath $installedExe -ArgumentList @("--update-from", $release, "--update-now") -PassThru
           if (-not $good.WaitForExit(120000)) { Write-Error "the app did not exit after handing off (>120 s)"; exit 1 }
           Write-Host "good pass: exit $($good.ExitCode)"
-          if ($good.ExitCode -ne 0) { Write-Error "the app did not hand off the update (exit $($good.ExitCode))"; exit 1 }
+          if ($good.ExitCode -ne 0) {
+            $ulog = Join-Path $dataRoot "update-now.log"; if (Test-Path $ulog) { Write-Host "---- update-now.log (good pass) ----"; Get-Content $ulog | Write-Host }
+            Write-Error "the app did not hand off the update (exit $($good.ExitCode))"; exit 1
+          }
           $deadline = (Get-Date).AddSeconds(240)
           while (-not (Test-Path $lastUpdate) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 3 }
           Get-ChildItem $updDir -ErrorAction SilentlyContinue | Format-Table Name, Length | Out-String | Write-Host

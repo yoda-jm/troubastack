@@ -41,6 +41,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var serverSocket: ServerSocket? = null
     @Volatile private var serveSetCookie = false  // S2.3: when set, the page response sets win08sess as a PERSISTENT cookie (Expires +30d)
     @Volatile private var reqCount = 0            // S2.3: count served page requests, so a post-clear reload can be confirmed to have arrived
+    private val cookieByPort = java.util.concurrent.ConcurrentHashMap<Int, String>()  // S2.3b: the last Cookie header per server port
 
     private fun line(s: String) = win08log(s)
 
@@ -445,6 +446,101 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         finish(results) { null }
     }
 
+    override fun runServerUrl(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        win08log("serverurl: run start; log=$win08LogFile")
+        Thread { try { Thread.sleep(150_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("serverurl: BACKSTOP firing (>150s)"); Runtime.getRuntime().halt(1) }.apply { isDaemon = true; start() }
+        val server1 = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+        val server2 = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+        serverSocket = server1
+        val origin1 = "http://127.0.0.1:${server1.localPort}"
+        val origin2 = "http://127.0.0.1:${server2.localPort}"
+        Thread { acceptLoop(server1) }.apply { isDaemon = true; start() }
+        Thread { acceptLoop(server2) }.apply { isDaemon = true; start() }
+        val edgeDataDir = File(desktopDataRoot(), "webview2")
+        // The re-point ALWAYS clears through the next-open (pending) path, never the old live controller. The "clear on
+        // the old controller" sabotage (repointclearlive) was DROPPED: it is not reproducible on CI — run 42151247550
+        // showed the old-controller clear ran (origin1 cleared) and the new session survived, so neither guard could
+        // red against it. The pending path removes the old thread from the re-point entirely, so it is correct by
+        // construction; the two guards below have deterministic reds (clearafterseed on survival, repointnowrite on the
+        // re-point's pending write).
+        val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+        val cyc = mutableStateOf(0)
+        val server = mutableStateOf(origin1)
+        val repoint: (String) -> Unit = { _ ->
+            val oldOrigin = server.value
+            SwtEmbeddedStudioProvider().clearCookiesOnNextOpen(edgeDataDir, oldOrigin, "win08sess")
+            server.value = if (oldOrigin == origin1) origin2 else origin1
+            cyc.value = cyc.value + 1
+        }
+        fun argsFor(c: Int) = EmbeddedStudioArgs(
+            server.value, null, "TroubaStudio", "win08sess=sess$c", edgeDataDir,
+            {}, {}, { false }, { null }, null, onServerUrlChange = repoint)
+        application {
+            Window(onCloseRequest = ::exitApplication, title = "TroubaStage", state = rememberWindowState(width = 1200.dp, height = 820.dp)) {
+                androidx.compose.runtime.key(cyc.value) { EmbeddedStudioContent(argsFor(cyc.value), onController = { ctrlRef.set(it); SwtEmbeddedStudioProvider.liveController = it }) }
+                LaunchedEffect(Unit) { Thread { serverUrlFlow(origin1, origin2, ctrlRef, cyc, repoint) }.apply { isDaemon = true; start() } }
+            }
+        }
+        return 0
+    }
+
+    private fun serverUrlFlow(
+        origin1: String, origin2: String,
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+        cyc: androidx.compose.runtime.MutableState<Int>,
+        repoint: (String) -> Unit,
+    ) {
+        fun portOf(o: String) = o.substringAfterLast(':').toInt()
+        val results = LinkedHashMap<String, Boolean>()
+        fun mark(name: String, ok: Boolean) { results[name] = ok; line("WIN08-CHECK $name: ${if (ok) "PASS" else "FAIL"}") }
+        fun waitFor(ms: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + ms
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(80) }
+            return cond()
+        }
+        try {
+            var c = if (waitFor(40_000) { ctrlRef.get()?.bridgeReady == true }) ctrlRef.get() else null
+            if (c == null) { mark("serverurl-controller1", false); finish(results) { null }; return }
+
+            // FOCUS proof: open the dialog (panel collapses to 0.dp), then type into the Compose TextField via Robot.
+            // smokeDialogText is seeded to origin1 on open; if the keystrokes land, it grows past origin1's length.
+            c.requestServerDialog?.invoke()
+            waitFor(4_000) { SwtEmbeddedStudioProvider.smokeDialogText == origin1 }
+            val robot = java.awt.Robot()
+            for (k in intArrayOf(java.awt.event.KeyEvent.VK_Z, java.awt.event.KeyEvent.VK_Z)) { robot.keyPress(k); robot.keyRelease(k); Thread.sleep(120) }
+            val typed = waitFor(3_000) { (SwtEmbeddedStudioProvider.smokeDialogText ?: "").length > origin1.length }
+            win08log("serverurl: focus dialogText=[${SwtEmbeddedStudioProvider.smokeDialogText}] typed=$typed")
+            mark("serverurl-textfield-takes-keystrokes-at-0dp", typed)
+
+            // RE-POINT 1→2 (mimics the dialog's Save). Two guards:
+            //  (a) the new origin carries its FRESH session — the re-point clear runs on the new controller BEFORE it
+            //      seeds, so the new session is never wiped. Sabotage clearafterseed defers the clear past the seed → red.
+            //  (b) the re-point actually WROTE a pending record that the new controller APPLIED — repointServer must
+            //      request the clear. Sabotage repointnowrite skips the write → appliedPendingRecords is 0 → red (and
+            //      nopending reds it too, by skipping the apply). This guards the re-point's own wiring, which cookieclear
+            //      (a different flow) cannot.
+            // (The earlier signed-out "old origin cleared" check was dropped: the old origin's cookie did not survive the
+            //  cross-origin controller cycling to the return — origins were fixed strings and the persistent cookie was
+            //  set (hadPersist=true), yet it read empty regardless of any clear, so the check could not discriminate. The
+            //  clear-applied invariant it meant to guard is covered by cookieclear's pending-clear-applied-on-reopen.)
+            val expect1 = cyc.value + 1
+            repoint("")
+            c = if (waitFor(40_000) { ctrlRef.get().let { it != null && it !== c && it.bridgeReady } }) ctrlRef.get() else null
+            if (c == null) { mark("serverurl-controller2", false); finish(results) { null }; return }
+            val survived = waitFor(8_000) { (cookieByPort[portOf(origin2)] ?: "").contains("win08sess=sess$expect1") }
+            win08log("serverurl: repoint 1->2 cookie@2=[${cookieByPort[portOf(origin2)] ?: ""}] survived=$survived")
+            mark("serverurl-new-session-survives-repoint", survived)
+            val applied = (c?.appliedPendingRecords ?: 0) >= 1
+            win08log("serverurl: repoint applied pending records=${c?.appliedPendingRecords}")
+            mark("serverurl-repoint-applies-pending-clear", applied)
+        } catch (e: Throwable) {
+            win08log("serverurl: flow threw: ${e.message}")
+        }
+        finish(results) { null }
+    }
+
     /** A one-page HTTP/1.0 loopback: read the request headers (record the Cookie), reply with [PAGE]. */
     private fun acceptLoop(server: ServerSocket) {
         while (!server.isClosed) {
@@ -457,7 +553,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                         val requestLine = reader.readLine() ?: ""   // "GET /path HTTP/1.1"
                         var l = reader.readLine()
                         while (l != null && l.isNotEmpty()) {
-                            if (l.startsWith("Cookie:", ignoreCase = true)) cookieHeader = l.substringAfter(":").trim()
+                            if (l.startsWith("Cookie:", ignoreCase = true)) { cookieHeader = l.substringAfter(":").trim(); cookieByPort[s.localPort] = cookieHeader!! }
                             l = reader.readLine()
                         }
                         served = true

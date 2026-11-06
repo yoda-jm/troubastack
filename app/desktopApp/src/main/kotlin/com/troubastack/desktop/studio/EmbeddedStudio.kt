@@ -19,6 +19,10 @@ interface EmbeddedStudioProvider {
     /** S2.3: drop the WebView2 cookies for [oldOrigin]'s session ([cookieName]). Applied at once on a live Browser,
      *  else persisted under [edgeDataDir] as a pending clear the next Studio open runs before seeding + the first load. */
     fun clearCookies(edgeDataDir: java.io.File, oldOrigin: String?, cookieName: String?)
+
+    /** S2.3b: like [clearCookies] but ALWAYS deferred to the next open, even with a live Browser — for an in-Studio
+     *  re-point, where clearing on the old controller could wipe the new controller's freshly seeded session. */
+    fun clearCookiesOnNextOpen(edgeDataDir: java.io.File, oldOrigin: String?, cookieName: String?)
 }
 
 /**
@@ -52,6 +56,12 @@ class EmbeddedStudioArgs(
      * focused) — walks Studio's history instead of leaving. null on "Coming soon." (keeps onBack).
      */
     val provideRequestBack: ((() -> Unit) -> Unit)? = null,
+    /**
+     * S2.3b: the ⋮ "Server URL…" dialog's Save hands the new URL here. The host saves it, clears the old origin's
+     * cookie through the NEXT-OPEN path (never the live controller), and bumps the serverNonce so a fresh controller
+     * loads the new server. null when no server is set yet (the menu item is hidden).
+     */
+    val onServerUrlChange: ((newUrl: String) -> Unit)? = null,
 )
 
 /**
