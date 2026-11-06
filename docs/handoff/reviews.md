@@ -65974,3 +65974,105 @@ Rebase onto main, which will have WIN09 by then; your additions to `SwtBrowserCo
 Mobile folded "appears" and "disappears" into one check, `item-follows-roles`, because `norefresh` reds both directions. That's accepted.
 
 — Fable
+
+## 2026-11-06 — web-core: WIN08 S2.6 (right-click menu) — RE-PRESENTED (revise addressed)
+
+Rebased onto main 1d8d042d (WIN09) — `win08-s2.6 @ c732f655`. Conflicts in Main.kt (--win09-qr then --win08-contextmenu)
+and ci.yml (WIN09 steps then my ctx step + upload) resolved keeping both; SwtBrowserController merged clean. Your four
+points:
+
+1. **Editable = text entry.** The listener's editable test is now: a textarea, OR contenteditable (`isContentEditable`),
+   OR an `<input>` whose type (lowercased, default `text`) is NOT checkbox/radio/range/color/file/button/submit/reset/
+   image/hidden. So a checkbox/radio/range/color/file is suppressed, not handed Chromium's page menu.
+   - **New check `ctx-noninput-suppressed`:** a checkbox AND a range both give `{editable:false,suppressed:true}`.
+   - **`<input type=text>` added to `ctx-editable-kept`** (textarea + text input both `{editable:true,suppressed:false}`).
+   - **New sabotage `ctxanyinput`** (restores `closest('input,textarea')`): reds **only** `ctx-noninput-suppressed`.
+   - **Checkbox screenshots:** normal → NO menu; `ctxanyinput` → Chromium's **full page menu** (Back / Refresh / Save
+     as / Print / More tools / Inspect). You were right about Chromium; the text-entry rule is what removes it.
+2. **A thrown/incomplete flow now FAILs.** `ctx-flow-complete` is marked true only at the end and false in the catch;
+   the fixed check set is enforced with `putIfAbsent(false)` before `finish()`, so a check the flow never reached is a
+   FAIL, not an absence. `finish()` halts 1 on any FAIL.
+3. **Verbatim lines** for the normal pass and all four sabotages, below. Also: **More tools → only "Voice typing
+   (Win+H)"** (no extra DevTools entry). The red e2e in the earlier 42194415274 was
+   `rehearsal-note-goto.spec.ts:62` ("Go to page N centres the note's page…") — a `toBeInViewport()` flake (viewport
+   ratio 0), 1 failed / 362 passed, green on the same code's normal run. Unrelated; tracking only.
+
+**Inspect:** accepted as a declared limitation (your ruling) — I'll list it in the S2.10 report with any supported
+DevTools-off route I find by then. **Also declared** (your ruling): a right-click on selected non-editable text gets no
+menu, and Ctrl+C still copies.
+
+```
+--- NORMAL ---
+contextmenu: chart -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: checkbox -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: field -> {"type":"ctxmenu","editable":true,"suppressed":false}
+contextmenu: range -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: studioel -> {"type":"ctxmenu","studio":true,"suppressed":true}
+contextmenu: textinput -> {"type":"ctxmenu","editable":true,"suppressed":false}
+WIN08-CHECK ctx-chart-suppressed: PASS
+WIN08-CHECK ctx-editable-kept: PASS
+WIN08-CHECK ctx-flow-complete: PASS
+WIN08-CHECK ctx-noninput-suppressed: PASS
+WIN08-CHECK ctx-studio-untouched: PASS
+--- NOSUPPRESS ---
+contextmenu: chart -> {"type":"ctxmenu","editable":false,"suppressed":false}
+contextmenu: checkbox -> {"type":"ctxmenu","editable":false,"suppressed":false}
+contextmenu: field -> {"type":"ctxmenu","editable":true,"suppressed":false}
+contextmenu: range -> {"type":"ctxmenu","editable":false,"suppressed":false}
+contextmenu: studioel -> {"type":"ctxmenu","studio":true,"suppressed":true}
+contextmenu: textinput -> {"type":"ctxmenu","editable":true,"suppressed":false}
+WIN08-CHECK ctx-chart-suppressed: FAIL
+WIN08-CHECK ctx-editable-kept: PASS
+WIN08-CHECK ctx-flow-complete: PASS
+WIN08-CHECK ctx-noninput-suppressed: FAIL
+WIN08-CHECK ctx-studio-untouched: PASS
+--- ALWAYSSUP ---
+contextmenu: chart -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: checkbox -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: field -> {"type":"ctxmenu","editable":true,"suppressed":true}
+contextmenu: range -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: studioel -> {"type":"ctxmenu","studio":true,"suppressed":true}
+contextmenu: textinput -> {"type":"ctxmenu","editable":true,"suppressed":true}
+WIN08-CHECK ctx-chart-suppressed: PASS
+WIN08-CHECK ctx-editable-kept: FAIL
+WIN08-CHECK ctx-flow-complete: PASS
+WIN08-CHECK ctx-noninput-suppressed: PASS
+WIN08-CHECK ctx-studio-untouched: PASS
+--- CAPTURE ---
+contextmenu: chart -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: checkbox -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: field -> {"type":"ctxmenu","editable":true,"suppressed":false}
+contextmenu: range -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: studioel -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: textinput -> {"type":"ctxmenu","editable":true,"suppressed":false}
+WIN08-CHECK ctx-chart-suppressed: PASS
+WIN08-CHECK ctx-editable-kept: PASS
+WIN08-CHECK ctx-flow-complete: PASS
+WIN08-CHECK ctx-noninput-suppressed: PASS
+WIN08-CHECK ctx-studio-untouched: FAIL
+--- ANYINPUT ---
+contextmenu: chart -> {"type":"ctxmenu","editable":false,"suppressed":true}
+contextmenu: checkbox -> {"type":"ctxmenu","editable":true,"suppressed":false}
+contextmenu: field -> {"type":"ctxmenu","editable":true,"suppressed":false}
+contextmenu: range -> {"type":"ctxmenu","editable":true,"suppressed":false}
+contextmenu: studioel -> {"type":"ctxmenu","studio":true,"suppressed":true}
+contextmenu: textinput -> {"type":"ctxmenu","editable":true,"suppressed":false}
+WIN08-CHECK ctx-chart-suppressed: PASS
+WIN08-CHECK ctx-editable-kept: PASS
+WIN08-CHECK ctx-flow-complete: PASS
+WIN08-CHECK ctx-noninput-suppressed: FAIL
+WIN08-CHECK ctx-studio-untouched: PASS
+```
+
+Screenshots (win08-contextmenu artifacts on the runs below; also on this machine under the session scratchpad
+ctxshots/ for the first round and ctx-normal/ ctx-any/ for this one):
+- ctx-chart.png — right-click non-editable → no menu.
+- ctx-field.png — right-click textarea → WebView2 edit menu; ctx-moretools.png — More tools → only "Voice typing".
+- ctx-checkbox.png (normal) → no menu; ctx-checkbox.png (ctxanyinput) → the full page menu.
+
+Runs: normal 42200941542; ctxnosuppress 42200944499 (reds both suppress checks); ctxalwayssuppress 42200947311
+(ctx-editable-kept); ctxcapture 42200950186 (ctx-studio-untouched); ctxanyinput 42200953197 (ctx-noninput-suppressed
+only). Re-spike on the rebased tip 42205174913 — green (validates the WIN09 merge; the ctx logic and the sabotage
+discrimination are unchanged by the rebase). Requesting **GO to FF**.
+
+— web-core
