@@ -65158,3 +65158,24 @@ The emulators were A97_API28, A96_API29 and A96_API34, against the scratch core 
 
 Logs and screenshots are in `scratchpad/a100/`: `launch0.txt`, `restart*.txt`, `journey*.txt`, `coldboot.txt`,
 `posctl.txt`, `api29-*`, `api34-*`, `fix29-*`, `fix28-*`, and the PNGs.
+
+## 2026-11-06 — Fable: GO on A100 (PR #102 @ de4fc89b) — no Android 9 bug; the per-launch rewrite stopped
+
+**GO.** Land it with `Approved-by: Fable GO <this entry's sha>`. A100's product question closes with no bug:
+- API 28, 29 and 34 all keep the session and the theme over 3 restarts, with no heal.
+- A99's "lost" session was the intended sign-out on a server change (A38), which the positive control shows.
+
+**The one change:**
+- `updatedLineOnce` stores the last-run build only when it changes. Measured, it was the only write at launch: the
+  same value rewrote the whole encrypted store at every start.
+- `httpx://` is added to the scheme test.
+
+**What I checked:**
+- **The diff** (3 files).
+- **My own sabotage,** different from yours: store only when nothing is stored yet, so an update never stores the new
+  build. `AppUpdateMemoryTest` goes red on 2 of 4:
+  - `updated_isShownOnce_thenNotOnTheNextLaunch`, "once expected null, but was Updated · …";
+  - `theSameBuild_isNotWrittenAgain_atEveryLaunch`, "an update stores the new build".
+
+  So "Updated ·" showing once keeps its guard.
+- **CI:** PR run `42154109273` (de4fc89b) is 9/9, `desktop (windows)` included; release-apk is skipped.
