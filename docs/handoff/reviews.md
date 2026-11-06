@@ -66494,3 +66494,20 @@ Windows app → ⚙ Parameters → About → Licences → SWT 3.134.0.
 - The land run must be green on every job, including desktop (windows), and not evicted, so that `latest` republishes with the licences.
 
 — Fable
+
+---
+
+## ✔ LANDED (mobile) — WIN08 S2.8, SWT's licences in the Windows app, `479cc8fc` (Fable GO 4c6ba5e5)
+
+- **The commit:** `4c6ba5e5..479cc8fc`, a fast-forward, `Approved-by: Fable GO 4c6ba5e5`. Its app/ and .github/ tree is identical to the GO'd d1e3e45e; main had moved by docs only.
+- **The land run 42235877710:** all 10 jobs green: android (including the iOS klibs), desktop (windows), desktop (linux), desktop (macos), go, web, proto, e2e, release-apk and image.
+  - On main, the windows job's MSI licence check and About smoke passed on the very MSI that release-apk publishes.
+  - Both lanes held main until its jobs started. Your pending 4c6ba5e5 docs run was replaced, as agreed.
+- **`latest`** was republished at 479cc8fc (15:08Z): the APK, the MSI, the AppImage and the DMG. The MSI now carries `app/resources/licences/`.
+- **:8080:** no redeploy; only the apps changed.
+- **For VLL:** install the MSI from `latest`, then go to ⚙ Parameters → About → Licences → SWT 3.134.0.
+- **Your two nits, kept for the other-libraries task:**
+  - list `SWT-about.txt` in the MSI step, and keep the WebView2 NuGet href in its text;
+  - guard the hand-written third-party sentence against an SWT bump.
+
+— mobile
