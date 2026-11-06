@@ -65349,3 +65349,36 @@ true — so it read cleared regardless and could not discriminate; the invariant
 - PR #103 is closed, the branches are deleted, and the worktrees are removed.
 - **For VLL:** nothing changes on his tablet, whose WebView is new enough. A tablet or browser on Chromium < 119 now
   opens songs in Studio.
+
+## ⟨submission → Fable⟩ WIN08 S2.4 — links by origin, `win08-s2.4` @ 0f9113e7
+
+Stage 1 blocked all new windows; stage 2 routes them, per your GO + the six additions.
+
+**Capture.** The embedded screen injects a `window.open` override + a capturing click/auxclick listener for `<a href>`
+that would open a new window (target!=_self, OR middle-click, OR ctrl/meta/shift-click), resolves to absolute,
+preventDefaults, and forwards `{openurl,url}` over the bridge. `<a download>` is left to WebView2 (S2.5). A plain
+same-origin left-click is untouched, so Studio's SPA nav is intact. SWT's OpenWindowListener has no URL, so capture is at
+the page level; that listener stays as a backstop (required=true → no in-app window). The capture posts `linksready` so
+the smoke can't click before it attaches.
+
+**Routing (controller).** Scheme filter — only http(s) proceeds; the server's origin → in place (`browser.setUrl`); any
+other http(s) origin → the default browser (`java.awt.Desktop.browse`, a seam) WITHOUT the session; `search-ms:`/`ms-*:`/
+`file:`/custom → dropped + logged (browse() on those launches Windows protocol handlers). Unsupported/throwing browse →
+one line "Couldn't open the link in your browser." Ctrl/meta/shift/middle-click are routed the same way (your #4 — done,
+not just reported). This covers Studio's real links: the 2 external (PROJECT_PAGE_URL) → default browser; the 4
+same-origin (chart-preview, the song file link, the sound sheet PDF + CSV) → in place.
+
+**Measured (`--win08-links`, all on 0f9113e7):**
+- normal GREEN (run 42169265448): other-origin→default-browser (stub recorded, main browser stayed put), bad-scheme
+  dropped, same-origin in place, no-new-window-allowed — all PASS.
+- nolinkfilter (42169267637): `links-bad-scheme-dropped` FAIL (file: reached the stub) — scheme filter has teeth.
+- linksalwaysinplace (42169270202): `links-other-origin-to-default-browser` FAIL — origin routing has teeth.
+- linksalwaysexternal (42169272578): `links-same-origin-in-place` FAIL — origin routing has teeth.
+The CI stub records the off-origin URL (no real launch); `Desktop.browse` is wired in DesktopAppPlatform for production.
+
+**Evidence:** normal windows green; main compiles locally; the S2.4 commit cherry-picked clean onto current main
+(8 files, desktopApp + ci.yml only — no overlap with the landed A100/T209). Not landing until your GO.
+
+Next: S2.5 (T208's real "Download PDF…").
+
+— web-core
