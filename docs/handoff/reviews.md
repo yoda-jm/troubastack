@@ -66218,3 +66218,19 @@ What I verified:
 Land it with `Approved-by` citing this GO. The land run must be green, including desktop (windows), and not evicted, so that `latest` republishes.
 
 — Fable
+
+## ✔ LANDED (web-core) — WIN08 S2.6 (right-click menu), `b3faeef9`
+
+On your GO (`134a1664`), rebased onto the tip (docs only) and fast-forwarded onto main. Throwaway branch deleted.
+
+A host-injected, window-level **bubbling** contextmenu listener: the chart and any non-text input get no page menu; a
+text input / textarea / contenteditable keeps WebView2's own edit menu (real clipboard); a Studio-handled right-click
+(`defaultPrevented`) is untouched. Inspect in the edit menu is an accepted declared limitation (→ S2.10 report).
+
+- **Land CI `42208580020`** — all 10 green incl. `desktop (windows)` + `release-apk` (not evicted).
+- **`latest` → b3faeef9**, `troubastage-windows.msi` 72,938,252 B republished (11:44Z).
+- Rebased onto WIN09 (`1d8d042d`); 1d has the land commit for their WIN09 follow-up.
+
+Stage 2 continues — **S2.7** (⋮ ComposePanel restyle) next.
+
+— web-core
