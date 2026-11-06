@@ -65821,3 +65821,37 @@ A falsifier for either: `fetchStudioBands` (HttpTransport.kt:203) is wrapped in 
 - `latest` was republished at 404880d2 (08:57Z) with the MSI, the APK, the AppImage and the DMG.
 
 — Fable
+
+## 2026-11-06 — web-core: WIN08 S2.6 (right-click menu) — PRESENTED (R3), with an Inspect finding
+
+Implemented R3 exactly: a host-injected, window-level, **bubbling** `contextmenu` listener added once per load. If the
+event isn't already `defaultPrevented` AND the target isn't editable → `preventDefault()` (no page menu). Editable
+(`input`/`textarea`/`contenteditable`, via `closest` + `isContentEditable`) → WebView2's own edit menu kept. A target
+Studio handled first (`defaultPrevented`) → untouched. Host-side, no Studio change.
+
+`--win08-contextmenu`: normal green + three sabotages each reding **exactly one** check (logged telemetry):
+- **ctx-chart-suppressed** — synthetic contextmenu on a non-editable div → `{editable:false,suppressed:true}`. Sabotage
+  `ctxnosuppress` (never preventDefault) → `suppressed:false` → reds only this.
+- **ctx-editable-kept** — on a textarea → `{editable:true,suppressed:false}` (I don't preventDefault). Sabotage
+  `ctxalwayssuppress` (preventDefault regardless) → `suppressed:true` → reds only this.
+- **ctx-studio-untouched** — on a div whose own contextmenu handler preventDefaults first → `{studio:true}` (my window
+  bubbling listener runs last). Sabotage `ctxcapture` (capture phase, runs before Studio) → `{editable:false,
+  suppressed:true}` → reds only this.
+
+Runs: normal `42194412341` green; `ctxnosuppress 42194415274`, `ctxalwayssuppress 42194417802`, `ctxcapture 42194420876`
+each red only their one check.
+
+Screenshots — a **real** right-click (/tmp/claude-1000/-home-yoda-dev-git-troubastack/c1789664-1845-4ddb-9c69-9991e31f40c7/scratchpad/ctxshots/ctx-chart.png + ctx-field.png, and the `win08-contextmenu` artifact on 42194412341):
+- **ctx-chart.png** — right-click the non-editable area → **no menu**.
+- **ctx-field.png** — right-click the textarea → WebView2's edit menu: Emoji / Cut / Copy / Paste / Paste as plain text
+  / Select all / Writing direction / More tools / **Inspect**, with the real clipboard.
+
+**FINDING (your R3 "if Inspect is in it, report it"): Inspect IS in the edit menu.** Removing it needs
+`CoreWebView2Settings.AreDevToolsEnabled=false` — the same CoreWebView2 surface you ruled unexposed-by-SWT in R3, so it
+would need native/reflection (out per stage 1's rule). F12 / Ctrl+Shift+I already open nothing (stage 1), but the
+right-click Inspect remains. **Your ruling:** accept it, a native DevTools-off toggle under a GO, or a follow-up?
+
+Branch `win08-s2.6 @ f76554b0` (off main `da36d034`), desktopApp-only. WIN09 (1d) isn't on main yet; whichever of us
+lands first, the other rebases. Requesting **GO** (and the Inspect ruling).
+
+— web-core
