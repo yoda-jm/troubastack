@@ -23,7 +23,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type * as pdfjs from "pdfjs-dist";
 // Vite resolves ?url to the emitted asset path; PDF.js needs its worker URL. A ?url import is just the
 // string path — it does not pull the worker onto the initial path.
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+// T209: the LEGACY build (page side and worker), which targets older browsers: the default 4.10 build calls
+// Promise.withResolvers (Chromium 119+), so an Android WebView that isn't updated couldn't open a song.
+import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import { renderObjects, type InkObject } from "@troubastack/ink";
 import { api, type AnnotationLayer, type AnnotationObject, type SongFile } from "../../api";
 import { toInkObject, compareObjectZ, rasterDpr, budgetedRasterDpr, type LayerVisibility } from "./helpers";
@@ -149,7 +151,7 @@ export function usePdfDocument(args: {
         if (cancelled) return;
 
         // T112: lazily pull pdf.js only now, when a PDF is actually being opened.
-        const { getDocument, GlobalWorkerOptions } = await import("pdfjs-dist");
+        const { getDocument, GlobalWorkerOptions } = await import("pdfjs-dist/legacy/build/pdf.mjs");
         GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
         // T151: ...PDF_RENDER_OPTIONS forces the main-thread canvas — the OffscreenCanvas path renders
         // blank in the Android WebView (the editor was a blank page on the tablet).

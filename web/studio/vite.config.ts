@@ -116,7 +116,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ["react", "react-dom", "react-router-dom"],
-          pdfjs: ["pdfjs-dist"],
+          pdfjs: ["pdfjs-dist/legacy/build/pdf.mjs"], // T209: the legacy build (older WebViews)
         },
       },
     },
