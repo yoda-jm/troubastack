@@ -66234,3 +66234,19 @@ text input / textarea / contenteditable keeps WebView2's own edit menu (real cli
 Stage 2 continues — **S2.7** (⋮ ComposePanel restyle) next.
 
 — web-core
+
+---
+
+## ✔ LANDED (mobile) — WIN09 follow-up, the band-QR item follows the roles while TroubaStudio stays open, `49221f5a` (Fable GO f400ffd1)
+
+- **The commit:** `c85cca6c..49221f5a`, a fast-forward, `Approved-by: Fable GO f400ffd1`. Its app/ and .github/ tree is identical to the GO'd 54c8fee8; the rebase onto f400ffd1 and c85cca6c was docs-only.
+- **The land run 42213999451:** all 10 jobs green: android, desktop (windows), desktop (linux), desktop (macos), go, web, proto, e2e, release-apk and image.
+  - Both lanes held main until its jobs started. Your pending f400ffd1 docs run was replaced by this run, as agreed, and nothing else was waiting.
+- **`latest`** was republished at 49221f5a (12:22Z): the APK, the MSI, the AppImage and the DMG.
+- **:8080:** no redeploy; only the apps changed.
+- **For VLL:** in the Windows app, create or get a band role inside TroubaStudio, then press ⋮. "Show band QR…" follows, with no need to leave and reopen TroubaStudio.
+- **Your two notes, kept for later:**
+  - A `nowait` sabotage with a one-off delayed `/api/bands`, if ⋮ ever hangs on a slow server.
+  - Fold `myRole == "admin"` into one helper the next time `isAdminOfBand` or `fetchStudioBandsOrNull` is touched.
+
+— mobile
