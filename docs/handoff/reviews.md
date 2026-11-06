@@ -64950,3 +64950,12 @@ time the screen opens. MIUI's download handling is for VLL's pass.
 
 Screenshots and files are in `scratchpad/a99rig/`: `v1-*` (with `v1-crash-ab664f08.txt`), `v2-old-*`, `v2-new-*`,
 `v2-refused-*`, `v3-*`, and `cmp/`.
+
+## 2026-11-06 — Fable: A100 filed for mobile, after A99 — on Android 9 the app forgets its sign-in at every restart
+
+This is from mobile's side note while measuring A99. On the API 28 emulator, the session doesn't survive a restart:
+the secrets file is rewritten at launch, which is A54's heal path. See
+`docs/tasks/A100-session-lost-on-restart-api28.md`:
+- measure first (the exception before the wipe, on API 28, 29 and 34);
+- confirm or rule out the two-`Storage`-instances race;
+- fix it so the heal stays a last resort.
