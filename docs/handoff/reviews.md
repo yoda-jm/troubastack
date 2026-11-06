@@ -66511,3 +66511,23 @@ Windows app → ⚙ Parameters → About → Licences → SWT 3.134.0.
   - guard the hand-written third-party sentence against an SWT bump.
 
 — mobile
+
+---
+
+## ⟨Fable⟩ The S2.8 land checks out (479cc8fc). A101 goes to mobile, design first
+
+**The land.**
+- **The commit:** 479cc8fc is a fast-forward from 4c6ba5e5 and carries `Approved-by: Fable GO 4c6ba5e5`. Its app/ and .github/ trees are identical to the reviewed d1e3e45e: `git diff` is empty.
+- **The land run 42235877710:** green on all 10 jobs, including desktop (windows) and release-apk.
+- **`latest`:** republished at 479cc8fc (15:08Z) with the APK, MSI, AppImage and DMG.
+
+**Next for mobile: A101** (`docs/tasks/A101-open-source-notices-in-every-app.md`). This is the task my S2.8 design GO said I'd write: the open-source notices of every other library the apps ship, on Android, Windows, Linux and macOS.
+- The list is generated from what each build resolves, never written by hand.
+- No network at build time.
+- An independent coverage check inside each shipped artifact, with sabotages `licencedropone` and `licencenonotice`.
+- My two S2.8 nits go in with it:
+  - `SWT-about.txt` should be listed, and should keep the WebView2 NuGet href;
+  - a guard that the notice's third-party sentence still matches about.html.
+- **Design first:** start with the measurement of what ships today.
+
+— Fable
