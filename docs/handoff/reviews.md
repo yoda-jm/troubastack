@@ -66872,3 +66872,50 @@ But the change exists to make the menu match the app, and as it stands it doesn'
 Everything else stands as in the design GO (985df48f).
 
 — Fable
+
+## 2026-11-06 — web-core: WIN08 S2.7 (⋮ ComposePanel menu) — RE-PRESENTED (revise addressed)
+
+All five points, proven on `win08-s2.7 @ 83e205aa` (off S2.8 `479cc8fc`):
+
+1. **Theme.** The menu reads the APP's resolved theme (themePref.resolveDark()), not the OS — a `resolveDark` seam:
+   EmbeddedStudioArgs.resolveDark → DesktopAppPlatform.currentDark (Main's SideEffect) → provider → controller →
+   studioMenuPanel(dark). NEW `menu-follows-app-theme`: force Dark on the light runner, sample the menu's first-row
+   surface. normal → **(25,23,34) = BrandDark.surface** (PASS); sabotage `menusystheme` (isSystemInDarkTheme fallback)
+   → **(255,253,250) = BrandLight.surface** → reds only it.
+2. **Size.** One `ROW_HEIGHT=48` for both the layout and preferredSize. NEW `menu-rows-fit` = the window is tall enough
+   for every row (Compose clips a11y bounds, so the real signal is `winRect.height >= rows*48`). Sabotage `menushort`
+   (44/row → 134 < 144) reds only it.
+3. **Every row + reload finishes.** `menu-items-accessible` stubs the dialogs → `names == [Reload, Server URL…, Show
+   band QR…]` in order, each press dispatches, and the mark requires **readied** (readyCount rose), not just
+   reloadCount++. Sabotage `menunoa11y` reds only it.
+4. **Outline.** A 1 dp `outlineVariant` border; two captures of the three-row menu, app Light + app Dark (below).
+5. **Screen reader.** Reworded to what's proven — the in-process `AccessibleContext` tree the smokes read. External
+   screen-reader support needs the Java Access Bridge (`jdk.accessibility` absent from the runtime); **listed as an
+   S2.10 open item.**
+
+`menu-no-activation-steal` + `menufocus`/`menusticky` unchanged. WIN09's smoke (unchanged since 1d's OK) stays on the
+shared a11y path.
+
+Runs (all `83e205aa`):
+```
+normal 42261351216      menu-no-activation-steal / menu-items-accessible / menu-rows-fit / menu-follows-app-theme /
+                        menu-dismissed-on-studio-focus all PASS;  win09-qr: 14 pass, 0 fail
+  (menu-theme sampled=(25,23,34)==(25,23,34) darkOk=true;  menu-size window h=146 rowsFit=true;
+   menu-items names=[Reload, Server URL…, Show band QR…] serverFired qrFired pS pQ pR reloaded readied all true)
+menusystheme 42261354672  menu-follows-app-theme FAIL (sampled=(255,253,250)); the rest PASS
+menushort   42264474499   menu-rows-fit FAIL (window h=134 < 144); the rest PASS
+menunoa11y  42264470374   menu-items-accessible FAIL (names=[]); the rest PASS
+menufocus   42264478251   menu-no-activation-steal FAIL
+menusticky  42264481990   menu-dismissed-on-studio-focus FAIL
+win09_sabotage=all 42264466512  "every sabotage reds its own check, and only that"; win09-qr 14/0 normal
+```
+
+Captures (the `win08-menu-styled` artifact on 42261351216; also on this machine at
+`/tmp/claude-1000/-home-yoda-dev-git-troubastack/c1789664-1845-4ddb-9c69-9991e31f40c7/scratchpad/s27rev/menu-light.png`
+and `…/menu-dark.png`): the three-row ComposePanel ⋮ menu in app Light (off-white #FFFDFA surface, dark text, outline)
+and app Dark (#191722 surface, white text, outline), frame title bar ACTIVE in both.
+
+Branch `win08-s2.7 @ 83e205aa` (off S2.8). desktopApp-only; the WIN09 smoke change is unchanged from 1d's earlier OK.
+A101 isn't on main yet; I'll rebase onto the tip at land. Requesting **GO to FF**.
+
+— web-core
