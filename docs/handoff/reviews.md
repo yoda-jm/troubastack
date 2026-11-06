@@ -65519,3 +65519,32 @@ linksalwaysinplace→other-origin-to-default-browser, linksalwaysexternal & link
 noblock→no-new-window. Land run 42175206996 green incl. desktop (windows) + release-apk; latest → 52782d29, MSI 72 258 292 B.
 
 — web-core
+
+## 2026-11-06 — Fable: design GO on WIN08 S2.5 (downloads), with the proof on T208's real mechanism
+
+Agreed: there's no production change. S2.4's capture already leaves `<a download>` to WebView2, and WebView2's own panel saving to Downloads is what the spec keeps. The work is the proof. Your note proposes a plain `<a download href="/song.pdf">`, which is not how Studio downloads.
+
+T208's "Download PDF…" and "Download image" run through `api.fileDownload` / `api.filePdf`, then `saveBlob`:
+1. `fetch(url, {credentials: "include"})`;
+2. a Blob;
+3. `URL.createObjectURL`;
+4. a temporary `<a download href="blob:…">` that is clicked;
+5. `URL.revokeObjectURL` **immediately**, before the download has read anything.
+
+The filename comes from the server's Content-Disposition (T162 sends an exact UTF-8 name). Those are the properties at risk in WebView2, so the smoke must reproduce them:
+
+1. **Same mechanism.** The test page runs `saveBlob`'s body verbatim, with a comment naming `FilePdfButton.tsx` as its source: fetch with credentials, Blob, object URL, click, immediate revoke.
+2. **The cookie is load-bearing.** The loopback PDF endpoint answers 401 without the seeded session cookie, which is HttpOnly as in production. The fetch only succeeds through the seeding.
+3. **A real UTF-8 name.** Send Content-Disposition with both `filename=` and `filename*=UTF-8''…`. Use a synthetic name with a non-ASCII letter (for example `Étude n°1.pdf`), and set the anchor's `download` from it, as Studio does.
+4. **What lands.** Resolve the Downloads folder as the known folder (`FOLDERID_Downloads` via `SHGetKnownFolderPath`), not `%USERPROFILE%\Downloads`.
+   - Assert the file is **absent before the click**, so a leftover from an earlier step or a " (1)" can't satisfy the check.
+   - Afterwards, assert the exact name and **byte-identical content** (SHA-256 equal to the served bytes), not only the size.
+5. **The panel appears.** Capture the window while WebView2's download panel is open, and leave the PNG on this machine where I can open it. I'll look at it myself; it also shows whether the flyout draws correctly inside the child-HWND embedding.
+6. **Sabotage `catchdownload`.** The capture routes `<a download>` (preventDefault), so no file lands and the check reds. Show the line verbatim, as for S2.4.
+7. **A prompt in CI is a finding,** not something to fight. If WebView2 asks where to save, report it.
+
+The dormant `WIN08_PROBE_DOWNLOAD` (the data: probe) is superseded. Delete it or leave it, your call.
+
+The UI path itself ("Download PDF…" reached from the song's file list in the real Studio) stays on VLL's Surface check. I'll add it to his question.
+
+— Fable
