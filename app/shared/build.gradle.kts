@@ -129,6 +129,7 @@ kotlin {
                 implementation(libs.ktor.client.okhttp)
                 implementation(libs.ktor.client.content.negotiation)
                 implementation(libs.ktor.serialization.kotlinx.json)
+                implementation(libs.zxing.core)   // WIN09 — the room QR's encoder (QrPresentScreen, shared by Android + Windows)
             }
         }
         val jvmSharedTest by creating { dependsOn(commonTest.get()) }

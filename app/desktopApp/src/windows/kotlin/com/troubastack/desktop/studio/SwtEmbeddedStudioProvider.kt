@@ -23,6 +23,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.troubastack.desktop.WIN09_SABOTAGE_PROPERTY
 import com.troubastack.shared.distribution.embeddedUrl
 import java.awt.BorderLayout
 import java.awt.Canvas
@@ -157,8 +159,22 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
         // Sabotage backprovidesexit hands back onBack instead → the chrome Back leaves without walking (the check reds).
         val backProvidesExit = System.getenv("WIN08_SABOTAGE") == "backprovidesexit"
         args.provideRequestBack?.invoke { if (backProvidesExit) args.onBack() else controller.requestBack() }
+        args.provideOpenPath?.invoke { path -> controller.openPath(path) }   // WIN09: "Manage / revoke in Studio" loads in place
         controller.start()
         onDispose { win08log("content: onDispose -> controller.dispose()"); controller.dispose() }
+    }
+
+    // WIN09: the ⋮ "Show band QR…" item follows the host's admin list, which arrives after the first composition.
+    SideEffect { controller.requestBandQr = args.onShowBandQr }
+    // WIN09: while the host overlay shows, it holds the focus; when it closes, the Browser gets the focus back (the
+    // SwingPanel is full size again in the same composition). Sabotage qrnofocusback (the --win09-qr smoke) skips it.
+    var hadHostOverlay by remember { mutableStateOf(false) }
+    LaunchedEffect(args.hostOverlay) {
+        if (args.hostOverlay) hadHostOverlay = true
+        else if (hadHostOverlay) {
+            hadHostOverlay = false
+            if (System.getProperty(WIN09_SABOTAGE_PROPERTY) != "qrnofocusback") controller.focusBrowser()
+        }
     }
 
     // S2.1 (R1) pre-load reachability: on first show and on each Retry, probe the server through the app's own
@@ -209,9 +225,10 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
                 // component out of the layout (0.dp) closes the hole; disposing it would kill the Browser. So: 0.dp.
                 // S2.3b: the Server URL dialog ALSO collapses the panel to 0.dp — the same proven mechanism — so the
                 // Compose dialog (and its focusable TextField) draws over the Studio area, not behind the heavyweight hole.
+                // WIN09: and so does the host's band-QR overlay (args.hostOverlay), drawn over this whole screen.
                 SwingPanel(
                     background = Color.Transparent,
-                    modifier = if (ready && !showServerDialog) Modifier.fillMaxSize() else Modifier.size(0.dp),
+                    modifier = if (ready && !showServerDialog && !args.hostOverlay) Modifier.fillMaxSize() else Modifier.size(0.dp),
                     factory = { win08log("content: SwingPanel factory -> JPanel+Canvas"); JPanel(BorderLayout()).apply { add(canvas, BorderLayout.CENTER) } },
                 )
                 if (!ready) {

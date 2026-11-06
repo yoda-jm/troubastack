@@ -280,6 +280,12 @@ internal class SwtBrowserController(
     /** S2.3b: set by EmbeddedStudioContent when a server is configured — the ⋮ "Server URL…" item calls it to open the
      *  in-canvas re-point dialog. null hides the item (no server set). */
     @Volatile var requestServerDialog: (() -> Unit)? = null
+    /** WIN09: set by EmbeddedStudioContent while the person administers a band — the ⋮ "Show band QR…" item calls it
+     *  (the host then draws the picker or the QR over Studio). null hides the item. */
+    @Volatile var requestBandQr: (() -> Unit)? = null
+    /** WIN09: whether the Browser holds keyboard focus (its focus events) — the band-QR smoke proves the host overlay
+     *  took it while it showed, and that it came back after. */
+    @Volatile var browserFocused: Boolean = false; private set
     // S2.1 (R1): a host-initiated reload started (⋮ Reload or the cover's Retry) — the host resets to "Loading…" so a
     // reload that fails can bring the cover back (even after a prior success, since bridgeReady stays latched).
     @Volatile var onReloadStarted: (() -> Unit)? = null
@@ -302,6 +308,8 @@ internal class SwtBrowserController(
         panel.add(javax.swing.JMenuItem("Reload").apply { addActionListener { reload(); w.dispose() } })
         // S2.3b: "Server URL…" opens the in-canvas re-point dialog (only when a server is set → requestServerDialog != null).
         requestServerDialog?.let { req -> panel.add(javax.swing.JMenuItem("Server URL…").apply { addActionListener { w.dispose(); req() } }) }
+        // WIN09: "Show band QR…" (only while the person administers a band → requestBandQr != null); the menu goes first.
+        requestBandQr?.let { req -> panel.add(javax.swing.JMenuItem("Show band QR…").apply { addActionListener { w.dispose(); req() } }) }
         w.contentPane.add(panel); w.pack()
         val loc = canvas.locationOnScreen
         w.setLocation(loc.x + canvas.width - w.width - 8, loc.y + 2)
@@ -342,6 +350,16 @@ internal class SwtBrowserController(
 
     /** L1 smoke vector: model a click in Studio by giving the Browser focus → the menu's Focuslistener must dismiss it. */
     fun focusBrowserForSmoke() = exec { runCatching { browser?.forceFocus() } }
+
+    /** WIN09: give the Browser its keyboard focus back once the host overlay has closed. */
+    fun focusBrowser() = exec { runCatching { browser?.forceFocus() } }
+
+    /** WIN09: load [path] of the server's own origin in place (studioPathUrl refuses anything but "/…"); the origin
+     *  lock below still vets it. */
+    fun openPath(path: String) {
+        val url = studioPathUrl(origin, path) ?: run { log("win09: openPath refused [$path]"); return }
+        exec { browser?.setUrl(url) }
+    }
 
     /** Keep the reparented child Shell filling the AWT canvas, in PHYSICAL pixels (item 4): size from the canvas
      *  HWND's own client rect via SetWindowPos, so it is right even when AWT's scale differs from SWT's (e.g.
@@ -532,6 +550,12 @@ internal class SwtBrowserController(
                         e.doit = false; log("win08: Alt+Left — Back"); requestBack()
                     }
                 }
+            })
+
+            // WIN09: track the Browser's keyboard focus (read by the band-QR smoke; nothing acts on it).
+            browser.addFocusListener(object : org.eclipse.swt.events.FocusAdapter() {
+                override fun focusGained(e: org.eclipse.swt.events.FocusEvent) { browserFocused = true }
+                override fun focusLost(e: org.eclipse.swt.events.FocusEvent) { browserFocused = false }
             })
 
             // S2.2 recon: does SWT's MouseListener on the Browser see the mouse back button (XBUTTON1 = button 4/5)?

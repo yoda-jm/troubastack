@@ -87,6 +87,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.troubastack.desktop.studio.win08SmokeRunner
+import com.troubastack.desktop.studio.win09SmokeRunner
 import com.troubastack.shared.buildinfo.appBuildLine
 import com.troubastack.shared.seams.HostOs
 import com.troubastack.shared.seams.Storage
@@ -286,6 +287,18 @@ fun main(args: Array<String>) {
             ?: run { System.err.println("--win08-download needs an output dir"); exitProcess(2) }
         val runner = win08SmokeRunner ?: run { System.err.println("win08-download: Windows only"); exitProcess(2) }
         val code = runner.runDownload(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
+    // WIN09 — the band-QR smoke (`--win09-qr <outDir>`): the TroubaStudio screen's ⋮ "Show band QR…" against a loopback
+    // fake core. WIN09_SABOTAGE (a CI measurement run only) is honoured on this path alone, as a system property.
+    val win09Idx = args.indexOf("--win09-qr")
+    if (win09Idx >= 0) {
+        val outDir = args.getOrNull(win09Idx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win09-qr needs an output dir"); exitProcess(2) }
+        val runner = win09SmokeRunner ?: run { System.err.println("win09-qr: Windows only"); exitProcess(2) }
+        System.getenv("WIN09_SABOTAGE")?.takeIf { it.isNotBlank() }?.let { System.setProperty(WIN09_SABOTAGE_PROPERTY, it) }
+        val code = runner.run(File(outDir))
         if (code != 0) exitProcess(code)
         return
     }
@@ -555,7 +568,7 @@ internal fun windowAction(os: HostOs, key: Key, ctrl: Boolean, alt: Boolean, met
 
 /** Esc is Back (in a concert, stageBackAction: the drawer, then full screen, never the concert); where nothing
  *  handles Back, it leaves full screen. */
-private fun windowKey(e: KeyEvent, platform: DesktopAppPlatform): Boolean {
+internal fun windowKey(e: KeyEvent, platform: DesktopAppPlatform): Boolean {
     if (e.type != KeyEventType.KeyDown) return false
     return when (windowAction(hostOs, e.key, e.isCtrlPressed, e.isAltPressed, e.isMetaPressed, platform.inConcert)) {
         WindowAction.TOGGLE_FULL_SCREEN -> { platform.window.toggleFullScreen(); true }

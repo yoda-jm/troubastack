@@ -27,6 +27,11 @@ on:
         description: "WIN08_SABOTAGE value for a measurement spike (leave empty for a normal run)"
         required: false
         default: ""
+      # WIN09: "all" makes the band-QR step run its smoke once per sabotage and assert each reds its own check.
+      win09_sabotage:
+        description: "WIN09: 'all' runs the band-QR sabotage passes instead of the normal smoke (leave empty for a normal run)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -849,6 +854,92 @@ jobs:
         with:
           name: win08-download-panel
           path: app/win08-download-out/download-panel.png
+          if-no-files-found: ignore
+      # WIN09 — the band QR in the Windows app: the TroubaStudio screen (the app's own Browse, signed in) against a loopback
+      # fake core. Checks: the ⋮ "Show band QR…" item is absent for a non-admin and present for an admin; choosing it
+      # dismisses the menu; the QR in a window capture decodes (ZXing) to the standing link the core served; opening the
+      # screen creates nothing (the counter's positive control is the app's own create call); keep-awake is held while
+      # the QR shows and released after Back (powercfg /requests' DISPLAY list, else UNMEASURED); the overlay takes the
+      # focus from a focused Browser and a real Alt+← closes it without walking Studio's history; Back leaves the same
+      # controller on the same page with the panel full size and the focus back in Studio; "Manage / revoke in Studio"
+      # loads the band's settings in that same Browser. A dispatch with win09_sabotage=all then also runs the smoke once
+      # per sabotage, each in a fresh data root, and asserts each one reds its own check(s) while the others stay green.
+      - name: WIN09 — band QR (--win09-qr)
+        if: runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        env:
+          WIN09_SABOTAGE_RUN: ${{ github.event.inputs.win09_sabotage }}   # empty on push/PR; "all" for the sabotage run
+        run: |
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $allChecks = @("item-absent-for-non-admin", "item-present-for-admin", "menu-dismissed-on-open", "qr-decodes-to-served-link",
+            "keep-awake-while-shown", "back-returns-where-it-was", "focus-returns-to-studio", "overlay-takes-focus",
+            "manage-opens-settings-in-place", "no-create-on-open", "unsuitable-link-not-shown", "create-counter-control")
+          function Invoke-Win09([string]$sab, [bool]$fullLog) {
+            $tag = if ($sab) { $sab } else { "normal" }
+            $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win09-home-$tag"
+            Remove-Item -Recurse -Force $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+            $env:WIN09_SABOTAGE = $sab
+            $out = Join-Path (Get-Location) "win09-out-$tag"
+            $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win09-qr", $out) -PassThru -WorkingDirectory (Get-Location)
+            $exited = $p.WaitForExit(220000)
+            if (-not $exited) { $p.Kill() }
+            Start-Sleep -Seconds 2
+            Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            $env:WIN09_SABOTAGE = ""
+            $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+            $lines = if ($log) { @(Get-Content $log.FullName) } else { @() }
+            if ($fullLog) { Write-Host "---- win08.log (win09-qr $tag) ----"; $lines | Write-Host }
+            Write-Host "---- WIN09 $tag ----"
+            $lines | Where-Object { $_ -match "WIN09-CHECK|win09-qr:" } | Write-Host
+            $verdicts = @{}
+            foreach ($l in $lines) { if ($l -match "WIN09-CHECK (\S+): (PASS|FAIL|UNMEASURED)") { $verdicts[$Matches[1]] = $Matches[2] } }
+            Write-Host "exited=$exited exit=$(if ($exited) { $p.ExitCode } else { 'killed' })"
+            return @{ Exited = $exited; Code = $(if ($exited) { $p.ExitCode } else { -1 }); Verdicts = $verdicts }
+          }
+          $r = Invoke-Win09 "" $true
+          if (-not $r.Exited) { Write-Error "win09-qr hung (>220s)"; exit 1 }
+          $missing = @($allChecks | Where-Object { -not $r.Verdicts.ContainsKey($_) })
+          $failed = @($r.Verdicts.Keys | Where-Object { $r.Verdicts[$_] -eq "FAIL" })
+          $unmeasured = @($r.Verdicts.Keys | Where-Object { $r.Verdicts[$_] -eq "UNMEASURED" })
+          if ($failed.Count -gt 0) { Write-Error "WIN09 checks failed: $($failed -join ', ')"; exit 1 }
+          if ($missing.Count -gt 0) { Write-Error "WIN09 checks never reported: $($missing -join ', ')"; exit 1 }
+          if ($r.Code -ne 0) { Write-Error "win09-qr exited $($r.Code)"; exit 1 }
+          foreach ($u in $unmeasured) { Write-Host "::warning::WIN09 $u UNMEASURED on this runner (see its WIN09-CHECK line)" }
+          Write-Host "WIN09: all $($allChecks.Count) checks reported; none failed; unmeasured: [$($unmeasured -join ', ')]"
+          if ($env:WIN09_SABOTAGE_RUN -ne "all") { exit 0 }
+          # The sabotage run: each value must red its own check(s) (target); "allowed" may red as a consequence; every
+          # other check must stay PASS (keep-awake may be UNMEASURED if powercfg can't be read here).
+          $plan = [ordered]@{
+            "qrwrongtext"     = @{ Target = @("qr-decodes-to-served-link"); Allowed = @() }
+            "qrblank"         = @{ Target = @("qr-decodes-to-served-link"); Allowed = @() }
+            "createonopen"    = @{ Target = @("no-create-on-open"); Allowed = @() }
+            "nokeepawake"     = @{ Target = @("keep-awake-while-shown"); Allowed = @() }
+            "itemfornonadmin" = @{ Target = @("item-absent-for-non-admin"); Allowed = @() }
+            "qrnofocus"       = @{ Target = @("overlay-takes-focus"); Allowed = @() }
+            "qrnofocusback"   = @{ Target = @("focus-returns-to-studio"); Allowed = @() }
+            "qrreplace"       = @{ Target = @("back-returns-where-it-was"); Allowed = @("focus-returns-to-studio", "overlay-takes-focus", "manage-opens-settings-in-place") }
+          }
+          $bad = @()
+          foreach ($sab in $plan.Keys) {
+            $r = Invoke-Win09 $sab $false
+            $want = $plan[$sab]
+            $notRed = @($want.Target | Where-Object { $r.Verdicts[$_] -ne "FAIL" })
+            $collateral = @($r.Verdicts.Keys | Where-Object { $r.Verdicts[$_] -eq "FAIL" -and $want.Target -notcontains $_ -and $want.Allowed -notcontains $_ })
+            $missing = @($allChecks | Where-Object { -not $r.Verdicts.ContainsKey($_) })
+            $verdict = if ($notRed.Count -eq 0 -and $collateral.Count -eq 0 -and $missing.Count -eq 0) { "OK" } else { "BAD" }
+            Write-Host "SABOTAGE $sab -> $verdict (target not red: [$($notRed -join ', ')]; other reds: [$($collateral -join ', ')]; unreported: [$($missing -join ', ')])"
+            if ($verdict -ne "OK") { $bad += $sab }
+          }
+          if ($bad.Count -gt 0) { Write-Error "WIN09 sabotages that did not red exactly their own check: $($bad -join ', ')"; exit 1 }
+          Write-Host "WIN09: every sabotage reds its own check, and only that"
+      - name: WIN09 — upload the band-QR captures
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: win09-qr-captures
+          path: app/win09-out-*/*.png
           if-no-files-found: ignore
       - name: secret store cost — DPAPI get/put p50/p95 (F2)
         if: runner.os == 'Windows'

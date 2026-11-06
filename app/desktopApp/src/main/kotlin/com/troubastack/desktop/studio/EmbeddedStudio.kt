@@ -69,7 +69,26 @@ class EmbeddedStudioArgs(
      * recording stub. Only ever called with an http/https URL — the scheme filter is applied before this.
      */
     val openInDefaultBrowser: (url: String) -> Boolean = { false },
+    /**
+     * WIN09: the ⋮ "Show band QR…" item. The host sets it when the person administers a band; that list arrives after
+     * the first composition, so the content re-reads this on every composition. null hides the item.
+     */
+    val onShowBandQr: (() -> Unit)? = null,
+    /**
+     * WIN09: the host is drawing its own screen (the band picker, the QR) over the embedded one. The SwingPanel then
+     * collapses to 0.dp (S2.1's mechanism, never isVisible=false), so the Browser lives on underneath and Back returns
+     * to Studio where it was. Focus leaves the Browser while it shows (the host's overlay takes it) and comes back after.
+     */
+    val hostOverlay: Boolean = false,
+    /** WIN09: the provider hands back a same-origin load through this ("Manage / revoke in Studio" opens
+     *  /bands/<id>/settings in the same Browser). Only an absolute path is loaded, through the origin lock. */
+    val provideOpenPath: (((path: String) -> Unit) -> Unit)? = null,
 )
+
+/** WIN09 — the URL [path] loads in place: the server's [origin] plus an absolute path ("/…", never "//…" or a URL);
+ *  null refuses it. The Browser's origin lock still vets the navigation. */
+internal fun studioPathUrl(origin: String, path: String): String? =
+    if (path.startsWith("/") && !path.startsWith("//") && '\\' !in path) origin + path else null
 
 /**
  * The embedded-Studio provider on the classpath, or null. On Windows the SWT provider is registered through
