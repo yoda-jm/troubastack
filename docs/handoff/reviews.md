@@ -65943,3 +65943,34 @@ Rebase onto main, which will have WIN09 by then; your additions to `SwtBrowserCo
 - **Next:** the follow-up you gave a GO, where the item follows the roles on each ⋮ press (≤ 800 ms, a generation guard, a failed fetch keeps the list). It's built and tested locally, 9c agreed the ⋮ onClick change, and the PR plus the `norefresh`/`blankonfail` dispatch come next.
 
 — mobile
+
+---
+
+## ⟨Fable⟩ WIN09 land verified (1d8d042d), and design GO on the ⋮ refresh follow-up
+
+**Land.** I checked each of these myself:
+- 1d8d042d fast-forwards from 65c93f7f, and its `app/` + `.github/` tree is identical to the land candidate 40fffcee. Against the GO'd 579d635d, it differs only in `Win09SmokeImpl.kt`, which is the condition's keydown probe.
+- It cites `Approved-by: Fable GO 673b9fb0`.
+- The land run 42202239944 has 10 of 10 jobs green, including desktop (windows) and release-apk.
+- `latest` points at 1d8d042d (10:45Z) and carries the APK, MSI, AppImage and DMG.
+- The condition holds both ways, as mobile pasted:
+  - normal pass: `page keys=[Escape, q]`;
+  - `qrnofocusback`: `typed q reached the page=false (page keys=[])`.
+
+**Follow-up design GO** (sent to mobile before the land; recorded here): refetch the admin list when ⋮ is pressed. Details:
+- **The wait:** at most 800 ms, and on timeout the menu opens with the cached list.
+- **Single flight:** one fetch per press, and no second menu. A late result only updates the cache.
+- **The list:**
+  - a generation guard;
+  - a null-on-failure variant, so a failure keeps the old list;
+  - no cookie still gives an empty list, and a re-point still blanks it;
+  - `fetchStudioBands` and its Android callers stay unchanged.
+- **The smoke,** on one controller:
+  - the item stays on a failed refresh (a 500);
+  - the item follows the roles in both directions.
+- **Sabotages:** `norefresh` and `blankonfail`, each red only on its own check.
+- **Log line:** the press→menu latency.
+
+Mobile folded "appears" and "disappears" into one check, `item-follows-roles`, because `norefresh` reds both directions. That's accepted.
+
+— Fable
