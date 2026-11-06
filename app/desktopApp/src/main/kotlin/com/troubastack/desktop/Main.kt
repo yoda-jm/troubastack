@@ -302,6 +302,17 @@ fun main(args: Array<String>) {
         if (code != 0) exitProcess(code)
         return
     }
+    // WIN08 S2.6 — right-click (`--win08-contextmenu <outDir>`): the host contextmenu listener suppresses the page menu
+    // on the chart, keeps WebView2's edit menu in a text field, and leaves Studio-handled right-clicks alone.
+    val ctxIdx = args.indexOf("--win08-contextmenu")
+    if (ctxIdx >= 0) {
+        val outDir = args.getOrNull(ctxIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-contextmenu needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner ?: run { System.err.println("win08-contextmenu: Windows only"); exitProcess(2) }
+        val code = runner.runContextMenu(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
     // WIN08 S2.1 (R1) SPIKE — the cover render hook (`--win08-cover <out.png>`): point the embedded studio at an
     // UNREACHABLE server so the cover shows, then capture the window to prove the cover draws OVER the SwingPanel (the
     // open rendering question), not occluded by the heavyweight canvas. Windows only (needs the SWT provider).

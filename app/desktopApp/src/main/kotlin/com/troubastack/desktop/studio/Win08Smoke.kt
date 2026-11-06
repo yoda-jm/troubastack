@@ -45,6 +45,11 @@ interface Win08SmokeRunner {
      *  /pdf (401 without the cookie, non-ASCII Content-Disposition), and assert the file lands in Downloads with that
      *  exact name and a SHA-256 matching the served bytes. Keeps WebView2's default; a panel PNG is left under outDir. */
     fun runDownload(outDir: File): Int
+
+    /** S2.6 right-click (R3): a host-injected, window-level bubbling contextmenu listener suppresses the page menu on
+     *  non-editable targets (the chart) but keeps WebView2's own edit menu on input/textarea/contenteditable, and
+     *  leaves a target Studio already handled (defaultPrevented) untouched. Writes ctx-chart.png / ctx-field.png. */
+    fun runContextMenu(outDir: File): Int
 }
 
 val win08SmokeRunner: Win08SmokeRunner? by lazy {

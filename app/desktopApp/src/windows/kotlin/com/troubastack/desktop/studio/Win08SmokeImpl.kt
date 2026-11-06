@@ -705,6 +705,97 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
     private fun sha256(b: ByteArray): String =
         java.security.MessageDigest.getInstance("SHA-256").digest(b).joinToString("") { "%02x".format(it) }
 
+    override fun runContextMenu(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        win08log("contextmenu: run start; log=$win08LogFile")
+        Thread { try { Thread.sleep(120_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("contextmenu: BACKSTOP firing (>120s)"); Runtime.getRuntime().halt(1) }.apply { isDaemon = true; start() }
+        val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+        serverSocket = server
+        val origin = "http://127.0.0.1:${server.localPort}"
+        Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
+        val edgeDataDir = File(desktopDataRoot(), "webview2")
+        val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+        val frameHolder = java.util.concurrent.atomic.AtomicReference<java.awt.Window?>()
+        val args = EmbeddedStudioArgs(origin, null, "TroubaStudio", null, edgeDataDir, {}, {}, { false }, { frameHolder.get() }, null)
+        application {
+            Window(onCloseRequest = ::exitApplication, title = "TroubaStage", state = rememberWindowState(width = 1200.dp, height = 820.dp)) {
+                EmbeddedStudioContent(args, onController = { ctrlRef.set(it) })
+                LaunchedEffect(Unit) { frameHolder.set(window); Thread { contextMenuFlow(outDir, ctrlRef, frameHolder) }.apply { isDaemon = true; start() } }
+            }
+        }
+        return 0
+    }
+
+    private fun contextMenuFlow(
+        outDir: File,
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+        frameHolder: java.util.concurrent.atomic.AtomicReference<java.awt.Window?>,
+    ) {
+        val results = LinkedHashMap<String, Boolean>()
+        fun mark(name: String, ok: Boolean) { results[name] = ok; line("WIN08-CHECK $name: ${if (ok) "PASS" else "FAIL"}") }
+        fun waitFor(ms: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + ms
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(100) }
+            return cond()
+        }
+        try {
+            val c = if (waitFor(40_000) { ctrlRef.get()?.ctxInjected == true }) ctrlRef.get() else null
+            if (c == null) { mark("contextmenu-listener", false); finish(results) { null }; return }
+
+            mark("contextmenu-listener", true)
+            // DOM logic: a synthetic bubbling contextmenu on each target reports how the host listener treated it.
+            c.smokeInjectCtxElements(); Thread.sleep(400)
+            fun ctxFor(id: String): String? {
+                val seq = c.ctxSeq
+                c.smokeDispatchCtx(id)
+                return if (waitFor(5_000) { c.ctxSeq > seq }) c.lastCtx else null
+            }
+            fun kept(s: String?) = s != null && s.contains("\"editable\":true") && s.contains("\"suppressed\":false")
+            fun suppressed(s: String?) = s != null && s.contains("\"editable\":false") && s.contains("\"suppressed\":true")
+
+            val chart = ctxFor("chart"); win08log("contextmenu: chart -> $chart")
+            mark("ctx-chart-suppressed", suppressed(chart))
+            // Editable = text entry: a textarea AND an <input type=text> both keep WebView2's edit menu (Fable revise).
+            val field = ctxFor("field"); win08log("contextmenu: field -> $field")
+            val textinput = ctxFor("textinput"); win08log("contextmenu: textinput -> $textinput")
+            mark("ctx-editable-kept", kept(field) && kept(textinput))
+            // Non-text inputs (a checkbox and a range) are NOT editable → suppressed, so they never get the page menu.
+            val checkbox = ctxFor("checkbox"); win08log("contextmenu: checkbox -> $checkbox")
+            val range = ctxFor("range"); win08log("contextmenu: range -> $range")
+            mark("ctx-noninput-suppressed", suppressed(checkbox) && suppressed(range))
+            val studio = ctxFor("studioel"); win08log("contextmenu: studioel -> $studio")
+            mark("ctx-studio-untouched", studio != null && studio.contains("\"studio\":true"))
+
+            // Screenshots: a REAL right-click. No menu on the chart or the checkbox (a non-text input); WebView2's edit
+            // menu in a text field (with the More tools submenu). Left on disk for Fable. In the ctxanyinput run the
+            // checkbox shot shows whether Chromium gives a non-text input the full page menu.
+            val f = frameHolder.get()
+            if (f != null) {
+                val b = f.bounds; val cx = b.x + b.width / 2; val cy = b.y + b.height / 2
+                val r = java.awt.Robot()
+                fun capture(name: String) {
+                    val img = r.createScreenCapture(java.awt.Rectangle(b.x, b.y, b.width, b.height))
+                    val png = File(outDir, name); javax.imageio.ImageIO.write(img, "png", png); win08log("contextmenu: shot $name")
+                }
+                fun rightClick() { r.mouseMove(cx, cy); r.mousePress(java.awt.event.InputEvent.BUTTON3_DOWN_MASK); r.mouseRelease(java.awt.event.InputEvent.BUTTON3_DOWN_MASK); Thread.sleep(900) }
+                fun esc() { r.keyPress(java.awt.event.KeyEvent.VK_ESCAPE); r.keyRelease(java.awt.event.KeyEvent.VK_ESCAPE); Thread.sleep(300) }
+                c.smokeFullChart(); Thread.sleep(600); rightClick(); capture("ctx-chart.png"); esc()
+                c.smokeFullField(); Thread.sleep(600); rightClick(); capture("ctx-field.png")
+                r.mouseMove(b.x + 600, b.y + 335); Thread.sleep(1300); capture("ctx-moretools.png"); esc(); esc()
+                c.smokeFullCheckbox(); Thread.sleep(600); rightClick(); capture("ctx-checkbox.png"); esc()
+            }
+            mark("ctx-flow-complete", true)   // reached the end without throwing
+        } catch (e: Throwable) {
+            win08log("contextmenu: flow threw: ${e.message}")
+            mark("ctx-flow-complete", false)   // Fable revise: a thrown flow must FAIL, not silently pass
+        }
+        // Fable revise: require the fixed set — a check the flow never reached becomes FAIL, not an absence finish() ignores.
+        listOf("contextmenu-listener", "ctx-chart-suppressed", "ctx-noninput-suppressed", "ctx-editable-kept", "ctx-studio-untouched", "ctx-flow-complete")
+            .forEach { results.putIfAbsent(it, false) }
+        finish(results) { null }
+    }
+
     /** A raw HTTP/1.0 GET with NO Cookie; returns the status code (or -1). Proves the /pdf endpoint needs the session. */
     private fun rawGetStatus(origin: String, path: String): Int = runCatching {
         val port = origin.substringAfterLast(':').toInt()

@@ -74,6 +74,9 @@ internal class SwtBrowserController(
     @Volatile var downloadDone: Boolean = false; private set     // S2.5: saveBlob ran (the file save is then async in WebView2)
     @Volatile var downloadName: String? = null; private set      // S2.5: the a.download name (from Content-Disposition)
     @Volatile var downloadErr: String? = null; private set       // S2.5: the fetch/download threw (e.g. a 401)
+    @Volatile var ctxInjected: Boolean = false; private set      // S2.6: the contextmenu listener is attached
+    @Volatile var lastCtx: String? = null; private set           // S2.6: the last {ctxmenu} JSON (editable/suppressed/studio)
+    @Volatile var ctxSeq: Int = 0; private set                   // S2.6: bumped per contextmenu event (smoke waits for a new one)
     @Volatile private var disposed: Boolean = false
     // B2 DPI measurement (filled by measureDpi, read by the smoke).
     @Volatile var swtThreadDpiAwareness: Int = -1; private set
@@ -155,6 +158,34 @@ internal class SwtBrowserController(
     /** S2.4 smoke: create an <a href target> and click it, so the injected capture routes it (like a real link click). */
     fun smokeClickLink(href: String, target: String) = exec { browser?.execute(
         "var a=document.createElement('a');a.setAttribute('href','$href');a.setAttribute('target','$target');a.textContent='x';document.body.appendChild(a);a.click();") }
+
+    /** S2.6 smoke: add a non-editable "chart" div, a textarea, and a "studio-handled" div (own contextmenu→preventDefault)
+     *  so a synthetic contextmenu on each exercises the three paths the host listener distinguishes. */
+    fun smokeInjectCtxElements() = exec { browser?.execute(
+        "(function(){function mk(i,t,c){var e=document.createElement(t);e.id=i;e.style.cssText=c;document.body.appendChild(e);return e;}" +
+        "if(!document.getElementById('chart'))mk('chart','div','position:absolute;left:20px;top:80px;width:300px;height:200px;background:#eee');" +
+        "if(!document.getElementById('field')){var f=mk('field','textarea','position:absolute;left:360px;top:80px;width:300px;height:120px');f.value='text';}" +
+        "if(!document.getElementById('textinput')){var ti=mk('textinput','input','position:absolute;left:360px;top:220px;width:300px');ti.type='text';ti.value='text';}" +
+        "if(!document.getElementById('checkbox')){var cb=mk('checkbox','input','position:absolute;left:360px;top:260px');cb.type='checkbox';}" +
+        "if(!document.getElementById('range')){var rg=mk('range','input','position:absolute;left:420px;top:260px');rg.type='range';}" +
+        "if(!document.getElementById('studioel')){var s=mk('studioel','div','position:absolute;left:20px;top:320px;width:300px;height:120px;background:#dde');s.addEventListener('contextmenu',function(e){e.preventDefault();},false);}})()") }
+
+    /** S2.6 smoke: fire a synthetic bubbling contextmenu on #[id] so the host listener reports {ctxmenu} for it. */
+    fun smokeDispatchCtx(id: String) = exec { browser?.execute(
+        "var el=document.getElementById('$id');if(el)el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));") }
+
+    /** S2.6 screenshot: make the whole body a single non-editable div (a real right-click → no page menu). */
+    fun smokeFullChart() = exec { browser?.execute(
+        "document.body.innerHTML='';var d=document.createElement('div');d.id='chart';d.textContent='win08 chart (non-editable)';d.style.cssText='position:absolute;inset:0;background:#f4f4f4;font:20px sans-serif;padding:16px';document.body.appendChild(d);") }
+
+    /** S2.6 screenshot: make the whole body a focused textarea with selected text (a real right-click → WebView2 edit menu). */
+    fun smokeFullField() = exec { browser?.execute(
+        "document.body.innerHTML='';var t=document.createElement('textarea');t.id='field';t.value='win08 editable text — right-click for the edit menu';t.style.cssText='position:absolute;inset:0;font:18px sans-serif;padding:16px';document.body.appendChild(t);t.focus();t.select();") }
+
+    /** S2.6 screenshot (Fable revise): a big checkbox filling the body — a non-text input. A real right-click must get
+     *  NO menu (normal); under ctxanyinput it wrongly counts editable and Chromium shows the full page menu. */
+    fun smokeFullCheckbox() = exec { browser?.execute(
+        "document.body.innerHTML='';var c=document.createElement('input');c.id='checkbox';c.type='checkbox';c.style.cssText='position:absolute;left:40px;top:40px;width:120px;height:120px;transform:scale(4);transform-origin:top left';document.body.appendChild(c);") }
 
     /** S2.5 smoke: run Studio's REAL download path verbatim — fetch(credentials) → Blob → filenameFromDisposition →
      *  saveBlob (createObjectURL → temp <a download> → click → immediate revokeObjectURL). Copied from
@@ -505,6 +536,9 @@ internal class SwtBrowserController(
                             // S2.5: the injected saveBlob (verbatim from Studio) ran, or the fetch/download threw.
                             json.contains("\"downloaddone\"") -> { downloadName = json.substringAfter("\"name\":\"", "").substringBefore("\""); downloadDone = true; log("win08: S2.5 saveBlob ran, name=$downloadName") }
                             json.contains("\"downloaderr\"") -> { downloadErr = json.substringAfter("\"msg\":\"", "").substringBefore("\""); log("win08: S2.5 download error: $downloadErr") }
+                            // S2.6: the page-level contextmenu listener reported a right-click (chart suppressed / editable kept / studio-handled).
+                            json.contains("\"ctxready\"") -> { ctxInjected = true; log("win08: S2.6 contextmenu listener attached") }
+                            json.contains("\"ctxmenu\"") -> { lastCtx = json; ctxSeq++; log("win08: S2.6 contextmenu #$ctxSeq $json") }
                             json.contains("\"ready\"") -> {
                                 readyCount++   // S2.1: proves the page loaded & handshook, even while the SwingPanel is collapsed/hidden
                                 if (!bridgeReady) bridgeReady = true else helloAnswered = true // first ready latches bridgeReady; a later one = our hello answered
@@ -626,6 +660,38 @@ internal class SwtBrowserController(
                     if (sabotage == "catchdownload") runCatching { browser.execute(
                         "window.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download]'):null;if(a)e.preventDefault();},true);"
                     ) }
+                    // S2.6 (R3): a host-injected, window-level, BUBBLING contextmenu listener (added once). When the event
+                    // is not already defaultPrevented (Studio's own right-click handlers run first and set it) AND the
+                    // target is NOT editable (input/textarea/contenteditable), preventDefault → WebView2 shows no page menu
+                    // (the chart). Editable targets keep WebView2's OWN edit menu with the real clipboard (Chromium refuses
+                    // execCommand('paste') to a replacement). Bubbling + window-level so Studio's element handlers win first.
+                    run {
+                        val prevent = when (sabotage) {
+                            "ctxnosuppress" -> ""                          // never prevent → the chart menu shows (reds ctx-chart-suppressed)
+                            "ctxalwayssuppress" -> "e.preventDefault();"   // prevent even on editable → the edit menu is lost (reds ctx-editable-kept)
+                            else -> "if(!editable)e.preventDefault();"
+                        }
+                        val phase = if (sabotage == "ctxcapture") "true" else "false"   // capture runs BEFORE Studio → suppresses a studio-handled menu (reds ctx-studio-untouched)
+                        // "Editable" means TEXT ENTRY (Fable revise): a textarea, a contenteditable, or an <input> whose
+                        // type (default "text") is not one of the non-text kinds — else a checkbox/radio/range/color/file
+                        // gets Chromium's full PAGE menu (Back/Refresh/Save as/Print/Inspect). Sabotage ctxanyinput puts the
+                        // old any-input closest back → a checkbox counts editable → reds ctx-noninput-suppressed only.
+                        val editableJs = if (sabotage == "ctxanyinput")
+                            "var editable=!!(t&&((t.closest&&t.closest('input,textarea'))||t.isContentEditable));"
+                        else
+                            "var editable=false;if(t){if(t.isContentEditable)editable=true;else{var inp=t.closest?t.closest('input,textarea'):null;" +
+                            "if(inp){if(inp.tagName.toLowerCase()==='textarea')editable=true;" +
+                            "else{var ty=(inp.getAttribute('type')||'text').toLowerCase();editable=['checkbox','radio','range','color','file','button','submit','reset','image','hidden'].indexOf(ty)<0;}}}}"
+                        runCatching { browser.execute(
+                            "if(!window.__win08ctx){window.__win08ctx=1;" +
+                            "window.addEventListener('contextmenu',function(e){var r=window.TroubaStageShellReceive;" +
+                            "if(e.defaultPrevented){if(r)r(JSON.stringify({type:'ctxmenu',studio:true,suppressed:true}));return;}" +
+                            "var t=e.target;" + editableJs +
+                            prevent +
+                            "if(r)r(JSON.stringify({type:'ctxmenu',editable:editable,suppressed:e.defaultPrevented}));},$phase);" +
+                            "var rr=window.TroubaStageShellReceive;if(rr)rr(JSON.stringify({type:'ctxready'}));}"
+                        ) }
+                    }
                     // S2.1 (R1, refinement 2): the no-ready → cover timer is armed by the HOST load paths only (first
                     // load / ⋮ Reload / Retry), NOT here in completed(). An in-page same-origin navigation — e.g. S2.4
                     // opening a song's PDF in place — also completes with no Studio `ready`; arming here would land the

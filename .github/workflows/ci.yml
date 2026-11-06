@@ -941,6 +941,40 @@ jobs:
           name: win09-qr-captures
           path: app/win09-out-*/*.png
           if-no-files-found: ignore
+      # WIN08 S2.6 — right-click (R3): a host contextmenu listener suppresses the page menu on a non-editable target
+      # (the chart, and any non-text input) but keeps WebView2's native edit menu on a text input/textarea/contenteditable,
+      # and leaves a Studio-handled right-click (defaultPrevented) alone. Sabotages (win08_sabotage): ctxnosuppress reds
+      # the suppress checks, ctxalwayssuppress reds ctx-editable-kept, ctxcapture reds ctx-studio-untouched, ctxanyinput
+      # (old any-input rule) reds only ctx-noninput-suppressed.
+      - name: WIN08 — right-click menu (S2.6)
+        if: runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        env:
+          WIN08_SABOTAGE: ${{ github.event.inputs.win08_sabotage }}
+        run: |
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-ctx-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "win08-ctx-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-contextmenu", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(150000)
+          if (-not $exited) { $p.Kill() }
+          Start-Sleep -Seconds 2
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Write-Host "---- win08.log (contextmenu) ----"; Get-Content $log.FullName | Write-Host } else { Write-Host "::warning::no win08.log" }
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $exited) { Write-Error "win08-contextmenu hung (>150s)"; exit 1 }
+          Write-Host "win08-contextmenu exit $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { Write-Error "win08-contextmenu checks failed"; exit 1 }
+          Write-Host "WIN08 S2.6: chart + non-text inputs suppressed, text-field edit menu kept, Studio-handled untouched"
+      - name: upload WIN08 context-menu PNGs (S2.6)
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: win08-contextmenu
+          path: app/win08-ctx-out/*.png
+          if-no-files-found: ignore
       - name: secret store cost — DPAPI get/put p50/p95 (F2)
         if: runner.os == 'Windows'
         working-directory: app
