@@ -62,6 +62,13 @@ class EmbeddedStudioArgs(
      * loads the new server. null when no server is set yet (the menu item is hidden).
      */
     val onServerUrlChange: ((newUrl: String) -> Unit)? = null,
+    /**
+     * S2.4: open an off-origin http(s) link in the person's default browser (a separate browser, so WITHOUT the
+     * WebView2 session). Returns true if the OS accepted it; false (unsupported, or it threw) makes the embedded
+     * screen show one line instead of failing silently. The host wires java.awt.Desktop.browse; the CI smoke passes a
+     * recording stub. Only ever called with an http/https URL — the scheme filter is applied before this.
+     */
+    val openInDefaultBrowser: (url: String) -> Boolean = { false },
 )
 
 /**

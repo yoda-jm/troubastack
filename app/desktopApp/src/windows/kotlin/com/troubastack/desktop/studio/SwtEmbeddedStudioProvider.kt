@@ -57,6 +57,7 @@ internal const val SERVER_URL_TITLE = "Core server URL"
 internal const val SERVER_URL_LABEL = "Server address"
 internal const val SERVER_URL_SAVE = "Save"
 internal const val SERVER_URL_CANCEL = "Cancel"
+internal const val LINK_ERROR_MESSAGE = "Couldn't open the link in your browser."
 
 /**
  * WIN08 (Windows only) — hosts Studio through WebView2 via SWT's `Browser(SWT.EDGE)`, inside the TroubaStage
@@ -120,6 +121,7 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
     var coverReason by remember { mutableStateOf(COVER_REASON_UNREACHABLE) }
     var retryNonce by remember { mutableStateOf(0) }
     var showServerDialog by remember { mutableStateOf(false) }   // S2.3b: the ⋮ "Server URL…" in-canvas dialog
+    var linkError by remember { mutableStateOf(false) }          // S2.4: the default browser refused an off-origin link
     val base = args.serverUrl.orEmpty()
     val loadUrl = remember(base, args.initialPath) { embeddedUrl(base, args.initialPath) }
     val origin = remember(base) { originOfUrl(base) }
@@ -138,6 +140,8 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             onNavNoReady = { if (!ready) { coverReason = COVER_REASON_NO_READY; covered = true } },
             onFullScreenKey = { args.toggleFullScreen() },
             onExitBack = args.onBack,   // S2.2: leave the Studio screen only when Studio's history is exhausted
+            openInDefaultBrowser = args.openInDefaultBrowser,   // S2.4: off-origin http(s) links → the default browser
+            onLinkError = { linkError = true },                 // S2.4: the browser refused → show one line
             log = ::win08log,
         ).also(onController)
     }
@@ -229,6 +233,13 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
                         onSave = { newUrl -> showServerDialog = false; args.onServerUrlChange?.invoke(newUrl) },
                         onCancel = { showServerDialog = false },
                     )
+                }
+                if (linkError) {
+                    // S2.4: one line when the default browser refused an off-origin link; auto-dismiss after a few seconds.
+                    LaunchedEffect(Unit) { kotlinx.coroutines.delay(5000); linkError = false }
+                    Box(Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(12.dp), contentAlignment = Alignment.Center) {
+                        Text(LINK_ERROR_MESSAGE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }

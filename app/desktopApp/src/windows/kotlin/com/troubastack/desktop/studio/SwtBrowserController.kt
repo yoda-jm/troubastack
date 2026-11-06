@@ -47,6 +47,10 @@ internal class SwtBrowserController(
     private val onFullScreenKey: () -> Unit,
     // S2.2: leave the Studio screen (the app's Back) only when Studio's own history is exhausted.
     private val onExitBack: () -> Unit = {},
+    // S2.4: open an off-origin http(s) link in the default browser (returns false if the OS refused); and show the
+    // one-line "couldn't open" notice when it does. Defaults keep the smoke/tests that don't route links simple.
+    private val openInDefaultBrowser: (url: String) -> Boolean = { false },
+    private val onLinkError: () -> Unit = {},
     private val log: (String) -> Unit,
 ) {
     @Volatile var browserType: String? = null; private set
@@ -62,6 +66,11 @@ internal class SwtBrowserController(
     @Volatile var newWindowRequested: Boolean = false; private set // S1.4 report: a target=_blank/window.open fired
     @Volatile var docCookie: String? = null; private set   // what document.cookie sees (item 5 — must NOT hold the session)
     @Volatile var openWindowBlocked: Boolean? = null; private set  // item 7 — the page's window.open() must return null (popup blocked)
+    @Volatile var lastOpenInPlace: String? = null; private set   // S2.4: last same-origin link routed in place
+    @Volatile var lastOpenExternal: String? = null; private set  // S2.4: last other-origin http(s) link sent to the default browser
+    @Volatile var lastOpenDropped: String? = null; private set   // S2.4: last non-http(s) link dropped by the scheme filter
+    @Volatile var droppedUrls: String = ""; private set          // S2.4: all dropped links (newline-joined), so a fast pair isn't lost to a race
+    @Volatile var linksInjected: Boolean = false; private set    // S2.4: the page-level link capture is attached (smoke waits for it)
     @Volatile private var disposed: Boolean = false
     // B2 DPI measurement (filled by measureDpi, read by the smoke).
     @Volatile var swtThreadDpiAwareness: Int = -1; private set
@@ -139,6 +148,40 @@ internal class SwtBrowserController(
     /** Smoke only (S2.2): dispatch a synthetic mouseup with button===3 in the page, to exercise the injected mouse-back
      *  listener → bridge {type:"back"} → requestBack chain (not the real XBUTTON1; that's the --win08-back recon). */
     fun smokeDispatchMouseBack() = exec { browser?.execute("window.dispatchEvent(new MouseEvent('mouseup',{button:3,bubbles:true}))") }
+
+    /** S2.4 smoke: create an <a href target> and click it, so the injected capture routes it (like a real link click). */
+    fun smokeClickLink(href: String, target: String) = exec { browser?.execute(
+        "var a=document.createElement('a');a.setAttribute('href','$href');a.setAttribute('target','$target');a.textContent='x';document.body.appendChild(a);a.click();") }
+
+    // ── S2.4: route a captured new-window / target link by origin ────────────────────────────────────────────────
+    // The page injection (below) forwards target/window.open/ctrl+middle-click URLs here (resolved absolute). Only
+    // http(s) ever reaches the default browser; the server's origin loads in place; everything else (search-ms:,
+    // ms-*:, file:, custom schemes) is DROPPED + logged — browse() on those launches Windows protocol handlers, an
+    // attack path. No in-app window ever opens (the OpenWindowListener backstop + this preventDefault the request).
+    // Sabotages: nolinkfilter skips the scheme filter; linksalwaysinplace / linksalwaysexternal ignore the origin.
+    private fun routeOpenUrl(url: String?) {
+        if (url.isNullOrBlank()) return
+        val sab = System.getenv("WIN08_SABOTAGE")
+        val scheme = url.substringBefore(':', "").lowercase()
+        if (sab != "nolinkfilter" && scheme != "http" && scheme != "https") {
+            lastOpenDropped = url; droppedUrls += "$url\n"; log("win08: S2.4 dropped non-http(s) link: $url"); return
+        }
+        val inPlace = when (sab) {
+            "linksalwaysinplace" -> true
+            "linksalwaysexternal" -> false
+            else -> sameOrigin(url, origin)
+        }
+        if (inPlace) {
+            lastOpenInPlace = url; log("win08: S2.4 same-origin link → in place: $url")
+            // Sabotage linksnoplaceload: make the in-place DECISION but never load it → the page doesn't change, so the
+            // same-origin check (which asserts the main browser ended on the link) reds. "In place" must actually navigate.
+            if (sab != "linksnoplaceload") exec { browser?.setUrl(url) }
+        } else {
+            lastOpenExternal = url; log("win08: S2.4 other-origin link → default browser: $url")
+            Thread { if (!openInDefaultBrowser(url)) { log("win08: S2.4 default browser refused $url"); onEdt(onLinkError) } }
+                .apply { isDaemon = true; start() }
+        }
+    }
 
     // ── S2.3: WebView2 cookie clearing (server change / sign-out) ────────────────────────────────────────────────
     private val pendingClearFile get() = java.io.File(edgeDataDir, "pending-cookie-clear")
@@ -419,6 +462,9 @@ internal class SwtBrowserController(
                             json.contains("\"mousebackseen\"") -> { mouseBackListenerFired = true; log("win08: mouse back listener fired in the page") }
                             json.contains("\"cookie\"") -> { docCookie = json; log("win08: document.cookie reported") }
                             json.contains("\"openwindow\"") -> { openWindowBlocked = json.contains("\"blocked\":true"); log("win08: openwindow reported blocked=$openWindowBlocked") }
+                            // S2.4: a target/window.open/ctrl+middle-click link the page injection captured (absolute URL).
+                            json.contains("\"openurl\"") -> routeOpenUrl(json.substringAfter("\"url\":\"", "").substringBefore("\""))
+                            json.contains("\"linksready\"") -> { linksInjected = true; log("win08: S2.4 link capture attached") }
                             json.contains("\"ready\"") -> {
                                 readyCount++   // S2.1: proves the page loaded & handshook, even while the SwingPanel is collapsed/hidden
                                 if (!bridgeReady) bridgeReady = true else helloAnswered = true // first ready latches bridgeReady; a later one = our hello answered
@@ -474,8 +520,9 @@ internal class SwtBrowserController(
                 }
             })
 
-            // S1.4 report (item 7): observe new-window requests (target=_blank / window.open, e.g. a file-name link).
-            // Stage 1 only reports + suppresses (leaving event.browser null); stage 2 routes them.
+            // Item 7: new-window requests (target=_blank / window.open). S2.4 routes the URL at the page level (the
+            // injection below), where the URL is known; this native listener is the BACKSTOP — it blocks the window
+            // itself (required=true, no NewWindow) so none ever opens in-app, whether or not the injection caught it.
             browser.addOpenWindowListener(object : org.eclipse.swt.browser.OpenWindowListener {
                 override fun open(event: org.eclipse.swt.browser.WindowEvent) {
                     newWindowRequested = true
@@ -509,6 +556,24 @@ internal class SwtBrowserController(
                     if (sabotage != "nomouseback") runCatching { browser.execute(
                         "if(!window.__win08back){window.__win08back=1;window.addEventListener('mouseup',function(e){if(e.button===3){" +
                         "e.preventDefault();var r=window.TroubaStageShellReceive;if(r){r(JSON.stringify({type:'mousebackseen'}));r(JSON.stringify({type:'back'}));}}},true);}"
+                    ) }
+                    // S2.4: capture new-window requests at the page level (SWT's OpenWindowListener has no URL). Override
+                    // window.open and intercept a[href] clicks that WOULD open a new window — target!=_self, OR a middle-
+                    // click (auxclick button 1), OR ctrl/meta/shift+click — resolve to absolute, preventDefault, and forward
+                    // {openurl,url} to the host, which routes by origin + scheme. <a download> is left alone (WebView2's,
+                    // S2.5). A plain same-origin left-click (no target/modifier) is NOT touched, so Studio's SPA nav is intact.
+                    runCatching { browser.execute(
+                        "if(!window.__win08links){window.__win08links=1;" +
+                        "var S=function(u){try{var r=window.TroubaStageShellReceive;if(r)r(JSON.stringify({type:'openurl',url:new URL(u,location.href).href}));}catch(e){}};" +
+                        "window.open=function(u){if(u)S(u);return null;};" +
+                        "var A=function(e){var x=e.target&&e.target.closest?e.target.closest('a[href]'):null;return (x&&!x.hasAttribute('download'))?x:null;};" +
+                        // left-click: route a new-window link — target!=_self, or ctrl/meta/shift (open-in-new-tab/window).
+                        "var Hc=function(e){var a=A(e);if(!a)return;var t=a.getAttribute('target');if((t&&t!=='_self')||e.ctrlKey||e.metaKey||e.shiftKey){e.preventDefault();S(a.getAttribute('href'));}};" +
+                        // auxclick: ONLY the middle button (1). NOT right (2) or back/forward (3/4) — those must not route a
+                        // link (the mouse Back button is S2.2's; a right-click opens the context menu, S2.6).
+                        "var Ha=function(e){if(e.button!==1)return;var a=A(e);if(!a)return;e.preventDefault();S(a.getAttribute('href'));};" +
+                        "window.addEventListener('click',Hc,true);window.addEventListener('auxclick',Ha,true);" +
+                        "var rr=window.TroubaStageShellReceive;if(rr)rr(JSON.stringify({type:'linksready'}));}"   // smoke waits for this
                     ) }
                     // S2.1 (R1, refinement 2): the no-ready → cover timer is armed by the HOST load paths only (first
                     // load / ⋮ Reload / Retry), NOT here in completed(). An in-page same-origin navigation — e.g. S2.4

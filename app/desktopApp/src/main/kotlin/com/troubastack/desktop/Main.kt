@@ -267,6 +267,17 @@ fun main(args: Array<String>) {
         if (code != 0) exitProcess(code)
         return
     }
+    // WIN08 S2.4 — links by origin (`--win08-links <outDir>`): same-origin in place, other http(s) origin to the default
+    // browser (a recording stub) without the session, non-http(s) dropped, no in-app window.
+    val linksIdx = args.indexOf("--win08-links")
+    if (linksIdx >= 0) {
+        val outDir = args.getOrNull(linksIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-links needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner ?: run { System.err.println("win08-links: Windows only"); exitProcess(2) }
+        val code = runner.runLinks(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
     // WIN08 S2.1 (R1) SPIKE — the cover render hook (`--win08-cover <out.png>`): point the embedded studio at an
     // UNREACHABLE server so the cover shows, then capture the window to prove the cover draws OVER the SwingPanel (the
     // open rendering question), not occluded by the heavyweight canvas. Windows only (needs the SWT provider).

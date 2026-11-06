@@ -541,6 +541,93 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         finish(results) { null }
     }
 
+    override fun runLinks(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        win08log("links: run start; log=$win08LogFile")
+        Thread { try { Thread.sleep(120_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("links: BACKSTOP firing (>120s)"); Runtime.getRuntime().halt(1) }.apply { isDaemon = true; start() }
+        val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+        serverSocket = server
+        val origin = "http://127.0.0.1:${server.localPort}"
+        Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
+        val edgeDataDir = File(desktopDataRoot(), "webview2")
+        val recorded = java.util.concurrent.atomic.AtomicReference<String?>(null)   // the CI stub records the off-origin URL
+        val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+        val args = EmbeddedStudioArgs(origin, null, "TroubaStudio", "win08sess=smoke", edgeDataDir,
+            {}, {}, { false }, { null }, null, openInDefaultBrowser = { url -> recorded.set(url); true })
+        application {
+            Window(onCloseRequest = ::exitApplication, title = "TroubaStage", state = rememberWindowState(width = 1200.dp, height = 820.dp)) {
+                EmbeddedStudioContent(args, onController = { ctrlRef.set(it) })
+                LaunchedEffect(Unit) { Thread { linksFlow(origin, recorded, ctrlRef) }.apply { isDaemon = true; start() } }
+            }
+        }
+        return 0
+    }
+
+    private fun linksFlow(
+        origin: String,
+        recorded: java.util.concurrent.atomic.AtomicReference<String?>,
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+    ) {
+        val results = LinkedHashMap<String, Boolean>()
+        fun mark(name: String, ok: Boolean) { results[name] = ok; line("WIN08-CHECK $name: ${if (ok) "PASS" else "FAIL"}") }
+        fun waitFor(ms: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + ms
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(80) }
+            return cond()
+        }
+        try {
+            val c = if (waitFor(40_000) { ctrlRef.get()?.bridgeReady == true }) ctrlRef.get() else null
+            if (c == null) { mark("links-controller", false); finish(results) { null }; return }
+            // The capture is attached in completed(), which can fire AFTER the head-script bridge handshake — wait for
+            // its linksready signal so the first click isn't missed (seen as a race: only the native listener fired).
+            if (!waitFor(15_000) { c.linksInjected }) { mark("links-capture-attached", false); finish(results) { null }; return }
+
+            // Vector 2 first (no main-browser nav): another http(s) origin → the default browser (the stub records it),
+            // WITHOUT the session, and the main browser stays put. Sabotage linksalwaysinplace reds this (setUrl vetoed,
+            // stub never called).
+            val external = "https://external.example.invalid/x"
+            c.smokeClickLink(external, "_blank")
+            val v2 = waitFor(6_000) { recorded.get() == external } && c.lastOpenExternal == external
+            win08log("links: other-origin recorded=${recorded.get()} lastExternal=${c.lastOpenExternal}")
+            mark("links-other-origin-to-default-browser", v2)
+
+            // Vector 3: non-http(s) schemes are DROPPED by the scheme filter — not opened, not navigated. BOTH a
+            // search-ms: and a file: link must be dropped (each caught, the stub untouched). Sabotage nolinkfilter reds
+            // this (the scheme reaches the default browser / setUrl, so it isn't dropped).
+            val recBeforeBad = recorded.get()
+            c.smokeClickLink("search-ms:query=win08", "_blank")
+            c.smokeClickLink("file:///C:/win08", "_blank")
+            // Both must be dropped. Use the accumulator (droppedUrls), not lastOpenDropped — the two drops can land a
+            // couple of ms apart, so the last-one field would lose the first to a race.
+            val bothDropped = waitFor(4_000) { c.droppedUrls.contains("search-ms") && c.droppedUrls.contains("file:") }
+            val v3 = bothDropped && recorded.get() == recBeforeBad
+            win08log("links: bad-scheme droppedUrls=[${c.droppedUrls.replace("\n", " ")}] recorded=${recorded.get()}")
+            mark("links-bad-scheme-dropped", v3)
+
+            // Vector 1 last (navigates in place): the server's own origin opens in the embedded view AND the main
+            // browser ENDS on that page (the spec's "end on the right page"), with the stub NOT called. Sabotage
+            // linksalwaysexternal reds it (same-origin goes external); linksnoplaceload reds it (decided, never loaded).
+            val recBeforeSame = recorded.get()
+            c.smokeClickLink("$origin/inplace", "_blank")
+            val routedInPlace = waitFor(6_000) { c.lastOpenInPlace == "$origin/inplace" }
+            val landedInPlace = waitFor(8_000) { c.lastUrl == "$origin/inplace" }
+            val v1 = routedInPlace && landedInPlace && recorded.get() == recBeforeSame
+            win08log("links: same-origin lastInPlace=${c.lastOpenInPlace} navUrl=${c.lastUrl} landed=$landedInPlace")
+            mark("links-same-origin-in-place", v1)
+
+            // No in-app window ever: count top-level WebView2 windows (item 7). The embedded browser is a WS_CHILD, not
+            // enumerated, so >0 means a real popup window opened. Sabotage noblock (the OpenWindowListener backstop off)
+            // lets one open → this reds.
+            val topWv = Win08Native.topLevelWebViewWindows()
+            win08log("links: topLevelWebViewWindows=$topWv (expect 0)")
+            mark("links-no-new-window", topWv == 0)
+        } catch (e: Throwable) {
+            win08log("links: flow threw: ${e.message}")
+        }
+        finish(results) { null }
+    }
+
     /** A one-page HTTP/1.0 loopback: read the request headers (record the Cookie), reply with [PAGE]. */
     private fun acceptLoop(server: ServerSocket) {
         while (!server.isClosed) {

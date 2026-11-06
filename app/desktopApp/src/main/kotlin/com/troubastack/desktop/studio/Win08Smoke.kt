@@ -36,6 +36,10 @@ interface Win08SmokeRunner {
      *  then re-point between two loopback origins N times. Each re-point clears the old origin through the next-open
      *  path and a fresh controller seeds a new session, which must survive (the old controller never clears live). */
     fun runServerUrl(outDir: File): Int
+
+    /** S2.4 links by origin: a captured link to the server's origin opens in place; another http(s) origin opens in the
+     *  default browser (a recording stub) without the session; non-http(s) schemes are dropped; no in-app window opens. */
+    fun runLinks(outDir: File): Int
 }
 
 val win08SmokeRunner: Win08SmokeRunner? by lazy {

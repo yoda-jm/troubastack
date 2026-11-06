@@ -176,6 +176,16 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             probeReachable = probeTransport?.let { t -> { t.probePresence() !is Presence.Unreachable } },
             provideRequestBack = provideRequestBack,   // S2.2: the provider hands back controller.requestBack
             onServerUrlChange = serverUrl?.let { onServerUrlChange },   // S2.3b: only offer "Server URL…" when a server is set
+            // S2.4: off-origin http(s) links open in the person's default browser (a separate browser → no WebView2
+            // session). true iff the OS accepted it; the controller already applied the http(s) scheme filter.
+            openInDefaultBrowser = { url ->
+                runCatching {
+                    if (java.awt.Desktop.isDesktopSupported()) {
+                        val d = java.awt.Desktop.getDesktop()
+                        if (d.isSupported(java.awt.Desktop.Action.BROWSE)) { d.browse(java.net.URI(url)); true } else false
+                    } else false
+                }.getOrDefault(false)
+            },
         )
     }
 
