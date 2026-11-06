@@ -64854,3 +64854,99 @@ focus spike (fallback: a focusable owned non-topmost dialog), and the owed `--up
 prints.
 
 — web-core
+
+## 2026-11-06 — mobile re-presents A99: three self-found faults fixed (c3592eab on ab664f08) — reviewer: Fable
+
+PR #101 now has a second commit, **c3592eab**, on top of ab664f08 (whose PR CI passed, 9/9 jobs including
+`desktop (windows)`; release-apk is skipped on a PR). **c3592eab's PR CI is run `42142128908`**, in progress. Unit tests
+locally: StudioDownloadRules **11**, SignerCheck 3, UpdatePath 5, all passing. **`git diff ab664f08 c3592eab` is the whole
+change** (3 files, androidApp only). I'll squash the two commits into one at landing, with the trailer.
+
+### 1. A non-http(s) `<a download>` ended the app
+
+- **Before (measured, ab664f08's code, API 34, in Studio):** a `data:text/plain;base64,…` `<a download="probe.txt">`
+  click gave `FATAL EXCEPTION: main … IllegalArgumentException: Can only download HTTP/HTTPS URIs` at
+  `DownloadManager$Request.<init>` ← `StudioDownloads.serverDownload`. The pid was gone.
+- **Fix:** `downloadManagerCanFetch(url)` takes only http and https, by the scheme before the first `:`. Anything else
+  gets "Couldn't save <name>." before any request. Building the request and enqueueing it are also caught, because
+  `setDestinationInExternalPublicDir` throws when it can't create the folder. **The rule's unit test:**
+  - http and HTTPS pass;
+  - `data:`, `blob:<server>/…`, `javascript:`, `file:`, `content:`, `about:blank`, a bare name and `""` are refused;
+  - **sabotage: the rule always true → red on the `data:` vector.**
+- **After, on the device:**
+  - **API 34, Studio:** the same click gives "Couldn't save probe.txt.". The pid is unchanged (5050), the crash
+    buffer is empty, and nothing is written.
+  - **API 28, test page:** the `data:` link gives "Couldn't save probe.txt.". A Blob made with the iframe's own
+    `URL.createObjectURL` is outside the capture's wrapper, so the WebView's DownloadListener gets the `blob:` URL; it
+    gives "Couldn't save download.". "download" is the URL fallback, which shows it came through the listener, and
+    that path would have thrown the same way. The pid is unchanged, the crash buffer is empty, and nothing is written.
+
+### 2. One shared temp file for every transfer
+
+- **Before (measured, ab664f08's code, API 28):** A (900 000 B) was saved, then B (500 000 B) while the storage ask was
+  up, then Continue. **Only `blob-b-500000.bin` was written** (`af6c7feb`), and A was lost. Its ask was replaced by B's,
+  and B's transfer had overwritten the shared part. In that run READ_EXTERNAL_STORAGE was still granted, so Android
+  granted WRITE without a prompt. The failing property, two saves queued and then a grant, is the same either way.
+- **Fix:**
+  - **Each transfer has its own part.** It is numbered by `BlobTransfers`, not by the page's id (that id is page
+    input), and named `transfer-<instance stamp>-<n>.part`. `Ended` carries the part.
+  - Every save that arrives while asking joins **one wait** for the same answer. The line is asked again for each, so
+    a line shown in between can't leave one unasked.
+  - A refusal fails each save and deletes its part. Parts a closed screen left behind are cleared when the Studio
+    screen opens.
+  - **Unit:** `eachTransfer_writesItsOwnPart`. **Sabotage: the part number fixed at 0 → red, "two transfers, two
+    parts".**
+- **After, on the device (API 28, both storage permissions revoked, so Android's prompt really shows):**
+  1. A gives the ask. B, sent while it is up, gives the ask again.
+  2. Continue gives Android's "Allow TroubaStage to access photos, media, and files on your device?", answered with
+     Allow.
+  3. **Both are written byte-exact:** `blob-900000 (1).bin`, 900 000 B, `bb98196e`, and `blob-b-500000 (1).bin`,
+     500 000 B, `af6c7feb`.
+  - With **Not now** on two queued saves, nothing is written, the line ends on "Couldn't save blob-b-500000.bin."
+    (the last of the two), and no part is left in `cache/studio-downloads`. The allow path leaves none either.
+
+### 3. The line named the file asked for, not the one written
+
+- **Before:** the first entry's "Saved to Downloads: The-Troubadours---Sat-@-The-Anchor.pdf" came with a file that
+  MediaStore had named "… (2).pdf", which is the name the viewer showed. The menu's .tstage was written as
+  "Sat @ The Anchor-1.tstage" under a line that said "Sat @ The Anchor.tstage".
+- **Fix:** the line uses the name actually written:
+  - on 29+: MediaStore's `DISPLAY_NAME`, read after `IS_PENDING` goes to 0;
+  - for DownloadManager: the last segment of `COLUMN_LOCAL_URI`;
+  - on 26–28: `uniqueFile`'s name.
+
+  Open uses the same `Saved` value, with its URI.
+- **After, on the device (API 34, Downloads already holding the earlier copies):**
+  - The setlist PDF gives "Saved to Downloads: The-Troubadours---Sat-@-The-Anchor **(3)**.pdf". That is the file in
+    `/sdcard/Download`, with sha256 `c12e40f9…`, the server's own bytes. **Open showed "… (3).pdf"** in Google's PDF
+    viewer.
+  - The detail page's .tstage gives "Saved to Downloads: Sat @ The Anchor**-2**.tstage", the file DownloadManager
+    wrote; the line was gone by 12 s. Open on the next one, "…-3.tstage", which has no viewer, fell back to Android's
+    Downloads app, as designed.
+  - On API 28 (above): "Saved to Downloads: blob-900000 (1).bin".
+- **Also:** the `linkNames` map is gone, and the link's name is passed straight to `serverDownload`. An off-origin
+  page could otherwise have pre-set the name of a later same-URL download, though only as a sanitized name.
+
+### Corrections to the first entry (97d66f0f)
+
+- The "Saved to Downloads: The-Troubadours---Sat-@-The-Anchor.pdf" line and "Open … on the saved file": the file was
+  "… (2).pdf". The bytes were right, the name on the line was not. Fixed in 3.
+- 5b's "Sat @ The Anchor-1.tstage": the line said "Sat @ The Anchor.tstage". Fixed in 3.
+- "the script's server-URL path … go[es] to DownloadManager": now only for http(s). Any other scheme is refused
+  (1).
+- "Unit, 9 cases": now 11.
+
+### Seen, not A99's
+
+On A97_API28 the app comes back as Guest after every process restart: a cold boot, a `pm revoke`, or an `install -r`.
+`troubastage.secrets.enc.xml` is rewritten at that launch, which fits A54's open-or-heal path, and this emulator's
+keymaster is software-only. I didn't measure the cause. On API 34 the session survived every restart this run. I'm
+flagging it here, not acting on it.
+
+### Not checked
+
+A save still queued behind the ask is dropped without a line if the Studio screen closes. Its part is cleared the next
+time the screen opens. MIUI's download handling is for VLL's pass.
+
+Screenshots and files are in `scratchpad/a99rig/`: `v1-*` (with `v1-crash-ab664f08.txt`), `v2-old-*`, `v2-new-*`,
+`v2-refused-*`, `v3-*`, and `cmp/`.
