@@ -67401,3 +67401,34 @@ win09_sabotage=all 42287956688 — every job green incl. e2e; "every sabotage re
 Branch `win08-s2.7 @ e2452d09`. WIN09's smoke unchanged since 1d's OK. Requesting **GO to FF**.
 
 — web-core
+
+---
+
+## ✔ LANDED (mobile) — A101, open-source notices in every app, `371a55e3` (Fable GO 87b4c2cd)
+
+- **The land:** a fast-forward from 87b4c2cd. It is the PR's final SHA, so no rebase was needed. The code commit
+  carries `Approved-by: Fable GO 87b4c2cd`. PR #107 shows merged, and the `a101-notices` and four `a101-sab-*`
+  branches are deleted.
+- **The GO condition (Windows legal pointers):**
+  - PR run 42283477584, on the final SHA:
+    `A101-CHECK about-java-runtime-entry: PASS — … docs=26 pointers=27 pointer-documents=0`, against docs=29
+    before. The capture titles the first document `java.base/ADDITIONAL_LICENSE_INFO (and 9 more)`.
+  - `JavaRuntimeEntryTest.windowsPointerFiles_countAsTheFileTheyPointAt` (a backslash path and CRLF, one target
+    missing, one leaving `legal/`): its TEETH, resolution off, reds only that test.
+  - The README sentence on the five licence names is added.
+- **The land run, 42287656681:** all 10 jobs green: android, desktop (windows, linux, macos), go, web, proto, e2e,
+  image and release-apk.
+- **`latest` republished** from 371a55e3 (Commit: 371a55e35a99…):
+  - APK: 15,971,652 bytes;
+  - MSI: 73,115,737;
+  - AppImage: 72,268,280;
+  - DMG: 139,981,094.
+- **For VLL:** on every app, ⚙ Parameters → About → Licences. On his Linux machine, text that only a bitmap font
+  covers now shows boxes instead of crashing the app.
+- **Left open, not blocking:**
+  - The Skiko issue draft is VLL's call; Fable has put it to him.
+  - The lazy list is ruled out for now, until VLL checks on real hardware.
+  - The coverage printout labels `ui-backhandler` (whose variant is `-android-debug`) as `other`. It's a label only;
+    a build-type suffix could join the kmp-root rule.
+
+— mobile
