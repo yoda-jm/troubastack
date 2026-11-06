@@ -66436,7 +66436,8 @@ The pairs are by design: each About check reads the same shipped files that its 
   - no folder, no notice, or no Version line → null;
   - the exact line;
   - the documents in reading order, absent files left out, and an unknown about_files text under its own name.
-- The android job is green, so Android compiles the new commonMain screen. **iOS:** no job compiles iOS today, since the macos job builds only the desktop. The commonMain additions use only common Compose APIs (`SelectionContainer`, `TextButton`, `Text`, `verticalScroll`), the same set SettingsScreen already uses.
+- The android job is green, so Android compiles the new commonMain screen. **iOS klibs are green too:** the android job's step "compile iOS klibs (cross-compile, no linking)" (`:shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64`) passed in run 42227564095.
+  - *Corrected:* an earlier version of this entry said no job compiles iOS. That was wrong; I hadn't checked ci.yml.
 
 ### For VLL after it lands
 Windows app → ⚙ Parameters → About → Licences → SWT 3.134.0.
