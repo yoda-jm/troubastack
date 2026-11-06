@@ -353,7 +353,7 @@ class Win09SmokeRunnerImpl : Win09SmokeRunner {
         val took = System.currentTimeMillis() - t0
         val w = c.lastMenuWindow ?: return null to took
         var labels: List<String> = emptyList()
-        SwingUtilities.invokeAndWait { labels = menuItemsOf(w).map { it.text } }
+        SwingUtilities.invokeAndWait { labels = (w as? javax.accessibility.Accessible)?.let { accessibleActionNames(it) } ?: emptyList() }
         closeMenu(c)
         return labels to took
     }
@@ -365,7 +365,7 @@ class Win09SmokeRunnerImpl : Win09SmokeRunner {
         while (c.lastMenuWindow == null && System.currentTimeMillis() < end) Thread.sleep(100)
         val w = c.lastMenuWindow ?: return null
         var labels: List<String> = emptyList()
-        SwingUtilities.invokeAndWait { labels = menuItemsOf(w).map { it.text } }
+        SwingUtilities.invokeAndWait { labels = (w as? javax.accessibility.Accessible)?.let { accessibleActionNames(it) } ?: emptyList() }
         return labels
     }
 
@@ -375,16 +375,14 @@ class Win09SmokeRunnerImpl : Win09SmokeRunner {
         while (c.lastMenuWindow != null && System.currentTimeMillis() < end) Thread.sleep(20)
     }
 
-    /** Choose the open menu's item labelled [label], as a click does (JMenuItem.doClick → its action). */
+    /** Choose the open menu's item labelled [label] by pressing it through the accessibility tree (as a click does →
+     *  its action). Works for the S2.7 Compose rows and stage-1 JMenuItems alike; on the EDT like pressAccessible. */
     private fun clickMenuItem(c: SwtBrowserController, label: String): Boolean {
         val w = c.lastMenuWindow ?: return false
         var clicked = false
-        SwingUtilities.invokeAndWait { menuItemsOf(w).firstOrNull { it.text == label }?.let { it.doClick(); clicked = true } }
+        SwingUtilities.invokeAndWait { clicked = (w as? javax.accessibility.Accessible)?.let { pressAccessibleNamed(it, label) } ?: false }
         return clicked
     }
-
-    private fun menuItemsOf(root: java.awt.Container): List<javax.swing.JMenuItem> =
-        root.components.flatMap { c -> listOfNotNull(c as? javax.swing.JMenuItem) + ((c as? java.awt.Container)?.let(::menuItemsOf) ?: emptyList()) }
 
     /** Decode a QR anywhere in [img] with ZXing (null: none found). */
     private fun decodeQr(img: BufferedImage): String? = runCatching {

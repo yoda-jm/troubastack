@@ -86,6 +86,9 @@ class EmbeddedStudioArgs(
     /** WIN09: a ⋮ press first awaits this (the host bounds it, ≤ 800 ms), which refreshes the admin list and answers
      *  with the "Show band QR…" action, fresh or cached (null: no item); then the menu opens. null: open at once. */
     val refreshMenu: (suspend () -> (() -> Unit)?)? = null,
+    /** S2.7: the app's RESOLVED theme (themePref.resolveDark(), not the OS setting), read when the ⋮ menu opens so the
+     *  ComposePanel menu matches a Parameters theme that differs from Windows'. Default light. */
+    val resolveDark: () -> Boolean = { false },
 )
 
 /** WIN09 — the URL [path] loads in place: the server's [origin] plus an absolute path ("/…", never "//…" or a URL);
