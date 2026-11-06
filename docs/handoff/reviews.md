@@ -66531,3 +66531,113 @@ Windows app → ⚙ Parameters → About → Licences → SWT 3.134.0.
 - **Design first:** start with the measurement of what ships today.
 
 — Fable
+
+---
+
+## ⟨design → Fable⟩ A101 — the open-source notices of every library the apps ship
+
+This is a design only, per the task. No code is written yet. I fetched main 1382a66b. Before touching the desktop build or ci.yml I'll message 9c, whose S2.7 is in flight.
+
+### 1. Measured: what ships today
+**How I measured.**
+- From the resolved builds: a throwaway Gradle init script (scratchpad only) walked each shipped runtime classpath. For every external component it recorded the POM licences (walking parent POMs), the licence and NOTICE files inside the artifact (nested `classes.jar` included) and any native libraries.
+- Classpaths: Android `debugRuntimeClasspath` (the `latest` APK is the debug build), and desktop `runtimeClasspath` for Linux, Windows (with SWT) and macOS (both Skiko runtimes).
+- From the artifacts on `latest` (479cc8fc): I listed and extracted them as data only, with 7z/unzip and nothing executed.
+
+| Artifact | External components | Licences (from POMs) | Licence/NOTICE texts inside the shipped artifact |
+|---|---|---|---|
+| APK | 109 | 107 Apache-2.0; `androidx.camera:camera-core` Apache-2.0 + BSD (libyuv, native); `org.slf4j:slf4j-api` MIT | 46 of the 109 artifacts carry a licence file, but the APK keeps **only 5** (`META-INF/androidx/{annotation,collection,collection-ktx,lifecycle-common,lifecycle-common-java8}/LICENSE.txt`) plus OkHttp's `publicsuffix/NOTICE`. No Apache text, nothing for slf4j or libyuv. |
+| Linux image (AppImage) | 68 + `:shared` + the app jar = the 70 jars in the image | 65 Apache-2.0; JNA + jna-platform LGPL-2.1-or-later **or** Apache-2.0; slf4j MIT | 12 jars carry a licence file, readable only inside the jars. The Java runtime's `legal/` is kept: 65 entries, 10 modules. |
+| Windows image (MSI) | 69 (Linux's set with Skiko's Windows runtime, plus SWT) | the same, plus SWT EPL-2.0 | `legal/` is present (the GPLv2, ADDITIONAL_LICENSE_INFO and ASSEMBLY_EXCEPTION texts were found in the extracted MSI); SWT's files from S2.8. |
+| macOS app (DMG) | 69 (both Mac Skiko runtimes) | as Linux | 7z here can't read the DMG's **APFS** partition, so I'll measure the universal `.app` in CI. jpackage's layout is `Contents/runtime/Contents/Home/legal`. |
+
+- **Every POM names a licence;** none was unresolved.
+- **OkHttp's `publicsuffix/NOTICE`** is the only NOTICE file in any shipped component.
+
+**Native code:**
+- **Android** ships 3 native libraries, ×4 ABIs:
+  - `libandroidx.graphics.path.so` (androidx.graphics, Apache-2.0);
+  - `libimage_processing_util_jni.so` and `libsurface_util_jni.so` (CameraX; libyuv BSD, per camera-core's POM).
+  - Compose's `libcompose_inspection_jni.so` sits in `inspector.jar` and is **not** packaged.
+- **Desktop:**
+  - JNA's `jnidispatch` (26 platform builds in the jar; it includes libffi, MIT).
+  - Skiko's `libskiko-<os>-<arch>` (31 MB on Linux). Its strings show Skia plus FreeType, HarfBuzz, libpng 1.6.43, ICU, expat 2.6.3, libjpeg-turbo 2.1.5.1, zlib 1.3.0.1 (Chromium's), WebP, wuffs, piex and Adobe's DNG SDK.
+  - **No Skiko jar carries any licence text.**
+
+**The Java runtime:** Temurin 21.0.13, jlinked to 10 modules. Its `legal/<module>/` holds LICENSE (GPLv2 + Classpath Exception), ADDITIONAL_LICENSE_INFO, ASSEMBLY_EXCEPTION and, in java.desktop, the notices of its own bundled code (freetype, giflib, harfbuzz, jpeg, lcms, libpng, mesa3d, pipewire, xwd, colorimaging).
+- jpackage keeps `legal/`, so its texts do ship.
+- But they sit invisibly in the install folder. I propose an entry that reads them **in place** at run time (`java.home/legal`), so nothing is copied.
+
+### 2. The mechanism: an in-repo generator, not AboutLibraries
+**Why not AboutLibraries:**
+- It handles POM licences well. But this task needs four things it doesn't do: NOTICE files from inside the artifacts (Apache-2.0 §4(d)), the native components' notices, the Java runtime, and SWT.
+- It would add a build plugin to vet.
+- I haven't run it here, so I'm not claiming what its offline text support does.
+
+**What I'd build:** one Gradle task class, `OpenSourceNotices`, in a new `app/buildSrc` so both apps use it. `swtLicences` stays where S2.8 put it, apart from §4.
+
+**What it reads, per app and per variant:** the shipped runtime classpath. That's Android's variant runtime classpath (AAR and jar views) and the desktop `runtimeClasspath`, external modules only. For each component it takes:
+- the GAV and the POM licences, following parent POMs. POMs are resolved as dependency metadata and are already cached, so there are no extra fetches.
+- the licence texts from **committed SPDX texts** in `app/licences/spdx/`: Apache-2.0, MIT, BSD-3-Clause and the others needed. The mapping from POM name or URL to an SPDX id is a small committed table.
+- **An unmapped licence fails the build** and names the GAV. A new component still appears with no editing; only a new kind of licence needs one line.
+- **Dual licences** (JNA): the entry states "LGPL-2.1-or-later OR Apache-2.0, used under Apache-2.0". That's the option we elect, so its text is the Apache text the list already ships.
+- **The texts inside the artifact, verbatim:** every `NOTICE*` and every licence or copyright file (`LICENSE*`, `COPYING*`, `META-INF/**/LICENSE.txt`). These carry the copyright lines that MIT and BSD require (slf4j's, for example).
+
+**Natives:**
+- A committed `app/licences/native/` holds a manifest keyed by GAV **and the version it was checked for**, plus the texts:
+  - Skiko: Skia's BSD-3 and the 11 libraries above, taken from Skia's tree at Skiko 0.9.22.2's revision;
+  - JNA: libffi;
+  - CameraX: libyuv.
+- The generator **fails** when one of those components resolves to a different version from the manifest's, so a bump forces a re-check of its native contents.
+- I fetch the texts once, now, with their sources recorded in a README. That's development time, not build time.
+
+**Output:** `index.txt` plus `texts/*`, with each text stored once and referenced by id.
+- Android: `assets/licences/`, as a generated assets directory.
+- Desktop: `appResourcesRootDir/common/notices/`, so it reaches every OS image. `resources/licences/` stays S2.8's, Windows only.
+
+### 3. The screen and the words
+- **About.**
+  - Android, Linux and macOS get a new row: "TroubaStage is built with open-source software." [Licences]
+  - Windows keeps S2.8's SWT row and words exactly. Its [Licences] now opens the full list with SWT first. No second row.
+- **Licences, the same list-of-entries screen**, with one entry per **family**, because 109 entries is too long for the tablet. A family is the first matching rule in a small committed table:
+  - AndroidX, Compose Multiplatform, Kotlin and kotlinx, Ktor, OkHttp and Okio, ZXing, JNA;
+  - anything unmatched becomes its own entry, named from its POM `<name>`, otherwise its artifact.
+- **Fixed entries** that need no rule: "Java runtime (OpenJDK 21.0.13)" on desktop, "Skia graphics (in Skiko)" on desktop, "libyuv (in CameraX)" on Android, and "SWT 3.134.0" on Windows.
+- **An entry's texts:**
+  1. "Components": one line per `group:artifact version — licence`;
+  2. the verbatim NOTICE and licence files;
+  3. each distinct licence text once.
+- **No search.** Families keep the list to about 10–14 rows.
+
+### 4. S2.8's follow-ups
+- **The MSI step lists and checks `SWT-about.txt`** as a seventh file.
+- **The href:** `htmlToText` renders `<a href="X">Y</a>` as "Y (X)" when Y ≠ X, which brings back the WebView2 NuGet URL.
+- **The guard:** `swtLicences` fails if the about.html it copies doesn't name each component in the notice's third-party sentence: "Independent JPEG Group", "PuTTY", "WebView2".
+
+### 5. Proof, independent of the generator
+- **`A101-CHECK coverage-<artifact>`:**
+  - **The expected set comes from Gradle's own `dependencies` report**, parsed from its text: the `g:a:v` lines after conflict resolution, external modules only. That is a different code path from the generator's artifact views.
+  - **The shipped set comes from the index read out of the artifact itself:** unzip the APK; the CI's MSI admin extract; the Linux image dir; the macOS universal `.app`.
+  - Every expected component must have an entry.
+  - Sabotage `licencedropone` drops one, and should red only this check.
+- **`A101-CHECK notices-<artifact>`:**
+  - An independent Python scan of the artifacts behind the report (paths printed by a tiny lookup task, not by the generator) lists every NOTICE file.
+  - Each one's text must appear in the shipped texts.
+  - Sabotage `licencenonotice` drops OkHttp's, and should red only this check.
+- **`A101-CHECK natives-<artifact>`:** every `.so`, `.dll`, `.dylib` or `.jnilib` inside the shipped artifact belongs to a component with a native entry.
+- **Tests:**
+  - a uiTest for the screen with several families and an entry's texts;
+  - the Android emulator: Parameters → About → Licences → one family's text, with a screenshot;
+  - `--about-smoke` extended to open "Ktor" and the Java runtime entry;
+  - the S2.8 checks unchanged.
+- **Size and time:** the APK and MSI size difference, and the time the generation adds, measured in the PR run.
+
+**Scope, as the spec says:** out are the server and its SPA, iOS, and S2.8's files, its check and its About line (apart from §4).
+
+Is this GO, or do you want changes before I write code? The points to settle:
+- the family grouping table;
+- electing Apache-2.0 for JNA;
+- reading `legal/` in place;
+- `app/buildSrc`.
+
+— mobile
