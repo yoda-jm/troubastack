@@ -18,6 +18,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,8 @@ import com.troubastack.shared.stage.ImageDecoder
 import com.troubastack.shared.stage.PageTurn
 import com.troubastack.shared.stage.PointerKind
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -116,9 +119,36 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
                 // re-point (no item until then, nor when there are none). The picker and the QR draw OVER the embedded
                 // screen (hostOverlay collapses it to 0.dp), so the Browser lives on underneath and Back returns to Studio
                 // where it was; "Manage / revoke in Studio" loads the band's settings in that same Browser.
+                // Each ⋮ press refreshes it too (refreshMenu), so it follows the roles while Studio stays open: only the
+                // newest fetch writes (a generation), a failed fetch keeps the list (fetchStudioBandsOrNull's null), and a
+                // re-point blanks it at once. The menu waits ≤ 800 ms; a later answer updates the list for the next press.
                 var adminBands by remember { mutableStateOf<List<HttpTransport.StudioBand>>(emptyList()) }
-                LaunchedEffect(serverNonce) { adminBands = emptyList(); adminBands = bandQrChoices(transport.fetchStudioBands()) }
                 var bandQr by remember { mutableStateOf<BandQrView?>(null) }
+                val bandsScope = rememberCoroutineScope()
+                val bandsFetch = remember { BandsFetch() }
+                suspend fun fetchAdminBands(generation: Int) {
+                    val bands = transport.fetchStudioBandsOrNull()
+                    if (generation != bandsFetch.generation) return   // a newer fetch (or a re-point) owns the list
+                    if (bands != null) adminBands = bandQrChoices(bands)
+                    // Sabotage blankonfail (the --win09-qr smoke only): a failed refresh empties the list → the stays check reds.
+                    else if (System.getProperty(WIN09_SABOTAGE_PROPERTY) == "blankonfail") adminBands = emptyList()
+                }
+                LaunchedEffect(serverNonce) {
+                    val generation = ++bandsFetch.generation
+                    bandsFetch.inFlight = null
+                    adminBands = emptyList()
+                    fetchAdminBands(generation)
+                }
+                fun bandQrItem(): (() -> Unit)? = bandQrEntry(adminBands)?.let { entry -> { bandQr = entry } }
+                val refreshMenu: suspend () -> (() -> Unit)? = {
+                    // Sabotage norefresh (the --win09-qr smoke only): the press never refetches → the follows-roles check reds.
+                    if (System.getProperty(WIN09_SABOTAGE_PROPERTY) != "norefresh") {
+                        val job = bandsFetch.inFlight?.takeIf { it.isActive }
+                            ?: bandsScope.async { fetchAdminBands(++bandsFetch.generation) }.also { bandsFetch.inFlight = it }
+                        withTimeoutOrNull(MENU_REFRESH_WAIT_MS) { job.await() }
+                    }
+                    bandQrItem()
+                }
                 var openPath by remember { mutableStateOf<((String) -> Unit)?>(null) }
                 // Sabotage qrreplace (the --win09-qr smoke only): drop Studio while the QR shows, as an App-level screen
                 // would → Back finds a new controller, and the where-it-was check reds.
@@ -128,9 +158,10 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
                         provider.Host(embeddedArgs(
                             initialPath = null, title = "TroubaStudio", onBack = onBack, provideRequestBack = { embeddedBack = it },
                             onServerUrlChange = { repointServer(it); serverNonce++ },
-                            onShowBandQr = bandQrEntry(adminBands)?.let { entry -> { bandQr = entry } },
+                            onShowBandQr = bandQrItem(),
                             hostOverlay = bandQr != null,
                             provideOpenPath = { openPath = it },
+                            refreshMenu = refreshMenu,
                         ))
                     }
                     BackHandler { (embeddedBack ?: onBack).invoke() }
@@ -211,6 +242,7 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
     private fun embeddedArgs(
         initialPath: String?, title: String, onBack: () -> Unit, provideRequestBack: (() -> Unit) -> Unit, onServerUrlChange: (String) -> Unit,
         onShowBandQr: (() -> Unit)? = null, hostOverlay: Boolean = false, provideOpenPath: (((String) -> Unit) -> Unit)? = null,
+        refreshMenu: (suspend () -> (() -> Unit)?)? = null,
     ): EmbeddedStudioArgs {
         val serverUrl = storage.getSecret(CORE_URL_KEY)
         // S2.1 nit (Fable): build the probe's transport ONCE per screen, not once per probe call (the cover re-probes
@@ -243,6 +275,7 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             onShowBandQr = onShowBandQr,         // WIN09: the ⋮ "Show band QR…" item (null hides it)
             hostOverlay = hostOverlay,           // WIN09: the picker or the QR is drawn over the embedded screen
             provideOpenPath = provideOpenPath,   // WIN09: "Manage / revoke in Studio" loads in the same Browser
+            refreshMenu = refreshMenu,           // WIN09: each ⋮ press refreshes the item first (≤ 800 ms)
         )
     }
 

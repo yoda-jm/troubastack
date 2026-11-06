@@ -209,6 +209,29 @@ class HttpTransport(
         }.getOrDefault(emptyList())
     }
 
+    /**
+     * WIN09 — the bands as the Windows ⋮ item refreshes them: like [fetchStudioBands], but null when the server could
+     * not be read (a network error or an HTTP error, for the list or any band's role), so the caller keeps the list it
+     * had. Signed out is still an empty list (no cookie: the item goes). A cancelled call is rethrown, never turned
+     * into an answer ([fetchStudioBands]' runCatching would make a superseded call look like "no bands").
+     */
+    suspend fun fetchStudioBandsOrNull(): List<StudioBand>? {
+        val ck = cookie() ?: return emptyList()
+        return try {
+            val resp = client.get("$baseUrl/api/bands") { header("Cookie", ck) }
+            if (!resp.status.isSuccess()) return null
+            resp.body<Bands>().bands.map { b ->
+                val role = client.get("$baseUrl/api/bands/${b.id}") { header("Cookie", ck) }
+                if (!role.status.isSuccess()) return null
+                StudioBand(b.id, b.name, isAdmin = role.body<BandDetail>().myRole == "admin")
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     /** A65/A83 — every concert across the user's bands, with what the row menu needs. The ORDER and the band
      *  sections are decided by the pure [com.troubastack.shared.studio.groupConcerts]; the admin flag comes
      *  from the band role, fetched ONCE per band (not per concert). */

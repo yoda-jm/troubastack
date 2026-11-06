@@ -874,7 +874,8 @@ jobs:
           $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
           $allChecks = @("item-absent-for-non-admin", "item-present-for-admin", "menu-dismissed-on-open", "qr-decodes-to-served-link",
             "keep-awake-while-shown", "back-returns-where-it-was", "focus-returns-to-studio", "overlay-takes-focus",
-            "manage-opens-settings-in-place", "no-create-on-open", "unsuitable-link-not-shown", "create-counter-control")
+            "manage-opens-settings-in-place", "no-create-on-open", "unsuitable-link-not-shown", "create-counter-control",
+            "item-stays-on-failed-refresh", "item-follows-roles")
           function Invoke-Win09([string]$sab, [bool]$fullLog) {
             $tag = if ($sab) { $sab } else { "normal" }
             $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win09-home-$tag"
@@ -916,10 +917,12 @@ jobs:
             "qrblank"         = @{ Target = @("qr-decodes-to-served-link"); Allowed = @() }
             "createonopen"    = @{ Target = @("no-create-on-open"); Allowed = @() }
             "nokeepawake"     = @{ Target = @("keep-awake-while-shown"); Allowed = @() }
-            "itemfornonadmin" = @{ Target = @("item-absent-for-non-admin"); Allowed = @() }
+            "itemfornonadmin" = @{ Target = @("item-absent-for-non-admin"); Allowed = @("item-follows-roles") }   # its member half is a non-admin absence too
             "qrnofocus"       = @{ Target = @("overlay-takes-focus"); Allowed = @() }
             "qrnofocusback"   = @{ Target = @("focus-returns-to-studio"); Allowed = @() }
             "qrreplace"       = @{ Target = @("back-returns-where-it-was"); Allowed = @("focus-returns-to-studio", "overlay-takes-focus", "manage-opens-settings-in-place") }
+            "norefresh"       = @{ Target = @("item-follows-roles"); Allowed = @() }
+            "blankonfail"     = @{ Target = @("item-stays-on-failed-refresh"); Allowed = @() }
           }
           $bad = @()
           foreach ($sab in $plan.Keys) {
