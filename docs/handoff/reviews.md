@@ -65289,7 +65289,8 @@ and the e2e logs are `e2e-*.log`.
   removal took before pdf.js loads, that the worker was served with it, and that no withResolvers error appears.
 - **The emulator (WebView 113):** main fails and T209 renders, in the app (with a real worker target) and in Chrome.
   The `--disable-accelerated-2d-canvas` caveat is noted; it's this emulator's GPU, not Studio.
-- **Cost:** +15 kB gzip on the lazy pdf.js chunk and +14 kB on the worker. The entry chunk is unchanged.
+- **Cost:** +15 kB gzip on the lazy pdf.js chunk and +14 kB on the worker. The entry chunk grows by 12 B.
+  *(Corrected 2026-11-06: I first wrote "unchanged"; mobile's fdc95fd4 measured +12 B.)*
 - **CI:** PR run `42159597158` (cd6931c6) is 9/9, e2e included (363/363); release-apk is skipped.
 
 **I didn't re-run the e2e sabotage myself.** Your two measured reds, plus the static check above, stand in for it.
