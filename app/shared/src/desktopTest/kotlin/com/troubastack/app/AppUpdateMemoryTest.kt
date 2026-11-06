@@ -1,6 +1,7 @@
 package com.troubastack.app
 
 import com.troubastack.shared.seams.PlainCodec
+import com.troubastack.shared.seams.SecretCodec
 import com.troubastack.shared.seams.Storage
 import java.nio.file.Files
 import kotlin.test.Test
@@ -23,6 +24,25 @@ class AppUpdateMemoryTest {
         assertNull(updatedLineOnce(s, old, updatedSinceInstall = false), "nor does the next launch of the same build")
         assertEquals("Updated · $new", updatedLineOnce(s, new, updatedSinceInstall = true))
         assertNull(updatedLineOnce(s, new, updatedSinceInstall = true), "once")
+    }
+
+    @Test
+    fun theSameBuild_isNotWrittenAgain_atEveryLaunch() {
+        // A100: the unchanged build line rewrote the whole encrypted store at every launch.
+        // TEETH: write it unconditionally and the second launch of the same build writes again → red.
+        val codec = object : SecretCodec {
+            var writes = 0
+            override fun encrypt(plain: ByteArray): ByteArray = plain.also { writes++ }
+            override fun decrypt(stored: ByteArray): ByteArray = stored
+        }
+        val s = Storage(Files.createTempDirectory("a100").toFile(), codec)
+        updatedLineOnce(s, old, updatedSinceInstall = false)
+        val afterFirst = codec.writes
+        assertTrue(afterFirst > 0, "the first launch stores its build")
+        updatedLineOnce(s, old, updatedSinceInstall = false)
+        assertEquals(afterFirst, codec.writes, "the next launch of the same build writes nothing")
+        assertEquals("Updated · $new", updatedLineOnce(s, new, updatedSinceInstall = true))
+        assertTrue(codec.writes > afterFirst, "an update stores the new build")
     }
 
     @Test
