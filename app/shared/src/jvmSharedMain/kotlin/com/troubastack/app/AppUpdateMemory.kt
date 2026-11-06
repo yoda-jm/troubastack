@@ -11,10 +11,12 @@ private const val K_LAST_RUN_BUILD = "appUpdate.lastRunBuild"
 private const val K_REOPEN_VERSION_CODE = "appUpdate.reopenVersionCode"
 
 /** "Updated · <build line>" when this run is the first after an update (else null), and this build is stored as the
- *  last run, so the line shows once. */
+ *  last run, so the line shows once. Stored only when it changes (A100: the same value rewrote the whole encrypted
+ *  store at every launch, measured on API 28, 29 and 34). */
 fun updatedLineOnce(storage: Storage, runningBuild: String, updatedSinceInstall: Boolean): String? {
-    val line = updatedLine(storage.getSecret(K_LAST_RUN_BUILD)?.takeIf { it.isNotEmpty() }, runningBuild, updatedSinceInstall)
-    storage.putSecret(K_LAST_RUN_BUILD, runningBuild)
+    val last = storage.getSecret(K_LAST_RUN_BUILD)?.takeIf { it.isNotEmpty() }
+    val line = updatedLine(last, runningBuild, updatedSinceInstall)
+    if (last != runningBuild) storage.putSecret(K_LAST_RUN_BUILD, runningBuild)
     return line
 }
 

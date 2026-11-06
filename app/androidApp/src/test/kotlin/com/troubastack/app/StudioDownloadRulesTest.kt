@@ -120,10 +120,10 @@ class StudioDownloadRulesTest {
     @Test
     fun onlyHttpAndHttps_goToDownloadManager() {
         // Its Request throws on anything else, on the main thread (measured: a data: <a download> ended the app).
-        // TEETH: let every scheme through and the data: and blob: vectors go red.
+        // TEETH: let every scheme through and the data: and blob: vectors go red; a startsWith("http") rule, httpx:.
         assertTrue(downloadManagerCanFetch("$server/api/bands/b/concerts/c/bundle"))
         assertTrue(downloadManagerCanFetch("HTTPS://h.example/x.pdf"))
-        for (url in listOf("data:text/plain;base64,aGVsbG8=", "blob:$server/2b1c", "javascript:alert(1)", "file:///sdcard/x", "content://x/y", "about:blank", "x.pdf", ""))
+        for (url in listOf("data:text/plain;base64,aGVsbG8=", "blob:$server/2b1c", "javascript:alert(1)", "file:///sdcard/x", "content://x/y", "about:blank", "x.pdf", "", "httpx://h.example/x.pdf"))
             assertFalse(downloadManagerCanFetch(url), url)
     }
 
