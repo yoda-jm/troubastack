@@ -65195,3 +65195,77 @@ of it, and T209's real check needs mobile's API 34 / WebView 113 rig. So T209 (p
 - **`latest` → 06006f4f** at 03:39:59Z, with `troubastage-debug.apk` at 15 918 246 B.
 - PR #102 is closed, the branches are deleted, and the worktree is removed.
 - Nothing for VLL's tablet: the change only drops a redundant write.
+
+## 2026-11-06 — mobile presents T209: Studio's song viewer loads pdf.js's legacy build (older WebViews) — reviewer: Fable
+
+PR #103 is **cd6931c6** on 06006f4f, with 3 files changed: `usePdfDocument.ts`, `vite.config.ts`, and a new e2e spec.
+**PR CI is run `42159597158`**, queued; the web and e2e jobs are the ones that matter. Locally, `tsc -b` passes, the
+e2e project included, and `vite build` passes.
+
+### The change
+
+The import shape was plain, so I sent no design note.
+
+- **Worker:** `pdfjs-dist/build/pdf.worker.min.mjs?url` → `pdfjs-dist/legacy/build/pdf.worker.min.mjs?url`.
+- **Lazy runtime:** `await import("pdfjs-dist")` → `await import("pdfjs-dist/legacy/build/pdf.mjs")`.
+- **`manualChunks`:** `pdfjs: ["pdfjs-dist/legacy/build/pdf.mjs"]`, so the legacy build is still its own lazy chunk.
+- **Types:** these stay `import type * as pdfjs from "pdfjs-dist"`. `legacy/build/pdf.d.mts` is
+  `export * from "pdfjs-dist"`, and pdfjs-dist has no `exports` map, so the subpaths resolve.
+- **The mechanism:** both legacy files carry core-js's
+  `s({target:"Promise",stat:!0},{withResolvers:…})`, which installs it only where it's missing. No polyfill of ours.
+
+### Bundle size
+
+All of it is on the lazy PDF-open path. Compressed sizes are my own `gzip -9` and `brotli -q 11`.
+
+| file | default (main) | legacy | Δ |
+|---|---|---|---|
+| `pdfjs-*.js` chunk | 365 123 B · gz 107 002 · br 90 330 | 409 146 B · gz 122 195 · br 104 020 | **+44 023 B · gz +15 193 · br +13 690** |
+| `pdf.worker.min-*.mjs` | 1 375 838 B · gz 402 130 · br 326 728 | 1 417 586 B · gz 415 775 · br 338 504 | **+41 748 B · gz +13 645 · br +11 776** |
+| whole `dist/` | 2 499 584 B | 2 585 367 B | +85 783 B |
+
+The chunk stays under the 450 kB warning limit. Every other chunk is byte-identical in size.
+
+### The e2e vector (`e2e/editor-pdf-older-webview.spec.ts`)
+
+- **Setup:** `Promise.withResolvers` is removed **on the page** by an `addInitScript`, before Studio's scripts run. It is
+  removed **in the worker** by a `page.route` on `/pdf\.worker[^/]*\.mjs$/`, which serves the real script with
+  `delete Promise.withResolvers;` first.
+- **Positive controls:**
+  - Before the PDF opens, `typeof Promise.withResolvers === "undefined"`. It's read then because the legacy build
+    polyfills it once loaded.
+  - The worker route was hit at least once.
+- **Then:** a song with `sample.pdf` → `pdf-page` visible, `pdf-render-count > 0`, and no `withResolvers` error.
+- **Results, one config per run, no edits during a run:**
+  - **Legacy page + legacy worker (the change): green.**
+  - **(b) Default page + default worker (main): red at `pdf-page` visible** (spec line 45). The failure's page snapshot
+    has `alert: Promise.withResolvers is not a function`, the WebView 113 symptom.
+  - **(c) Legacy page + default worker: red at the render count** (line 46, `Expected: > 0, Received: 0`). **So the
+    vector does reach the worker.**
+  - (b)'s first run went red earlier, at `setInputFiles`. Vite's dev server found `pdfjs-dist` as a new dependency at
+    runtime, re-optimized and reloaded the page (it's in the log). That's my warm cache switching imports, not the
+    code. CI's Vite scans at startup, so it can't hit this. Re-run warm, (b) went red at the PDF step.
+
+### The real check, the API 34 emulator with WebView 113.0.5672.136
+
+The scratch core embedded each Studio build in turn. The demo song was "The Open Road" (2 pages).
+
+| surface | main's Studio (`pdfjs-BnPRJEQ6.js`) | T209 (`pdfjs-DfaD4CCm.js` + `pdf.worker.min-rsCePomN.mjs`) |
+|---|---|---|
+| **The app's Studio WebView** | "Promise.withResolvers is not a function", 0 pages | **renders**: 2 pages, 4 rasters, no alert, annotations drawn. DevTools `/json/list` shows a **`worker` target `pdf.worker.min-rsCePomN.mjs`**, so the worker is real, not the fake main-thread one |
+| **The emulator's Chrome 113** | "Promise.withResolvers is not a function", 0 pages | **renders**: the lead sheet on screen, the page canvas opaque white with dark text, no alert |
+
+- **Caveat on the emulator's Chrome:** with its default GPU canvas, **no 2D canvas shows or reads back**, not even a
+  plain `fillRect` red control (transparent on screen and in `getImageData`), while HTML beside it renders. That's an
+  artefact of this emulator's Chrome under swiftshader. So the Chrome pass ran with `--disable-accelerated-2d-canvas`,
+  where the red control reads back 984/984 red. The app's WebView needed no flag.
+
+### Not covered
+
+- Other PDF users: `usePdfDocument.ts` is Studio's only runtime pdf.js import. The bake worker (Node) and Stage
+  (native) don't load this bundle.
+- I didn't run the whole Studio e2e suite locally. CI's e2e job is the full run.
+
+Screenshots are in `scratchpad/t209/`: `app-base-webview113.png`, `app-legacy-webview113.png`, `chrome113-base.png`,
+`chrome113-legacy-sw-canvas.png`, `chrome-gpu-canvas-control.png`. The builds are in `dist-base/` and `dist-legacy/`,
+and the e2e logs are `e2e-*.log`.
