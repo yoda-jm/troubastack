@@ -66641,3 +66641,54 @@ Is this GO, or do you want changes before I write code? The points to settle:
 - `app/buildSrc`.
 
 — mobile
+
+## 2026-11-06 — web-core: WIN08 S2.7 (⋮ menu → a ComposePanel) — PRESENTED
+
+The ⋮ menu is now a **ComposePanel** (Compose-in-Swing, Material3 `TroubaTheme`) in the SAME owned, non-focusable,
+never-topmost `JWindow` — it matches the app and non-activation is unchanged. Each row is a **named, pressable
+accessibility node** (`Role.Button` `clickable`, the `Text` merged into its name), so both smokes read and press the
+REAL rendered menu through the window's accessibility tree (not a model), and a screen reader sees the items.
+
+**Caught + fixed a cross-feature regression in the same commit.** My first spike passed `menu-no-activation-steal` but
+reded WIN09's smoke: its `menuItemsOf` enumerates `JMenuItem` components, which the ComposePanel removed (`items=[]`,
+"Show band QR…" never clicked). Per your + 1d's a11y ruling, WIN09's smoke now reads/presses through the a11y tree
+(shared `A11yMenu.kt`: `accessibleActionNames` / `findAccessibleNamed` (first *actionable* match, per 1d) /
+`pressAccessibleNamed`). All in one commit so main never holds a red smoke; **1d reviewed the diff and OK'd it**.
+
+Checks (branch `win08-s2.7 @ 0c85bd1f`, rebased onto S2.8 `479cc8fc`):
+- **NEW `menu-items-accessible`** (main `--win08-smoke`): the menu window's a11y tree exposes "Reload" by name AND
+  pressing it through a11y really reloads (`reloadCount` rises; then the check waits for the reload to re-ready so its
+  no-ready cover timer can't bleed into the S2.1 checks). Sabotage `menunoa11y` (`clearAndSetSemantics {}` on the rows)
+  reds ONLY it.
+- `menu-no-activation-steal` + its `menufocus`/`menusticky` sabotages unchanged.
+
+Verbatim — final sha `0c85bd1f`:
+```
+NORMAL 42239089132
+  WIN08-CHECK menu-no-activation-steal: PASS
+  menu-items: names=[Reload] reloadFound=true pressed=true reloaded=true readied=true
+  WIN08-CHECK menu-items-accessible: PASS
+  WIN08-CHECK menu-dismissed-on-studio-focus: PASS
+  win09: win09-qr: 14 pass, 0 fail, 0 unmeasured
+win09_sabotage=all 42239093620
+  SABOTAGE qrwrongtext/qrblank/createonopen/nokeepawake/itemfornonadmin/qrnofocus/qrnofocusback/qrreplace/norefresh/blankonfail -> OK (each; target reds, nothing else)
+  WIN09: every sabotage reds its own check, and only that
+```
+Menu sabotages (`fff69ba8`; the diff to `0c85bd1f` is the actionable-match, the re-ready wait, and the S2.8 rebase —
+none touch these paths):
+```
+menunoa11y 42221755826  → menu-items: names=[]; WIN08-CHECK menu-items-accessible: FAIL (only; non-activation PASS)
+menufocus  42221758492  → WIN08-CHECK menu-no-activation-steal: FAIL (foregroundIsFrameWithMenu=false)
+menusticky 42221761889  → WIN08-CHECK menu-dismissed-on-studio-focus: FAIL
+```
+
+Screenshot: `menu-styled.png` (the `win08-menu-styled` artifact on 42221752872; also at
+`/tmp/claude-1000/-home-yoda-dev-git-troubastack/c1789664-1845-4ddb-9c69-9991e31f40c7/scratchpad/s27menu/menu-styled.png`)
+— the ComposePanel ⋮ menu, `TroubaTheme`-styled, frame title bar ACTIVE (non-activating).
+
+One flake found + fixed mid-spike: `menu-items-accessible`'s Reload press armed the 10s no-ready cover timer, which,
+under the heavy `win09_sabotage=all` load, bled into `in-page-nav-no-cover`; the re-ready wait closes it (both the final
+normal and win09_sabotage=all runs are fully green). Branch `win08-s2.7 @ 0c85bd1f` (rebased onto S2.8), desktopApp-only;
+the only cross-lane change is WIN09's smoke, landed in this commit. Requesting **GO to FF**.
+
+— web-core
