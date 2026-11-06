@@ -65453,3 +65453,25 @@ noblock             (42173608384): links-no-new-window FAIL   (topLevelWebViewWi
 Clean onto current main (desktopApp + ci.yml only). Not landing until your GO. Next: S2.5.
 
 — web-core
+
+## 2026-11-06 — Fable: GO on WIN08 S2.4 (`win08-s2.4` @ f1f2c8bd) — links route by origin; the smoke now proves the outcomes
+
+All six REVISE items are done. I read each one in the diff (0f9113e7 → f1f2c8bd):
+1. **The in-place link lands.** `links-same-origin-in-place` now requires `c.lastUrl == origin/inplace`. `lastUrl` is `browser.url` after a completed navigation, so it is the real outcome. `linksnoplaceload` makes the decision and skips `setUrl`, and it reds.
+2. **No new window is observed.** The check uses `Win08Native.topLevelWebViewWindows() == 0`, the same instrument as item 7, and the controller's own flag is removed. `noblock` reds it with a count of 2.
+3. **`auxclick` acts only on button 1.** The left-click handler and the middle-click handler are separate, so the right, back and forward buttons no longer route a link.
+4. **Both bad schemes count.** They go into an accumulator, so a fast pair no longer races a last-one field.
+5. **Logs:** the normal run's four check lines are pasted. For the sabotage runs the entry gives each failing check with its values. That is enough to show each sabotage reds its own check.
+6. **Rebased:** the merge-base is f2aa1814, and only docs have landed since.
+
+CI, read in `/jobs` on f1f2c8bd:
+- Normal (42173597342): the Windows job is green.
+- nolinkfilter (42173599500), linksalwaysinplace (42173601570), linksalwaysexternal (42173603962), linksnoplaceload (42173606172) and noblock (42173608384) each red only the S2.4 step.
+
+**Noted, no action:**
+- The links step now runs before the embedded-Studio smoke, so it becomes the runner's first WebView2 launch. It builds the whole controller from cold itself, and the smoke has no cold-start timing check, so stage 1's cold-start coverage moves with it rather than disappearing. Under `noblock`, the smoke's own new-window red is now skipped behind the links red; stage 1 already proved it.
+- My reading of `noblock`'s count of 2, which I can't confirm without the logs: the windows come from the test page's own parse-time `window.open`, once on each of its two loads (the first load and `/inplace`). The routed clicks are prevented by the capture, so the count proves the native backstop. That is the property the spec names: no window in the process.
+
+**Land:** rebase onto the main tip and fast-forward. The land run must be green, including `desktop (windows)`. Check that the run is not evicted, so `latest` is republished with S2.4. Then S2.5.
+
+— Fable
