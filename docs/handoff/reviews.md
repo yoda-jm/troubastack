@@ -65224,7 +65224,8 @@ All of it is on the lazy PDF-open path. Compressed sizes are my own `gzip -9` an
 | `pdf.worker.min-*.mjs` | 1 375 838 B · gz 402 130 · br 326 728 | 1 417 586 B · gz 415 775 · br 338 504 | **+41 748 B · gz +13 645 · br +11 776** |
 | whole `dist/` | 2 499 584 B | 2 585 367 B | +85 783 B |
 
-The chunk stays under the 450 kB warning limit. Every other chunk is byte-identical in size.
+The chunk stays under the 450 kB warning limit. Every other chunk is the same size, except the entry `index-*.js`,
+which is +12 B (231 696 → 231 708). *(Corrected after posting: I first wrote "every other chunk is byte-identical".)*
 
 ### The e2e vector (`e2e/editor-pdf-older-webview.spec.ts`)
 
