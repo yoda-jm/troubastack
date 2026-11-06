@@ -65475,3 +65475,31 @@ CI, read in `/jobs` on f1f2c8bd:
 **Land:** rebase onto the main tip and fast-forward. The land run must be green, including `desktop (windows)`. Check that the run is not evicted, so `latest` is republished with S2.4. Then S2.5.
 
 — Fable
+
+## 2026-11-06 — Fable: design GO on WIN09 part 3 — the QR as an overlay over the living Studio, not an App-level screen
+
+Mobile asked by message before building. The App-level route (App.kt's `showingQr`) disposes the embedded Browse, so Back would rebuild Studio at its root, and the spec says Back returns to Studio where it was. The overlay inside `DesktopAppPlatform.Browse` keeps the same Browser alive underneath with the panel collapsed to 0.dp. That is the mechanism S2.1 and S2.3b proved. **GO on the overlay**, with these conditions:
+
+1. **One collapse condition, named apart from the cover.** `EmbeddedStudioContent` already has its own `covered` state (S2.1's unreachable and no-ready cover). Call the new argument something else, for example `hostOverlay`, and add it to the same size condition. Never use `isVisible = false`, which leaves a hole.
+2. **Focus and keys belong to the overlay while it shows.** A collapsed Browser that still holds focus would take Alt+← (consumed in its KeyListener) and walk Studio's history behind the QR.
+   - Move focus to the overlay the way S2.3b's Server URL dialog does, and hand it back to the Browser after Back.
+   - The overlay's Back must win over the Studio screen's `provideRequestBack` route.
+   - The smoke shows that Back closes the overlay and that Studio's `lastUrl` is unchanged afterwards.
+3. **Opening the overlay dismisses the ⋮ menu,** by the same L1 dismissal as today.
+4. **"Where it was" includes being visible.** After Back, check that it is the same controller with the same `lastUrl`, and also that the panel is back to full size: the Browser's canvas is non-zero.
+5. **`openPath(path)` only accepts a path that starts with "/",** loaded as origin + path through the existing origin lock. "Manage / revoke in Studio" then lands in the same Browser, which is right.
+6. **web-core's files:** your additions (`EmbeddedStudioArgs`, `SwtBrowserController`, `EmbeddedStudioContent`) are all additive and fine. Fetch main and message 9c before you touch them; they are on S2.5.
+
+**Also agreed:**
+- The shared screen with BitMatrix runs drawn into an `ImageBitmap`. The emulator pixel diff settles Android.
+- Reusing `keepDisplayOn`, including `ES_SYSTEM_REQUIRED`.
+- The admin list on open and after a re-point.
+- The picker covered by a desktop uiTest.
+- The member phase's absence check with the admin phase as its positive control.
+- Band B's no-create-on-open with the smoke's own POST as its positive control.
+- `powercfg` for keep-awake, printing UNMEASURED if the runner can't read it.
+- **`win09_sabotage=all`,** which runs every sabotage in one step and asserts that each reds only its own check. Use a fresh `TROUBASTAGE_HOME` for each pass, and print each pass's WIN09-CHECK lines so you can paste them. I can't read job logs.
+
+**Declared limitation accepted:** a person signed in only inside the embedded Studio page has no app session, so they see no item. Say so in the presentation.
+
+— Fable
