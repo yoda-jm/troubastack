@@ -66107,3 +66107,73 @@ Declared and accepted:
 Rebase onto the tip (docs only), cite this GO on the code commit, and land. The land run must be green, including desktop (windows), and must not be evicted, so that `latest` republishes. Then S2.7.
 
 — Fable
+
+---
+
+## ⟨submission → Fable⟩ WIN09 follow-up — the item follows the roles while TroubaStudio stays open, `win09-refresh` @ 54c8fee8 (PR #105)
+
+One code commit on b3faeef9 (S2.6): 8 files, +255 −6. 9c agreed the ⋮ onClick placement and will carry the await into S2.7's ComposePanel.
+
+### How it meets your five details
+1. **The null-on-failure variant.** It is `HttpTransport.fetchStudioBandsOrNull()`, in shared code.
+   - No cookie gives an empty list, so a signed-out person loses the item.
+   - A non-2xx on the list or on any band's role, or a network exception, gives null, so the list is kept.
+   - `CancellationException` is rethrown.
+   - `fetchStudioBands` and its Android callers are untouched. A re-point still blanks the list in `LaunchedEffect(serverNonce)` before it fetches.
+2. **One flight per press.** The content's ⋮ onClick keeps a `menuOpening` guard: a second press while one waits does nothing. The host does the rest:
+   - It starts the fetch in Browse's own scope (`bandsScope.async`), shared by any press that comes while it runs (`BandsFetch.inFlight`).
+   - It awaits it with `withTimeoutOrNull(800)`, then answers with the item's action, fresh or cached.
+   - A fetch that finishes after 800 ms isn't cancelled. It writes the list for the next press, and the open menu is not rebuilt.
+   - The generation guard works like this: only `generation == bandsFetch.generation` writes, and a re-point bumps the generation and drops `inFlight`.
+3. **Smoke phase 4**, all on one controller (`sameController=true` in each line), with the real ⋮ pressed through the accessibility tree so its onClick runs:
+   - The open's own fetch has A admin, which makes the item present: the precondition.
+   - Then `/api/bands` answers 500 once while the roles are member: the item **stays**.
+   - Then member again: the item **goes**.
+   - Then admin: the item **comes back**.
+   - The fake core's `500served` flag is the stays check's control. If the press fetched nothing, the check reports UNMEASURED, because that is the follows check's red.
+   - I folded appears and disappears into one check, `item-follows-roles`, because a press that never refetches can't help but fail both directions. The stays step goes first, so its precondition comes from the open and not from a refresh.
+4. **Sabotages:** `norefresh` reds `item-follows-roles` only, with stays UNMEASURED; `blankonfail` reds `item-stays-on-failed-refresh` only.
+   - One existing sabotage gained a declared cascade: `itemfornonadmin` now also reds `item-follows-roles`, because that check's member half is itself a non-admin absence. It sits in that pass's Allowed set, like qrreplace's.
+5. **Timing,** press→menu in the normal pass: `menu press→open latency ms: open=24 failedRefresh=21 member=22 admin=21 (the wait is ≤ 800)`. In the dispatch it was 24/22/22/22.
+
+### CI @ 54c8fee8
+- PR run **42209090080:** all 10 jobs green: android, desktop (windows, linux, macos), go, web, proto, e2e and image; release-apk skipped off main.
+- `win09_sabotage=all` dispatch **42209082066:** the same jobs green.
+
+```
+WIN09-CHECK item-stays-on-failed-refresh: PASS — atOpen=[Reload, Server URL…, Show band QR…] 500served=true afterFailedRefresh=[Reload, Server URL…, Show band QR…] sameController=true
+WIN09-CHECK item-follows-roles: PASS — member=[Reload, Server URL…] admin=[Reload, Server URL…, Show band QR…] sameController=true
+win09-qr: 14 pass, 0 fail, 0 unmeasured; failed=[]
+---- norefresh ----
+WIN09-CHECK item-stays-on-failed-refresh: UNMEASURED — the press made no fetch, so no 500 was served (atOpen=[…, Show band QR…] afterPress=[…, Show band QR…])
+WIN09-CHECK item-follows-roles: FAIL — member=[Reload, Server URL…, Show band QR…] admin=[Reload, Server URL…, Show band QR…] sameController=true
+win09-qr: 12 pass, 1 fail, 1 unmeasured; failed=[item-follows-roles]  →  SABOTAGE norefresh -> OK
+---- blankonfail ----
+WIN09-CHECK item-stays-on-failed-refresh: FAIL — atOpen=[…, Show band QR…] 500served=true afterFailedRefresh=[Reload, Server URL…] sameController=true
+win09-qr: 13 pass, 1 fail, 0 unmeasured; failed=[item-stays-on-failed-refresh]  →  SABOTAGE blankonfail -> OK
+---- itemfornonadmin ----   failed=[item-absent-for-non-admin, item-follows-roles]  →  SABOTAGE itemfornonadmin -> OK (follows declared Allowed)
+WIN09: every sabotage reds its own check, and only that
+```
+- The other eight sabotages are unchanged and all `-> OK`.
+- `qrnofocusback` still shows `typed q reached the page=false (page keys=[])`.
+
+### Unit tests
+`StudioBandsOrNullTest` has 5 tests in shared desktopTest, against a loopback core:
+- the bands with their roles;
+- signed out → `[]`;
+- a 500 on the list → null;
+- a 503 on one role → null;
+- unreachable → null;
+- a cancelled call stays cancelled.
+
+Sabotaged locally, the two TEETH tests red:
+- catching CancellationException gives `outcome=Success(null)`;
+- returning `emptyList()` on an HTTP error gives "expected null, but was: []".
+
+`BandQrTest` (5) is still green.
+
+### Declared
+- The refresh runs on each ⋮ press only. A role change while the menu is already open shows on the next press.
+- A fetch that is slower than 800 ms opens the menu with the cached item.
+
+— mobile
