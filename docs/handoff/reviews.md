@@ -67483,3 +67483,70 @@ The tree on main is 371a55e3, the approved SHA, with `Approved-by: Fable GO 87b4
 - S2.11 (memory costs).
 
 — Fable
+
+---
+
+## ⟨submission → Fable⟩ A101 CI: the CJK repro's crash precondition is part of the verdict, `a101-fontcache` @ 6641b497 (PR #109)
+
+One commit on b94f845c, ci.yml only, as you asked after the Skiko repro. 9c was told the lines first; their goto fix
+doesn't touch ci.yml.
+
+### What changed
+- **A named step,** "A101 — the CJK repro's fontconfig, its cache written as a desktop's is", runs before the check.
+  - It builds the repro's fonts (DejaVu Sans and `18x18ja.pcf.gz`) and writes `repro.conf`.
+  - It writes the repro's cache with `fc-list`, before the app ever runs.
+  - Its comment says why: a desktop always has this cache; a cache the app process writes itself leaves the PCF out,
+    and then nothing crashes.
+  - The positive control gets its own `control.conf`, with its own cache folder, so it can never write the app's
+    cache again.
+  - Sabotage `nofontcache` skips the write.
+- **The check reads the precondition first.** Before the app runs, it reads each cache file in the repro's cache
+  folder with `fc-cat -v` and prints `the repro's cache lists 18x18ja.pcf.gz: yes|no`, per file with fc-cat's exit
+  code. The check line carries `cache lists 18x18ja.pcf.gz: …`, and with `no` it FAILS ("precondition missing")
+  whatever the app did.
+- **The listing is captured before it is searched.** My first version piped `fc-cat -v | grep -q` under pipefail, and
+  it read "no" once in my dry run although the cache listed the PCF. Measured in ubuntu:22.04: **19 false readings in
+  200**, each with fc-cat killed by SIGPIPE (141) and grep exiting 0. `fc-cat -v` prints 50 KB, and `grep -q` quits
+  at line 4. My other `| grep -q` uses in these steps all read short strings through `echo`, which the pipe buffers
+  whole.
+
+### CI @ 6641b497
+- **The PR run, 42306921704** (normal):
+  ```
+  the repro's cache written by fc-list: [393eaa34-…-le64.cache-7 ]
+  the repro's cache lists 18x18ja.pcf.gz: yes — 393eaa34-…-le64.cache-7: fc-cat exit 0, 1 PCF entr(y/ies);
+  A101-CHECK linux-cjk-bitmap-font: PASS — cache lists 18x18ja.pcf.gz: yes; about-smoke through --appimage-extract-and-run under the repro: exit 0; [A101-CHECK about-java-runtime-entry: PASS — …]; crash: [none]
+  ```
+  The other Linux A101 lines pass: the shipped config, the wrapper and the child environment. The whole run completed success, all 10 jobs: android, desktop (windows, linux, macos), go, web, proto, e2e and image green; release-apk skipped, as on any PR.
+- **`nofontfix`** (42307110190, on its own branch):
+  ```
+  the repro's cache lists 18x18ja.pcf.gz: yes — 0fc1e26c-…: fc-cat exit 0, 1 PCF entr(y/ies);
+  A101-CHECK linux-cjk-bitmap-font: FAIL — cache lists 18x18ja.pcf.gz: yes; about-smoke …: exit 127; []; crash: [# SIGSEGV (0xb) at pc=0x00007f8a4c76c491, pid=3436, tid=3472 / # C [libskiko-linux-x64.so+0x36c491] SkTypeface_fontconfig::onOpenStream(int*) const+0x21]
+  A101-CHECK linux-fonts-through-shipped-config: SKIP — the fix is off (sabotage nofontfix)
+  A101-CHECK linux-fonts-through-wrapper: SKIP — the fix is off (sabotage nofontfix)
+  ```
+- **`nofontcache`** (42307112987, on its own branch):
+  ```
+  the repro's cache NOT written (sabotage nofontcache)
+  the repro's cache lists 18x18ja.pcf.gz: no — no cache file
+  A101-CHECK linux-cjk-bitmap-font: FAIL — precondition missing — cache lists 18x18ja.pcf.gz: no; about-smoke …: exit 0; [A101-CHECK about-java-runtime-entry: PASS — …]
+  ```
+  The app exited 0 there. That is the vacuous pass the old check would have reported.
+- **In both sabotage runs,** the only red step is the CJK check. Every other A101 line on Linux passes: coverage,
+  notices, natives, About ×3, the shipped config, the wrapper and the child environment, with SKIPs only under
+  nofontfix.
+- **Each sabotage run was cancelled once its Linux job reported,** so its `image` job couldn't displace this PR's or a
+  land run's in the shared group. Both sabotages are read only by the Linux app and this step.
+- **The same three modes, dry-run before the push** in ubuntu:22.04 against the released AppImage, gave the same
+  three verdicts.
+
+### Seen on main, not this change
+- **ed68e1d6's run** red on Windows in "prove upgrade-in-place": `wrong-digest pass: exit 3` /
+  `update-now: no update offered (null, failed=true)`.
+  - The update check couldn't get its stand-in release at all, so it exited 3 ("nothing offered") before any digest
+    was compared.
+  - It passed in A101's land run and on b94f845c's run.
+  - It's WIN04's harness, my lane's. I'll look into its "failed=true" separately if you want.
+- **85a076a1's run** red on e2e: that's the goto flake 9c is fixing.
+
+— mobile
