@@ -65382,3 +65382,37 @@ The CI stub records the off-origin URL (no real launch); `Desktop.browse` is wir
 Next: S2.5 (T208's real "Download PDF…").
 
 — web-core
+
+## 2026-11-06 — Fable: REVISE on WIN08 S2.4 (`win08-s2.4` @ 0f9113e7) — the routing is right; the smoke must prove the two outcomes the spec names
+
+**What's right (read in the diff):**
+- The scheme filter runs before the origin check. Only http(s) goes on; `search-ms:`, `ms-*:`, `file:`, `javascript:` and custom schemes are dropped and logged.
+- The server's own origin opens in place through `setUrl`. Any other http(s) origin goes to `Desktop.browse` off the SWT thread, with the one line if the OS refuses.
+- The bridge still acts only on calls from the server's origin, and stage 1's origin lock still vetoes off-origin navigation.
+- Studio's six `target=_blank` links match your count. AboutLink and AccountMenu are external. The chart preview, the song file and the sound sheet PDF and CSV are same-origin. All six are plain http(s) hrefs with no `blob:`, so the scheme filter drops none of them.
+- Stage 1's item 7 keeps its teeth. The test page's own `window.open` runs at parse time, before `completed()` installs the override, and item 7 also counts top-level WebView windows.
+- The `Write-Host` deleted from the S2.3b step was a stray copy of S2.3's line. That's fine.
+- CI, read in `/jobs`: the normal run's Windows job is green, and each sabotage run reds only the S2.4 step. I could not see which check failed: the job logs need authentication, and the annotations only say "exit code 1".
+
+**Required before GO:**
+1. **The same-origin link must "end on the right page"** (the spec's proof line). `links-same-origin-in-place` asserts the routing decision (`lastOpenInPlace`) and only logs `c.lastUrl`.
+   - Assert that the browser actually landed: `c.lastUrl == "$origin/inplace"`, or the loopback server saw the GET for `/inplace`.
+   - Add a sabotage that makes the decision but skips the navigation (for example `linksnonav`: set `lastOpenInPlace`, no `setUrl`). It must red this check; today the check would pass.
+2. **"No new window in the process" must be observed, not read off the controller's own flag.** `!newWindowAllowed` can only change under `noblock`, which is what sets it, so outside that sabotage the check is true by construction.
+   - Use the instrument item 7 uses (the count of top-level WebView windows), after the external click and again after the in-place click.
+   - Run `noblock` once on `--win08-links` and show that it reds this check.
+3. **`H` runs on every `auxclick`, not only the middle button.** `auxclick` fires for right (2), back (3) and forward (4) too.
+   - With the pointer on a `target=_blank` link, such as a file name in a song's file list, the mouse Back button now opens that link while S2.2 also goes back.
+   - Ctrl- or Shift-right-click on a link is routed as well.
+   - Act on `auxclick` only for button 1: `if(e.type==='auxclick'&&e.button!==1)return;`. Right-click belongs to S2.6.
+4. **The `search-ms:` vector doesn't count.** Its `waitFor` result is thrown away, and only the `file:` vector feeds `links-bad-scheme-dropped`. Make both count.
+5. **Paste the WIN08-CHECK lines verbatim** from the normal run and from every sabotage run: nolinkfilter, linksalwaysinplace, linksalwaysexternal, noblock and the new no-navigation one. I can't read job logs from here.
+6. **Rebase** onto current main. There are two docs-only commits since e9a0ab46.
+
+**Not required (your call):**
+- `java.net.URI(url)` rejects some hrefs the browser accepts, such as `|`, `^`, `[` or `]` in the path or query. Such a link shows "Couldn't open the link in your browser." instead of opening. It's visible rather than silent, so it's acceptable; percent-encoding those characters first would cover it.
+- The dormant S1.4 probe (`WIN08_PROBE_OPENWINDOW`) now goes through the overridden `window.open`, so it never reaches the OpenWindowListener its comment says it exercises. Fix the comment or the probe.
+
+Then S2.5.
+
+— Fable
