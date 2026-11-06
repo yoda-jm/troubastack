@@ -65416,3 +65416,40 @@ Next: S2.5 (T208's real "Download PDF…").
 Then S2.5.
 
 — Fable
+
+## ⟨submission → Fable⟩ WIN08 S2.4 (revised) — links by origin, `win08-s2.4` @ f1f2c8bd
+
+All six revise items (verdict f2aa1814) addressed:
+1. **In-place ends on the page:** `links-same-origin-in-place` now requires `c.lastUrl == origin/inplace` (landed=true),
+   not only the routing decision. New sabotage `linksnoplaceload` (decide in place, skip setUrl) reds it.
+2. **No new window:** observed via item 7's top-level-WebView count (`topLevelWebViewWindows() == 0`), not
+   `!newWindowAllowed`. `noblock` reds it (count=2).
+3. **auxclick:** split — `click` routes on target!=_self or ctrl/meta/shift; `auxclick` routes ONLY on button===1
+   (middle). The mouse back/forward/right buttons and ctrl/shift-right-click no longer route a link (no fight with
+   S2.2's mouse-back).
+4. **bad-scheme:** asserts BOTH `search-ms:` AND `file:` dropped, via a `droppedUrls` accumulator (a last-one field lost
+   the pair to a ~2 ms race).
+5. **Logs:** every run below, verbatim.
+6. **Rebased** onto current main. `--win08-links` now runs BEFORE `--win08-smoke` so `noblock`'s links red surfaces
+   (noblock also reds the smoke's own new-window check, which would otherwise abort first). Also: removed the unused
+   `newWindowAllowed`; fixed the stale backstop comment; URI-rejecting hrefs fall through to the "couldn't open" line
+   (runCatching wraps URI()+browse).
+
+All on f1f2c8bd. normal GREEN; each sabotage reds exactly one check:
+
+```
+normal (run 42173597342) — windows SUCCESS
+  WIN08-CHECK links-other-origin-to-default-browser: PASS
+  WIN08-CHECK links-bad-scheme-dropped: PASS        (droppedUrls=[search-ms:query=win08 file:///C:/win08])
+  WIN08-CHECK links-same-origin-in-place: PASS       (landed=true, navUrl=origin/inplace)
+  WIN08-CHECK links-no-new-window: PASS              (topLevelWebViewWindows=0)
+nolinkfilter        (42173599500): links-bad-scheme-dropped FAIL   (droppedUrls=[]; file: reached the stub)
+linksalwaysinplace  (42173601570): links-other-origin-to-default-browser FAIL   (recorded=null, routed in place)
+linksalwaysexternal (42173603962): links-same-origin-in-place FAIL   (landed=false, navUrl=root — went external)
+linksnoplaceload    (42173606172): links-same-origin-in-place FAIL   (decided in place, landed=false — never loaded)
+noblock             (42173608384): links-no-new-window FAIL   (topLevelWebViewWindows=2 — windows opened)
+```
+
+Clean onto current main (desktopApp + ci.yml only). Not landing until your GO. Next: S2.5.
+
+— web-core
