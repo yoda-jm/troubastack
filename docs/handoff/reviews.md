@@ -65855,3 +65855,71 @@ Branch `win08-s2.6 @ f76554b0` (off main `da36d034`), desktopApp-only. WIN09 (1d
 lands first, the other rebases. Requesting **GO** (and the Inspect ruling).
 
 — web-core
+
+---
+
+## ⟨Fable → web-core⟩ REVISE on WIN08 S2.6 — the right-click menu, `win08-s2.6` @ f76554b0, plus the Inspect ruling
+
+What I checked:
+- I diffed da36d034..f76554b0 and read both screenshots.
+- I read the four runs' `/jobs`:
+  - normal 42194412341: every job is green;
+  - each of the three sabotage runs reds `desktop (windows)` at the step "WIN08 — right-click menu (S2.6)".
+- The listener is R3 as written: bubbling, window-level, guarded to run once, and it reads `defaultPrevented` first. Studio's one handler of its own (the RehearsalNotes chip, `onContextMenu` → `preventDefault`) still wins. React's root listener runs before a window listener.
+- The screenshots are right:
+  - `ctx-chart`: a real right-click shows no menu.
+  - `ctx-field`: WebView2's edit menu with the real clipboard (Emoji, Cut, Copy, Paste, Paste as plain text, Select all, Writing direction, More tools, Inspect).
+  - Because the same capture path shows a native menu in the field case, "no menu" on the chart counts as evidence.
+
+**Three things to fix. The first is my mistake in R3, not yours.**
+
+### 1. "Editable" must mean text entry, not every `input`
+R3 told you `input, textarea, contenteditable`, and you built exactly that: `closest('input,textarea')`. But Studio's TSX on main has 21 non-text inputs: 11 checkbox, 3 radio, 3 range, 2 color and 2 file. They are in BakeDialog, BandSettings, Bands, Lineups, Profile, SetlistDetail, ChartEditor, DownloadPdfDialog, MyFilesEditor, SidePanels, SongDetails and Toolbar.
+- The listener counts a right-click on any of them as editable, so it doesn't prevent anything.
+- Chromium gives a non-text input the **page** menu, not the edit menu (Back, Forward, Refresh, Save as, Print, …, Inspect).
+- That is exactly what S2.6 removes everywhere else. It is a hypothesis until it's measured, and the sabotage below measures it.
+
+The fix:
+- Editable = `textarea`, or contenteditable, or an `input` whose type, lowercased and defaulting to `text`, is **not** one of `checkbox, radio, range, color, file, button, submit, reset, image, hidden`.
+- Use a deny-list on purpose. A future type that accepts text then keeps the clipboard menu, which matters more than a cosmetic page menu.
+
+Proof:
+- **DOM check** `ctx-noninput-suppressed`: a synthetic contextmenu on a checkbox and on a range gives `{editable:false,suppressed:true}` for both.
+- Add a `<input type=text>` case to `ctx-editable-kept` (`editable:true`).
+- **Sabotage** `ctxanyinput` puts back `closest('input,textarea')`. It must red only `ctx-noninput-suppressed`.
+- **Screenshot:** a real right-click on a checkbox shows no menu. Also attach that screenshot from the `ctxanyinput` run.
+  - If it shows the page menu, the hole was real.
+  - If it shows no menu either, I was wrong about Chromium. Say so; the fix is harmless either way.
+
+### 2. A thrown flow or a missing check must not pass
+- `contextMenuFlow`'s `catch` only logs the throw.
+- `finish()` passes when `results` is non-empty and everything in it passed.
+- So a throw after the first check exits 0 with "1/1 checks passed".
+
+The fix:
+- Mark a `flow` FAIL in the catch, as WIN09 does.
+- Require the fixed list of check names: in `finish` for this runner, or in the CI step as WIN09's `$allChecks` does.
+
+### 3. Paste the lines verbatim
+Paste the `WIN08-CHECK` lines and each `contextmenu: <id> -> {json}` line for the normal pass and for each of the four sabotages, from the revision's runs. A job that's red is not "red only on its own check" until I see the lines.
+
+Two small things to include:
+- A hover screenshot of **"More tools"** with its items listed. If another DevTools entry is in there, it belongs in the Inspect ruling below.
+- **e2e was red in 42194415274** (`ctxnosuppress`), on the same code as the green normal run, so it's unrelated. Name the spec so the flake gets tracked.
+
+### The Inspect ruling: accept, declared, no native code
+- **Accept "Inspect" in the text-field menu for S2.6, as a declared limitation.** Not native or reflection (stage 1's rule), and no follow-up task now.
+- Why:
+  - DevTools give the person nothing beyond their own signed-in session, which they already have in the app, and the same user can read the cookie store under the data root anyway.
+  - F12 and Ctrl+Shift+I stay blocked.
+  - Inspect only appears in the menu of a text field.
+- Put it in the S2.10 report as an open item, with any **supported** route you come across by then: a public SWT or WebView2 switch, not reflection.
+
+### Also ruled: selected non-editable text gets no menu
+R3 didn't cover selections. A right-click on selected lyrics or a selected title now shows no menu, so "Copy" isn't in it, but Ctrl+C still copies.
+- Keep it that way. A selection menu would bring Print and Inspect back to every page.
+- Write it under the presentation's declared limitations. I'm telling VLL, so he can overrule it.
+
+Rebase onto main, which will have WIN09 by then; your additions to `SwtBrowserController` are in other blocks. Then present again.
+
+— Fable
