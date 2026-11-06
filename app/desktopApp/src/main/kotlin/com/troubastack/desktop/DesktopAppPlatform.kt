@@ -296,7 +296,7 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             releaseUrl = updateFrom ?: UPDATE_RELEASE_URL, hookMode = updateFrom != null,
             // DESK01: Windows installs its MSI (WIN04); Linux and macOS open their download in the browser.
             assetName = updateAssetFor(hostOs),
-            openInBrowser = if (hostOs == HostOs.WINDOWS) null else ::openUrl,
+            openInBrowser = if (hostOs == HostOs.WINDOWS) null else { url -> openUrl(url) },
             exitForInstall = { exitForInstall() },
         ).also { it.reportLastHandoff(); update = it }
     }
@@ -343,8 +343,9 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
      *  emulator's alias, which on a 10.x LAN is somebody's machine). */
     override val defaultServerUrl: String? = null
 
-    /** WIN08 S2.8 — SWT's licences where this image ships them (the Windows image); null elsewhere, so no About line. */
-    override val licences: ShippedLicences? by lazy { shippedSwtLicences(licencesDir()) }
+    /** WIN08 S2.8 + A101 — every open-source text this image ships (SWT on Windows, the generated notices, the Java
+     *  runtime's `legal/`); null when the image ships none, so About shows no line. */
+    override val licences: ShippedLicences? by lazy { shippedLicences(resourcesDir(), System.getProperty("java.home")?.let(::File)) }
 }
 
 /** D6 — the TroubaStudio screen on Windows: its heading, "Coming soon.", and Back. */
@@ -406,11 +407,19 @@ private fun nativeFocus(frame: java.awt.Window) {
     }
 }
 
-/** DESK01 — an https address in the default browser: AWT's Desktop where it can, else the system's opener. */
-internal fun openUrl(url: String) {
+/**
+ * DESK01 — an https address in the default browser: AWT's Desktop where it can, else the system's opener. A101 —
+ * Linux: always `xdg-open`, with FONTCONFIG_FILE as it was at launch (LinuxFontConfig.childEnvironment); AWT's browse
+ * goes through GTK, which passes on this process's environment, our fontconfig file included. Only without xdg-open
+ * does Linux fall back to AWT's. Returns the opener's process when it started one (the `--open-link` smoke waits on it).
+ */
+internal fun openUrl(url: String): Process? {
+    if (hostOs == HostOs.LINUX && System.getenv("A101_SABOTAGE") != "fontenvleak") {
+        runCatching { LinuxFontConfig.childEnvironment(ProcessBuilder("xdg-open", url)).start() }.onSuccess { return it }
+    }
     val desktop = runCatching { java.awt.Desktop.getDesktop() }.getOrNull()
-    if (desktop?.isSupported(java.awt.Desktop.Action.BROWSE) == true) {
-        desktop.browse(java.net.URI(url))
+    return if (desktop?.isSupported(java.awt.Desktop.Action.BROWSE) == true) {
+        desktop.browse(java.net.URI(url)); null
     } else {
         ProcessBuilder(if (hostOs == HostOs.MACOS) "/usr/bin/open" else "xdg-open", url).start()
     }

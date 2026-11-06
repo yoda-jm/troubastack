@@ -1,6 +1,8 @@
 package com.troubastack.desktop
 
+import com.troubastack.app.OPEN_SOURCE_LINE
 import com.troubastack.app.ShippedLicences
+import com.troubastack.app.parseNotices
 import com.troubastack.shared.ui.LicenceDocument
 import com.troubastack.shared.ui.LicenceEntry
 import java.io.File
@@ -45,4 +47,69 @@ private fun swtDocuments(dir: File): List<LicenceDocument> {
 internal const val SWT_NOTICE = "SWT-NOTICE.txt"
 
 /** The image's licences folder, where Compose puts the app resources; null when run without them (tests, `run`). */
-internal fun licencesDir(): File? = System.getProperty("compose.application.resources.dir")?.let { File(it, "licences") }
+internal fun licencesDir(): File? = resourcesDir()?.let { File(it, "licences") }
+
+/** The image's app resources (Compose's `compose.application.resources.dir`); null when run without them. */
+internal fun resourcesDir(): File? = System.getProperty("compose.application.resources.dir")?.let(::File)
+
+/**
+ * A101 — everything About → Licences lists in this image: SWT first where it ships (S2.8, Windows), then the entries
+ * the build generated from what it resolved (`resources/notices/`), then the Java runtime the image bundles (its own
+ * `legal/`, read in place). About's line: S2.8's SWT line on Windows, else [OPEN_SOURCE_LINE]. null when the image
+ * ships neither (a dev `run`), so About shows no line.
+ */
+internal fun shippedLicences(resources: File?, javaHome: File?): ShippedLicences? {
+    val swt = shippedSwtLicences(resources?.let { File(it, "licences") })
+    val index = resources?.let { File(it, "notices/index.txt") }?.takeIf { it.isFile }
+    if (swt == null && index == null) return null
+    return ShippedLicences(line = swt?.line ?: OPEN_SOURCE_LINE) {
+        val generated = index?.let { f ->
+            parseNotices(f.readText()) { id -> File(f.parentFile, "texts/$id.txt").takeIf { it.isFile }?.readText() }
+        }.orEmpty()
+        swt?.entries?.invoke().orEmpty() + generated + listOfNotNull(javaRuntimeEntry(javaHome))
+    }
+}
+
+/**
+ * A101 — the Java runtime the image bundles, from its own `legal/` folder, read in place (nothing is copied at build
+ * time). Linux and macOS images make most of `legal/` symlinks to java.base's files (java.desktop/LICENSE →
+ * ../java.base/LICENSE); on Windows jlink writes a one-line pointer instead (`Please see ..\java.base\LICENSE`,
+ * DefaultImageBuilder.writeSymLinkEntry), which counts as the file it points at ([pointerTarget]). Either way each
+ * distinct text shows once, keyed by its content, titled by the first file that carries it and how many others do.
+ * null when there is no `legal/`.
+ */
+internal fun javaRuntimeEntry(javaHome: File?): LicenceEntry? {
+    val legal = javaHome?.let { File(it, "legal") }?.takeIf { it.isDirectory } ?: return null
+    val byContent = LinkedHashMap<String, Pair<MutableList<String>, String>>()
+    java.nio.file.Files.walk(legal.toPath()).use { paths ->
+        paths.filter { java.nio.file.Files.isRegularFile(it) }   // follows a symlink to its file
+            .sorted()
+            .forEach { p ->
+                val own = java.nio.file.Files.readAllBytes(p)   // reads through a symlink
+                val bytes = pointerTarget(legal, p, own)?.let { java.nio.file.Files.readAllBytes(it) } ?: own
+                val key = java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+                val rel = legal.toPath().relativize(p).toString().replace(File.separatorChar, '/')
+                byContent.getOrPut(key) { mutableListOf<String>() to String(bytes, Charsets.UTF_8) }.first += rel
+            }
+    }
+    val docs = byContent.values.map { (paths, text) ->
+        LicenceDocument(if (paths.size == 1) paths[0] else "${paths[0]} (and ${paths.size - 1} more)", text)
+    }
+    val v = Runtime.version()
+    return LicenceEntry("Java runtime (OpenJDK ${v.feature()}.${v.interim()}.${v.update()})", docs)
+}
+
+/**
+ * A101 — the file a jlink pointer [bytes] (at [file]) stands for: a single line `Please see <path>` whose path, relative
+ * to the pointer's folder (backslashes on Windows), is a regular file inside [legal]. null for anything else: a real
+ * text, a pointer that leaves `legal/`, or one whose target is missing (then it shows as it is).
+ */
+internal fun pointerTarget(legal: File, file: java.nio.file.Path, bytes: ByteArray): java.nio.file.Path? {
+    if (bytes.size > 512) return null
+    val text = String(bytes, Charsets.UTF_8).trimEnd('\r', '\n')
+    if ('\n' in text) return null
+    val target = Regex("^Please see (.+)$").find(text)?.groupValues?.get(1)?.trim() ?: return null
+    val root = legal.toPath().toAbsolutePath().normalize()
+    val resolved = file.toAbsolutePath().parent.resolve(target.replace('\\', '/')).normalize()
+    return resolved.takeIf { it.startsWith(root) && it != file.toAbsolutePath().normalize() && java.nio.file.Files.isRegularFile(it) }
+}

@@ -1,0 +1,4 @@
+# A101 — a component offered under a choice of licences, and the one this app uses it under. Its POM's licences are
+# then read as "A OR B", and only the elected text ships. Keyed by group:artifact (any version).
+net.java.dev.jna:jna	Apache-2.0	LGPL-2.1-or-later OR Apache-2.0, used under Apache-2.0
+net.java.dev.jna:jna-platform	Apache-2.0	LGPL-2.1-or-later OR Apache-2.0, used under Apache-2.0

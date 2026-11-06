@@ -32,6 +32,14 @@ on:
         description: "WIN09: 'all' runs the band-QR sabotage passes instead of the normal smoke (leave empty for a normal run)"
         required: false
         default: ""
+      # A101: licencedropone / licencenonotice break the notices generator (at build time, as the Gradle property
+      # a101Sabotage); nofontfix turns off the Linux app's fontconfig fix, fontenvleak opens links the way it did before
+      # (both at run time, as A101_SABOTAGE). A sabotage run is expected to red its own A101-CHECK and nothing else, so it
+      # is never landed.
+      a101_sabotage:
+        description: "A101: licencedropone, licencenonotice, nofontfix or fontenvleak (leave empty for a normal run)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -253,6 +261,10 @@ jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # A101: empty on push/PR; set by a sabotage dispatch (the a101_sabotage input).
+    env:
+      ORG_GRADLE_PROJECT_a101Sabotage: ${{ github.event.inputs.a101_sabotage }}
+      A101_SABOTAGE: ${{ github.event.inputs.a101_sabotage }}
     steps:
       - uses: actions/checkout@v7
       # JDK 21 = the Kotlin/AGP compile toolchain pinned in app/gradle/libs.versions.toml, so the
@@ -287,6 +299,38 @@ jobs:
         # fails the build on red — the module had no test source set before, so this code had never been
         # executed by a test on any machine.
         run: ./gradlew :shared:check :androidApp:test :androidApp:assembleDebug
+      # A101 — the notices inside the APK, checked independently of the generator (app/licences/ci/check-notices.py):
+      # every component the build resolves is listed at its version (excluded nodes printed), every NOTICE file ships,
+      # every licence a shipped file names has its text, every native library in lib/ maps to an entry.
+      - name: A101 — the notices inside the APK (coverage, notices, natives)
+        if: always()
+        working-directory: app
+        run: |
+          set -uo pipefail
+          t="$RUNNER_TEMP/a101"; rm -rf "$t"; mkdir -p "$t/apk"
+          apk=androidApp/build/outputs/apk/debug/androidApp-debug.apk
+          [ -s "$apk" ] || { echo "::error::no debug APK"; exit 1; }
+          ./gradlew -q :androidApp:dependencies --configuration debugRuntimeClasspath > "$t/report.txt"
+          ./gradlew -q --no-configuration-cache -I licences/ci/artifact-paths.init.gradle.kts "-Da101.out=$t/artifacts.tsv" :androidApp:a101ArtifactPaths
+          unzip -q "$apk" 'assets/notices/*' -d "$t/apk"
+          rc=0
+          python3 -I licences/ci/check-notices.py --name apk --report "$t/report.txt" --artifacts "$t/artifacts.tsv" \
+            --notices "$t/apk/assets/notices" --spdx licences/spdx --manifest licences/native/manifest.txt --apk "$apk" || rc=1
+          echo "APK: $(stat -c %s "$apk") bytes"
+          exit $rc
+      # A101 — what app/buildSrc costs: configuration time without the configuration cache (a cache hit skips it), base
+      # vs head, each the median of three warm runs after a warm-up. Pull requests only (it needs the base commit).
+      - name: A101 — configuration time, base vs head
+        if: github.event_name == 'pull_request'
+        working-directory: app
+        run: |
+          set -uo pipefail
+          base=${{ github.event.pull_request.base.sha }}
+          git fetch -q --depth=1 origin "$base" && git worktree add -q --detach "$RUNNER_TEMP/base" FETCH_HEAD
+          median() { ( cd "$1" && ./gradlew -q --no-configuration-cache help >/dev/null 2>&1
+            for i in 1 2 3; do s=$(date +%s%N); ./gradlew -q --no-configuration-cache help >/dev/null 2>&1; e=$(date +%s%N); echo $(( (e - s) / 1000000 )); done ) | sort -n | sed -n 2p; }
+          b=$(median "$RUNNER_TEMP/base/app"); h=$(median "$PWD")
+          echo "A101 configuration time (help, no configuration cache, warm daemon, median of 3): base ${base:0:8} ${b} ms, head ${h} ms"
       # iOS klibs cross-compile on Linux (no Mac needed) — type-checks the iosMain seam actuals
       # (Storage/WebViewHost + the zip reader) on every push. Linking a framework + running a
       # simulator still needs macOS; that's IOS02's job (manual-trigger macOS runner).
@@ -592,6 +636,10 @@ jobs:
     name: desktop (${{ matrix.leg }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    # A101: empty on push/PR; set by a sabotage dispatch (the a101_sabotage input).
+    env:
+      ORG_GRADLE_PROJECT_a101Sabotage: ${{ github.event.inputs.a101_sabotage }}
+      A101_SABOTAGE: ${{ github.event.inputs.a101_sabotage }}
     strategy:
       fail-fast: false
       matrix:
@@ -964,8 +1012,9 @@ jobs:
           if ($p.ExitCode -ne 0) { Get-Content "$env:RUNNER_TEMP\msi-admin.log" -Tail 40 | Write-Host; Write-Error "msiexec /a exited $($p.ExitCode)"; exit 1 }
           $jar = Get-ChildItem -Path $x -Recurse -Filter "org.eclipse.swt.win32.win32.x86_64-*.jar" | Select-Object -First 1
           if (-not $jar) { Write-Error "no SWT jar in the extracted MSI"; exit 1 }
-          # The image renames jars with a content hash (…x86_64-3.134.0-<32 hex>.jar): the version is the part before it.
-          $ver = [regex]::Match($jar.Name, 'x86_64-(\d+(?:\.\d+)*)(?:-[0-9a-f]{32})?\.jar$').Groups[1].Value
+          # The image renames jars with a content hash (…x86_64-3.134.0-<hex>.jar): the version is the part before it. A101:
+          # the hash drops its leading zeros (20 to 32 hex digits measured), so 32 only matched by chance.
+          $ver = [regex]::Match($jar.Name, 'x86_64-(\d+(?:\.\d+)*)(?:-[0-9a-f]{20,32})?\.jar$').Groups[1].Value
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $zip = [System.IO.Compression.ZipFile]::OpenRead($jar.FullName)
           function EntryBytes([string]$name) {
@@ -976,7 +1025,8 @@ jobs:
           $bv = [regex]::Match($mf, '(?m)^Bundle-Version:\s*(\S+)').Groups[1].Value
           $lic = Join-Path $jar.Directory.FullName "resources\licences"
           Write-Host "SWT in the MSI: $($jar.Name) (version $ver, Bundle-Version $bv); licences expected at $lic"
-          $want = @("SWT-NOTICE.txt", "EPL-2.0.txt", "about.html", "about_files\WebView2_LICENSE.txt", "about_files\IJG_README", "about_files\mpl-v11.txt")
+          # A101 §4: SWT-about.txt (about.html as plain text) is the seventh file.
+          $want = @("SWT-NOTICE.txt", "EPL-2.0.txt", "about.html", "SWT-about.txt", "about_files\WebView2_LICENSE.txt", "about_files\IJG_README", "about_files\mpl-v11.txt")
           $missing = @()
           foreach ($f in $want) {
             $path = Join-Path $lic $f
@@ -1031,6 +1081,50 @@ jobs:
           $bad = @("about-line-shows-version", "licences-screen-shows-files") | Where-Object { $n = $_; -not ($lines | Where-Object { $_ -match "S28-CHECK $n`: PASS" }) }
           if ($bad.Count -gt 0 -or $p.ExitCode -ne 0) { Write-Error "S2.8 About checks not passing: [$($bad -join ', ')] (exit $($p.ExitCode))"; exit 1 }
           Write-Host "S2.8: About names SWT's version and opens its licences"
+      # A101 — the notices inside the MSI (its admin extract, as S2.8's step made it), checked independently of the
+      # generator: every resolved component listed at its version, every jar in the image listed, every NOTICE shipped,
+      # every native mapped (SWT's DLLs to SWT's own entry, the runtime's and the launcher to the Java runtime).
+      - name: A101 — the notices inside the MSI (coverage, notices, natives)
+        if: always() && runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        run: |
+          $t = Join-Path $env:RUNNER_TEMP "a101"
+          if (Test-Path $t) { Remove-Item -Recurse -Force $t }
+          New-Item -ItemType Directory -Force -Path $t | Out-Null
+          $msi = Get-ChildItem troubastage-1.0.*.msi | Select-Object -First 1
+          if (-not $msi) { Write-Error "no artifact MSI"; exit 1 }
+          $x = Join-Path $env:RUNNER_TEMP "msi-admin"
+          if (-not (Test-Path $x)) {
+            $p = Start-Process msiexec.exe -ArgumentList @("/a", "`"$($msi.FullName)`"", "/qn", "TARGETDIR=`"$x`"") -Wait -PassThru
+            if ($p.ExitCode -ne 0) { Write-Error "msiexec /a exited $($p.ExitCode)"; exit 1 }
+          }
+          $index = Get-ChildItem -Path $x -Recurse -Filter index.txt | Where-Object { $_.FullName -match '\\app\\resources\\notices\\index\.txt$' } | Select-Object -First 1
+          if (-not $index) { Write-Error "no notices index in the MSI"; exit 1 }
+          $notices = $index.Directory.FullName
+          $appDir = $index.Directory.Parent.Parent.FullName
+          $root = $index.Directory.Parent.Parent.Parent.FullName
+          ./gradlew -q :desktopApp:dependencies --configuration runtimeClasspath | Out-File -Encoding utf8 (Join-Path $t "report.txt")
+          ./gradlew -q --no-configuration-cache -I licences/ci/artifact-paths.init.gradle.kts "-Da101.out=$t\artifacts.tsv" :desktopApp:a101ArtifactPaths
+          python licences/ci/check-notices.py --name msi --report (Join-Path $t "report.txt") --artifacts (Join-Path $t "artifacts.tsv") `
+            --notices $notices --spdx licences/spdx --manifest licences/native/manifest.txt --image-jars $appDir --image-root $root `
+            --swt-licences (Join-Path $appDir "resources\licences")
+          $code = $LASTEXITCODE
+          Write-Host "MSI: $($msi.Length) bytes"
+          exit $code
+      # A101 — the same --about-smoke run (S2.8's step above) also opens Ktor and the Java runtime entry, then every entry
+      # to time it. S2.8's two checks are that step's; these are A101's.
+      - name: A101 — About lists the notices (Windows, from that --about-smoke run)
+        if: always() && runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        run: |
+          $log = Join-Path (Get-Location) "about-out\about-smoke.log"
+          $lines = if (Test-Path $log) { @(Get-Content $log) } else { @() }
+          $lines | Where-Object { $_ -match '^(A101-CHECK|A101-TIME|S28-CHECK)' } | Write-Host
+          $bad = @("about-ktor-entry", "about-java-runtime-entry") | Where-Object { $n = $_; -not ($lines | Where-Object { $_ -match "A101-CHECK $n`: PASS" }) }
+          if ($bad.Count -gt 0) { Write-Error "A101 About checks not passing: [$($bad -join ', ')]"; exit 1 }
+          Write-Host "A101: About lists the notices and opens Ktor and the Java runtime"
       - name: WIN08 S2.8 — upload the About captures
         if: always() && runner.os == 'Windows'
         uses: actions/upload-artifact@v7
@@ -1340,6 +1434,166 @@ jobs:
           root=$(./troubastage-linux-x86_64.AppImage --print-data-root)
           [ "$root" = "$HOME/.local/share/troubastage" ] || { echo "::error::data root is [$root], expected XDG's"; exit 1; }
           echo "data root (no override): $root"
+      # A101 — the notices inside the AppImage itself (extracted, not the build folder), checked independently of the
+      # generator: every resolved component listed at its version, every jar listed, every NOTICE shipped, every native
+      # mapped (Skiko's library beside the jars to Skia's entry, the runtime's and jpackage's to the Java runtime).
+      - name: A101 — the notices inside the AppImage (coverage, notices, natives)
+        if: always() && runner.os == 'Linux'
+        working-directory: app
+        run: |
+          set -uo pipefail
+          t="$RUNNER_TEMP/a101"; rm -rf "$t"; mkdir -p "$t"
+          app="$PWD/troubastage-linux-x86_64.AppImage"
+          [ -s "$app" ] || { echo "::error::no AppImage"; exit 1; }
+          ./gradlew -q :desktopApp:dependencies --configuration runtimeClasspath > "$t/report.txt"
+          ./gradlew -q --no-configuration-cache -I licences/ci/artifact-paths.init.gradle.kts "-Da101.out=$t/artifacts.tsv" :desktopApp:a101ArtifactPaths
+          (cd "$t" && "$app" --appimage-extract >/dev/null)
+          root="$t/squashfs-root/TroubaStage"
+          rc=0
+          python3 -I licences/ci/check-notices.py --name appimage --report "$t/report.txt" --artifacts "$t/artifacts.tsv" \
+            --notices "$root/lib/app/resources/notices" --spdx licences/spdx --manifest licences/native/manifest.txt \
+            --image-jars "$root/lib/app" --image-root "$root" || rc=1
+          echo "AppImage: $(stat -c %s "$app") bytes"
+          exit $rc
+      # A101 — About on the AppImage, under Xvfb as the launch smoke runs it: the row, Ktor, the Java runtime entry (its
+      # legal/ read in place), then every entry opened and timed.
+      - name: A101 — About lists the notices (--about-smoke, the AppImage under Xvfb)
+        if: always() && runner.os == 'Linux'
+        working-directory: app
+        run: |
+          # No errexit (the runner's default is bash -e): a failed smoke must still print its log below.
+          set +e -uo pipefail
+          if [ -e /dev/fuse ] && { command -v fusermount3 || command -v fusermount; } >/dev/null; then echo "running the AppImage through FUSE"
+          else echo "::warning::no FUSE on this runner — extract-and-run"; export APPIMAGE_EXTRACT_AND_RUN=1; fi
+          export TROUBASTAGE_HOME="$RUNNER_TEMP/about-home"; rm -rf "$TROUBASTAGE_HOME"; mkdir -p "$TROUBASTAGE_HOME" "$RUNNER_TEMP/about-run"
+          out="$PWD/about-out-linux"; app="$PWD/troubastage-linux-x86_64.AppImage"; rm -rf "$out"
+          (cd "$RUNNER_TEMP/about-run" && ulimit -c 0 && timeout 200 xvfb-run -a -s "-screen 0 1920x1080x24" "$app" --about-smoke "$out" \
+            > "$RUNNER_TEMP/about-run/output.txt" 2>&1); code=$?
+          echo "---- about-smoke.log (exit $code) ----"; cat "$out/about-smoke.log" 2>/dev/null || true
+          bad=""
+          for n in about-row-shows about-ktor-entry about-java-runtime-entry; do grep -q "A101-CHECK $n: PASS" "$out/about-smoke.log" 2>/dev/null || bad="$bad $n"; done
+          # A101 — the fonts through the configuration this run used (FONTCONFIG_FILE unset: the image's own file, which
+          # rejects bitmap fonts): above zero, and no more than without it. Read through the smoke's byte copy — the
+          # AppImage's mount is gone once it exits — which must be the extracted AppImage's own file.
+          fcline=$(grep -m1 '^A101-FONTCONFIG ' "$out/about-smoke.log"); echo "$fcline"
+          warn=$(grep -m1 'TroubaStage: could not set up fonts without bitmap fonts' "$RUNNER_TEMP/about-run/output.txt")
+          copy="$out/fontconfig-in-use.conf"; shipped="$RUNNER_TEMP/a101/squashfs-root/TroubaStage/lib/app/resources/troubastage-fonts.conf"
+          without=$(fc-list | wc -l); through=0; [ -s "$copy" ] && through=$(FONTCONFIG_FILE="$copy" fc-list | wc -l)
+          same=no; [ -s "$copy" ] && [ -s "$shipped" ] && cmp -s "$copy" "$shipped" && same=yes
+          if [ "${A101_SABOTAGE:-}" = nofontfix ] && echo "$fcline" | grep -q 'sabotage nofontfix'; then fc="SKIP — the fix is off (sabotage nofontfix)"
+          elif [ -z "$warn" ] && echo "$fcline" | grep -q 'FONTCONFIG_FILE unset' && [ "$same" = yes ] && [ "$through" -gt 0 ] && [ "$through" -le "$without" ]; then fc=PASS
+          else fc=FAIL; bad="$bad linux-fonts-through-shipped-config"; fi
+          echo "A101-CHECK linux-fonts-through-shipped-config: $fc — fc-list without the app's file: $without fonts, through it: $through; the file in use is the AppImage's own: $same; stderr warning: [${warn:-none}]"
+          [ -z "$bad" ] && [ "$code" = 0 ] || { echo "::error::A101 About checks not passing: [$bad ] (exit $code)"; tail -20 "$RUNNER_TEMP/about-run/output.txt"; exit 1; }
+          echo "A101: About lists the notices and opens Ktor and the Java runtime"
+      # A101 — Skiko 0.9.22.2 crashes (SIGSEGV in SkTypeface_fontconfig::onOpenStream) when its font fallback opens a
+      # bitmap font. On a machine whose only CJK-capable font is a PCF bitmap, the Java runtime's notices (libpng's
+      # contributors, in Chinese) crashed the app; it now runs with a fontconfig file that rejects non-scalable fonts
+      # (LinuxFontConfig). The repro: a fontconfig with one scalable Latin font and one CJK PCF bitmap (the positive
+      # control prints its Chinese fallback), the AppImage through --appimage-extract-and-run, the Java runtime entry
+      # opened. Sabotage nofontfix (a101_sabotage) turns the fix off and must red this check, by the crash.
+      - name: A101 — a bitmap-only CJK fallback doesn't crash (repro fontconfig)
+        if: always() && runner.os == 'Linux'
+        working-directory: app
+        run: |
+          # No errexit (the runner's default is bash -e): the app's exit code is the measurement, and a crash must print.
+          set +e -uo pipefail
+          r="$RUNNER_TEMP/fc-repro"; rm -rf "$r"; mkdir -p "$r/fonts" "$r/cache" "$r/run"
+          pcf=$(find /usr/share/fonts -name '18x18ja.pcf.gz' 2>/dev/null | head -1)
+          if [ -z "$pcf" ]; then sudo apt-get install -y -q xfonts-base >/dev/null; pcf=$(find /usr/share/fonts -name '18x18ja.pcf.gz' 2>/dev/null | head -1); fi
+          latin=$(fc-match -f '%{file}' 'DejaVu Sans')
+          [ -n "$pcf" ] && [ -n "$latin" ] && cp "$pcf" "$latin" "$r/fonts/"
+          printf '<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">\n<fontconfig>\n  <dir>%s</dir>\n  <cachedir>%s</cachedir>\n</fontconfig>\n' "$r/fonts" "$r/cache" > "$r/repro.conf"
+          fallback=$(FONTCONFIG_FILE="$r/repro.conf" fc-match -s 'sans-serif:lang=zh' | head -3 | tr '\n' ';')
+          echo "positive control — the repro's fonts: [$(ls "$r/fonts" | tr '\n' ' ')]; fc-match -s 'sans-serif:lang=zh' under it: [$fallback]"
+          trigger=$(python3 -I - desktopApp/build/compose/binaries/main/app/TroubaStage/lib/runtime/legal <<'PY'
+          import os, sys
+          for d, _, fs in sorted(os.walk(sys.argv[1])):
+              for f in sorted(fs):
+                  try: t = open(os.path.join(d, f), encoding="utf-8").read()
+                  except Exception: continue
+                  cjk = [c for c in t if 0x4E00 <= ord(c) <= 0x9FFF]
+                  if cjk: print(f"{os.path.relpath(os.path.join(d, f), sys.argv[1])}: {len(cjk)} CJK characters, first U+{ord(cjk[0]):04X}"); sys.exit(0)
+          print("none")
+          PY
+          )
+          echo "the trigger — CJK text in the shipped runtime's legal/: [$trigger]"
+          export TROUBASTAGE_HOME="$RUNNER_TEMP/cjk-home"; rm -rf "$TROUBASTAGE_HOME"; mkdir -p "$TROUBASTAGE_HOME"
+          out="$PWD/about-out-cjk"; app="$PWD/troubastage-linux-x86_64.AppImage"; rm -rf "$out"
+          (cd "$r/run" && ulimit -c 0 && FONTCONFIG_FILE="$r/repro.conf" timeout 200 xvfb-run -a -s "-screen 0 1920x1080x24" \
+            "$app" --appimage-extract-and-run --about-smoke "$out" > "$r/run/stdout.txt" 2>&1); code=$?
+          echo "---- about-smoke.log (exit $code) ----"; cat "$out/about-smoke.log" 2>/dev/null || echo "(none)"
+          echo "---- the app's output, last 40 lines ----"; tail -40 "$r/run/stdout.txt"
+          mkdir -p "$out"; cp "$r/run/stdout.txt" "$out/stdout.txt"; cp "$r/run"/hs_err_pid*.log "$out/" 2>/dev/null || true
+          jre=$(grep -m1 "A101-CHECK about-java-runtime-entry" "$out/about-smoke.log" 2>/dev/null | cut -c1-160)
+          crash=$(grep -m1 -E '^#[[:space:]]+(SIGSEGV|SIGBUS|SIGABRT|SIGILL)' "$r/run/stdout.txt" | tr -s ' ')
+          frame=$(grep -m1 -A1 'Problematic frame' "$r/run/stdout.txt" | tail -1 | tr -s ' ')
+          ok=1
+          echo "$fallback" | grep -q '18x18ja' || { ok=0; echo "::error::the repro's Chinese fallback is not the bitmap font — it reproduces nothing"; }
+          [ "$trigger" != none ] || { ok=0; echo "::error::no CJK text in the runtime's legal/ — nothing to trigger the fallback"; }
+          [ "$code" = 0 ] && echo "$jre" | grep -q PASS && [ -z "$crash" ] || ok=0
+          echo "A101-CHECK linux-cjk-bitmap-font: $([ $ok = 1 ] && echo PASS || echo FAIL) — about-smoke through --appimage-extract-and-run under the repro: exit $code; [$jre]; crash: [${crash:-none}${frame:+ / $frame}]"
+          # A101 — "no crash" alone would also pass if the wrapper loaded no fonts. The wrapper the app wrote (its path from
+          # the smoke's log; it stays, replaced at each launch) must still give the person's fonts, minus the bitmap one.
+          fcline=$(grep -m1 '^A101-FONTCONFIG ' "$out/about-smoke.log"); echo "$fcline"
+          inuse=$(echo "$fcline" | sed -n 's/^A101-FONTCONFIG in-use=\([^ ]*\) .*/\1/p')
+          warn=$(grep -m1 'TroubaStage: could not set up fonts without bitmap fonts' "$r/run/stdout.txt")
+          without=$(FONTCONFIG_FILE="$r/repro.conf" fc-match -s 'sans-serif:lang=zh' | tr '\n' ';')
+          through=""; listed=0
+          if [ -n "$inuse" ] && [ -s "$inuse" ]; then through=$(FONTCONFIG_FILE="$inuse" fc-match -s 'sans-serif:lang=zh' | tr '\n' ';'); listed=$(FONTCONFIG_FILE="$inuse" fc-list | wc -l); fi
+          wok=1
+          if [ "${A101_SABOTAGE:-}" = nofontfix ] && echo "$fcline" | grep -q 'sabotage nofontfix'; then w="SKIP — the fix is off (sabotage nofontfix)"
+          elif [ -z "$warn" ] && echo "$fcline" | grep -q 'a wrapper of FONTCONFIG_FILE=' && echo "$through" | grep -q 'DejaVuSans' \
+              && ! echo "$through" | grep -q '\.pcf' && [ "$listed" -gt 0 ]; then w=PASS
+          else w=FAIL; wok=0; fi
+          echo "A101-CHECK linux-fonts-through-wrapper: $w — in use: [$inuse]; fc-match -s 'sans-serif:lang=zh' without the wrapper: [$without] through it: [$through]; fc-list through it: $listed; stderr warning: [${warn:-none}]"
+          [ $ok = 1 ] && [ $wok = 1 ]
+      # A101 — the programs the app starts on Linux get FONTCONFIG_FILE as it was at launch: the setenv is the app's own
+      # (its file may sit in the AppImage's mount, gone when the app quits). A recorder stands in for xdg-open (first on
+      # PATH) and is the default https handler (for AWT's browse, through GTK); the app opens a link the way Update's link
+      # does (--open-link). Twice: FONTCONFIG_FILE unset, and set to the person's own. Sabotage fontenvleak (the browse
+      # path as it was) must red this check only.
+      - name: A101 — programs the app starts get FONTCONFIG_FILE as at launch
+        if: always() && runner.os == 'Linux'
+        working-directory: app
+        run: |
+          # No errexit (the runner's default is bash -e): each case must report.
+          set +e -uo pipefail
+          if [ -e /dev/fuse ] && { command -v fusermount3 || command -v fusermount; } >/dev/null; then :; else export APPIMAGE_EXTRACT_AND_RUN=1; fi
+          o="$RUNNER_TEMP/open-env"; rm -rf "$o"; mkdir -p "$o/bin" "$o/data/applications" "$o/config"
+          printf '#!/bin/sh\n{ echo "FONTCONFIG_FILE=${FONTCONFIG_FILE-<unset>}"; echo "via=$0"; } >> "$A101_OPEN_RECORD"\n' > "$o/bin/xdg-open"
+          chmod +x "$o/bin/xdg-open"; cp "$o/bin/xdg-open" "$o/bin/a101-https-handler"
+          printf '[Desktop Entry]\nType=Application\nName=A101 recorder\nExec=%s %%u\nMimeType=x-scheme-handler/https;\n' "$o/bin/a101-https-handler" > "$o/data/applications/a101-recorder.desktop"
+          printf '[Default Applications]\nx-scheme-handler/https=a101-recorder.desktop\n' > "$o/config/mimeapps.list"
+          printf '<?xml version="1.0"?>\n<fontconfig>\n  <include ignore_missing="yes">fonts.conf</include>\n</fontconfig>\n' > "$o/own.conf"
+          app="$PWD/troubastage-linux-x86_64.AppImage"; ok=1; detail=""
+          for case in unset own; do
+            rec="$o/record-$case.txt"; : > "$rec"
+            if [ $case = own ]; then launch="$o/own.conf"; set -- FONTCONFIG_FILE="$o/own.conf"; else launch="<unset>"; set --; fi
+            env -u FONTCONFIG_FILE -u DBUS_SESSION_BUS_ADDRESS PATH="$o/bin:$PATH" XDG_DATA_HOME="$o/data" XDG_CONFIG_HOME="$o/config" \
+              XDG_DATA_DIRS="$o/data:/usr/share" A101_OPEN_RECORD="$rec" TROUBASTAGE_HOME="$RUNNER_TEMP/open-home-$case" "$@" \
+              timeout 60 xvfb-run -a -s "-screen 0 1280x800x24" "$app" --open-link "https://example.invalid/a101" > "$o/out-$case.txt" 2>&1
+            for i in 1 2 3 4 5 6 7 8; do [ -s "$rec" ] && break; sleep 1; done
+            got=$(sed -n 's/^FONTCONFIG_FILE=//p' "$rec" | head -1); via=$(sed -n 's/^via=//p' "$rec" | head -1)
+            how=$(grep -m1 'open-link:' "$o/out-$case.txt")
+            [ -s "$rec" ] && [ "$got" = "$launch" ] || ok=0
+            detail="$detail $case: launch [$launch] → recorded [${got:-nothing}] by [${via:-none}] ($how);"
+          done
+          echo "A101-CHECK linux-child-fontconfig-env: $([ $ok = 1 ] && echo PASS || echo FAIL) —$detail"
+          [ $ok = 1 ]
+      - name: A101 — upload the Linux About captures
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: a101-about-linux
+          path: |
+            app/about-out-linux/*.png
+            app/about-out-linux/about-smoke.log
+            app/about-out-linux/fontconfig-in-use.conf
+            app/about-out-cjk/*.png
+            app/about-out-cjk/*.log
+            app/about-out-cjk/stdout.txt
+          if-no-files-found: ignore
       - name: upload AppImage + smoke PNG
         if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@v7
@@ -1358,6 +1612,10 @@ jobs:
     name: desktop (macos)
     runs-on: macos-latest
     timeout-minutes: 45
+    # A101: empty on push/PR; set by a sabotage dispatch (the a101_sabotage input).
+    env:
+      ORG_GRADLE_PROJECT_a101Sabotage: ${{ github.event.inputs.a101_sabotage }}
+      A101_SABOTAGE: ${{ github.event.inputs.a101_sabotage }}
     steps:
       - uses: actions/checkout@v7
       # Two JDKs: the x64 one builds the Intel app under Rosetta; the arm64 one (set up last) is JAVA_HOME.
@@ -1470,6 +1728,48 @@ jobs:
           [ "$root" = "$HOME/Library/Application Support/TroubaStage" ] || { echo "::error::data root is [$root]"; fail=1; }
           echo "data root (no override): $root"
           exit $fail
+      # A101 — the notices inside the universal app, checked independently of the generator (its one app/ folder holds
+      # both Skiko libraries, both runtimes' legal/ are read in place).
+      - name: A101 — the notices inside the macOS app (coverage, notices, natives)
+        if: always()
+        working-directory: app
+        run: |
+          set -uo pipefail
+          t="$RUNNER_TEMP/a101"; rm -rf "$t"; mkdir -p "$t"
+          U="$RUNNER_TEMP/universal/TroubaStage.app"
+          ./gradlew -q :desktopApp:dependencies --configuration runtimeClasspath > "$t/report.txt"
+          ./gradlew -q --no-configuration-cache -I licences/ci/artifact-paths.init.gradle.kts "-Da101.out=$t/artifacts.tsv" :desktopApp:a101ArtifactPaths
+          python3 -I licences/ci/check-notices.py --name macos --report "$t/report.txt" --artifacts "$t/artifacts.tsv" \
+            --notices "$U/Contents/app/resources/notices" --spdx licences/spdx --manifest licences/native/manifest.txt \
+            --image-jars "$U/Contents/app" --image-root "$U"
+      # A101 — About on the universal app (natively): the row, Ktor, the Java runtime entry, every entry opened and timed.
+      - name: A101 — About lists the notices (--about-smoke, the universal app)
+        if: always()
+        working-directory: app
+        run: |
+          # No errexit (the runner's default is bash -e): a failed smoke must still print its log below.
+          set +e -uo pipefail
+          U="$RUNNER_TEMP/universal/TroubaStage.app"
+          export TROUBASTAGE_HOME="$RUNNER_TEMP/about-home"; rm -rf "$TROUBASTAGE_HOME"; mkdir -p "$TROUBASTAGE_HOME" "$RUNNER_TEMP/about-run"
+          out="$PWD/about-out-macos"
+          (cd "$RUNNER_TEMP/about-run" && "$U/Contents/MacOS/TroubaStage" --about-smoke "$out") & pid=$!
+          for i in $(seq 1 200); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+          if kill -0 $pid 2>/dev/null; then kill -9 $pid; echo "::error::about-smoke hung"; exit 1; fi
+          wait $pid; code=$?
+          echo "---- about-smoke.log (exit $code) ----"; cat "$out/about-smoke.log" 2>/dev/null || true
+          bad=""
+          for n in about-row-shows about-ktor-entry about-java-runtime-entry; do grep -q "A101-CHECK $n: PASS" "$out/about-smoke.log" 2>/dev/null || bad="$bad $n"; done
+          [ -z "$bad" ] && [ "$code" = 0 ] || { echo "::error::A101 About checks not passing: [$bad ] (exit $code)"; exit 1; }
+          echo "A101: About lists the notices and opens Ktor and the Java runtime"
+      - name: A101 — upload the macOS About captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: a101-about-macos
+          path: |
+            app/about-out-macos/*.png
+            app/about-out-macos/about-smoke.log
+          if-no-files-found: ignore
       - name: the DMG — one app for Apple silicon and Intel Macs (DESK02)
         working-directory: app
         run: |

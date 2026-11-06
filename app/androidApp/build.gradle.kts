@@ -88,3 +88,16 @@ dependencies {
     // no way to run a test at all. Same kotlin-test the shared module uses.
     testImplementation(kotlin("test"))
 }
+
+// A101 — the open-source notices of every component this variant ships, generated from its resolved runtime
+// classpath (AARs and jars) into the APK's assets (notices/index.txt + notices/texts/*), read by About → Licences.
+androidComponents {
+    onVariants { variant ->
+        val name = "openSourceNotices" + variant.name.replaceFirstChar { it.uppercase() }
+        val notices = troubastack.notices.NoticesSetup.register(
+            project, name, variant.runtimeConfiguration, arrayOf("aar", "jar"), "android", "notices",
+            rootProject.file("licences"),
+        )
+        variant.sources.assets?.addGeneratedSourceDirectory(notices, troubastack.notices.OpenSourceNotices::getOutputDir)
+    }
+}

@@ -1,0 +1,8 @@
+# A101 — how a POM's <license> (its "name <url>", lower-cased) maps to an SPDX id: the first row whose text is a
+# substring of it wins. A POM licence no row matches FAILS the build (naming the component), so a new kind of licence
+# is added here once, on purpose; a new component with a known licence needs nothing.
+apache.org/licenses/license-2.0	Apache-2.0
+gnu.org/licenses/old-licenses/lgpl-2.1	LGPL-2.1-or-later
+opensource.org/licenses/mit	MIT
+eclipse.org/legal/epl-2.0	EPL-2.0
+chromium.googlesource.com/libyuv	BSD-3-Clause

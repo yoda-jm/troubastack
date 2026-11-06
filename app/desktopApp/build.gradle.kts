@@ -115,7 +115,13 @@ abstract class SwtLicences : DefaultTask() {
             val copied = zip.entries().asSequence().filter { !it.isDirectory && (it.name == "about.html" || it.name.startsWith("about_files/")) }.toList()
             check(copied.any { it.name == "about.html" }) { "no about.html in $jar" }
             for (e in copied) dir.resolve(e.name).apply { parentFile.mkdirs() }.writeBytes(zip.getInputStream(e).use { it.readBytes() })
-            dir.resolve("SWT-about.txt").writeText(htmlToText(dir.resolve("about.html").readText()))
+            val aboutHtml = dir.resolve("about.html").readText()
+            // A101 §4 — the notice's third-party sentence is written here; fail if this SWT's about.html no longer
+            // names each component it names, so an SWT bump can't leave the sentence stale.
+            for ((_, named) in THIRD_PARTY) check(aboutHtml.contains(named)) {
+                "$jar's about.html no longer names \"$named\", which SWT-NOTICE.txt's third-party sentence names: re-read it and update THIRD_PARTY"
+            }
+            dir.resolve("SWT-about.txt").writeText(htmlToText(aboutHtml))
             val wrong = sabotage.get() == "licencewrongversion"
             dir.resolve("SWT-NOTICE.txt").writeText(notice(
                 if (wrong) "3.0.0" else swtVersion.get(), if (wrong) "3.0.0.v00000000-0000" else bundleVersion))
@@ -141,16 +147,30 @@ abstract class SwtLicences : DefaultTask() {
             |and in the SWT project's repository:
             |  https://github.com/eclipse-platform/eclipse.platform.swt
             |
-            |SWT itself includes third-party content: the Independent JPEG Group's JPEG software, code from PuTTY,
-            |and Microsoft's WebView2 loader. SWT's own notice for it is about.html (also as plain text, SWT-about.txt),
-            |with the texts it refers to in about_files/. They sit beside this file, copied unchanged from the SWT jar in
-            |this app.
+            |SWT itself includes third-party content: ${THIRD_PARTY.joinToString(", ", limit = THIRD_PARTY.size - 1, truncated = "") { it.first }}and ${THIRD_PARTY.last().first}.
+            |SWT's own notice for it is about.html (also as plain text, SWT-about.txt), with the texts it refers to in
+            |about_files/. They sit beside this file, copied unchanged from the SWT jar in this app.
             |""".trimMargin()
     }
 
-    /** about.html as readable text: block ends become line breaks, tags go, the few entities it uses are decoded. */
+    private companion object {
+        /** The notice's third-party sentence (its words) and what this SWT's about.html must name for each. */
+        val THIRD_PARTY = listOf(
+            "the Independent JPEG Group's JPEG software" to "Independent JPEG Group",
+            "code from PuTTY" to "PuTTY",
+            "Microsoft's WebView2 loader" to "WebView2",
+        )
+    }
+
+    /** about.html as readable text: block ends become line breaks, a link keeps its target ("text (url)" when the text
+     *  is not the url itself — A101 §4), tags go, the few entities it uses are decoded. */
     private fun htmlToText(html: String): String = html
         .replace(Regex("(?is)<head.*?</head>"), "")
+        .replace(Regex("(?is)<a\\s[^>]*?href=\"([^\"]+)\"[^>]*>(.*?)</a>")) { m ->
+            val url = m.groupValues[1].trim()
+            val text = m.groupValues[2].replace(Regex("<[^>]*>"), "").trim()
+            if (text.isEmpty() || text == url) url else "$text ($url)"
+        }
         .replace(Regex("(?i)<br\\s*/?>"), "\n")
         .replace(Regex("(?i)</(p|h[1-6]|li|div|tr|pre|ul|ol)>"), "\n\n")
         .replace(Regex("<[^>]*>"), "")
@@ -177,13 +197,34 @@ if (isWindowsHost) {
     }
 }
 
+// A101 — the open-source notices of every component this image ships, generated from the resolved runtimeClasspath
+// into `common/notices/` (every OS), read by About → Licences. The app-resources root is ONE folder, so a Sync task
+// assembles it: these notices, plus S2.8's `windows/licences/` on a Windows host.
+val desktopPlatform = when {
+    isWindowsHost -> "windows"
+    System.getProperty("os.name").startsWith("Mac") -> "macos"
+    else -> "linux"
+}
+val openSourceNotices = troubastack.notices.NoticesSetup.register(
+    project, "openSourceNotices", configurations.getByName("runtimeClasspath"), arrayOf("jar"), desktopPlatform,
+    "common/notices", rootProject.file("licences"),
+)
+val appResources = tasks.register<Sync>("appResources") {
+    from(openSourceNotices.flatMap { it.outputDir })
+    if (isWindowsHost) from(tasks.named<SwtLicences>("swtLicences").flatMap { it.outDir })
+    // A101 — Linux: the fontconfig file without bitmap fonts (LinuxFontConfig), in the Linux image only.
+    from(layout.projectDirectory.dir("fonts")) { into("linux") }
+    into(layout.buildDirectory.dir("app-resources"))
+}
+
 compose.desktop {
     application {
         mainClass = "com.troubastack.desktop.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
-            // WIN08 S2.8 — SWT's licences (above): its `windows/` folder reaches the Windows app image only.
-            if (isWindowsHost) appResourcesRootDir.set(tasks.named<SwtLicences>("swtLicences").flatMap { it.outDir })
+            // WIN08 S2.8 + A101 — the assembled app-resources root (above): `common/` reaches every image, `windows/`
+            // (SWT's licences) the Windows image only.
+            appResourcesRootDir.set(layout.dir(appResources.map { it.destinationDir }))
             // WIN03 — the JDK modules the packaged runtime needs beyond Compose's default: the first three are what
             // `./gradlew :desktopApp:suggestRuntimeModules` reports for the shared app (ktor, coroutines); jdk.crypto.ec
             // is loaded as a security provider, which jdeps cannot see, and HTTPS needs it (servers, GitHub for WIN04).

@@ -121,6 +121,16 @@ class AndroidAppPlatform(private val activity: MainActivity) : AppPlatform {
 
     override val defaultServerUrl: String = DEFAULT_SERVER_URL
 
+    /** A101 — the open-source notices the build generated into the APK's assets (notices/), for About → Licences.
+     *  null if the assets are missing (never in a built APK), so About shows no line. */
+    override val licences: ShippedLicences? = runCatching {
+        val assets = context.assets
+        val index = assets.open("notices/index.txt").bufferedReader().use { it.readText() }
+        ShippedLicences(OPEN_SOURCE_LINE) {
+            parseNotices(index) { id -> runCatching { assets.open("notices/texts/$id.txt").bufferedReader().use { it.readText() } }.getOrNull() }
+        }
+    }.getOrNull()
+
     companion object {
         /** The host machine, seen from the Android emulator: Android's one source for the starting server address
          *  (Connect and the Studio editor). On a real tablet LAN discovery fills the field instead. */

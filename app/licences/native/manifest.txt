@@ -1,0 +1,27 @@
+# A101 — the native code a component carries, and its texts. Columns: group:artifact (a trailing * matches any suffix),
+# the version it was checked for, the entry it belongs to, the OSes it ships on (all / linux / windows / macos /
+# android, comma-separated), the text file here, its title. The build FAILS if a listed component resolves at another
+# version, so a bump re-checks what its native library bundles.
+#
+# Skiko 0.9.22.2 = Skia m132 (a00c390e98b1a8741f11774c742ff60d767365ac), built by JetBrains skia-pack m132-a00c390e98-1:
+# skia-pack sets skia_use_system_*=false for expat, libjpeg-turbo, libpng, libwebp, zlib, freetype2, harfbuzz, icu, and
+# skia_use_direct3d=true on Windows; the rest are Skia's gn/skia.gni defaults. See README.md for the table of which
+# source decided each library and what `strings` on each OS's library confirmed.
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	skia.LICENSE	Skia (BSD-3-Clause)
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux	freetype.CREDIT.txt	FreeType (used under the FTL)
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux	freetype.FTL.TXT	The FreeType Project License
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	harfbuzz.COPYING	HarfBuzz
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	icu.LICENSE	ICU (Unicode License V3 and ICU's third-party licences)
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	libjpeg-turbo.LICENSE.md	libjpeg-turbo
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	libjpeg-turbo.README.ijg	The Independent JPEG Group's JPEG software (in libjpeg-turbo)
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	libpng.LICENSE	libpng
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	libwebp.COPYING	libwebp
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	libwebp.PATENTS	libwebp's patent grant
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	wuffs.LICENSE	Wuffs (Apache-2.0)
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	zlib.LICENSE	zlib (Chromium's)
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	expat.COPYING	Expat
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,windows,macos	dng_sdk.LICENSE	Adobe DNG SDK
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	linux,macos	piex.LICENSE	piex (Apache-2.0)
+org.jetbrains.skiko:skiko-awt-runtime-*	0.9.22.2	Skia graphics (in Skiko)	windows	d3d12allocator.LICENSE.txt	D3D12 Memory Allocator
+net.java.dev.jna:jna	5.17.0	libffi (in JNA)	linux,windows,macos	jna-libffi.LICENSE	libffi
+androidx.camera:camera-core	1.4.1	libyuv (in CameraX)	android	libyuv.LICENSE	libyuv

@@ -129,6 +129,8 @@ private fun AppRoot(onDraw: () -> Unit = {}) {
 private var windowDrew = false
 
 fun main(args: Array<String>) {
+    // A101 — Linux: fontconfig without bitmap fonts, before AWT or Skia loads any font (see LinuxFontConfig).
+    LinuxFontConfig.apply()
     if (isWindows()) {
         // NB: WIN08 does NOT set compose.layers.type=WINDOW. Making ALL Compose popups separate windows stole window
         // activation from the frame on every tooltip/dialog (the frame's title bar went inactive) and drew over the
@@ -312,6 +314,16 @@ fun main(args: Array<String>) {
         val code = runner.runContextMenu(File(outDir))
         if (code != 0) exitProcess(code)
         return
+    }
+    // A101 — opens a link the way Update's link does (openUrl), then waits for the opener to finish (≤ 15 s): the Linux
+    // CI puts a stand-in xdg-open first on PATH that records the FONTCONFIG_FILE it was given.
+    val openIdx = args.indexOf("--open-link")
+    if (openIdx >= 0) {
+        val url = args.getOrNull(openIdx + 1) ?: run { System.err.println("--open-link needs a URL"); exitProcess(2) }
+        val p = openUrl(url)
+        val done = p?.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)
+        println("open-link: ${if (p == null) "opened without a process of ours (AWT's browse)" else "opener exited=${if (done == true) p.exitValue() else "no (still running)"}"}")
+        exitProcess(0)
     }
     // WIN08 S2.8 — the About smoke (`--about-smoke <outDir>`): Parameters → About's licences line and the Licences
     // screen, driven through the window's accessibility tree on the packaged image.

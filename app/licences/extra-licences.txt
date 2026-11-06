@@ -1,0 +1,3 @@
+# A101 — a licence a component's own shipped file names but its POM does not. Keyed by the exact group:artifact:version
+# checked; the build FAILS if that component resolves at another version, until the row is checked again.
+com.squareup.okhttp3:okhttp:4.12.0	MPL-2.0	publicsuffixes.gz (the Public Suffix List)

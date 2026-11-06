@@ -1,0 +1,3 @@
+# A101 — a component whose texts live in an entry of their own, built elsewhere: it keeps its components line (so the
+# coverage check sees it) but gets no entry here. Keyed by group:artifact.
+org.eclipse.platform:org.eclipse.swt.win32.win32.x86_64	SWT (WIN08 S2.8, resources/licences, Windows only)

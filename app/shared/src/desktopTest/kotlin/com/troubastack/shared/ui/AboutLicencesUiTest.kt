@@ -57,6 +57,27 @@ class AboutLicencesUiTest {
     }
 
     @Test
+    fun severalEntries_fromTheNoticesIndex_eachOpensWithItsTexts() = runComposeUiTest {
+        // A101 — the generated list: several families, each with its components and licence; one opened at a time.
+        val entries = com.troubastack.app.parseNotices(
+            "entry\tKtor\ncomponent\tio.ktor:ktor-io-jvm:3.0.3\tApache-2.0\tApache-2.0\t\ndoc\tApache License 2.0\ta\n" +
+                "entry\tOkHttp and Okio\ncomponent\tcom.squareup.okhttp3:okhttp:4.12.0\tApache-2.0,MPL-2.0\tApache-2.0; MPL-2.0\tn\ndoc\tokhttp: NOTICE\tn\n" +
+                "entry\tSkia graphics (in Skiko)\ncarrier\torg.jetbrains.skiko:skiko-awt-runtime-linux-x64:0.9.22.2\ndoc\tSkia (BSD-3-Clause)\ts\n",
+        ) { mapOf("a" to "Apache License text", "n" to "publicsuffixes.gz is MPL-2.0", "s" to "Copyright (c) 2011 Google Inc.")[it] }
+        var opened by mutableStateOf<LicenceEntry?>(null)
+        licences(entries, { opened }, { opened = it }, {})
+        for (name in listOf("Ktor", "OkHttp and Okio", "Skia graphics (in Skiko)")) onNode(hasText(name) and hasClickAction()).assertExists()
+        onNode(hasText("OkHttp and Okio") and hasClickAction()).performClick()
+        onNodeWithText("publicsuffixes.gz is MPL-2.0", useUnmergedTree = true).assertExists()
+        onNodeWithText("com.squareup.okhttp3:okhttp 4.12.0 — Apache-2.0; MPL-2.0", useUnmergedTree = true).assertExists()
+        onAllNodes(hasText("Apache License text"), useUnmergedTree = true).assertCountEquals(0)   // only the opened entry's texts
+        onNode(hasText("‹  Back") and hasClickAction()).performClick()
+        onNode(hasText("Skia graphics (in Skiko)") and hasClickAction()).performClick()
+        onNodeWithText("Copyright (c) 2011 Google Inc.", useUnmergedTree = true).assertExists()
+        onNodeWithText("org.jetbrains.skiko:skiko-awt-runtime-linux-x64 0.9.22.2", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
     fun theLicencesScreen_listsEntries_opensOne_andBackStepsToTheListFirst() = runComposeUiTest {
         val swt = LicenceEntry("SWT 3.134.0", listOf(LicenceDocument("SWT in this app", "Version: 3.134.0"), LicenceDocument("Eclipse Public License 2.0", "Eclipse Public License - v 2.0")))
         var opened by mutableStateOf<LicenceEntry?>(null)

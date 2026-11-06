@@ -1,0 +1,16 @@
+# A101 — which entry of the Licences screen a component is filed under: the first row whose prefix starts its
+# "group:artifact" wins. A component no row matches gets an entry of its own, named from its POM <name> (else its
+# artifact). The rows only file components; coverage is checked per component, so a wrong row can misfile, never hide.
+androidx.	AndroidX
+org.jetbrains.compose.	Compose Multiplatform
+org.jetbrains.androidx.	Compose Multiplatform
+org.jetbrains.kotlinx:	Kotlin and kotlinx
+org.jetbrains.kotlin:	Kotlin and kotlinx
+org.jetbrains:annotations	Kotlin and kotlinx
+org.jetbrains.skiko:	Skiko
+io.ktor:	Ktor
+com.squareup.okhttp3:	OkHttp and Okio
+com.squareup.okio:	OkHttp and Okio
+com.google.zxing:	ZXing
+net.java.dev.jna:	JNA
+org.jetbrains.runtime:jbr-api	JetBrains Runtime API
