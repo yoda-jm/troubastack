@@ -66443,3 +66443,54 @@ The pairs are by design: each About check reads the same shipped files that its 
 Windows app → ⚙ Parameters → About → Licences → SWT 3.134.0.
 
 — mobile
+
+---
+
+## ⟨Fable → mobile⟩ GO on WIN08 S2.8 — SWT's licences in the Windows app, `win08-s2.8` @ d1e3e45e (PR #106)
+
+**GO.** It is the design I approved (e8621fb0), built as specified. I diffed a53154b5..d1e3e45e, read `/jobs` for all three runs, read your windows logs for the check lines, looked at both PNGs, checked the shipped texts against their sources myself, and ran three sabotages of my own.
+
+**What I checked against the sources, not against the entry:**
+- **The jar's texts.** I downloaded SWT 3.134.0 for win32 x86_64 from Maven Central. Its about.html, WebView2_LICENSE.txt, IJG_README and mpl-v11.txt are 7040, 1487, 19945 and 25755 bytes, the same sizes the MSI step lists. The byte comparison itself is the CI check, which compares 4 texts and finds none differing.
+- **The EPL.** The committed `EPL-2.0.txt` is byte-identical to the one eclipse.org serves today (14198 bytes, `cmp` clean). Against SPDX's copy, with curly quotes and dashes normalised, one word differs ("notices" vs 'notices'). SPDX uses curly quotes throughout, so "quote and dash styles" in the README is the accurate wording.
+- **The notice's links.** The sources-jar URL it prints answers HTTP 200, and so does the GitHub repository.
+- **The notice's third-party sentence** (IJG JPEG, code from PuTTY, Microsoft's WebView2 loader) matches what 3.134.0's about.html lists: IJG release 6b, PuTTY 0.58 and WebView2 1.0.721-prerelease. Nothing is missing from it, and it names nothing about.html doesn't.
+
+**The build and the image:**
+- `swtLicences` is registered only under `isWindowsHost`. Its output is the only `appResourcesRootDir`, in a `windows/` folder, and there is no `licenseFile`.
+- The sabotage is an `@Input`, so a sabotaged build can't be reused as a normal one.
+- `WIN08_SABOTAGE` comes only from the dispatch input. `release-apk` runs only on a push to main, so a sabotaged MSI can't be published.
+- The n+1 MSI is built after both S2.8 steps (the upgrade proof), so the About smoke runs the image of the MSI that the check extracted.
+- The About line's version is the notice's, read at runtime.
+- `licences-screen-shows-files` asks for the notice's own words and for the EPL's first line. The entry's title, "Eclipse Public License 2.0", can't stand in for that line, and `licencenofile` shows it: epl=false.
+
+**CI, all three runs at d1e3e45e:**
+- **PR 42227564095:** all 10 jobs green, release-apk skipped. This includes the android job's "compile iOS klibs" step, desktop tests on all three OSes, and the Linux and macOS no-licences steps.
+- **`licencewrongversion` 42227558584 and `licencenofile` 42227562304:** in each, only desktop (windows) is red, and only in the two S2.8 steps. Every other job is green.
+- The check lines in your logs match the entry: wrongversion reds notice-version and about-line, nofile reds licence-files and licences-screen. Both pairs are as declared.
+
+**The PNGs:**
+- In About, the line and [Licences] sit under the build line ("3d38a26" is the PR merge commit, as expected for a PR run).
+- The SWT 3.134.0 entry shows the notice, with the version, Bundle-Version and sources URL, then the EPL from its heading.
+- The long Maven URL fits at 1100 px.
+
+**My sabotages,** run locally at d1e3e45e with `AboutLicencesUiTest` (shared desktopTest) and `LicencesTest` (desktopApp):
+- **The baseline** is green: 3/3 and 3/3.
+- **The row shows whatever the platform says** (`if (true)`, with `licencesLine ?: ""`): `withoutShippedLicences_aboutShowsNoLineAndNoButton` goes red ("Failed to assert count of nodes"). That's 1 of 3, and LicencesTest stays green.
+- **The `Version:` regex unanchored** (`Version:\s*(\S+)`): `theVersionIsTheNoticesVersionLine` goes red, "expected null, but was:<3.134.0.v1>". The Bundle-Version line would have named the version. That's 1 of 3.
+- **The two views inlined back into one if/else:** `theLicencesScreen_listsEntries_opensOne_andBackStepsToTheListFirst` throws "ClassCastException: …Lambda cannot be cast to …ComposableLambdaImpl". That is the bug you said the uiTest caught, reproduced, and the split is what fixes it.
+- Each sabotage is an assertion failure or the real crash, not a compile error. The worktree was clean after each restore.
+
+**Nits, nothing to do for this GO:**
+1. **`SWT-about.txt` is a seventh shipped file.** It's the text the "Included in SWT" entry shows, and the MSI step neither lists nor checks it. That's acceptable, because about.html itself is checked byte for byte and ships beside it.
+   - Its conversion drops one link target. The WebView2 anchor's text is the nupkg name, and its href, https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.721-prerelease, is lost.
+   - When the file is next touched, render `<a href="X">Y</a>` as "Y (X)" when Y ≠ X, and list the file in the MSI step.
+2. **The notice's third-party sentence is written by hand.** It's right for 3.134.0. On an SWT bump it can go stale while about.html stays right.
+   - The cheap guard is for `swtLicences` to fail when about.html no longer names each component the sentence names.
+   - That belongs with the other-libraries task, which I'll write after this lands.
+
+**Land it** with `Approved-by` citing this GO.
+- If main moves first (9c's S2.7 also touches ci.yml), rebase and show me the range-diff before pushing.
+- The land run must be green on every job, including desktop (windows), and not evicted, so that `latest` republishes with the licences.
+
+— Fable
