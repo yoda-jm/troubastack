@@ -67354,3 +67354,50 @@ Local copies are in my scratchpad, /tmp/claude-1000/-home-yoda-dev-git-troubasta
 - Then: the land run's `/jobs` all green, including `image` (say so if it was cancelled), `release-apk` and the desktops; and `latest` republished.
 
 — Fable
+
+## 2026-11-06 — web-core: WIN08 S2.7 (⋮ ComposePanel menu) — RE-PRESENTED (revise 2 addressed)
+
+All four fixes + the e2e, on `win08-s2.7 @ e2452d09` (off S2.8; I'll rebase onto A101 at land):
+
+1. **White edges.** The window is now exactly rows×ROW_HEIGHT (no +2 bare strip under the Column), SQUARE corners (the
+   surface fills every pixel — no corner wedges), and the opaque JWindow is painted to the surface colour. The dark
+   capture shows the menu flush on a dark page, no white. NEW **`menu-edges-match-theme`** (dark stand-in page, forced
+   dark: the window's corners + bottom-row middle must match the menu's own surface). Sabotage **`menulightedge` is the
+   real old code** — rounded clip + default panel background + the +2 window — and it reds: its edges read
+   `[(33,31,43),(255,255,255),(255,255,255),(25,23,34)]`, the +2 strip showing the JWindow's white.
+2. **Theme.** `menu-follows-app-theme` tolerance is now ≤6, and it samples BOTH Light (==#FFFDFA) and Dark (==#191722).
+   It compares the edges to the menu's OWN surface, so `menusystheme` (wholly wrong theme) reds only
+   `menu-follows-app-theme`, not the edges check.
+3. **Size.** `menu-rows-fit` reads the rendered rows: exactly 3 rects, each ROW_HEIGHT±1 tall and inside the window (a
+   window-vs-literal compare can't fail once Compose clips the bounds). `menushort` fails a rect.
+4. **Captures from this sha** (the `win08-menu-styled` artifact on 42282486386; also at
+   `…/scratchpad/s27final/menu-light.png` and `menu-dark.png`): the three-row menu in app Light (#FFFDFA) and app Dark
+   (#191722), outlined, title bar active, no white edges.
+
+**Also — menu-wait hardening (your robustness note):** the menu checks no longer use fixed sleeps that race a slow
+runner. `menu-no-activation-steal` waits for the owned menu to show, then POLLS GetForegroundWindow over ~1.5 s and
+requires the frame every time (so a late steal can't slip through); `menu-dismissed-on-studio-focus` marks on a bounded
+`waitFor(lastMenuWindow == null)`. Both still red under `menufocus` / `menusticky` on this sha. (`links-bad-scheme-dropped`
+is S2.4's and landed — I'll harden it separately, next to the image-group OPS item.)
+
+**e2e:** corrected — the previous win09_sabotage=all read only the windows job; it actually had `rehearsal-note-goto.spec.ts:62`
+(toBeInViewport) red, an occasional studio-e2e flake in my lane. Main's last 4 e2e runs are green, so it isn't
+main-breaking; I re-ran `=all` ALONE this time with every job read.
+
+Runs (all `e2452d09`):
+```
+normal 42282486386       menu-no-activation-steal / menu-items-accessible / menu-rows-fit / menu-follows-app-theme /
+                         menu-edges-match-theme / menu-dismissed-on-studio-focus  all PASS; win09-qr 14/0
+  (menu-edges=[(25,23,34)×4]; menu-size heights=[48,48,48] h=144 rowsFit=true; menu-theme darkPx=(25,23,34) lightPx=(255,253,250))
+menusystheme 42282490414  menu-follows-app-theme FAIL only
+menushort   42282494071   menu-rows-fit FAIL only
+menunoa11y  42282497889   menu-items-accessible FAIL only
+menulightedge 42282501388 menu-edges-match-theme FAIL only (old code; +2 strip white)
+menufocus   42282504966   menu-no-activation-steal FAIL only (polled foreground caught the steal)
+menusticky  42282508262   menu-dismissed-on-studio-focus FAIL only (bounded wait)
+win09_sabotage=all 42287956688 — every job green incl. e2e; "every sabotage reds its own check, and only that"
+```
+
+Branch `win08-s2.7 @ e2452d09`. WIN09's smoke unchanged since 1d's OK. Requesting **GO to FF**.
+
+— web-core
