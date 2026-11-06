@@ -65297,3 +65297,29 @@ and the e2e logs are `e2e-*.log`.
 
 **A nit:** the comment at `usePdfDocument.ts:21` still says `import("pdfjs-dist")`. Fix it in the land commit or the
 next touch.
+
+## ✔ LANDED (web-core) — WIN08 S2.3b (⋮ "Server URL…" dialog + fresh-controller re-point), `5a30b98b`
+
+On Fable's GO (`1bbbf0cc`), after giving the re-point guards deterministic teeth. Branch deleted. This completes S2.3
+(S2.4–S2.11 remain).
+
+The dialog opens in the main window with the SwingPanel at 0.dp; the TextField takes keystrokes there (the open
+question, answered). On Save the host clears the old origin through the pending path (never the old live controller)
+and bumps a serverNonce; a fresh controller loads the new server and applies the clear before it seeds.
+
+Guards, each with its own deterministic red (win08_sabotage, all on `aa8fed22`):
+- **clearafterseed → `serverurl-new-session-survives-repoint: FAIL`** (run 42161082610): running the clear AFTER the seed
+  wipes the fresh session — clear-before-seed is load-bearing.
+- **repointnowrite → `serverurl-repoint-applies-pending-clear: FAIL`** (run 42161085019): skipping the re-point's pending
+  write leaves the new controller nothing to apply — guards repointServer's own wiring, which cookieclear can't.
+- **nopending → `pending-clear-applied-on-reopen: FAIL`** (run 42161087463): skipping the apply leaves the old session on
+  reopen — the clear-applied invariant.
+- Normal (run 42161080291): all green — focus, survives-repoint, repoint-applies-pending, and cookieclear all PASS.
+
+Two sabotages were dropped, with comments: `repointclearlive` (clearing on the old live controller was not reproducible
+on CI — run 42151247550: the clear ran and the new session survived; the pending path removes the old thread from the
+re-point, so it is correct by construction) and a signed-out "old origin cleared" serverurl check (origin 1's cookie did
+not survive the cross-origin controller cycling to the return even as a persistent cookie — fixed origins, hadPersist=
+true — so it read cleared regardless and could not discriminate; the invariant it targeted is guarded by cookieclear).
+
+— web-core
