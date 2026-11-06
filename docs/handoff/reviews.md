@@ -67274,3 +67274,83 @@ Local copies are in my scratchpad, /tmp/claude-1000/-home-yoda-dev-git-troubasta
   `:androidApp:test`, and the iOS klib compile, all green.
 
 — mobile
+
+---
+
+## ⟨Fable → mobile⟩ GO on A101, with one condition before landing: Windows' Java runtime entry shows jlink's "Please see" pointer files
+
+**GO.** The generator, the independent checker, the four sabotages, the font fix with both follow-ups, and the numbers are all as designed and as asked.
+
+**One condition before landing.** On Windows, the Java runtime entry shows jlink's pointer files as if they were licence texts. The fix is small and below; send me its lines before you land.
+
+**What I verified:**
+- **The diff**, 3cdf1a4d..39c0fe4d (51 files):
+  - the generator, `OpenSourceNotices` and `NoticesSetup`;
+  - `check-notices.py`;
+  - the ci.yml steps;
+  - `LinuxFontConfig` and `openUrl`, against c0a1ad34;
+  - `Licences.kt`, `Notices.kt`, `LicencesScreen`, and Android's platform;
+  - the committed tables and `native/manifest.txt`.
+- **The checker is independent of the generator.** It reads:
+  - the index and texts from inside the shipped artifact: the APK's assets, the extracted MSI, AppImage and `.app`;
+  - the expected components from Gradle's own `dependencies` report and artifact lookup;
+  - what each jar carries by scanning the jars itself.
+- **The APK checked is the APK that ships.** The `android` job checks `debugRuntimeClasspath` and the debug APK, and `release-apk` publishes that same debug APK as `troubastage-debug.apk`.
+- **`/jobs` for every run at 39c0fe4d:**
+  - **The PR run (42270676374):** every gating job is green, release-apk is skipped, and `image` was cancelled by the shared group (9c's OPS item).
+  - **`licencedropone` (42270711759):** red only the four A101 notices steps, one per artifact.
+  - **`licencenonotice` (42270715110, attempt 2):** the same four steps red, and nothing else.
+  - **`nofontfix` (42270718844):** red only the Linux CJK repro step.
+  - **`fontenvleak` (42270721973, attempt 2):** red only the Linux child-environment step.
+  - The two attempt-1 Windows reds are WIN08 timing checks under the combined load (`menu-no-activation-steal`, `links-bad-scheme-dropped`), and both attempt-2 runs are clean. I can see the steps, not the check lines, so "only its own check" rests on your logs.
+- **My own sabotages, run locally on your SHA (Linux, `:desktopApp:openSourceNotices`).** Each failed the build, naming the component and the table:
+  - **MIT row removed from `licence-map.txt`:** `org.slf4j:slf4j-api:2.0.16: no SPDX id for its POM licence "MIT License <http://www.opensource.org/licenses/mit-license.php>"`.
+  - **okhttp's extra-licence row pinned to 4.11.0:** the failure names the version mismatch.
+  - **The Skiko row in `native/manifest.txt` pinned to 0.9.22.1:** the failure names the version mismatch.
+  - **The unmodified run:** 68 components, 13 entries, 23 texts.
+- **The unit tests, run locally:** `LinuxFontConfigTest` 11/11, `JavaRuntimeEntryTest` 2/2, S2.8's `LicencesTest` 3/3.
+- **The screenshots, looked at:**
+  - **Android:** About's row, the 13 entries, and OkHttp's MPL-2.0 NOTICE beside Apache-2.0.
+  - **Windows:** SWT first, then the list, then the Java runtime entry.
+  - **Linux:** the Java runtime entry, titled "java.base/ADDITIONAL_LICENSE_INFO (and 9 more)".
+  - **macOS:** the list.
+
+**The condition: resolve jlink's Windows pointer files in `javaRuntimeEntry`.**
+- **The cause:** on Windows, jlink doesn't copy a deduplicated legal file. It writes a one-line pointer.
+  - I read it in jlink's own code (`jdk.jlink`, `DefaultImageBuilder.writeSymLinkEntry`): `if isWindows()` it writes `"Please see %s%n"` with the link's target, and `Files.createSymbolicLink` otherwise.
+  - So on Windows, `legal/java.desktop/LICENSE` and the files like it contain `Please see ..\java.base\LICENSE`.
+- **What the screen shows:** the pointers, which are identical to one another, become their own documents titled "java.compiler/LICENSE (and N more)", whose whole text is "Please see ..\java.base\LICENSE".
+  - Your Windows capture shows the effect: the first document is "java.base/ADDITIONAL_LICENSE_INFO" without "(and N more)", where Linux has "(and 9 more)".
+  - The entry's "29 on Windows (copies, not links)" is therefore wrong. They're pointers.
+- **Fix:**
+  - A file whose whole content is one line `Please see <path>`, where the path resolves to a regular file inside `legal/`, counts as that file. Its content key and its title count go to the target.
+  - Any other file stays as it is.
+- **Test:** a pointer fixture in `JavaRuntimeEntryTest`:
+  - Windows-style backslash and a trailing CRLF;
+  - the target is shown once, titled "(and 1 more)";
+  - no document's text starts with "Please see";
+  - TEETH: without the resolution, the pointer is its own document.
+- **Windows About smoke:** `about-java-runtime-entry` also prints `pointers=<n>` and the docs count, and requires that no shown document starts with "Please see".
+- **Before landing, send me** that line from the PR run on the final SHA, plus the test result. After that you may land without a full re-presentation.
+
+**Rulings on what you flagged:**
+- **The lazy list: not built.**
+  - Every number above half a second comes from software rendering: swiftshader on the emulator, a GPU-less Windows runner, Xvfb.
+  - Licences is a screen people open rarely.
+  - A lazy list would weaken exactly the checks that need the whole entry composed: the CJK guard and the Java runtime check.
+  - VLL's own check of Licences on his tablet and the Surface will be the measurement on real hardware. If it feels slow there, it becomes a follow-up, one item per paragraph as you proposed.
+- **The jar-hash regex, `{20,32}`: accepted.** You measured 29 digits on annotation-jvm, because the image drops a hash's leading zeros, and S2.8's step would have misread such a jar. It stays.
+- **Exit 127: accepted.** You quoted the type2-runtime line, measured 134 through `bin/TroubaStage`, and the check judges by the crash line rather than the code.
+- **The corrected story of run 1, and the grep guards: accepted.**
+
+**A stated limit, no change:**
+- `notices-*` recognises five licence names in shipped files: MPL-2.0, Apache-2.0, LGPL, EPL-2.0 and MIT.
+- I scanned every text the Linux build generates. The only other licence words (BSD, GPL, Unicode, public domain) are in the committed native and SPDX texts, not in any shipped jar's file.
+- So today nothing escapes the check. A dependency whose files name another licence would need a recogniser added at that point; put one sentence saying so in `licences/README.md`.
+
+**At land:**
+- Rebase onto whichever of S2.7 and A101 lands second, for ci.yml.
+- Cite this GO.
+- Then: the land run's `/jobs` all green, including `image` (say so if it was cancelled), `release-apk` and the desktops; and `latest` republished.
+
+— Fable
