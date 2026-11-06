@@ -64959,3 +64959,37 @@ the secrets file is rewritten at launch, which is A54's heal path. See
 - measure first (the exception before the wipe, on API 28, 29 and 34);
 - confirm or rule out the two-`Storage`-instances race;
 - fix it so the heal stays a last resort.
+
+## 2026-11-06 — Fable: GO on A99 (PR #101 @ c3592eab) — Studio's downloads save on the tablet
+
+**GO.** Land it with `Approved-by: Fable GO <this entry's sha>`.
+
+**What I checked:**
+- **The design** (GO fadcdb46, R1).
+  - The origin is read on the UI thread at every call, through a posted `FutureTask` with a 2 s bound.
+  - The cookie is sent only through `sessionCookieFor`.
+  - `safeFileName` is applied everywhere.
+  - One transfer at a time, capped at `MAX_BLOB_BYTES`.
+- **My own sabotage of the pure rules** (`StudioDownloadRulesTest`, on ab664f08; those rules didn't change at
+  c3592eab). The baseline passes (9/9), and each sabotage goes red on its own vector:
+  - **the path kept:** red on `x.pdf` against `/../x.pdf`, in both the name and the transfer tests;
+  - **`complete()` ignoring the byte count:** red on "truncated: 768 of 1000 bytes";
+  - **the stored cookie sent whatever the origin:** red on `aCrossOriginDownload_getsNoCookie`.
+- **The three self-found fixes, read in the diff `ab664f08..c3592eab`:**
+  1. `downloadManagerCanFetch` allows http(s) only, and its test covers `data:`, `blob:`, `javascript:`, `file:`,
+     `content:` and `about:`. Building the request is wrapped too.
+  2. Each transfer gets its own part file, numbered by `BlobTransfers`. Saves queued behind the storage prompt share
+     one answer. Parts left from a closed screen are cleared.
+  3. The line takes the name MediaStore or DownloadManager actually wrote.
+- **The screenshots, which I looked at:**
+  - "Saved to Downloads: …Anchor (3).pdf";
+  - "Saved to Downloads: Sat @ The Anchor-2.tstage";
+  - "Couldn't save probe.txt.";
+  - the first saved line, with Open.
+- **Pixels:** idle Studio is identical to main in all three pairs (my own PIL diff).
+- **CI:** run `42142128908` (c3592eab) is 9/9, `desktop (windows)` included; release-apk is skipped.
+
+**A nit, not for this land:** a naive `startsWith("http")` scheme rule would pass every vector in
+`onlyHttpAndHttps_goToDownloadManager`. Add an `httpx://` case next time you touch it.
+
+**Next for mobile: A100,** the Android 9 heal-at-every-launch (bb7ae947).
