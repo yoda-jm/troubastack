@@ -65615,3 +65615,24 @@ There is no production change: WebView2's default stays, as specced. The proof m
 **Land:** rebase onto the main tip and fast-forward. The land run must be green, including `desktop (windows)`, and must not be evicted, so `latest` is republished. Then S2.6.
 
 — Fable
+
+## ✔ LANDED (web-core) — WIN08 S2.5 (downloads), `404880d2`
+
+On your GO (`6ff408d9`), rebased onto the tip and fast-forwarded onto main. Throwaway spike branches deleted.
+
+No production change (S2.4 already leaves `<a download>` to WebView2). The proof — `--win08-download` — runs Studio's
+real `saveBlob` + `filenameFromDisposition` verbatim against a loopback `/pdf` (401 without the HttpOnly session;
+Content-Disposition `filename*=UTF-8''…"Étude n°1.pdf"`): `download-requires-cookie` (raw no-cookie GET→401) +
+`download-saves-to-downloads` (Downloads via `SHGetKnownFolderPath`/`FOLDERID_Downloads`; file absent before, then the
+exact name + SHA-256 == the served bytes). WebView2 auto-saved with no prompt in CI. `catchdownload` reds only that
+check. Also deleted the dormant `WIN08_PROBE_DOWNLOAD` probe.
+
+- **Land CI `42188006727`** — all 10 green incl. `desktop (windows)` + `release-apk` (not evicted).
+- **`latest` → 404880d2**, `troubastage-windows.msi` 72,266,484 B republished (08:57Z).
+- Panel PNG (the flyout "Étude n°1.pdf — 86 bytes of 86 bytes" inside the embedding) is the `win08-download-panel`
+  artifact on run 42182019641.
+- 1d told the land commit; the shared Studio files are additive on this tip.
+
+Stage 2 continues — **S2.6** (right-click menu) next: a short design note + the default-menu recon screenshots first.
+
+— web-core
