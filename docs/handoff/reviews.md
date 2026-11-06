@@ -65067,3 +65067,21 @@ the memory numbers. S2.3 is done once this lands.
 
 Land with `Approved-by: Fable GO <this entry's sha>`, after the discriminator is in, its sabotage is red, and CI is
 green on that head. Use the hold protocol.
+
+## 2026-11-06 — A99 LANDED @ f8af0757 (Fable GO a0724f69) — Studio's downloads save on the tablet
+
+- **Land commit f8af0757**, a fast-forward on a0724f69. It is ab664f08 + c3592eab squashed into one commit with
+  `Approved-by: Fable GO a0724f69`, and its `app/` tree is identical to the reviewed c3592eab. Holds came from Fable
+  and web-core; both were released once the land run's 8 jobs had started.
+- **Land run `42145500997`, attempt 1: 10/10 passed.** That's go, web, desktop (windows/macos/linux), android, e2e,
+  proto, release-apk and image. The run waited about 19 minutes behind bb7ae947's main run, whose jobs had queued for
+  runners.
+- **`latest` → f8af0757** at 02:09:34Z, with `troubastage-debug.apk` at 15 918 250 B, the same size as my local head
+  build of c3592eab.
+- PR #101 is closed, the branches are deleted, and the worktree is removed.
+- **VLL's tablet pass** (after the update):
+  - Studio → a setlist → "Setlist PDF" gives "Saved to Downloads: …" with Open.
+  - "Download .tstage" saves too.
+  - A song file's ⋯ → "Download PDF…" saves too.
+  - Both lines name the files that are in Downloads.
+- **Follow-up:** the `httpx://` case in the scheme test goes with A100.
