@@ -628,6 +628,93 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         finish(results) { null }
     }
 
+    override fun runDownload(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        win08log("download: run start; log=$win08LogFile")
+        Thread { try { Thread.sleep(120_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("download: BACKSTOP firing (>120s)"); Runtime.getRuntime().halt(1) }.apply { isDaemon = true; start() }
+        val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+        serverSocket = server
+        val origin = "http://127.0.0.1:${server.localPort}"
+        Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
+        val edgeDataDir = File(desktopDataRoot(), "webview2")
+        val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+        val frameHolder = java.util.concurrent.atomic.AtomicReference<java.awt.Window?>()
+        val args = EmbeddedStudioArgs(origin, null, "TroubaStudio", "win08sess=smoke", edgeDataDir, {}, {}, { false }, { frameHolder.get() }, null)
+        application {
+            Window(onCloseRequest = ::exitApplication, title = "TroubaStage", state = rememberWindowState(width = 1200.dp, height = 820.dp)) {
+                EmbeddedStudioContent(args, onController = { ctrlRef.set(it) })
+                LaunchedEffect(Unit) { frameHolder.set(window); Thread { downloadFlow(outDir, origin, ctrlRef, frameHolder) }.apply { isDaemon = true; start() } }
+            }
+        }
+        return 0
+    }
+
+    private fun downloadFlow(
+        outDir: File, origin: String,
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+        frameHolder: java.util.concurrent.atomic.AtomicReference<java.awt.Window?>,
+    ) {
+        val results = LinkedHashMap<String, Boolean>()
+        fun mark(name: String, ok: Boolean) { results[name] = ok; line("WIN08-CHECK $name: ${if (ok) "PASS" else "FAIL"}") }
+        fun waitFor(ms: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + ms
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(100) }
+            return cond()
+        }
+        try {
+            val c = if (waitFor(40_000) { ctrlRef.get()?.linksInjected == true }) ctrlRef.get() else null
+            if (c == null) { mark("download-controller", false); finish(results) { null }; return }
+
+            // Fable #2: the PDF endpoint needs the session cookie — a raw GET with no Cookie gets 401.
+            val noCookie = rawGetStatus(origin, "/pdf")
+            win08log("download: /pdf no-cookie status=$noCookie (expect 401)")
+            mark("download-requires-cookie", noCookie == 401)
+
+            // The real saveBlob path. Assert the exact non-ASCII file is ABSENT before, then PRESENT with a SHA-256
+            // equal to the served bytes — proving the credentialed fetch, the Content-Disposition name, and that the
+            // immediate revokeObjectURL did not race the save. Sabotage catchdownload cancels the click → no file → red.
+            val expected = File(Win08Native.downloadsFolder(), "Étude n°1.pdf")   // Étude n°1.pdf
+            runCatching { expected.delete() }
+            val absentBefore = !expected.exists()
+            c.smokeSaveBlob("$origin/pdf")
+            val done = waitFor(10_000) { c.downloadDone || c.downloadErr != null }
+            val landed = waitFor(25_000) { expected.exists() && expected.length() == PDF_BYTES.size.toLong() }
+            val shaOk = landed && sha256(expected.readBytes()) == sha256(PDF_BYTES)
+            win08log("download: name=[${c.downloadName}] err=[${c.downloadErr}] absentBefore=$absentBefore done=$done landed=$landed shaOk=$shaOk dir=${expected.parent}")
+            // Fable #7: if CI prompts for a save location, the file won't land — report it, don't fight.
+            if (!landed) win08log("download: file did NOT land — if WebView2 showed a save PROMPT in CI, that is the cause (reported, not fought)")
+            mark("download-saves-to-downloads", absentBefore && c.downloadName == "Étude n°1.pdf" && landed && shaOk)
+
+            // Fable #5: capture the window (WebView2's download panel open) and leave the PNG for inspection.
+            runCatching {
+                val f = frameHolder.get(); if (f != null) {
+                    val b = f.bounds
+                    val img = java.awt.Robot().createScreenCapture(java.awt.Rectangle(b.x, b.y, b.width, b.height))
+                    val png = File(outDir, "download-panel.png"); javax.imageio.ImageIO.write(img, "png", png)
+                    win08log("download: panel PNG at ${png.absolutePath}")
+                }
+            }
+        } catch (e: Throwable) {
+            win08log("download: flow threw: ${e.message}")
+        }
+        finish(results) { null }
+    }
+
+    /** SHA-256 hex of [b]. */
+    private fun sha256(b: ByteArray): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(b).joinToString("") { "%02x".format(it) }
+
+    /** A raw HTTP/1.0 GET with NO Cookie; returns the status code (or -1). Proves the /pdf endpoint needs the session. */
+    private fun rawGetStatus(origin: String, path: String): Int = runCatching {
+        val port = origin.substringAfterLast(':').toInt()
+        java.net.Socket(InetAddress.getLoopbackAddress(), port).use { s ->
+            s.getOutputStream().write("GET $path HTTP/1.0\r\nConnection: close\r\n\r\n".toByteArray(StandardCharsets.US_ASCII)); s.getOutputStream().flush()
+            val line = s.getInputStream().bufferedReader().readLine() ?: ""   // "HTTP/1.0 401 Unauthorized"
+            line.split(' ').getOrNull(1)?.toIntOrNull() ?: -1
+        }
+    }.getOrDefault(-1)
+
     /** A one-page HTTP/1.0 loopback: read the request headers (record the Cookie), reply with [PAGE]. */
     private fun acceptLoop(server: ServerSocket) {
         while (!server.isClosed) {
@@ -638,9 +725,10 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                         if (!accepting) return@use   // S2.1 retry: server "off" — close the socket at once (connection refused/reset)
                         val reader = s.getInputStream().bufferedReader()
                         val requestLine = reader.readLine() ?: ""   // "GET /path HTTP/1.1"
+                        var reqCookie = ""
                         var l = reader.readLine()
                         while (l != null && l.isNotEmpty()) {
-                            if (l.startsWith("Cookie:", ignoreCase = true)) { cookieHeader = l.substringAfter(":").trim(); cookieByPort[s.localPort] = cookieHeader!! }
+                            if (l.startsWith("Cookie:", ignoreCase = true)) { cookieHeader = l.substringAfter(":").trim(); cookieByPort[s.localPort] = cookieHeader!!; reqCookie = cookieHeader!! }
                             l = reader.readLine()
                         }
                         served = true
@@ -651,6 +739,18 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                             // not a 200 HTML body it would fail to parse (→ a false Unreachable).
                             out.write("HTTP/1.0 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(StandardCharsets.US_ASCII))
                             out.flush()
+                        } else if (path.startsWith("/pdf")) {
+                            // S2.5: the PDF endpoint needs the seeded HttpOnly session cookie (credentials:"include"); 401
+                            // without it. The name comes from Content-Disposition — both filename and filename*=UTF-8''
+                            // carry a synthetic non-ASCII name "Étude n°1.pdf" (T162 sends exact UTF-8).
+                            if (!reqCookie.contains("win08sess")) {
+                                out.write("HTTP/1.0 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(StandardCharsets.US_ASCII)); out.flush()
+                            } else {
+                                val cd = "attachment; filename=\"Etude n1.pdf\"; filename*=UTF-8''%C3%89tude%20n%C2%B01.pdf"
+                                val head = "HTTP/1.0 200 OK\r\nContent-Type: application/pdf\r\nContent-Disposition: $cd\r\n" +
+                                    "Content-Length: ${PDF_BYTES.size}\r\nConnection: close\r\n\r\n"
+                                out.write(head.toByteArray(StandardCharsets.US_ASCII)); out.write(PDF_BYTES); out.flush()
+                            }
                         } else {
                             reqCount++
                             // S2.1: a never-ready page (loads but never handshakes) while serveNoReady is set.
@@ -905,6 +1005,9 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
     }
 
     private companion object {
+        // S2.5: the bytes the /pdf endpoint serves; the smoke SHA-256s the saved file against these. Any bytes work
+        // (saveBlob saves the Blob verbatim); it begins with %PDF so it reads as a PDF to anything that peeks.
+        val PDF_BYTES: ByteArray = "%PDF-1.4\n% win08 S2.5 download smoke\n1 0 obj<</Type/Catalog>>endobj\ntrailer<<>>\n%%EOF\n".toByteArray(StandardCharsets.US_ASCII)
         // The handshake runs SYNCHRONOUSLY at the top of <head> — earlier than a module script, so a pass covers
         // Studio's ordering (B3). With SWT 3.134.0 the BrowserFunction is injected before this runs.
         const val PAGE = """<!doctype html><html><head><meta charset="utf-8"><script>

@@ -71,6 +71,9 @@ internal class SwtBrowserController(
     @Volatile var lastOpenDropped: String? = null; private set   // S2.4: last non-http(s) link dropped by the scheme filter
     @Volatile var droppedUrls: String = ""; private set          // S2.4: all dropped links (newline-joined), so a fast pair isn't lost to a race
     @Volatile var linksInjected: Boolean = false; private set    // S2.4: the page-level link capture is attached (smoke waits for it)
+    @Volatile var downloadDone: Boolean = false; private set     // S2.5: saveBlob ran (the file save is then async in WebView2)
+    @Volatile var downloadName: String? = null; private set      // S2.5: the a.download name (from Content-Disposition)
+    @Volatile var downloadErr: String? = null; private set       // S2.5: the fetch/download threw (e.g. a 401)
     @Volatile private var disposed: Boolean = false
     // B2 DPI measurement (filled by measureDpi, read by the smoke).
     @Volatile var swtThreadDpiAwareness: Int = -1; private set
@@ -152,6 +155,22 @@ internal class SwtBrowserController(
     /** S2.4 smoke: create an <a href target> and click it, so the injected capture routes it (like a real link click). */
     fun smokeClickLink(href: String, target: String) = exec { browser?.execute(
         "var a=document.createElement('a');a.setAttribute('href','$href');a.setAttribute('target','$target');a.textContent='x';document.body.appendChild(a);a.click();") }
+
+    /** S2.5 smoke: run Studio's REAL download path verbatim — fetch(credentials) → Blob → filenameFromDisposition →
+     *  saveBlob (createObjectURL → temp <a download> → click → immediate revokeObjectURL). Copied from
+     *  web/studio/src/pages/song-editor/FilePdfButton.tsx (saveBlob) and api.ts (filenameFromDisposition, the fetch). */
+    fun smokeSaveBlob(url: String) = exec { browser?.execute(
+        "(function(){" +
+        "function fn(h,fb){var d=h||'';var e=/filename\\*\\s*=\\s*UTF-8''([^;]+)/i.exec(d);" +
+        "if(e){try{var n=decodeURIComponent(e[1].trim());if(n)return n;}catch(x){}}" +
+        "var p=/filename\\s*=\\s*\"([^\"]*)\"/i.exec(d)||/filename\\s*=\\s*([^;]+)/i.exec(d);var m=p&&p[1].trim();return m?m:fb;}" +
+        "function sb(blob,filename){var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u);}" +
+        "fetch('$url',{credentials:'include'}).then(function(res){if(!res.ok)throw new Error('status '+res.status);" +
+        "return res.blob().then(function(b){var f=fn(res.headers.get('Content-Disposition'),'file.pdf');sb(b,f);" +
+        "var r=window.TroubaStageShellReceive;if(r)r(JSON.stringify({type:'downloaddone',name:f}));});})" +
+        ".catch(function(err){var r=window.TroubaStageShellReceive;if(r)r(JSON.stringify({type:'downloaderr',msg:String(err)}));});" +
+        "})()"
+    ) }
 
     // ── S2.4: route a captured new-window / target link by origin ────────────────────────────────────────────────
     // The page injection (below) forwards target/window.open/ctrl+middle-click URLs here (resolved absolute). Only
@@ -465,6 +484,9 @@ internal class SwtBrowserController(
                             // S2.4: a target/window.open/ctrl+middle-click link the page injection captured (absolute URL).
                             json.contains("\"openurl\"") -> routeOpenUrl(json.substringAfter("\"url\":\"", "").substringBefore("\""))
                             json.contains("\"linksready\"") -> { linksInjected = true; log("win08: S2.4 link capture attached") }
+                            // S2.5: the injected saveBlob (verbatim from Studio) ran, or the fetch/download threw.
+                            json.contains("\"downloaddone\"") -> { downloadName = json.substringAfter("\"name\":\"", "").substringBefore("\""); downloadDone = true; log("win08: S2.5 saveBlob ran, name=$downloadName") }
+                            json.contains("\"downloaderr\"") -> { downloadErr = json.substringAfter("\"msg\":\"", "").substringBefore("\""); log("win08: S2.5 download error: $downloadErr") }
                             json.contains("\"ready\"") -> {
                                 readyCount++   // S2.1: proves the page loaded & handshook, even while the SwingPanel is collapsed/hidden
                                 if (!bridgeReady) bridgeReady = true else helloAnswered = true // first ready latches bridgeReady; a later one = our hello answered
@@ -539,7 +561,6 @@ internal class SwtBrowserController(
             // After the first load, send a hello over the native→web channel; a ready back proves both ways.
             var lateBridgeDone = false
             var probedOpen = false
-            var probedDownload = false
             browser.addProgressListener(object : ProgressAdapter() {
                 override fun completed(event: ProgressEvent) {
                     // S2.2 recon: track the URL + a navigation count, so the --win08-back recon can tell whether the
@@ -575,6 +596,12 @@ internal class SwtBrowserController(
                         "window.addEventListener('click',Hc,true);window.addEventListener('auxclick',Ha,true);" +
                         "var rr=window.TroubaStageShellReceive;if(rr)rr(JSON.stringify({type:'linksready'}));}"   // smoke waits for this
                     ) }
+                    // S2.5 sabotage catchdownload: a listener that WRONGLY preventDefaults <a download> clicks (the thing
+                    // the capture carefully excludes). saveBlob's temp <a download> click is then cancelled → WebView2
+                    // never downloads → the download-lands check reds. Proves downloads must be left to WebView2.
+                    if (sabotage == "catchdownload") runCatching { browser.execute(
+                        "window.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download]'):null;if(a)e.preventDefault();},true);"
+                    ) }
                     // S2.1 (R1, refinement 2): the no-ready → cover timer is armed by the HOST load paths only (first
                     // load / ⋮ Reload / Retry), NOT here in completed(). An in-page same-origin navigation — e.g. S2.4
                     // opening a song's PDF in place — also completes with no Studio `ready`; arming here would land the
@@ -589,13 +616,8 @@ internal class SwtBrowserController(
                         log("win08: PROBE firing window.open('_blank') to exercise OpenWindowListener")
                         runCatching { browser.execute("window.open('https://example.com/win08-probe','_blank')") }
                     }
-                    // Item 7 download observation: once, trigger an <a download> so we can see what the embedded
-                    // WebView2 does with a download (its default UI + where the file lands). Dormant unless set.
-                    if (System.getenv("WIN08_PROBE_DOWNLOAD") == "1" && !probedDownload) {
-                        probedDownload = true
-                        log("win08: PROBE firing an <a download> click")
-                        runCatching { browser.execute("var a=document.createElement('a');a.href='data:application/octet-stream,win08-download-probe';a.download='win08-download.bin';document.body.appendChild(a);a.click();") }
-                    }
+                    // (S2.5 replaced the dormant WIN08_PROBE_DOWNLOAD data: probe with --win08-download, which runs
+                    // Studio's real saveBlob against a loopback /pdf and asserts the file lands in Downloads.)
                 }
             })
 

@@ -40,6 +40,11 @@ interface Win08SmokeRunner {
     /** S2.4 links by origin: a captured link to the server's origin opens in place; another http(s) origin opens in the
      *  default browser (a recording stub) without the session; non-http(s) schemes are dropped; no in-app window opens. */
     fun runLinks(outDir: File): Int
+
+    /** S2.5 downloads: run Studio's real saveBlob (fetch+credentials → Blob → <a download> → revoke) against a loopback
+     *  /pdf (401 without the cookie, non-ASCII Content-Disposition), and assert the file lands in Downloads with that
+     *  exact name and a SHA-256 matching the served bytes. Keeps WebView2's default; a panel PNG is left under outDir. */
+    fun runDownload(outDir: File): Int
 }
 
 val win08SmokeRunner: Win08SmokeRunner? by lazy {

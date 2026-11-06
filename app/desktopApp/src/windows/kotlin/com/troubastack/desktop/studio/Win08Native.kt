@@ -120,6 +120,22 @@ internal object Win08Native {
         count
     }.getOrDefault(-1)
 
+    /** S2.5 — the person's Downloads folder (FOLDERID_Downloads), where WebView2 saves a download by default. Uses
+     *  SHGetKnownFolderPath so a relocated Downloads is honoured; falls back to ~\Downloads if the call fails (CI's is
+     *  not relocated, so the fallback is correct there). */
+    fun downloadsFolder(): String = runCatching {
+        val rfid = com.sun.jna.platform.win32.Guid.GUID.ByReference(
+            com.sun.jna.platform.win32.Guid.GUID.fromString("{374DE290-123F-4565-9164-39C4925E467B}"))
+        val out = com.sun.jna.ptr.PointerByReference()
+        val hr = com.sun.jna.platform.win32.Shell32.INSTANCE.SHGetKnownFolderPath(rfid, 0, null, out)
+        if (com.sun.jna.platform.win32.COM.COMUtils.SUCCEEDED(hr)) {
+            val p = out.value
+            val path = p.getWideString(0)
+            com.sun.jna.platform.win32.Ole32.INSTANCE.CoTaskMemFree(p)
+            path
+        } else error("SHGetKnownFolderPath hr=$hr")
+    }.getOrElse { System.getProperty("user.home") + "\\Downloads" }
+
     private const val GWL_EXSTYLE = -20
     private const val WS_EX_TOPMOST = 0x00000008
 

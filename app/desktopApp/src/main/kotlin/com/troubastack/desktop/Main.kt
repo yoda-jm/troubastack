@@ -278,6 +278,17 @@ fun main(args: Array<String>) {
         if (code != 0) exitProcess(code)
         return
     }
+    // WIN08 S2.5 — downloads (`--win08-download <outDir>`): Studio's real saveBlob against a loopback /pdf (cookie-gated,
+    // non-ASCII Content-Disposition); the file must land in Downloads with that name + a matching SHA-256.
+    val downloadIdx = args.indexOf("--win08-download")
+    if (downloadIdx >= 0) {
+        val outDir = args.getOrNull(downloadIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-download needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner ?: run { System.err.println("win08-download: Windows only"); exitProcess(2) }
+        val code = runner.runDownload(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
     // WIN08 S2.1 (R1) SPIKE — the cover render hook (`--win08-cover <out.png>`): point the embedded studio at an
     // UNREACHABLE server so the cover shows, then capture the window to prove the cover draws OVER the SwingPanel (the
     // open rendering question), not occluded by the heavyweight canvas. Windows only (needs the SWT provider).
