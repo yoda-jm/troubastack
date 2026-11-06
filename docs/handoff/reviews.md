@@ -65548,3 +65548,47 @@ The dormant `WIN08_PROBE_DOWNLOAD` (the data: probe) is superseded. Delete it or
 The UI path itself ("Download PDF…" reached from the song's file list in the real Studio) stays on VLL's Surface check. I'll add it to his question.
 
 — Fable
+
+## 2026-11-06 — web-core: WIN08 S2.5 (downloads) — PRESENTED, proof on T208's real saveBlob
+
+No production change — S2.4's capture already leaves `<a download>` to WebView2 (verified: the `A(e)` exclusion is still
+there). The work is the proof: a new `--win08-download` smoke that runs Studio's REAL download path, not a plain
+`<a download href="/song.pdf">`. Against all seven requirements of your 2026-11-06 GO:
+
+1. **Same mechanism.** The test page runs `saveBlob` + `filenameFromDisposition` VERBATIM, copied from
+   `web/studio/src/pages/song-editor/FilePdfButton.tsx` and `api.ts` (a comment names both): `fetch(url,{credentials:"include"})`
+   → Blob → `URL.createObjectURL` → a temp `<a download href="blob:…">` clicked → `URL.revokeObjectURL` **immediately**.
+2. **Cookie load-bearing.** The loopback `/pdf` returns **401** without the seeded session; the seed is **HttpOnly** via
+   A98's `sessionCookieSeed`, as in production. A raw no-cookie GET to `/pdf` → 401 → `download-requires-cookie PASS`.
+   The credentialed fetch is the only way through.
+3. **Real UTF-8 name.** Content-Disposition carries both `filename="Etude n1.pdf"` and
+   `filename*=UTF-8''%C3%89tude%20n%C2%B01.pdf`; `filenameFromDisposition` decodes **"Étude n°1.pdf"** and sets
+   `a.download` from it, as Studio does.
+4. **What lands.** Downloads resolved as **`FOLDERID_Downloads` via `SHGetKnownFolderPath`** (`Win08Native.downloadsFolder`;
+   `~\Downloads` only as a fallback if the call fails — the runner's isn't relocated). The file is **absent before** the
+   click (`absentBefore=true`), and after: the **exact name "Étude n°1.pdf"** with **SHA-256 == the served bytes**
+   (`shaOk=true`), not only the size.
+5. **The panel appears.** Captured while WebView2's download flyout is open. The PNG is on this machine at
+   `/tmp/claude-1000/-home-yoda-dev-git-troubastack/c1789664-1845-4ddb-9c69-9991e31f40c7/scratchpad/download-panel.png` for you to open (also uploaded as the `win08-download-panel` artifact on run 42182019641). It shows the
+   TroubaStage window, the loopback page, and the flyout **"Downloads / Étude n°1.pdf — 86 bytes of 86 bytes" drawing
+   correctly inside the child-HWND embedding** — no clipping, no detached window.
+6. **Sabotage `catchdownload`.** Injected verbatim:
+   `window.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download]'):null;if(a)e.preventDefault();},true);`
+   — saveBlob's temp `<a download>` click is cancelled → no file → `download-saves-to-downloads FAIL`, and it is the
+   **only** red check (`download-requires-cookie` still PASS; every other win08 step green). The proof genuinely
+   exercises the `<a download>`→WebView2 path.
+7. **A prompt in CI.** WebView2 **auto-saved** to Downloads with **no save prompt** (`landed=true` on the normal run).
+   Reported per your #7: there is no prompt to fight in the runner environment. (The real "Download PDF…" UI path stays
+   on VLL's Surface check, as you noted.)
+
+Also: deleted the dormant `WIN08_PROBE_DOWNLOAD` `data:` probe (superseded, your call) + its `probedDownload` flag.
+
+**Proven:**
+- **Normal `42182019641`** — `desktop (windows)` green; `download-requires-cookie PASS` + `download-saves-to-downloads
+  PASS` (`name=[Étude n°1.pdf] absentBefore=true done=true landed=true shaOk=true`, `dir=C:\Users\runneradmin\Downloads`).
+- **`catchdownload` `42182022165`** — `download-saves-to-downloads FAIL` only; nothing else red.
+- **Re-spike `42184869580`** — green after folding in the probe deletion (validates the windows source post-delete).
+
+Branch `win08-s2.5 @ 95ff6be1` (off main `7fd8af2a`). desktopApp-only, no app/shared change. Requesting **GO to FF**.
+
+— web-core
