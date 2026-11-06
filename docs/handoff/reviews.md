@@ -65636,3 +65636,122 @@ check. Also deleted the dormant `WIN08_PROBE_DOWNLOAD` probe.
 Stage 2 continues — **S2.6** (right-click menu) next: a short design note + the default-menu recon screenshots first.
 
 — web-core
+
+---
+
+## ⟨submission → Fable⟩ WIN09 — the band QR in the Windows app, `win09` @ 579d635d (PR #104)
+
+Built on main 404880d2, after S2.5; 9c was told before I touched their files and agreed the shape. There are three commits on the branch, and I'll squash them into one code commit at land.
+
+### What it does
+1. **One QR screen for both apps.** `QrPresentScreen` moves to `jvmSharedMain`, and its words, layout and A65's rules are unchanged.
+   - The QR is drawn into a Compose `ImageBitmap(720,720)`: one whole-pixel rect per black run of ZXing's `BitMatrix`, with no anti-aliasing. It is then shown by the same `Image(..., 320.dp)`.
+   - Keep-awake is a hook parameter: Android passes `FLAG_KEEP_SCREEN_ON`, Windows passes WIN03's `keepDisplayOn` as it is (its flags include `ES_SYSTEM_REQUIRED`).
+   - Each platform's `PresentQr` adds its own BackHandler.
+2. **`DesktopAppPlatform.PresentQr`** is now that screen instead of the `error(...)` placeholder.
+3. **⋮ → "Show band QR…"** on the embedded TroubaStudio screen.
+   - The admin list is `fetchStudioBands()` filtered to `isAdmin`, fetched when Studio opens and again after a Server URL re-point.
+   - No admin band: no item. One: its QR. Several: the picker, which has a top bar ("Show band QR", ‹ Back) and only the band names.
+   - Back from a QR opened through the picker returns to the picker; otherwise Back returns to Studio.
+   - The picker and the QR are an overlay in `Browse`. The embedded screen collapses underneath it (`hostOverlay`, which adds to the 0.dp condition).
+   - "Manage / revoke in Studio" runs `openPath("/bands/<id>/settings")` in that same Browser.
+
+### Your six conditions
+1. **The collapse argument** is `hostOverlay`, added to the existing 0.dp size condition next to `!showServerDialog`. There is no `isVisible`.
+2. **Focus and keys go to the overlay.** This took two CI iterations, and measuring changed the fix:
+   - Run 42182706827: with the Browser focused, the overlay's Compose `requestFocus` left the keys in the WebView. A real Robot Alt+← walked Studio's history behind the QR (page2 → `/?embedded=1`).
+   - Diagnosis, from the smoke's AWT log: AWT still counts the frame focused with its own focus owner (`frameFocused=true owner=<Compose>`) while the WebView holds the native focus. So neither Compose's request nor AWT's `requestFocus` does anything.
+   - Fix: native `SetFocus` on the frame's HWND from the EDT, attached to the frame's thread for the call. This is `nativeFocus()`, called by `takeWindowFocus()` before the Compose request. In run 42186811275, Alt+← then closed the overlay and Studio didn't move.
+   - SWT's `browserFocused` flag never drops, because WebView2 sends no FocusOut when focus moves to the frame. So the checks judge focus by where real keys go, and the flag is only logged:
+     - `overlay-takes-focus`: the Browser is focused first, then the overlay opens, then a Robot Alt+← must close it with zero Studio navigations.
+     - `focus-returns-to-studio`: after Back, a Robot Esc must do nothing. Had focus stayed with the app, Esc would be the app's Back and walk Studio from page2.
+   - The overlay's Back is the newest `BackHandler`, so it wins over `provideRequestBack`.
+3. **Opening the overlay dismisses the menu:** the item's action runs `w.dispose()` first, then the request. The smoke checks that `lastMenuWindow` was non-null before the click and is null after it.
+4. **Where it was:** after Back the smoke checks the same controller, the same `lastUrl` (page2), no `wentBack`, and no exit from Studio. It also checks the panel collapsed while the overlay showed and is full size after (`canvas=1028x693 shell=1028x693`, `rectsMatch`).
+5. **`openPath`** goes through `studioPathUrl(origin, path)`, which takes only "/…" (not "//…" and no backslash) and loads origin + path through the origin lock. A unit test covers five refused paths.
+6. **Coordination:** I messaged 9c before touching their files, rebased onto their S2.5, and sent them the focus finding for S2.7.
+
+### Proof
+**CI.**
+- PR run **42195183582** @ 579d635d: android, desktop (windows), desktop (linux), desktop (macos), go, web and proto are green; **e2e is still running**, and I'll post its result.
+- Dispatch **42195174348** (`win09_sabotage=all`, same sha): the same jobs green; e2e still running.
+
+**The `--win09-qr` smoke**, normal pass, identical in both runs:
+- What it drives: the app's own `DesktopAppPlatform.studio.Browse`, signed in, in a real window. Behind it is a loopback fake core: `/api/me`, bands, `myRole`, invite links listed, a counted POST, and a Studio stand-in that handshakes.
+- Band A lists an expiring link **first**, then the standing one. Band B has only a single-use link.
+
+```
+WIN09-CHECK item-absent-for-non-admin: PASS — items=[Reload, Server URL…]
+WIN09-CHECK item-present-for-admin: PASS — items=[Reload, Server URL…, Show band QR…]
+WIN09-CHECK menu-dismissed-on-open: PASS — menuWasOpen=true clicked=true gone=true
+WIN09-CHECK qr-decodes-to-served-link: PASS — decoded=[http://127.0.0.1:55523/join/win09-standing-A] want=[http://127.0.0.1:55523/join/win09-standing-A]
+WIN09-CHECK keep-awake-while-shown: PASS — DISPLAY held before=false during=true after=false
+WIN09-CHECK back-returns-where-it-was: PASS — collapsedWhileShown=true fullAfter=true sameController=true lastUrl=[…/page2] want=[…/page2] wentBack=null left=false canvas=1028x693 shell=1028x693 rectsMatch=true
+WIN09-CHECK focus-returns-to-studio: PASS — Esc after Back walked Studio=false (navigations=0 lastUrl=[…/page2] want=[…/page2]) swtFocusFlag=true
+WIN09-CHECK overlay-takes-focus: PASS — shown=true swtFocusFlag(1st,2nd)=true,true altLeftClosed=true walkedStudio=false (navigations=0 lastUrl=[…/page2] want=[…/page2])
+WIN09-CHECK manage-opens-settings-in-place: PASS — pressed=ComposeAccessibleComponent shown=true lastUrl=[…/bands/win09-band-a/settings] want=[…/bands/win09-band-a/settings] sameController=true
+WIN09-CHECK no-create-on-open: PASS — creates: band A=0 band B=0 (clicked=true listed=true)
+WIN09-CHECK unsuitable-link-not-shown: PASS — decoded=[null]
+WIN09-CHECK create-counter-control: PASS — made=http://127.0.0.1:55523/join/win09-created creates=1
+win09-qr: 12 pass, 0 fail, 0 unmeasured; failed=[]
+```
+- **Keep-awake is measured, not a seam.** During the QR, `powercfg /requests` DISPLAY lists `[PROCESS] \Device\HarddiskVolume4\…\TroubaStage\TroubaStage.exe`; before and after, it doesn't.
+- **"Manage / revoke"** is pressed through the window's accessibility tree, where Compose exposes its semantics; it would print UNMEASURED if no node were found.
+- **Positive controls:**
+  - The admin phase, with the same timing as the member phase, is the control for the member phase's absence check.
+  - The smoke's own `createStandingInviteLink` (+1) is the POST counter's control.
+  - The Browser reporting focus before the overlay opens is the control for both focus checks.
+  - Run 42182706827, before the fix, is a live red for `overlay-takes-focus`.
+
+**Sabotages.** Each pass of the dispatch runs in a fresh `TROUBASTAGE_HOME`. The CI step asserts that the target check FAILs, that no other check FAILs except a declared "allowed" set (empty except for qrreplace), and that all 12 checks report. Each pass's target line:
+```
+---- qrwrongtext ----     WIN09-CHECK qr-decodes-to-served-link: FAIL — decoded=[…/join/win09-standing-A-wrong] want=[…/join/win09-standing-A]
+                          win09-qr: 11 pass, 1 fail — SABOTAGE qrwrongtext -> OK
+---- qrblank ----         WIN09-CHECK qr-decodes-to-served-link: FAIL — decoded=[null]
+                          win09-qr: 11 pass, 1 fail — SABOTAGE qrblank -> OK
+---- createonopen ----    WIN09-CHECK no-create-on-open: FAIL — creates: band A=1 band B=3 (clicked=true listed=true)
+                          win09-qr: 11 pass, 1 fail — SABOTAGE createonopen -> OK
+---- nokeepawake ----     WIN09-CHECK keep-awake-while-shown: FAIL — DISPLAY held before=false during=false after=false
+                          win09-qr: 11 pass, 1 fail — SABOTAGE nokeepawake -> OK
+---- itemfornonadmin ---- WIN09-CHECK item-absent-for-non-admin: FAIL — items=[Reload, Server URL…, Show band QR…]
+                          win09-qr: 11 pass, 1 fail — SABOTAGE itemfornonadmin -> OK
+---- qrnofocus ----       WIN09-CHECK overlay-takes-focus: FAIL — altLeftClosed=false walkedStudio=true (navigations=1 lastUrl=[…/?embedded=1] want=[…/page2])
+                          win09-qr: 11 pass, 1 fail — SABOTAGE qrnofocus -> OK
+---- qrnofocusback ----   WIN09-CHECK focus-returns-to-studio: FAIL — Esc after Back walked Studio=true (navigations=1 lastUrl=[…/?embedded=1] want=[…/page2])
+                          win09-qr: 11 pass, 1 fail — SABOTAGE qrnofocusback -> OK
+---- qrreplace ----       WIN09-CHECK back-returns-where-it-was: FAIL — collapsedWhileShown=false fullAfter=true sameController=false …
+                          (allowed, as the App-level route would: focus-returns, overlay-takes-focus, manage-opens-settings-in-place)
+                          win09-qr: 8 pass, 4 fail — SABOTAGE qrreplace -> OK
+WIN09: every sabotage reds its own check, and only that
+```
+- The four spec sabotages each red exactly their own check: wrong text or blank → check 2, createonopen → 3, nokeepawake → 4, itemfornonadmin → 1.
+- itemfornonadmin offers the item only when there is **no** admin band, so the admin phases are untouched. My first draft offered every band, which turned phases 2 and 3 into the picker.
+- The sabotages are read from a system property that only the `--win09-qr` path sets from `WIN09_SABOTAGE`.
+
+**Android is unchanged.** This was the emulator pixel-identity check on my A96_API34 (1600×2560).
+- Server: a scratch core on 127.0.0.1:8197 with an empty store and mDNS off: one admin, one test band, one standing link.
+- APKs: main 52782d29's CI debug APK against the PR run's APK, with the same script and `pm clear` for each run. The script signs in, opens TroubaStudio, taps the band's QR button and takes three screencaps.
+- Results:
+  - main against main: 0 diff.
+  - head against head: 0 diff.
+  - main against head: 0 diff in all six pairs above the navigationBars inset (`[0,2456][1600,2560]`).
+  - The only patch that differs, (1000,2469)–(1195,2545), is inside that inset: the system taskbar reordered TroubaStage and Messages in its recent apps after the reinstall. The PR APK carries a different signing key, so `install -r` was refused and I had to uninstall.
+  - Every capture from both APKs decodes to `http://10.0.2.2:8197/join/2fCf…`.
+- The existing Android tests pass (the android job).
+
+**Unit tests**, on all three desktop OSes in CI:
+- `BandQrTest` (5): the admin filter in the server's order; none/one/several → no item, QR, picker; `studioPathUrl` refusals.
+- The same file holds the picker uiTest: ‹ Back plus one button per band and nothing else; choosing one opens its QR; Back from that QR returns to the picker; Back from the picker closes it.
+- `QrImageTest`, in shared desktopTest: every one of the 720×720 pixels equals the matrix.
+- Sabotaged locally, both are red: shifting a run end by +1 gives "4879 pixels differing"; dropping the admin filter keeps Beta in the list.
+
+### Declared limitations
+- **App session only.** The admin list comes from the app's own session cookie, so someone signed in only inside the embedded Studio page sees no item. You accepted this.
+- **Scope:** the item is on the TroubaStudio screen (Browse) only, not on Edit's embedded screen.
+- **Native focus:** `nativeFocus` is Windows-only; there is no embedded Studio elsewhere.
+- **The picker is proven by the uiTest, not in the smoke.** The smoke's admin phases have one admin band each, which is the direct-open path.
+
+### For VLL after it lands
+Windows app → TroubaStudio → ⋮ → "Show band QR…", then scan it with a phone.
+
+— mobile
