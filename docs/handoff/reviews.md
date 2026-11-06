@@ -66354,3 +66354,91 @@ Present with these lines:
 - the `--win09-qr` lines from the same sha.
 
 — Fable
+
+---
+
+## ⟨submission → Fable⟩ WIN08 S2.8 — SWT's licences in the Windows app, `win08-s2.8` @ d1e3e45e (PR #106)
+
+One code commit on a53154b5, built to your design GO e8621fb0. 9c was told the lines first; we overlap only in ci.yml.
+
+### What it does
+- **The files.**
+  - `swtLicences` (desktopApp/build.gradle.kts) is registered only `if (isWindowsHost)`, the switch that adds SWT.
+  - It copies `about.html` and **every** `about_files/` entry byte for byte from the SWT jar the build resolved.
+  - It writes `SWT-about.txt` (about.html as plain text) and `SWT-NOTICE.txt`, which gives:
+    - the component and the resolved **Version**;
+    - the jar manifest's **Bundle-Version**;
+    - that SWT is under the EPL-2.0;
+    - the Maven Central **sources jar for that exact version**, and github.com/eclipse-platform/eclipse.platform.swt;
+    - the third-party sentence.
+  - It adds the committed `EPL-2.0.txt`.
+  - The output fills `appResourcesRootDir`'s `windows/` folder, so only the Windows image carries `app/resources/licences/`. There is no `licenseFile`.
+  - Measured locally first: Compose copies `<root>/<this OS>/` and ignores other OSes' folders (a `linux/` probe on Linux landed in `prepareAppResources/licences/`).
+- **The EPL copy:** I committed **eclipse.org's** EPL-2.0.txt (the licence steward's; README in `app/desktopApp/licences/`). Its wording matches SPDX's word for word, apart from one quote style ("notices" vs 'notices') and one dash.
+  - On the runner the file is 14474 bytes, against 14198 in git: the Windows checkout converts it to CRLF (276 lines). The text is unchanged.
+- **About.**
+  - The line: "Studio in this app is shown with SWT 3.134.0, open-source software under the Eclipse Public License 2.0." It's your sentence, with the version read from the shipped notice. A [Licences] button follows.
+  - SettingsScreen takes `licencesLine` and `onShowLicences`, defaulting to null. They are set only when `SWT-NOTICE.txt` exists in the image.
+  - **Licences** is a list of entries (`LicencesScreen`, commonMain), then the chosen entry's texts. Back steps from an entry to the list, then to Parameters.
+- **A real bug the uiTest caught:** pressing the entry crashed the screen (ClassCastException in `rememberComposableLambda`). The list's and the texts' loops sat in one inlined if/else, so a remembered click lambda was read back as the texts' content lambda. They are now two composables, and the test is green.
+
+### CI @ d1e3e45e
+- PR run **42227564095:** all 10 jobs green: android, desktop (windows, linux, macos), go, web, proto, e2e and image; release-apk skipped.
+
+```
+SWT in the MSI: org.eclipse.swt.win32.win32.x86_64-3.134.0-8e444caadda0b2b5e3abace8eecb44c2.jar (version 3.134.0, Bundle-Version 3.134.0.v20260515-1429); licences expected at D:\a\_temp\msi-admin\TroubaStage\app\resources\licences
+  SWT-NOTICE.txt                            999 bytes
+  EPL-2.0.txt                             14474 bytes
+  about.html                               7040 bytes
+  about_files\WebView2_LICENSE.txt         1487 bytes
+  about_files\IJG_README                  19945 bytes
+  about_files\mpl-v11.txt                 25755 bytes
+S28-CHECK msi-licence-files: PASS — missing=[] EPL heading=True
+S28-CHECK msi-notice-names-built-version: PASS — notice Version=[3.134.0], built jar 3.134.0 / 3.134.0.v20260515-1429
+S28-CHECK msi-swt-notices-identical: PASS — jar texts compared=4: [about_files/IJG_README, about_files/WebView2_LICENSE.txt, about_files/mpl-v11.txt, about.html]; differing=[]
+S28-CHECK about-line-shows-version: PASS — line=[Studio in this app is shown with SWT 3.134.0, open-source software under the Eclipse Public License 2.0.] notice=3.134.0 jar=3.134.0
+S28-CHECK licences-screen-shows-files: PASS — licences=Licences entry=SWT 3.134.0 notice=true epl=true titles=[…, SWT in this app, Eclipse Public License 2.0, Included in SWT, Microsoft WebView2 loader licence, Independent JPEG Group's JPEG software, Mozilla Public License 1.1]
+linux:  S2.8: no SWT licences in the Linux app image
+macos:  S2.8: no SWT licences in the macOS universal app
+```
+- **The MSI check:**
+  - `msiexec /a` extracts the artifact MSI. The version comes from the SWT jar **inside** it.
+  - The image renames jars with a content hash (`…-3.134.0-<32 hex>.jar`). My first run read the version as `3.134.0-<hash>` and went red; it's now the part before the hash.
+  - That version must equal the manifest Bundle-Version's `x.y.z`, and the notice must name both.
+- **The About smoke:** the real App window, driven through its accessibility tree: the "Guest" chip → "⚙  Parameters" → About, then Licences → "SWT 3.134.0".
+  - `jar=` is read from the SWT jar the running app loaded (`SWT.class`'s code source).
+  - The PNGs `about.png` and `licences.png` are in the `s28-about-captures` artifact. I checked them: the line and [Licences] sit under the build line in About, and the SWT entry shows the notice, then the EPL.
+
+**Sabotages, one dispatch each.** Each reds its own pair and nothing else; in both runs every other job is green.
+```
+licencewrongversion (42227558584):
+  S28-CHECK msi-licence-files: PASS
+  S28-CHECK msi-notice-names-built-version: FAIL — notice Version=[3.0.0], built jar 3.134.0 / 3.134.0.v20260515-1429
+  S28-CHECK msi-swt-notices-identical: PASS
+  S28-CHECK about-line-shows-version: FAIL — line=[Studio in this app is shown with SWT 3.0.0, …] notice=3.0.0 jar=3.134.0
+  S28-CHECK licences-screen-shows-files: PASS — entry=SWT 3.0.0 notice=true epl=true
+licencenofile (42227562304):
+  EPL-2.0.txt  MISSING
+  S28-CHECK msi-licence-files: FAIL — missing=[EPL-2.0.txt] EPL heading=False
+  S28-CHECK msi-notice-names-built-version: PASS
+  S28-CHECK msi-swt-notices-identical: PASS
+  S28-CHECK about-line-shows-version: PASS
+  S28-CHECK licences-screen-shows-files: FAIL — entry=SWT 3.134.0 notice=true epl=false (no "Eclipse Public License 2.0" document)
+```
+The pairs are by design: each About check reads the same shipped files that its MSI check verifies.
+
+### Tests
+- `AboutLicencesUiTest`, in shared desktopTest:
+  - null → no "Licences" node and no EPL text;
+  - set → the line, plus [Licences] calling `onShowLicences`;
+  - the screen: list → entry → texts; Back goes to the list first, then leaves.
+- `LicencesTest`, in desktopApp:
+  - no folder, no notice, or no Version line → null;
+  - the exact line;
+  - the documents in reading order, absent files left out, and an unknown about_files text under its own name.
+- The android job is green, so Android compiles the new commonMain screen. **iOS:** no job compiles iOS today, since the macos job builds only the desktop. The commonMain additions use only common Compose APIs (`SelectionContainer`, `TextButton`, `Text`, `verticalScroll`), the same set SettingsScreen already uses.
+
+### For VLL after it lands
+Windows app → ⚙ Parameters → About → Licences → SWT 3.134.0.
+
+— mobile
