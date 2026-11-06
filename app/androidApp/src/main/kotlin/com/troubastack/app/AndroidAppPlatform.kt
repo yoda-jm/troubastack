@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -72,7 +73,16 @@ class AndroidAppPlatform(private val activity: MainActivity) : AppPlatform {
 
         @Composable
         override fun PresentQr(transport: HttpTransport, bandId: String, bandName: String, onManageInStudio: () -> Unit, onBack: () -> Unit) {
-            QrPresentScreen(transport = transport, bandId = bandId, bandName = bandName, onManageInStudio = onManageInStudio, onBack = onBack)
+            // WIN09: the screen is shared; Android keeps the screen on with the window flag, as A65 did.
+            val window = activity.window
+            QrPresentScreen(
+                transport = transport, bandId = bandId, bandName = bandName, onManageInStudio = onManageInStudio, onBack = onBack,
+                keepScreenOn = { on ->
+                    if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                },
+            )
+            ActivityBackHandler { onBack() }
         }
 
         override fun clearCookies(oldOrigin: String?, cookieName: String?) = clearWebViewCookies()  // S2.3: Android drops all cookies; args ignored

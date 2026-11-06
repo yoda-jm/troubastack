@@ -43,6 +43,7 @@ dependencies {
     implementation(compose.material3)         // currentOs bundles Material 2; the app uses Material 3
     implementation(libs.jna)                   // WIN03: SetThreadExecutionState, GetTickCount64 (already :shared's)
     implementation(libs.jna.platform)
+    implementation(libs.zxing.core)            // WIN09: the --win09-qr smoke decodes the window's QR (the screen is :shared's)
     // WIN08 — WebView2 via SWT's Browser(SWT.EDGE), added ONLY on a Windows host build so the Linux/macOS app
     // images carry no SWT jar (the CI jobs assert that). isTransitive = false: the SWT win32 POM declares a
     // self-dependency on `org.eclipse.swt.${osgi.platform}` with an unresolved property, which breaks resolution;

@@ -1,9 +1,5 @@
 package com.troubastack.app
 
-import android.app.Activity
-import android.graphics.Bitmap
-import android.view.WindowManager
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,13 +24,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.zxing.BarcodeFormat
@@ -48,6 +45,8 @@ import com.google.zxing.qrcode.QRCodeWriter
  *    everyone in the room, so the admin must know what they are granting.
  *  - REVOKE is not here: it is destructive and outlives the moment → [onManageInStudio] deep-links to
  *    Studio's InviteLinks, where every link shows with its terms.
+ * WIN09 — shared by Android and Windows. Each platform's PresentQr adds its own Back handling and passes
+ * [keepScreenOn], the one native part: Android's FLAG_KEEP_SCREEN_ON, Windows' SetThreadExecutionState.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +56,7 @@ fun QrPresentScreen(
     bandName: String,
     onManageInStudio: () -> Unit,
     onBack: () -> Unit,
+    keepScreenOn: (on: Boolean) -> Unit,
 ) {
     var link by remember { mutableStateOf<HttpTransport.InviteLink?>(null) }
     var loading by remember { mutableStateOf(true) }
@@ -66,20 +66,20 @@ fun QrPresentScreen(
     // LIST-FIRST/REUSE (never create on open): find an existing room-suitable link.
     LaunchedEffect(bandId) {
         loading = true
+        // WIN09 sabotage createonopen (the --win09-qr smoke only): mint a link as the screen opens → check 3 reds.
+        if (qrSabotage == "createonopen") transport.createStandingInviteLink(bandId)
         link = transport.fetchInviteLinks(bandId).firstOrNull { it.roomSuitable }
         loading = false
     }
 
-    // Keep the screen awake + bright while the QR is up — the one genuinely native part (a phone that
-    // dims mid-room defeats the whole thing).
-    val context = LocalContext.current
+    // Keep the screen awake + bright while the QR is up (a phone that dims mid-room defeats the whole thing),
+    // released when the person leaves the screen.
+    val hold by rememberUpdatedState(keepScreenOn)
     DisposableEffect(Unit) {
-        val window = (context as? Activity)?.window
-        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        hold(true)
+        onDispose { hold(false) }
     }
 
-    BackHandler { onBack() }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize()) {
             TopAppBar(
@@ -122,7 +122,7 @@ fun QrPresentScreen(
 private fun QrView(link: HttpTransport.InviteLink, onManageInStudio: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         // A high-contrast QR on white, big, so it scans from across a room.
-        val qr = remember(link.url) { qrBitmap(link.url, 720) }
+        val qr = remember(link.url) { qrImage(if (qrSabotage == "qrwrongtext") link.url + "-wrong" else link.url, 720) }
         Box(Modifier.background(Color.White).padding(16.dp)) {
             Image(qr, contentDescription = "Band invite QR", modifier = Modifier.size(320.dp))
         }
@@ -168,14 +168,30 @@ private fun NoLinkYet(
     }
 }
 
-/** ZXing QR encode → white/black Android bitmap (no zxing-android needed; zxing-core does encoding). */
-private fun qrBitmap(text: String, size: Int): ImageBitmap {
+/**
+ * ZXing QR encode → a white/black [ImageBitmap] drawn with Compose's Canvas (WIN09: no Android Bitmap, so the
+ * desktop draws it too). Each row's black runs are whole-pixel rects without anti-aliasing, so the pixels are
+ * exactly the matrix's — the same image the A65 setPixel loop made.
+ */
+internal fun qrImage(text: String, size: Int): ImageBitmap {
     val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size)
-    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    for (x in 0 until size) {
-        for (y in 0 until size) {
-            bmp.setPixel(x, y, if (matrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+    val image = ImageBitmap(size, size)
+    val canvas = Canvas(image)
+    val white = Paint().apply { color = Color.White; isAntiAlias = false }
+    val black = Paint().apply { color = Color.Black; isAntiAlias = false }
+    canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), white)
+    if (qrSabotage == "qrblank") return image   // WIN09 sabotage qrblank (the smoke only): a white square → check 2 reds
+    for (y in 0 until size) {
+        var x = 0
+        while (x < size) {
+            if (!matrix.get(x, y)) { x++; continue }
+            val start = x
+            while (x < size && matrix.get(x, y)) x++
+            canvas.drawRect(start.toFloat(), y.toFloat(), x.toFloat(), (y + 1).toFloat(), black)
         }
     }
-    return bmp.asImageBitmap()
+    return image
 }
+
+/** WIN09 — the `--win09-qr` smoke's sabotage, set as a system property on that path only (never on Android). */
+private val qrSabotage: String? get() = System.getProperty("troubastage.win09.sabotage")

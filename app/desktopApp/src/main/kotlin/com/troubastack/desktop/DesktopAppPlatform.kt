@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import com.troubastack.app.FileRehearsalNotes
 import com.troubastack.app.dropSessionIfOriginChanged
 import com.troubastack.app.HttpTransport
 import com.troubastack.app.PedalLink
+import com.troubastack.app.QrPresentScreen
 import com.troubastack.app.Presence
 import com.troubastack.app.RehearsalNotesStore
 import com.troubastack.app.SkiaImageDecoder
@@ -95,8 +97,8 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
     override val studio: StudioHost = object : StudioHost {
         // WIN08 — on Windows the embedded-Studio provider hosts Studio (WebView2/SWT) in the window; on Linux and
         // macOS no provider is registered, so both Browse and Edit fall back to "Coming soon." (D6). Browse opens
-        // Studio at its root; Edit opens the SAME host at initialPath with the band title. PresentQr stays
-        // unreachable (the embedded Browse never calls onShowQr).
+        // Studio at its root; Edit opens the SAME host at initialPath with the band title. WIN09: Browse's ⋮ "Show band
+        // QR…" draws PresentQr over the embedded screen itself (onShowQr stays unused, so Studio keeps its place).
         @Composable
         override fun Browse(
             transport: HttpTransport,
@@ -110,10 +112,40 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
                 // the embedded screen hands back controller.requestBack, and the BackHandler calls it.
                 var embeddedBack by remember { mutableStateOf<(() -> Unit)?>(null) }
                 var serverNonce by remember { mutableStateOf(0) }   // S2.3b: a re-point bumps it → a fresh controller
-                androidx.compose.runtime.key(serverNonce) {
-                    provider.Host(embeddedArgs(initialPath = null, title = "TroubaStudio", onBack = onBack, provideRequestBack = { embeddedBack = it }, onServerUrlChange = { repointServer(it); serverNonce++ }))
+                // WIN09 — ⋮ "Show band QR…": the bands this person administers, fetched as Studio opens and again after a
+                // re-point (no item until then, nor when there are none). The picker and the QR draw OVER the embedded
+                // screen (hostOverlay collapses it to 0.dp), so the Browser lives on underneath and Back returns to Studio
+                // where it was; "Manage / revoke in Studio" loads the band's settings in that same Browser.
+                var adminBands by remember { mutableStateOf<List<HttpTransport.StudioBand>>(emptyList()) }
+                LaunchedEffect(serverNonce) { adminBands = emptyList(); adminBands = bandQrChoices(transport.fetchStudioBands()) }
+                var bandQr by remember { mutableStateOf<BandQrView?>(null) }
+                var openPath by remember { mutableStateOf<((String) -> Unit)?>(null) }
+                // Sabotage qrreplace (the --win09-qr smoke only): drop Studio while the QR shows, as an App-level screen
+                // would → Back finds a new controller, and the where-it-was check reds.
+                val replaceStudio = bandQr != null && System.getProperty(WIN09_SABOTAGE_PROPERTY) == "qrreplace"
+                Box(Modifier.fillMaxSize()) {
+                    if (!replaceStudio) androidx.compose.runtime.key(serverNonce) {
+                        provider.Host(embeddedArgs(
+                            initialPath = null, title = "TroubaStudio", onBack = onBack, provideRequestBack = { embeddedBack = it },
+                            onServerUrlChange = { repointServer(it); serverNonce++ },
+                            onShowBandQr = bandQrEntry(adminBands)?.let { entry -> { bandQr = entry } },
+                            hostOverlay = bandQr != null,
+                            provideOpenPath = { openPath = it },
+                        ))
+                    }
+                    BackHandler { (embeddedBack ?: onBack).invoke() }
+                    bandQr?.let { view ->
+                        BandQrOverlay(
+                            view = view,
+                            onView = { bandQr = it },
+                            qr = { band, back ->
+                                PresentQr(transport, band.id, band.name, onManageInStudio = { bandQr = null; openPath?.invoke("/bands/${band.id}/settings") }, onBack = back)
+                            },
+                            backHandler = { BackHandler(it) },
+                            takeWindowFocus = ::takeWindowFocus,
+                        )
+                    }
                 }
-                BackHandler { (embeddedBack ?: onBack).invoke() }
             } else {
                 StudioComingSoon(onBack)
                 BackHandler(onBack)
@@ -135,14 +167,33 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             }
         }
 
+        // WIN09 — the shared room QR. Keep-awake is Stage's display hold (WIN03/DESK01), held while the QR shows.
         @Composable
-        override fun PresentQr(transport: HttpTransport, bandId: String, bandName: String, onManageInStudio: () -> Unit, onBack: () -> Unit) =
-            error("Studio's room QR is not on Windows yet (WIN05)")
+        override fun PresentQr(transport: HttpTransport, bandId: String, bandName: String, onManageInStudio: () -> Unit, onBack: () -> Unit) {
+            QrPresentScreen(
+                transport = transport, bandId = bandId, bandName = bandName, onManageInStudio = onManageInStudio, onBack = onBack,
+                // Sabotage nokeepawake (the --win09-qr smoke only): never hold the display → check 4 reds.
+                keepScreenOn = { on -> if (System.getProperty(WIN09_SABOTAGE_PROPERTY) != "nokeepawake") keepDisplayOn(on) },
+            )
+            BackHandler(onBack)
+        }
 
         // S2.3: clear the WebView2 cookies for the old session. The provider (Windows) applies it on a live Browser
         // at once, or persists a pending clear under the data root that the next Studio open applies before seeding.
         override fun clearCookies(oldOrigin: String?, cookieName: String?) =
             embeddedStudioProvider?.clearCookies(File(desktopDataRoot(), "webview2"), oldOrigin, cookieName) ?: Unit
+    }
+
+    /**
+     * WIN09 — bring the keyboard focus back to this window while the Studio WebView (a child window that SWT's thread
+     * parents, hosted by another process) holds it. Measured on the runner: AWT still counts the frame focused, with its
+     * own focus owner, so neither Compose's request nor AWT's moves anything, and a real Alt+← walked Studio's history
+     * behind the QR. The native focus on the frame's own window is what moves it (Windows only; elsewhere no embedded
+     * Studio exists).
+     */
+    private fun takeWindowFocus() {
+        val w = awtWindow ?: return
+        if (hostOs == HostOs.WINDOWS) nativeFocus(w)
     }
 
     // S2.3b: ⋮ "Server URL…" re-point. Clear the OLD origin's cookie through the NEXT-OPEN path (never the live
@@ -157,7 +208,10 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
 
     /** WIN08 — gather what the embedded-Studio host needs (the server, the session cookie bound to that origin,
      *  the EdgeDataDir under the data root, and the window hooks). The provider builds the URL + origin from these. */
-    private fun embeddedArgs(initialPath: String?, title: String, onBack: () -> Unit, provideRequestBack: (() -> Unit) -> Unit, onServerUrlChange: (String) -> Unit): EmbeddedStudioArgs {
+    private fun embeddedArgs(
+        initialPath: String?, title: String, onBack: () -> Unit, provideRequestBack: (() -> Unit) -> Unit, onServerUrlChange: (String) -> Unit,
+        onShowBandQr: (() -> Unit)? = null, hostOverlay: Boolean = false, provideOpenPath: (((String) -> Unit) -> Unit)? = null,
+    ): EmbeddedStudioArgs {
         val serverUrl = storage.getSecret(CORE_URL_KEY)
         // S2.1 nit (Fable): build the probe's transport ONCE per screen, not once per probe call (the cover re-probes
         // on every Retry). It carries no real server default and a no-op cookie clear — it only does probePresence().
@@ -186,6 +240,9 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
                     } else false
                 }.getOrDefault(false)
             },
+            onShowBandQr = onShowBandQr,         // WIN09: the ⋮ "Show band QR…" item (null hides it)
+            hostOverlay = hostOverlay,           // WIN09: the picker or the QR is drawn over the embedded screen
+            provideOpenPath = provideOpenPath,   // WIN09: "Manage / revoke in Studio" loads in the same Browser
         )
     }
 
@@ -294,6 +351,23 @@ private val displaySleep: DisplaySleep by lazy { displaySleepForThisOs() }
 
 /** Stage's hold on the display (see [DisplaySleep]); never throws. */
 private fun keepDisplayOn(on: Boolean) = runCatching { displaySleep.hold(on) }.let { }
+
+/**
+ * WIN09 — Windows: SetFocus on [frame]'s own HWND from the calling thread (the EDT). SetFocus only reaches a window on
+ * the caller's input queue, so attach to the frame's thread for the call and detach after. Never throws.
+ */
+private fun nativeFocus(frame: java.awt.Window) {
+    runCatching {
+        val hwnd = com.sun.jna.Native.getComponentPointer(frame)?.let { com.sun.jna.platform.win32.WinDef.HWND(it) } ?: return
+        val user32 = com.sun.jna.platform.win32.User32.INSTANCE
+        val target = user32.GetWindowThreadProcessId(hwnd, null)
+        val me = Kernel32.INSTANCE.GetCurrentThreadId()
+        val dMe = com.sun.jna.platform.win32.WinDef.DWORD(me.toLong())
+        val dTarget = com.sun.jna.platform.win32.WinDef.DWORD(target.toLong())
+        val attached = target != me && user32.AttachThreadInput(dMe, dTarget, true)
+        try { user32.SetFocus(hwnd) } finally { if (attached) user32.AttachThreadInput(dMe, dTarget, false) }
+    }
+}
 
 /** DESK01 — an https address in the default browser: AWT's Desktop where it can, else the system's opener. */
 internal fun openUrl(url: String) {
