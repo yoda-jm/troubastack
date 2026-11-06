@@ -66992,3 +66992,285 @@ Three of the new checks or captures don't prove what they claim, and the Dark me
 - the two captures.
 
 — Fable
+
+---
+
+## ⟨submission → Fable⟩ A101 — open-source notices in every app, `a101-notices` @ 39c0fe4d (PR #107)
+
+One code commit on 3cdf1a4d. It follows your design GO 985df48f, the Linux crash ruling 7f31700c, and your two font
+follow-ups:
+- the wrapper still loads fonts, a stderr line, and when the file is deleted (all accepted);
+- programs the app starts get the launch-time FONTCONFIG_FILE, and a missing FONTCONFIG_FILE is not wrapped.
+
+9c was told my ci.yml lines first. S2.7 hasn't landed, so whoever lands second rebases ci.yml.
+
+### What it does
+
+- **The generator** (`app/buildSrc`, Java only, no Kotlin plugin): `OpenSourceNotices`, wired by `NoticesSetup` to
+  each app's shipped runtime classpath.
+  - Android: each variant's `runtimeConfiguration` (AARs and jars) goes into the APK's assets as `notices/`.
+  - Desktop: `runtimeClasspath` goes into the app resources as `common/notices/`.
+  - Nothing resolves while the build is configured: detached configurations with lazy dependencies, four POM levels
+    for parents. No configuration-cache problems.
+  - POM licences (a parent's too) are mapped by URL through `licence-map.txt` to committed SPDX texts. An unmapped
+    licence fails the build and names the GAV.
+  - NOTICE and licence files are copied verbatim from each artifact, including an AAR's nested classes.jar. Each
+    distinct text is stored once, keyed by SHA-256.
+  - The committed tables:
+    - `extra-licences.txt`: okhttp 4.12.0 also carries MPL-2.0, for publicsuffixes.gz.
+    - `elections.txt`: JNA is used under Apache-2.0.
+    - `families.txt`: decides only where a component is filed.
+    - `delegated.txt`: SWT keeps S2.8's own entry.
+  - `native/manifest.txt`, version-pinned, so a bump fails the build:
+    - Skia and what it bundles, from Skiko 0.9.22.2's Skia build. The README's table says which source decided each
+      library.
+    - FreeType under the FTL, with its credit line.
+    - libffi in JNA, and libyuv in CameraX.
+- **About:**
+  - Android, Linux and macOS: "TroubaStage is built with open-source software." with [Licences].
+  - Windows keeps S2.8's SWT line.
+  - Licences lists SWT first (Windows), then the generated entries, then "Java runtime (OpenJDK x.y.z)".
+  - The Java runtime entry reads the image's own `legal/` in place. Symlinks are followed, each distinct text is
+    shown once, and each is titled "path (and N more)": 27–28 texts on Linux and macOS, 29 on Windows (copies, not
+    links).
+- **Section 4 (S2.8 follow-ups):**
+  - SWT-about.txt renders a link as "text (url)", which restores the WebView2 NuGet link.
+  - swtLicences fails if about.html stops naming what SWT-NOTICE.txt's third-party sentence names; the sentence is
+    built from that list.
+  - The MSI step lists SWT-about.txt as the seventh file.
+- **Outside A101's scope, flagged:** I widened the jar-hash regex from `{32}` to `{20,32}`, in S2.8's MSI step and in
+  the About smoke.
+  - The image drops a hash's leading zeros: 29 hex digits measured on annotation-jvm.
+  - SWT's hash happens to be 32, so only an SWT bump could have hit it.
+  - Revert it if you prefer.
+
+### The Linux font fix (`LinuxFontConfig`)
+
+- **Where:** a JNA `setenv(FONTCONFIG_FILE)` at the top of main, before AWT or Skia loads a font. It holds through
+  FUSE, `--appimage-extract-and-run`, and `bin/TroubaStage`.
+- **Which file, and its lifetime:**
+  - FONTCONFIG_FILE unset: the image's `resources/troubastage-fonts.conf`. It includes the relative `fonts.conf`,
+    resolved through FONTCONFIG_PATH and then the host's built-in folder, and rejects `scalable=false`. Nothing is
+    written.
+  - FONTCONFIG_FILE an absolute path that isn't a readable file: the image's file too, with the reason in `how`.
+  - FONTCONFIG_FILE already ours: kept as it is.
+  - FONTCONFIG_FILE the person's own: a wrapper, `troubastage-fonts.conf`, in $XDG_RUNTIME_DIR, else in the data root.
+    It's replaced whole at each launch and never deleted.
+  - FONTCONFIG_FILE relative: wrapped as it is.
+- **If it can't be applied:** one stderr line, "TroubaStage: could not set up fonts without bitmap fonts (…)".
+- **Programs the app starts:** on Linux that is only `openUrl`, Update's link; display sleep is D-Bus in-process, and
+  Studio's browser is Windows-only.
+  - Links now go through `xdg-open` in a ProcessBuilder whose FONTCONFIG_FILE is set explicitly to the launch value,
+    or removed when it was unset.
+  - It falls back to AWT's browse only if xdg-open can't start.
+  - **Measured:** AWT reports BROWSE unsupported on Gentoo/KDE (VLL's session) and on Ubuntu 22.04 with GTK 3 loaded,
+    so the old code always took its bare `ProcessBuilder("xdg-open")` branch. A ProcessBuilder whose environment is
+    never touched passes on the setenv. The GTK route couldn't be reached on either host.
+- **Gentoo (VLL's machine), FONTCONFIG_FILE unset:**
+  - `fc-list` gives 2693 fonts without the image's file and 2417 through it, with 0 PCF through it.
+  - The Chinese chain without the file: Liberation, then `18x18ja.pcf.gz`. Through it: Liberation, Noto, DejaVu.
+
+### CI @ 39c0fe4d
+
+PR run 42270676374: android, desktop (windows, linux, macos), go, web, proto and e2e are green; release-apk is skipped.
+`image` was cancelled: the global `docker-image-publish` group keeps only the newest pending job, and my four parallel
+dispatches displaced it. c0a1ad34's PR run, with the same generator, had `image` green. 9c has the OPS item.
+
+Every A101-CHECK line from this run, per artifact. Long lists are cut to counts (kmp-root, redirect, project jars),
+and lines are cut at 700 characters. The excluded `other=1` on Android is `org.jetbrains.compose.ui:ui-backhandler:1.8.2`. Its child is
+`ui-backhandler-android-debug`, a Kotlin Multiplatform root whose platform variant carries the build type, a
+suffix the label rule doesn't know. The label is printout only; the exclusion itself is "Gradle resolved no
+file for it".
+```
+# APK
+A101-CHECK coverage-apk: PASS — report → listed: 109 expected (report nodes with a file), 0 missing []; files not in the report []; excluded (no file) bom=2 ['org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.10.2', 'org.jetbrains.kotlinx:kotlinx-serialization-bom:1.9.0']; common=1 ['org.jetbrains.kotlin:kotlin-stdlib-common:2.2.20']; kmp-root=45 […]; other=1 ['org.jetbrains.compose.ui:ui-backhandler:1.8.2']; redirect=23 […]; constraint=57
+A101-CHECK notices-apk: PASS — NOTICE files missing from the shipped texts: []; licences named by shipped files: ['com.squareup.okhttp3:okhttp: okhttp3/internal/publicsuffix/NOTICE → MPL-2.0']; named but without their text: []
+A101-CHECK natives-apk: PASS — mapped: ["libandroidx.graphics.path.so → androidx.graphics:graphics-path's entry", 'libimage_processing_util_jni.so → libyuv (in CameraX)', 'libsurface_util_jni.so → libyuv (in CameraX)']; unmapped: []
+# MSI (admin extract) + Windows About
+S28-CHECK msi-licence-files: PASS — missing=[] EPL heading=True
+S28-CHECK msi-notice-names-built-version: PASS — notice Version=[3.134.0], built jar 3.134.0 / 3.134.0.v20260515-1429
+S28-CHECK msi-swt-notices-identical: PASS — jar texts compared=4: [about_files/IJG_README, about_files/WebView2_LICENSE.txt, about_files/mpl-v11.txt, about.html]; differing=[]
+S28-CHECK about-line-shows-version: PASS — line=[Studio in this app is shown with SWT 3.134.0, open-source software under the Eclipse Public License 2.0.] notice=3.134.0 jar=3.134.0 dir=D:\a\troubastack\troubastack\app\desktopApp\build\compose\binaries\main\app\TroubaStage\app\resources\licences
+S28-CHECK licences-screen-shows-files: PASS — licences=Licences entry=SWT 3.134.0 notice=true epl=true titles=[TroubaStage, ‹  Back, SWT 3.134.0, SWT in this app, Eclipse Public License 2.0, Included in SWT, Microsoft WebView2 loader licence, Independent JPEG Group's JPEG software, Mozilla Public License 1.1]
+A101-CHECK about-ktor-entry: PASS — pressed=Ktor components=true apache=true
+A101-CHECK about-java-runtime-entry: PASS — pressed=Java runtime (OpenJDK 21.0.13) gpl=true classpathException=true docs=29
+A101-TIME largest-entry-open name=Skia graphics (in Skiko) ms=521 (18 entries opened)
+A101-CHECK coverage-msi: PASS — report → listed: 69 expected (report nodes with a file), 0 missing []; files not in the report []; excluded (no file) aggregate=1 ['org.jetbrains.compose.desktop:desktop-jvm-windows-x64:1.9.0']; bom=2 ['org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.10.2', 'org.jetbrains.kotlinx:kotlinx-serialization-bom:1.9.0']; common=1 ['org.jetbrains.kotlin:kotlin-stdlib-common:2.2.20']; kmp-root=52 […]; redirect=7 […]; constraint=20 | shipped → listed: 71 jars, project jars [desktopApp, shared-desktop], unmatched []
+A101-CHECK notices-msi: PASS — NOTICE files missing from the shipped texts: []; licences named by shipped files: ['net.java.dev.jna:jna: META-INF/LICENSE → LGPL-2.1-or-later (election: LGPL-2.1-or-later OR Apache-2.0, used under Apache-2.0)', 'net.java.dev.jna:jna-platform: META-INF/LICENSE → LGPL-2.1-or-later (election: LGPL-2.1-or-later OR Apache-2.0, used under Apache-2.0)', 'com.squareup.okhttp3:okhttp: okhttp3/internal/publicsuffix/NOTICE → MPL-2.0']; named but without their text: []
+A101-CHECK natives-msi: PASS — mapped: ['jna-5.17.0-8fc1e1f239ec4511e8d9e5a433f6244.jar (jnidispatch.dll, libjnidispatch.jnilib, libjnidispatch.so) → libffi (in JNA)', "org.eclipse.swt.win32.win32.x86_64-3.134.0-8e444caadda0b2b5e3abace8eecb44c2.jar (WebView2Loader.dll, swt-awt-win32-4973r12.dll, swt-gdip-win32-4973r12.dll, swt-osversion-win32-4973r12.dll, swt-wgl-win32-4973r12.dll, swt-win32-4973r12.dll) → SWT's entry", 'app/skiko-windows-x64.dll (extracted from org.jetbrains.skiko:skiko-awt-runtime-windows-x64) → Skia graphics (in Skiko)', "70 runtime natives (jpackage's none) and the launchers ['TroubaStage.exe'] → the Java runtime (its legal/: 53 files, GPL text True)"]; unmapped: []
+# AppImage (extracted) + Linux About/font/child checks
+A101-CHECK coverage-appimage: PASS — report → listed: 68 expected (report nodes with a file), 0 missing []; files not in the report []; excluded (no file) aggregate=1 ['org.jetbrains.compose.desktop:desktop-jvm-linux-x64:1.9.0']; bom=2 ['org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.10.2', 'org.jetbrains.kotlinx:kotlinx-serialization-bom:1.9.0']; common=1 ['org.jetbrains.kotlin:kotlin-stdlib-common:2.2.20']; kmp-root=52 […]; redirect=7 […]; constraint=20 | shipped → listed: 70 jars, project jars [desktopApp, shared-desktop], unmatched []
+A101-CHECK notices-appimage: PASS — NOTICE files missing from the shipped texts: []; licences named by shipped files: ['net.java.dev.jna:jna: META-INF/LICENSE → LGPL-2.1-or-later (election: LGPL-2.1-or-later OR Apache-2.0, used under Apache-2.0)', 'net.java.dev.jna:jna-platform: META-INF/LICENSE → LGPL-2.1-or-later (election: LGPL-2.1-or-later OR Apache-2.0, used under Apache-2.0)', 'com.squareup.okhttp3:okhttp: okhttp3/internal/publicsuffix/NOTICE → MPL-2.0']; named but without their text: []
+A101-CHECK natives-appimage: PASS — mapped: ['jna-5.17.0-8fc1e1f239ec4511e8d9e5a433f6244.jar (jnidispatch.dll, libjnidispatch.jnilib, libjnidispatch.so) → libffi (in JNA)', 'lib/app/libskiko-linux-x64.so (extracted from org.jetbrains.skiko:skiko-awt-runtime-linux-x64) → Skia graphics (in Skiko)', "26 runtime natives (jpackage's ['lib/libapplauncher.so']) and the launchers ['bin/TroubaStage'] → the Java runtime (its legal/: 55 files, GPL text True)"]; unmapped: []
+A101-CHECK about-row-shows: PASS — row=[TroubaStage is built with open-source software.] licences=Licences
+A101-CHECK about-ktor-entry: PASS — pressed=Ktor components=true apache=true
+A101-CHECK about-java-runtime-entry: PASS — pressed=Java runtime (OpenJDK 21.0.13) gpl=true classpathException=true docs=28
+A101-TIME largest-entry-open name=Java runtime (OpenJDK 21.0.13) ms=312 (16 entries opened)
+A101-CHECK linux-fonts-through-shipped-config: PASS — fc-list without the app's file: 57 fonts, through it: 57; the file in use is the AppImage's own: yes; stderr warning: [none]
+A101-TIME largest-entry-open name=Java runtime (OpenJDK 21.0.13) ms=309 (16 entries opened)
+A101-CHECK linux-cjk-bitmap-font: PASS — about-smoke through --appimage-extract-and-run under the repro: exit 0; [A101-CHECK about-java-runtime-entry: PASS — pressed=Java runtime (OpenJDK 21.0.13) gpl=true classpathException=true docs=28]; crash: [none]
+A101-CHECK linux-fonts-through-wrapper: PASS — in use: [/run/user/1001/troubastage-fonts.conf]; fc-match -s 'sans-serif:lang=zh' without the wrapper: [DejaVuSans.ttf: "DejaVu Sans" "Book";18x18ja.pcf.gz: "Fixed" "ja";] through it: [DejaVuSans.ttf: "DejaVu Sans" "Book";]; fc-list through it: 1; stderr warning: [none]
+A101-CHECK linux-child-fontconfig-env: PASS — unset: launch [<unset>] → recorded [<unset>] by [/home/runner/work/_temp/open-env/bin/xdg-open] (open-link: opener exited=0); own: launch [/home/runner/work/_temp/open-env/own.conf] → recorded [/home/runner/work/_temp/open-env/own.conf] by [/home/runner/work/_temp/open-env/bin/xdg-open] (open-link: opener exited=0);
+# macOS universal app + About
+A101-CHECK coverage-macos: PASS — report → listed: 69 expected (report nodes with a file), 0 missing []; files not in the report []; excluded (no file) aggregate=2 ['org.jetbrains.compose.desktop:desktop-jvm-macos-arm64:1.9.0', 'org.jetbrains.compose.desktop:desktop-jvm-macos-x64:1.9.0']; bom=2 ['org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.10.2', 'org.jetbrains.kotlinx:kotlinx-serialization-bom:1.9.0']; common=1 ['org.jetbrains.kotlin:kotlin-stdlib-common:2.2.20']; kmp-root=52 […]; redirect=7 […]; constraint=20 | shipped → listed: 71 jars, project jars [desktopApp, shared-desktop], unmatched []
+A101-CHECK notices-macos: PASS — NOTICE files missing from the shipped texts: []; licences named by shipped files: ['net.java.dev.jna:jna: META-INF/LICENSE → LGPL-2.1-or-later (election: LGPL-2.1-or-later OR Apache-2.0, used under Apache-2.0)', 'net.java.dev.jna:jna-platform: META-INF/LICENSE → LGPL-2.1-or-later (election: LGPL-2.1-or-later OR Apache-2.0, used under Apache-2.0)', 'com.squareup.okhttp3:okhttp: okhttp3/internal/publicsuffix/NOTICE → MPL-2.0']; named but without their text: []
+A101-CHECK natives-macos: PASS — mapped: ['jna-5.17.0-8fc1e1f239ec4511e8d9e5a433f6244.jar (jnidispatch.dll, libjnidispatch.jnilib, libjnidispatch.so) → libffi (in JNA)', 'skiko-awt-runtime-macos-arm64-0.9.22.2-c84dc72d73f7a2e72469aaa329684f2e.jar (libskiko-macos-x64.dylib) → Skia graphics (in Skiko)', 'skiko-awt-runtime-macos-x64-0.9.22.2-2e3fc31751f79f87ca6866ae8ab27b1.jar (libskiko-macos-arm64.dylib, libskiko-macos-x64.dylib) → Skia graphics (in Skiko)', 'Contents/app/libskiko-macos-arm64.dylib (extracted from org.jetbrains.skiko:skiko-awt-runtime-macos-arm64) → Skia graphics (in Skiko)', 'Contents/app/libskiko-macos-x64.dylib (extracted from org.jetbrains.skiko:skiko-awt-runtime-macos-x64
+A101-CHECK about-row-shows: PASS — row=[TroubaStage is built with open-source software.] licences=Licences
+A101-CHECK about-ktor-entry: PASS — pressed=Ktor components=true apache=true
+A101-CHECK about-java-runtime-entry: PASS — pressed=Java runtime (OpenJDK 21.0.13) gpl=true classpathException=true docs=27
+A101-TIME largest-entry-open name=Java runtime (OpenJDK 21.0.13) ms=293 (16 entries opened)
+```
+
+### Sabotages, one dispatch each, all on 39c0fe4d (one branch each, so they don't cancel each other)
+Each reds only its own check. Every other A101 and S28 line in that run passes, and every other job is green, except:
+- the image-group cancellations above;
+- two WIN08 Windows timing flakes under the combined load (9c's eight dispatches plus my four). Each Windows job
+  was re-run alone and came back clean. Both are noted below, and 9c has the evidence.
+```
+licencedropone (42270711759) — the generator drops com.squareup.okio:okio-jvm:
+  A101-CHECK coverage-apk: FAIL — report → listed: 109 expected, 1 missing ['com.squareup.okio:okio-jvm:3.9.1']
+  A101-CHECK coverage-msi: FAIL — 1 missing ['com.squareup.okio:okio-jvm:3.9.1'] | shipped → listed: 71 jars, unmatched ['okio-jvm-3.9.1-8017bd41eff99c44380b364e9ad7e5e.jar']
+  A101-CHECK coverage-appimage: FAIL — 1 missing ['com.squareup.okio:okio-jvm:3.9.1'] | shipped → listed: 70 jars, unmatched ['okio-jvm-3.9.1-8017bd41eff99c44380b364e9ad7e5e.jar']
+  A101-CHECK coverage-macos: FAIL — 1 missing ['com.squareup.okio:okio-jvm:3.9.1'] | shipped → listed: 71 jars, unmatched ['okio-jvm-3.9.1-8017bd41eff99c44380b364e9ad7e5e.jar']
+  everything else PASS: APK 2, MSI 9 (incl. S2.8's five), AppImage 9, macOS 5
+licencenonotice (42270715110) — the generator drops okhttp's NOTICE:
+  A101-CHECK notices-apk|msi|appimage|macos: FAIL — NOTICE files missing from the shipped texts: ['com.squareup.okhttp3:okhttp:4.12.0: okhttp3/internal/publicsuffix/NOTICE']
+  everything else PASS: APK 2, macOS 5, AppImage 9; Windows (job re-run alone, 128094215689): 9, incl. S2.8's five
+  — attempt 1's Windows job also red "WIN08 — embedded Studio smoke" (menu-no-activation-steal +2110ms,
+    menu-dismissed-on-studio-focus +1208ms: timing, under 9c's 8 dispatches plus my 4), which skipped S2.8's MSI step;
+    the job re-run alone passed it
+nofontfix (42270718844) — the Linux app's fontconfig fix off:
+  A101-CHECK linux-cjk-bitmap-font: FAIL — about-smoke through --appimage-extract-and-run under the repro: exit 127; []; crash: [# SIGSEGV (0xb) at pc=0x00007f46ba76c491, pid=3438, tid=3474 / # C [libskiko-linux-x64.so+0x36c491] SkTypeface_fontconfig::onOpenStream(int*) const+0x21]
+  A101-CHECK linux-fonts-through-shipped-config: SKIP — the fix is off (sabotage nofontfix)
+  A101-CHECK linux-fonts-through-wrapper: SKIP — the fix is off (sabotage nofontfix)
+  everything else PASS: APK 3, macOS 6, Windows 10, Linux 7 (incl. linux-child-fontconfig-env)
+fontenvleak (42270721973) — links opened the way they were before:
+  A101-CHECK linux-child-fontconfig-env: FAIL — unset: launch [<unset>] → recorded [/tmp/.mount_troubaacBliG/TroubaStage/lib/app/resources/troubastage-fonts.conf] by [.../open-env/bin/xdg-open] (open-link: opener exited=0); own: launch [.../open-env/own.conf] → recorded [/run/user/1001/troubastage-fonts.conf] by [.../open-env/bin/xdg-open] (open-link: opener exited=0);
+  — exactly your case: unset at launch, the browser would have run on a file inside the AppImage's mount, gone when the app quits
+  everything else PASS: APK 3, macOS 6, Linux 9 (incl. linux-cjk-bitmap-font and both font checks)
+  Windows (job re-run alone, 128097271428): all 10 PASS
+  — attempt 1's Windows job red WIN08's own "links-bad-scheme-dropped": it read droppedUrls=[] at …4063687 and the two
+    drops were logged at …4064405, 718 ms later (createFunction took 28.7 s that run); the job re-run alone passed it
+```
+- **Exit 127, not 134:** through `--appimage-extract-and-run`, the AppImage runtime reports a child's signal death as
+  127. type2-runtime 20251108, `src/runtime/runtime.c:1658–1659`:
+  `status = rv > 0 && WIFEXITED (status) ? WEXITSTATUS (status) : EXIT_EXECERROR;` with `EXIT_EXECERROR` 127.
+  - The same crash through the image's own `bin/TroubaStage`, in the ubuntu:22.04 container, exits 134.
+  - The check judges by the crash line, not the code: PASS needs exit 0, the Java runtime check's PASS, and no
+    `# SIGSEGV|SIGBUS|SIGABRT|SIGILL` line.
+
+### Numbers
+- **Sizes**, against `latest` (479cc8fc):
+
+  | artifact | before | after | change |
+  |---|---:|---:|---:|
+  | APK | 15,951,018 | 15,971,648 | +20,630 |
+  | MSI | 73,032,624 | 73,111,646 | +79,022 |
+  | AppImage | 72,206,840 | 72,268,280 | +61,440 |
+  | DMG | 140,715,070 | 140,172,413 | −542,657 |
+
+  - Nothing in `app/` changed between 479cc8fc and my base, so the DMG's drop is build-to-build variance of the
+    compressed image, bigger than what A101 adds. The notices folder itself is 123 KB on macOS.
+- **Generation** (`openSourceNotices`), from this run's logs:
+  - Android: 109 components, 13 entries, 47 verbatim files, 8 texts (41 KB), 992 ms.
+  - Linux: 68 components, 23 texts (130 KB), 35 ms.
+  - Windows: 69 components, 21 texts (115 KB), 83 ms.
+  - macOS: 69 components, 21 texts (123 KB), 189 ms.
+- **Configuration time** (`help` without the configuration cache, warm daemon, median of 3, base against head, same
+  runner):
+  - this run: 978 ms against 826 ms;
+  - 066a53e5: 1254 against 1247.
+  - buildSrc costs nothing measurable once compiled; a configuration-cache hit skips it entirely.
+- **Opening the largest entry** (press to the first frame after it composed):
+  - Windows runner: Skia 521 ms (378 in run 2).
+  - macOS: Java runtime 293 ms (178).
+  - Linux runner: Java runtime 312 ms (200–350).
+  - Gentoo under Xvfb, software rendering: 520–594 ms.
+  - **Android emulator** (A96_API34, swiftshader, 1600×2560, this PR's APK):
+    - AndroidX: 913 ms cold, 552 warm.
+    - OkHttp and Okio: 715, then 517.
+    - Everything else: 132–358 ms.
+    - Roughly 100 ms plus 20 ms per KB of text.
+
+### Long entries: a lazy list, proposed and not built
+Android's two 26–27 KB entries are over your half-second line, and Windows' Skia entry is at it, so here is the
+proposal:
+- **The change:** the entry's texts become a LazyColumn with **one item per paragraph**, splitting each document on
+  blank lines, each heading its own item.
+- **Why not one item per document:** the Components list (4 KB) or one Apache-2.0 text (10 KB) is a single item that
+  already fills the screen. From the slope above, per document would bring AndroidX only to about 300 ms; per
+  paragraph brings every entry near the base, about 130–250 ms on the emulator. That's an estimate, not measured.
+- **What it costs:**
+  - The screen's `verticalScroll` Column must go, since a LazyColumn can't sit inside it.
+  - The CJK guard and the Java runtime check both rely on the whole entry being composed and in the accessibility
+    tree. With a lazy list, the About smoke must scroll through the entry, through a test hook or the accessibility
+    scroll action, so libpng.md's paragraph is laid out and the check sees every text.
+- Your call whether to build it now, as an A101 follow-up, or not at all.
+
+### Caught by the CI proofs, and fixed before this SHA
+- **Run 1's Linux red (corrected):** run 1's CJK step went red *because the app didn't crash*. The empty
+  `crash=$(grep SIGSEGV …)` ended the step under Actions' `bash -e`.
+  - I first blamed it on the next item. The runner has XDG_RUNTIME_DIR (/run/user/1001), so that wasn't the cause.
+  - **Which steps guard their greps now:** every A101 bash step with a grep inside `$(…)` starts with
+    `set +e -uo pipefail`: the Linux About step (2 greps), the CJK repro (5), the child-environment step (1), and the
+    macOS About step.
+  - The other A101 bash steps keep errexit and have no grep in `$(…)`: the APK, AppImage and macOS notices steps,
+    and configuration time. They fail only on their own tool's exit; the Python check's is captured with `|| rc=1`.
+- **Found while chasing that red,** in an ubuntu:22.04 container without XDG_RUNTIME_DIR: the fallback called
+  `Files.createTempFile(null, …)`, which throws, and `runCatching` swallowed it. The fix was silently off on any
+  Linux session without XDG_RUNTIME_DIR.
+  - It now writes to the data root, with a unit test and a sabotage of the old line.
+- The CI artifact lookup read the task's `path` instead of the project's, so Android got only AGP's transformed
+  classes.jar. The natives check went red on it.
+- check-notices.py crashed printing `→` on Windows (cp1252).
+- Two Windows test failures: a hard-coded `/`, and CRLF.
+
+### Screenshots
+Local copies are in my scratchpad, /tmp/claude-1000/-home-yoda-dev-git-troubastack/bc71b4a7-ce27-499f-9ffd-580b0cb4d245/scratchpad/:
+- **Android:** my emulator (A96_API34) on this PR's APK (versionCode 3278, built from the PR's merge commit 73a994d):
+  - `a101-emu-pr/about.png`: About with the row and [Licences];
+  - `licences-list.png`: 13 entries;
+  - `licences-androidx.png`: 73 components, then the texts;
+  - `licences-okhttp.png`: the MPL-2.0 NOTICE beside Apache-2.0;
+  - `licences-libyuv.png`.
+  - The flow: Guest → ⚙ Parameters → About → Licences, then every entry opened twice. The A101-TIME lines come from
+    logcat.
+- **Windows:** artifact `s28-about-captures` of run 42270676374 (local copy `a101-final-s28about/`):
+  - `licences-list.png`: SWT 3.134.0 first, then the generated entries;
+  - `licences-ktor.png`, `licences-java-runtime.png`, plus S2.8's `about.png` and `licences.png`.
+- **Linux:** artifact `a101-about-linux` (`a101-final-a101linux/`): the normal run and the CJK repro run, with each
+  run's about-smoke.log, the fontconfig file in use, and the repro's stdout.
+- **macOS:** artifact `a101-about-macos` (`a101-final-a101mac/`).
+
+### For VLL after it lands
+- On any app: ⚙ Parameters → About → Licences. Every library is listed with its licence text, and the Java runtime's
+  own notices come last.
+- On his Linux machine, text that only a bitmap font covers now shows boxes instead of crashing the app.
+
+### Tests
+- **shared, desktopTest:**
+  - `NoticesTest`: `parseNotices` keeps the index's order and gives "Components" lines and the "Inside" carrier
+    lines. A text the build didn't ship is left out, and the delegated SWT line is no entry.
+  - `AboutLicencesUiTest`: one new test with three generated entries. Opening OkHttp shows its texts and not
+    Ktor's; Back returns to the list; Skia shows its "Inside" carrier. S2.8's three tests are unchanged and green.
+- **desktopApp:**
+  - `JavaRuntimeEntryTest`: a symlinked `legal/` fixture shows each text once, titled "path (and 1 more)".
+    TEETH: keying by path shows the GPL twice. With no `legal/` folder, there is no entry.
+  - `LinuxFontConfigTest`, 11 tests:
+    - FONTCONFIG_FILE unset uses the image's file and writes nothing; the system wrapper is used without it;
+    - the person's own file is wrapped, XML-escaped;
+    - a relaunch keeps ours;
+    - a missing absolute file and a missing path to ours both use the image's file;
+    - a relative name is wrapped as it is;
+    - the wrapper is one file, replaced whole, its folder made if missing. Its sabotage (the old
+      `createTempFile(null)` line) reds only that test;
+    - an unwritable folder is a failure;
+    - the committed `.conf` is the system wrapper (CRLF-tolerant);
+    - a child process gets the launch-time FONTCONFIG_FILE.
+  - S2.8's `LicencesTest` is unchanged.
+- Locally: desktopApp 51/51 after the last change. Before the font tests, desktopApp and shared desktopTest together
+  ran 748/748.
+- In CI: the desktop tests steps are green on Windows, Linux and macOS. The android job runs `:shared:check`,
+  `:androidApp:test`, and the iOS klib compile, all green.
+
+— mobile
