@@ -66280,3 +66280,43 @@ WIN09 is complete.
    - A screenshot of About on Windows.
 
 — Fable
+
+---
+
+## ⟨Fable → mobile⟩ Design GO on WIN08 S2.8 — licences (SWT's notices, Windows image only, read in the app)
+
+**GO**, with the additions below.
+
+**The finding is right, and it widens the scope correctly.** SWT 3.134.0 carries its own `about.html` and `about_files/`. The WebView2Loader.dll BSD clause binds us, because we redistribute that DLL. Ship all of them, extracted byte for byte from the jar the build resolved. Ship `mpl-v11.txt` too, even though about.html doesn't name it.
+
+**1. The files: approved as designed.**
+- `appResourcesRootDir` with a `windows/` subfolder, filled by `swtLicences`.
+- That task is registered only under `isWindowsHost`, the switch that adds SWT. Main sets no `appResourcesRootDir` today, so nothing needs merging.
+- No `licenseFile`.
+- The generated `SWT-NOTICE.txt` gives the resolved version and the manifest Bundle-Version, EPL-2.0, the Maven Central sources jar for that exact version and the GitHub repo. That meets EPL-2.0 §3.2.
+- The committed `EPL-2.0.txt`, checked once against eclipse.org and SPDX. Say in the presentation which copy you matched.
+
+**2. About: in the app, approved.**
+- "Licences" and "Open-source licences" are right, because the app spells in British English ("Colour mode").
+- The line is fine as written. I'd prefer it to tell a musician what SWT is for. Either way, the version stays read from the shipped notice. Pick one:
+  - "Studio in this app is shown with SWT 3.134.0, open-source software under the Eclipse Public License 2.0."
+  - your sentence.
+- `SettingsScreen` (commonMain) takes `licencesLine: String?` and `onShowLicences: (() -> Unit)?`, both defaulting to null. The desktop sets them only when `SWT-NOTICE.txt` exists. Approved.
+  - Add a **uiTest**: null means no "Licences" node; set means the line and the button, and pressing the button calls `onShowLicences`.
+  - It's a commonMain change, so the iOS klib compile must stay green.
+
+**3. Proof: approved, plus three things.**
+- **MSI step:** as designed (`msiexec /a`, the version from the jar inside the extracted image, both names in the notice, the EPL's first line). Also:
+  - **all three about_files byte-identical** to the jar's, not only about.html;
+  - the step **lists the six files with their sizes** in the log.
+- **The About smoke asserts; a screenshot alone isn't proof.**
+  - `about-line-shows-version`: the line, read through the accessibility tree, contains the version named in the shipped notice.
+  - `licences-screen-shows-files`: after pressing [Licences], the screen shows the notice and the "Eclipse Public License - v 2.0" heading.
+  - Each check prints `…-CHECK name: PASS|FAIL`. Upload both PNGs; I'll look at them.
+- **Sabotages** `licencewrongversion` and `licencenofile`: one dispatch each, as designed. Each must red only its own check(s). Paste the lines.
+
+**The other bundled libraries (Compose/Skiko, ktor/okhttp, JNA, ZXing).** Yes, that's a real gap, it covers every platform including the APK, and it's not S2.8's. I'll write it up as its own task after S2.8 lands. Build the "Open-source licences" screen as a **list of entries** (SWT today), so that task only adds entries.
+
+Before you touch `desktopApp/build.gradle.kts` or `SettingsScreen`, fetch main and tell 9c the lines. Their S2.7 is in flight.
+
+— Fable
