@@ -64943,6 +64943,11 @@ On A97_API28 the app comes back as Guest after every process restart: a cold boo
 keymaster is software-only. I didn't measure the cause. On API 34 the session survived every restart this run. I'm
 flagging it here, not acting on it.
 
+> **Corrected 2026-11-06 (A100, measured): this was wrong.** The heal never fired. The Guest came from my own Studio
+> Server URL switch from :18097 to the test page on :18098, which signs out by design (`dropSessionIfOriginChanged`,
+> A38). On API 28, with no switch, the session survives restarts and a cold boot. The file rewrite was A96's
+> `updatedLineOnce` storing the same build line at every launch, not a heal. See the A100 entry below.
+
 ### Not checked
 
 A save still queued behind the ask is dropped without a line if the Studio screen closes. Its part is cleared the next
@@ -65085,3 +65090,71 @@ green on that head. Use the hold protocol.
   - A song file's ⋯ → "Download PDF…" saves too.
   - Both lines name the files that are in Downloads.
 - **Follow-up:** the `httpx://` case in the scheme test goes with A100.
+
+## 2026-11-06 — mobile presents A100: measured, no heal on Android 9; the one per-launch write is skipped — reviewer: Fable
+
+PR #102 is **de4fc89b** on f8af0757, with 3 files changed: `AppUpdateMemory.kt` and two tests. **PR CI is run
+`42154109273`** (queued), including `desktop (windows)`, since this touches jvmShared. Locally, `:shared:desktopTest`
+passes **691/691** and `:androidApp:testDebugUnitTest` passes **19/19**.
+
+### Measured first (A100's step 1)
+
+A measurement-only build (not committed) logged three things:
+
+- every encrypted-store open: thread, instance, the opener's stack, and whether the key and the file exist;
+- anything `create` threw before a wipe;
+- every `putSecret`, with the key name and whether the value was unchanged, never the value.
+
+The emulators were A97_API28, A96_API29 and A96_API34, against the scratch core on :18097.
+
+| API | Journey | Heal | Session + theme |
+|---|---|---|---|
+| 28 | sign in, Dark, 3 × force-stop restart, then a cold reboot | **never** (every open `healed=false`, nothing thrown) | **both survive** |
+| 29 | sign in, Dark, 3 × restart | never | both survive |
+| 34 | (already signed in), Dark, 3 × restart | never | both survive |
+
+- **The openers.** There are three, all on the main thread, one after another: `AppUpdatedReceiver` (on
+  `install -r`), MainActivity's theme `Storage`, and `AndroidAppPlatform.storage`. With no concurrent open, nothing
+  races. So the two-Storage race hypothesis is **ruled out** for these journeys.
+- **The A99 "Guest after every restart" was mine.** That was the Studio Server URL switch from :18097 to the test page
+  on :18098. **Positive control on API 28:** I made that switch, then restarted. Home says Guest, Dark survives, and
+  every open is `healed=false`. That's `dropSessionIfOriginChanged` (A38) doing its job. The A99 entry is corrected in
+  place.
+- **Emulator-only?** Nothing here points at Android 9 at all, on the emulator or off it. I have no evidence about real
+  Android 9 hardware either way.
+
+### The per-launch writer, named by measurement
+
+- On every restart, on API 29 and 34, the **only** write is:
+  `put key=appUpdate.lastRunBuild same=true by AppUpdateMemoryKt.updatedLineOnce:17 < AppUpdateController.<init>:76`.
+- It stores the unchanged build line. AES-GCM uses a random IV, so the whole encrypted file is rewritten each time:
+  a new mtime at the same size (API 29: 2496 B, API 34: 3458 B).
+- On API 28 the first measurement build didn't log writes. With the fix, the per-launch rewrite stops there too,
+  which places the writer.
+
+### The change
+
+- `updatedLineOnce` stores the build line **only when it differs** from the last one stored. The decision
+  (`updatedLine`) is unchanged.
+- **Unit, desktopTest:** `theSameBuild_isNotWrittenAgain_atEveryLaunch`, with a codec that counts encrypts. The first
+  launch writes; the next launch of the same build writes nothing; an update writes and says "Updated ·". The A96 tests
+  pass unchanged.
+  - **Sabotage: the write unconditional again → red**, "the next launch of the same build writes nothing
+    expected:<1> but was:<2>".
+- **Your A99 nit:** `httpx://h.example/x.pdf` was added to the scheme test's refused list.
+  - **Sabotage: `downloadManagerCanFetch` as `startsWith("http")` → red** on that vector.
+- **On the device, with the fix plus the measurement logging (API 29 and 28):**
+  - Install over the previous build. The first launch shows "Updated · … built 02:43 UTC" once, and stores the build
+    (`same=false`).
+  - Then 3 restarts on each: **0 writes**, the **file mtime unchanged** (29: `1793933201`, 28: `1793933420`), no heal,
+    and the session and Dark kept on 29. On 28 it was Guest, from the positive control, with Dark kept.
+- **API 34 with the fix** wasn't run on the device. The code path is the same, and the unit test covers it.
+
+### Not in A100
+
+- `ReopenMarker.consume` also rewrites an unchanged `""` on every `install -r` (`same=true`). That's once per update,
+  not per launch, so I left it alone.
+- The A54 heal and its "settings were reset" signal are untouched.
+
+Logs and screenshots are in `scratchpad/a100/`: `launch0.txt`, `restart*.txt`, `journey*.txt`, `coldboot.txt`,
+`posctl.txt`, `api29-*`, `api34-*`, `fix29-*`, `fix28-*`, and the PNGs.
