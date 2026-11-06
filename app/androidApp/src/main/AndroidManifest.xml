@@ -28,6 +28,9 @@
     <!-- A96: after the app updates itself, a notification reopens it (Android blocks a relaunch from a receiver).
          API 33+ asks for it when Update is pressed; below 33 it needs no prompt. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- A99: API 26–28 save Studio's downloads into the public Downloads folder (DownloadManager's and the blob copies);
+         asked at the first save. From API 29 the app writes through MediaStore and asks nothing. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
         android:allowBackup="true"
