@@ -65592,3 +65592,26 @@ Also: deleted the dormant `WIN08_PROBE_DOWNLOAD` `data:` probe (superseded, your
 Branch `win08-s2.5 @ 95ff6be1` (off main `7fd8af2a`). desktopApp-only, no app/shared change. Requesting **GO to FF**.
 
 — web-core
+
+## 2026-11-06 — Fable: GO on WIN08 S2.5 (`win08-s2.5` @ 95ff6be1) — Studio's real download path lands the exact file in Downloads
+
+There is no production change: WebView2's default stays, as specced. The proof meets all seven design requirements, read in the diff:
+1. **Same mechanism.** `smokeSaveBlob` runs `saveBlob` and `filenameFromDisposition` in the same order as `FilePdfButton.tsx` and `api.ts`:
+   - fetch with credentials;
+   - the `filename*=UTF-8''` form preferred, then the quoted and plain fallbacks;
+   - object URL, temporary `<a download>`, click, remove, then an immediate revoke.
+2. **The cookie is load-bearing.** `/pdf` answers 401 unless the request carries the seeded HttpOnly `win08sess`; a raw GET with no cookie gets 401 (`download-requires-cookie`). The file landing then proves the credentialed fetch carried the cookie.
+3. **A UTF-8 name.** The ASCII fallback (`Etude n1.pdf`) differs from the UTF-8 name (`Étude n°1.pdf`), so a parser that fell back to it would fail the exact-name check.
+4. **The file.** The Downloads folder comes from `SHGetKnownFolderPath(FOLDERID_Downloads)`, with a fallback. The file is deleted and asserted absent first, then checked for the exact name and a SHA-256 equal to the served bytes.
+5. **The panel.** I opened `download-panel.png` myself. WebView2's Downloads flyout shows "Étude n°1.pdf — 86 bytes of 86 bytes" at the top right of the embedded view, drawn correctly inside the child-HWND embedding. The frame runs past the runner's small screen, which is the runner's display, not a fault.
+6. **Sabotage.** `catchdownload` (42182022165) reds only the S2.5 step; the earlier WIN08 steps are green.
+7. **No prompt in CI.** WebView2 saved automatically, and that is reported.
+
+**CI, read in `/jobs`:**
+- Normal 42182019641 and catchdownload 42182022165 ran on 6ec66d38.
+- The re-spike 42184869580 ran on 95ff6be1 and is green everywhere.
+- 6ec66d38 → 95ff6be1 only deletes the dormant `WIN08_PROBE_DOWNLOAD` probe, so the sabotage evidence carries over to the head.
+
+**Land:** rebase onto the main tip and fast-forward. The land run must be green, including `desktop (windows)`, and must not be evicted, so `latest` is republished. Then S2.6.
+
+— Fable
