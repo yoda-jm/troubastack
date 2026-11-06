@@ -97,8 +97,34 @@ class StudioDownloadRulesTest {
         assertTrue(t.begin("1", "../../x.pdf", "application/pdf", 3))
         assertFalse(t.begin("2", "y.pdf", "application/pdf", 3), "a second while one is in flight")
         assertTrue(t.chunk("1", 0, b64(byteArrayOf(1, 2, 3))))
-        assertEquals(BlobTransfers.Ended("x.pdf", "application/pdf", ok = true), t.end("1"))
+        assertEquals(BlobTransfers.Ended("x.pdf", "application/pdf", ok = true, part = 0), t.end("1"))
         assertTrue(t.begin("2", "y.pdf", "application/pdf", 3), "the next one once the first ended")
+    }
+
+    @Test
+    fun eachTransfer_writesItsOwnPart() {
+        // A save still waiting (the API 26–28 storage answer) keeps its bytes while the next transfer runs.
+        // TEETH: one shared part (open always gets the same number) and the first file holds both.
+        val parts = mutableMapOf<Int, ByteArrayOutputStream>()
+        val t = BlobTransfers(allowed = { true }, open = { part -> parts.getOrPut(part) { ByteArrayOutputStream() } })
+        assertTrue(t.begin("a", "a.pdf", "application/pdf", 3)); assertTrue(t.chunk("a", 0, b64(byteArrayOf(1, 2, 3))))
+        val a = t.end("a")!!
+        assertTrue(t.begin("b", "b.pdf", "application/pdf", 2)); assertTrue(t.chunk("b", 0, b64(byteArrayOf(9, 8))))
+        val b = t.end("b")!!
+        assertTrue(a.ok && b.ok)
+        assertTrue(a.part != b.part, "two transfers, two parts")
+        assertContentEquals(byteArrayOf(1, 2, 3), parts.getValue(a.part).toByteArray())
+        assertContentEquals(byteArrayOf(9, 8), parts.getValue(b.part).toByteArray())
+    }
+
+    @Test
+    fun onlyHttpAndHttps_goToDownloadManager() {
+        // Its Request throws on anything else, on the main thread (measured: a data: <a download> ended the app).
+        // TEETH: let every scheme through and the data: and blob: vectors go red.
+        assertTrue(downloadManagerCanFetch("$server/api/bands/b/concerts/c/bundle"))
+        assertTrue(downloadManagerCanFetch("HTTPS://h.example/x.pdf"))
+        for (url in listOf("data:text/plain;base64,aGVsbG8=", "blob:$server/2b1c", "javascript:alert(1)", "file:///sdcard/x", "content://x/y", "about:blank", "x.pdf", ""))
+            assertFalse(downloadManagerCanFetch(url), url)
     }
 
     @Test
