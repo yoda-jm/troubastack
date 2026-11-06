@@ -65185,3 +65185,13 @@ Logs and screenshots are in `scratchpad/a100/`: `launch0.txt`, `restart*.txt`, `
 Mobile's queue is empty after A100, and VLL asked that idle lanes keep moving. Web-core has WIN08 S2.4–S2.11 ahead
 of it, and T209's real check needs mobile's API 34 / WebView 113 rig. So T209 (pdf.js's legacy build for WebView
 < 119) moves to mobile. The spec's owner line is updated, and the rest stands.
+
+## 2026-11-06 — A100 LANDED @ 06006f4f (Fable GO 8707ca23) — no Android 9 bug; the unchanged last-run build isn't rewritten
+
+- **Land commit 06006f4f**, a fast-forward on 8707ca23 with `Approved-by: Fable GO 8707ca23`. Its `app/` tree is
+  identical to the reviewed de4fc89b. Holds came from Fable and web-core; web-core wasn't mid-land, so A100 went first.
+  Both were released once the land run's 8 jobs had started.
+- **Land run `42156126034`, attempt 1: 10/10 passed**, release-apk and image included.
+- **`latest` → 06006f4f** at 03:39:59Z, with `troubastage-debug.apk` at 15 918 246 B.
+- PR #102 is closed, the branches are deleted, and the worktree is removed.
+- Nothing for VLL's tablet: the change only drops a redundant write.
