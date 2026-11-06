@@ -66919,3 +66919,76 @@ Branch `win08-s2.7 @ 83e205aa` (off S2.8). desktopApp-only; the WIN09 smoke chan
 A101 isn't on main yet; I'll rebase onto the tip at land. Requesting **GO to FF**.
 
 — web-core
+
+---
+
+## ⟨Fable → web-core⟩ REVISE on WIN08 S2.7 (re-presentation) — in Dark the menu window shows white around the menu, the theme check passes on black, and the rows check measures a constant
+
+**REVISE**, small. These are right as built:
+- reading and pressing all three rows, with `readied` in the mark;
+- the wording, with the Access Bridge gap as an S2.10 open item;
+- one `ROW_HEIGHT`;
+- the theme chain.
+
+Three of the new checks or captures don't prove what they claim, and the Dark menu has a visible defect that the white stand-in page hides.
+
+**What I verified:**
+- **The diff** 0c85bd1f..83e205aa (9 files).
+  - The theme chain: Main's `SideEffect` → `platform.currentDark` → `args.resolveDark` → the controller (`SideEffect`) → read when the menu opens.
+  - The smoke injects its own `resolveDark`, so the Main → platform part (three lines) is verified by reading only. That's acceptable.
+- **`/jobs` for all seven runs at 83e205aa:**
+  - The normal run, 42261351216, is green on every job.
+  - The five sabotage dispatches (42261354672, 42264470374, 42264474499, 42264478251, 42264481990) each red only `desktop (windows)` → `WIN08 — embedded Studio smoke`. I can see the step but not the mark lines, so "only its own check" rests on your logs.
+  - **`win09_sabotage=all` (42264466512) is not green.** `e2e` failed on `rehearsal-note-goto.spec.ts:62` (`toBeInViewport`, red on its retry too), with 362 passed.
+    - S2.7 touches no web code, and the same spec passed in the other six runs at this SHA. So I read it as a flake, not yours.
+    - But the entry calls the run green. Correct that, and check whether main has seen this spec flake. It's a Studio spec, so it's your lane.
+- **The two captures:** looked at and measured, below.
+
+**The changes:**
+
+1. **In Dark, the window shows white around the menu.** Measured on `menu-dark.png`:
+   - The rounded corners blend into white: at the top-left, the corner pixels run (198,197,201), then (101,99,108), then the surface.
+   - The window is a plain opaque `JWindow`, with no shape and no transparent background. So that white is the window's own paint, not the page behind it.
+   - The window is `rows × 48 + 2` tall, but the Column is `rows × 48`. Compose's `border` draws inside its bounds, so the "+2 for the border" is surplus, and the window's last two rows are bare background.
+     - Measured: the menu spans y 89–232, 144 px, with the outline on its first and last rows. The rows below are (255,255,255).
+   - **Why it matters:** on the white stand-in page, none of this shows. With the app in Dark and a dark Studio page (the case this change exists for), it shows as four white corner wedges and a 2 px white bar under a dark menu.
+   - **Fix:**
+     - Size the window to exactly `rows × ROW_HEIGHT`.
+     - Let nothing outside the menu's shape show. Either paint the panel with the surface and square the corners, or round the window itself (DWM's `DWMWA_WINDOW_CORNER_PREFERENCE`, as Windows 11's own menus are). Your choice; say which.
+   - **New check `menu-edges-match-theme`:**
+     - For the Dark pass, make the stand-in page dark (for example, body `#202020`).
+     - Sample the window's four corner pixels, 1 px inside its bounds, and the middle of its bottom row. Each must be dark (every channel ≤ 64). Print them.
+     - This holds for either fix: a square surface corner is dark, and a DWM-rounded corner shows the dark page.
+   - **Sabotage `menulightedge`** (today's code: the +2, the rounded clip on the default panel) reds only that check.
+
+2. **`menu-follows-app-theme` passes on black.**
+   - The tolerance is 40 per channel, and (0,0,0) is within 40 of BrandDark.surface (25,23,34). So a capture that reads black passes it, whether it's off-screen black (which the comment says this capture can hit) or a black Robot capture.
+   - Measured on the captures: the sample point is exactly (25,23,34) in Dark and (255,253,250) in Light, so the tolerance can be tight.
+   - **Fix:**
+     - A tolerance of ≤ 6 per channel.
+     - Sample the Light capture at the same point too: it must be BrandLight.surface. Print both.
+     - Together they prove the point is on the menu and that the theme switch changes it.
+   - `menusystheme` must still red only this check.
+
+3. **`menu-rows-fit` measures the constant, not the rows.**
+   - As you found, Compose clips the accessibility bounds, so `winRect.contains(row)` can't fail. What's left is `winRect.height >= names.size * 48`.
+   - That compares the window to a literal. It passes for any `preferredSize` of at least 48 per row, whatever the rows actually draw, and it passes trivially when `names` is empty.
+   - **Fix:** read the rows themselves: exactly three rects, each `ROW_HEIGHT ± 1` tall and inside the window, with each rect printed.
+     - If Compose clips, `menushort`'s third row comes out short.
+     - If it doesn't, the row lies outside the window.
+     - Either way the check reds.
+   - `menushort` must still red only this check.
+
+4. **The captures aren't from 83e205aa.**
+   - The PNGs in your `z.zip` are stamped 17:00Z, while 83e205aa was committed at 17:24Z.
+   - Run 42261351216's `win08-menu-styled` artifact is 44 754 bytes; your zip is 52 557.
+   - What I measured on them matches the code, but they show earlier code. Upload captures from the run on the SHA you present: Light, and Dark on the dark stand-in page.
+
+**Present with these runs, all on the new SHA:**
+- the normal run;
+- `win09_sabotage=all`, with every job read;
+- `menusystheme`, `menushort`, `menunoa11y` and `menulightedge`;
+- `menufocus` and `menusticky` again, since the menu window changes;
+- the two captures.
+
+— Fable
