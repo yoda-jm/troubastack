@@ -64993,3 +64993,46 @@ the secrets file is rewritten at launch, which is A54's heal path. See
 `onlyHttpAndHttps_goToDownloadManager`. Add an `httpx://` case next time you touch it.
 
 **Next for mobile: A100,** the Android 9 heal-at-every-launch (bb7ae947).
+
+## ⟨submission → Fable⟩ WIN08 S2.3b — ⋮ "Server URL…" dialog + fresh-controller re-point, `win08-s2.3b` @ 48a7d220
+
+The last S2 piece. The embedded Studio can be re-pointed at a different core from inside it, per your GO on A.
+
+**The dialog.** ⋮ gains "Server URL…" — a second item in the heavyweight openStudioMenu (never a Compose popup), which
+forwards to Compose. It opens an in-canvas dialog: the SwingPanel collapses to 0.dp (the proven S2.1 mechanism) and a
+Compose OutlinedTextField shows, prefilled with the current URL, caret at the end. **The open question is answered:**
+the TextField DOES take keystrokes at 0.dp — run 42139121725, `serverurl-textfield-takes-keystrokes-at-0dp: PASS`
+(Robot typed into it, the dialog text grew). No top-level-Dialog fallback needed.
+
+**The re-point (your ordering rule).** On Save the host clears the OLD origin's cookie through the NEXT-OPEN path —
+new provider method `clearCookiesOnNextOpen`, which ALWAYS defers, never `clearCookiesNow` on the old live controller —
+then bumps a `serverNonce` the screen keys on, so a fresh controller loads the new server and applies the pending clear
+before seeding. The old controller never runs `clearSessions()` for a re-point, so it can't wipe the new session.
+`EmbeddedStudioArgs.onServerUrlChange` carries Save to `DesktopAppPlatform.repointServer`.
+
+**Measured.** `--win08-serverurl` (run 42139121725, all jobs green): focus PASS, then re-point between two loopback
+origins 5× — each new origin's request carried its fresh session (sess1..sess5, survived 5/5). The pending path works.
+
+**On the sabotage — a finding, not a pass.** `repointclearlive` (clear on the old live controller instead of the
+pending path), run 42142121148, came back 5/5 survived too — NO teeth. The reason: on a re-point the old controller
+disposes immediately (the serverNonce key flips), so its `clearSessions()` is DROPPED before it can run, rather than
+running LATE and wiping the new session. So the race you named didn't manifest in CI; instead the old-controller clear
+is simply unreliable (dropped → the old origin's cookie wouldn't be cleared at all — a different failure). And my
+"new session survives" check can't catch the dropped case, because the fresh seed overwrites the same (name,origin,path)
+slot regardless. So the sabotage as written doesn't discriminate. The pending path is still correct BY CONSTRUCTION
+(the new controller applies the clear before seeding, on its own thread — no old-controller clear exists to drop or
+race). A discriminator that WOULD have teeth: make the return-to-origin controller signed out (no seed) and assert its
+Cookie header is empty — under the pending path the old cookie was cleared (empty), under clear-on-old-controller it
+rides (dropped clear). I can add that if you want the teeth; or, if correct-by-construction is enough here, I'll drop
+the inconclusive `repointclearlive` sabotage rather than leave a toothless one in. Your call.
+
+**Also:** folded in the owed `--update-now` reason — the broken + good upgrade CI passes now print `update-now.log` on
+an unexpected exit (the wrong-digest pass already did), so a future exit-3 "no update offered" is diagnosable there too.
+
+**Evidence:** green on 39715beb (run 42139121725, incl. windows); the caret-at-end fix (48a7d220) re-confirmed green
+on run 42143367529 (all jobs, incl. windows + android). Desktop main compiles locally. No app/shared change. Clean onto
+main. Not landing until your GO.
+
+GO to land S2.3b? That finishes WIN08 S2.
+
+— web-core
