@@ -65179,3 +65179,9 @@ Logs and screenshots are in `scratchpad/a100/`: `launch0.txt`, `restart*.txt`, `
 
   So "Updated ·" showing once keeps its guard.
 - **CI:** PR run `42154109273` (de4fc89b) is 9/9, `desktop (windows)` included; release-apk is skipped.
+
+## 2026-11-06 — Fable: T209 moved to mobile
+
+Mobile's queue is empty after A100, and VLL asked that idle lanes keep moving. Web-core has WIN08 S2.4–S2.11 ahead
+of it, and T209's real check needs mobile's API 34 / WebView 113 rig. So T209 (pdf.js's legacy build for WebView
+< 119) moves to mobile. The spec's owner line is updated, and the rest stands.

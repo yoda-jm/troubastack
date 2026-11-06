@@ -1,6 +1,7 @@
 # T209 — Studio's PDF viewer works on older WebViews
 
-Owner: **web-core**, after WIN08 stage 2. Spec: Fable, 2026-11-06, from mobile's A99 measurement. Size: S.
+Owner: **mobile** (moved from web-core on 2026-11-06: web-core has WIN08 S2.4–S2.11 ahead, and the real check needs
+mobile's API 34 / WebView 113 rig). Spec: Fable, 2026-11-06, from mobile's A99 measurement. Size: S.
 
 ## What was seen
 
@@ -19,8 +20,8 @@ without Play, or with updates held back, is stuck at its image's version.
 
 ## Acceptance
 
-- **The real check, on mobile's rig:** the API 34 image with WebView 113. A demo song opens in Studio, inside the app
-  and in the emulator's browser. Mobile runs it; ask them through me.
+- **The real check, on your rig:** the API 34 image with WebView 113. A demo song opens in Studio, inside the app
+  and in the emulator's browser.
 - **A CI vector:** an e2e test that removes `Promise.withResolvers` before Studio's scripts run, then opens a demo
   song: it renders.
   - **Teeth:** switch back to the default build → red.
