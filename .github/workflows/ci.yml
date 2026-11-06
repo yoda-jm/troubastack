@@ -34,10 +34,10 @@ on:
         default: ""
       # A101: licencedropone / licencenonotice break the notices generator (at build time, as the Gradle property
       # a101Sabotage); nofontfix turns off the Linux app's fontconfig fix, fontenvleak opens links the way it did before
-      # (both at run time, as A101_SABOTAGE). A sabotage run is expected to red its own A101-CHECK and nothing else, so it
-      # is never landed.
+      # (both at run time, as A101_SABOTAGE); nofontcache skips writing the CJK repro's font cache (CI only). A sabotage
+      # run is expected to red its own A101-CHECK and nothing else, so it is never landed.
       a101_sabotage:
-        description: "A101: licencedropone, licencenonotice, nofontfix or fontenvleak (leave empty for a normal run)"
+        description: "A101: licencedropone, licencenonotice, nofontfix, fontenvleak or nofontcache (leave empty for a normal run)"
         required: false
         default: ""
 
@@ -1493,25 +1493,53 @@ jobs:
           echo "A101-CHECK linux-fonts-through-shipped-config: $fc — fc-list without the app's file: $without fonts, through it: $through; the file in use is the AppImage's own: $same; stderr warning: [${warn:-none}]"
           [ -z "$bad" ] && [ "$code" = 0 ] || { echo "::error::A101 About checks not passing: [$bad ] (exit $code)"; tail -20 "$RUNNER_TEMP/about-run/output.txt"; exit 1; }
           echo "A101: About lists the notices and opens Ktor and the Java runtime"
+      # A101 — the CJK repro's fontconfig: one scalable Latin font (DejaVu Sans) and one CJK PCF bitmap (18x18ja), and
+      # its font cache written the way a desktop's is. The crash needs that cache to list the bitmap font: a desktop's
+      # always does (fc-cache and every fontconfig program write it), but a cache the app process writes itself leaves
+      # the PCF out (the app can't read it), and then nothing crashes (measured on fontconfig 2.13.1 and 2.18.1 with a
+      # one-Text Compose app). So this step writes it with fc-list before the app ever runs, and the check below fails
+      # unless the cache lists the bitmap font. The positive control gets its own cache folder, so it can't write this
+      # one by accident. Sabotage nofontcache skips the write, and the check must then fail on its precondition.
+      - name: A101 — the CJK repro's fontconfig, its cache written as a desktop's is
+        if: always() && runner.os == 'Linux'
+        working-directory: app
+        run: |
+          set +e -uo pipefail
+          r="$RUNNER_TEMP/fc-repro"; rm -rf "$r"; mkdir -p "$r/fonts" "$r/cache" "$r/control-cache" "$r/run"
+          pcf=$(find /usr/share/fonts -name '18x18ja.pcf.gz' 2>/dev/null | head -1)
+          if [ -z "$pcf" ]; then sudo apt-get install -y -q xfonts-base >/dev/null; pcf=$(find /usr/share/fonts -name '18x18ja.pcf.gz' 2>/dev/null | head -1); fi
+          latin=$(fc-match -f '%{file}' 'DejaVu Sans')
+          [ -n "$pcf" ] && [ -n "$latin" ] && cp "$pcf" "$latin" "$r/fonts/"
+          conf() { printf '<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">\n<fontconfig>\n  <dir>%s</dir>\n  <cachedir>%s</cachedir>\n</fontconfig>\n' "$r/fonts" "$1"; }
+          conf "$r/cache" > "$r/repro.conf"; conf "$r/control-cache" > "$r/control.conf"
+          if [ "${A101_SABOTAGE:-}" = nofontcache ]; then echo "the repro's cache NOT written (sabotage nofontcache)"
+          else FONTCONFIG_FILE="$r/repro.conf" fc-list > /dev/null; echo "the repro's cache written by fc-list: [$(ls "$r/cache" | tr '\n' ' ')]"; fi
+          echo "the repro's fonts: [$(ls "$r/fonts" | tr '\n' ' ')]"
       # A101 — Skiko 0.9.22.2 crashes (SIGSEGV in SkTypeface_fontconfig::onOpenStream) when its font fallback opens a
       # bitmap font. On a machine whose only CJK-capable font is a PCF bitmap, the Java runtime's notices (libpng's
       # contributors, in Chinese) crashed the app; it now runs with a fontconfig file that rejects non-scalable fonts
-      # (LinuxFontConfig). The repro: a fontconfig with one scalable Latin font and one CJK PCF bitmap (the positive
-      # control prints its Chinese fallback), the AppImage through --appimage-extract-and-run, the Java runtime entry
-      # opened. Sabotage nofontfix (a101_sabotage) turns the fix off and must red this check, by the crash.
+      # (LinuxFontConfig). The repro (the step above): the AppImage through --appimage-extract-and-run, the Java runtime
+      # entry opened. Its precondition is part of the verdict: the cache must list the bitmap font, or the check fails
+      # ("precondition missing") whatever the app did. Sabotage nofontfix turns the fix off and must red this check, by
+      # the crash; sabotage nofontcache must red it on the precondition.
       - name: A101 — a bitmap-only CJK fallback doesn't crash (repro fontconfig)
         if: always() && runner.os == 'Linux'
         working-directory: app
         run: |
           # No errexit (the runner's default is bash -e): the app's exit code is the measurement, and a crash must print.
           set +e -uo pipefail
-          r="$RUNNER_TEMP/fc-repro"; rm -rf "$r"; mkdir -p "$r/fonts" "$r/cache" "$r/run"
-          pcf=$(find /usr/share/fonts -name '18x18ja.pcf.gz' 2>/dev/null | head -1)
-          if [ -z "$pcf" ]; then sudo apt-get install -y -q xfonts-base >/dev/null; pcf=$(find /usr/share/fonts -name '18x18ja.pcf.gz' 2>/dev/null | head -1); fi
-          latin=$(fc-match -f '%{file}' 'DejaVu Sans')
-          [ -n "$pcf" ] && [ -n "$latin" ] && cp "$pcf" "$latin" "$r/fonts/"
-          printf '<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">\n<fontconfig>\n  <dir>%s</dir>\n  <cachedir>%s</cachedir>\n</fontconfig>\n' "$r/fonts" "$r/cache" > "$r/repro.conf"
-          fallback=$(FONTCONFIG_FILE="$r/repro.conf" fc-match -s 'sans-serif:lang=zh' | head -3 | tr '\n' ';')
+          r="$RUNNER_TEMP/fc-repro"
+          # The precondition, read before the app runs (which may write the cache itself): does the cache list the PCF?
+          precond=no; seen=""
+          for c in "$r"/cache/*cache*; do
+            [ -e "$c" ] || continue
+            listing=$(fc-cat -v "$c" 2>&1); rc=$?
+            n=$(printf '%s\n' "$listing" | grep -c '"18x18ja.pcf.gz"')
+            seen="$seen $(basename "$c"): fc-cat exit $rc, $n PCF entr(y/ies);"
+            [ "$n" -gt 0 ] && precond=yes
+          done
+          echo "the repro's cache lists 18x18ja.pcf.gz: $precond —${seen:- no cache file}"
+          fallback=$(FONTCONFIG_FILE="$r/control.conf" fc-match -s 'sans-serif:lang=zh' | head -3 | tr '\n' ';')
           echo "positive control — the repro's fonts: [$(ls "$r/fonts" | tr '\n' ' ')]; fc-match -s 'sans-serif:lang=zh' under it: [$fallback]"
           trigger=$(python3 -I - desktopApp/build/compose/binaries/main/app/TroubaStage/lib/runtime/legal <<'PY'
           import os, sys
@@ -1536,10 +1564,11 @@ jobs:
           crash=$(grep -m1 -E '^#[[:space:]]+(SIGSEGV|SIGBUS|SIGABRT|SIGILL)' "$r/run/stdout.txt" | tr -s ' ')
           frame=$(grep -m1 -A1 'Problematic frame' "$r/run/stdout.txt" | tail -1 | tr -s ' ')
           ok=1
+          [ "$precond" = yes ] || { ok=0; echo "::error::precondition missing: the repro's font cache doesn't list 18x18ja.pcf.gz, so the crash can't happen"; }
           echo "$fallback" | grep -q '18x18ja' || { ok=0; echo "::error::the repro's Chinese fallback is not the bitmap font — it reproduces nothing"; }
           [ "$trigger" != none ] || { ok=0; echo "::error::no CJK text in the runtime's legal/ — nothing to trigger the fallback"; }
           [ "$code" = 0 ] && echo "$jre" | grep -q PASS && [ -z "$crash" ] || ok=0
-          echo "A101-CHECK linux-cjk-bitmap-font: $([ $ok = 1 ] && echo PASS || echo FAIL) — about-smoke through --appimage-extract-and-run under the repro: exit $code; [$jre]; crash: [${crash:-none}${frame:+ / $frame}]"
+          echo "A101-CHECK linux-cjk-bitmap-font: $([ $ok = 1 ] && echo PASS || echo FAIL) — $([ "$precond" = yes ] || echo 'precondition missing — ')cache lists 18x18ja.pcf.gz: $precond; about-smoke through --appimage-extract-and-run under the repro: exit $code; [$jre]; crash: [${crash:-none}${frame:+ / $frame}]"
           # A101 — "no crash" alone would also pass if the wrapper loaded no fonts. The wrapper the app wrote (its path from
           # the smoke's log; it stays, replaced at each launch) must still give the person's fonts, minus the bitmap one.
           fcline=$(grep -m1 '^A101-FONTCONFIG ' "$out/about-smoke.log"); echo "$fcline"
