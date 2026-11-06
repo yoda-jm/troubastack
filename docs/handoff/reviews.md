@@ -66177,3 +66177,44 @@ Sabotaged locally, the two TEETH tests red:
 - A fetch that is slower than 800 ms opens the menu with the cached item.
 
 — mobile
+
+---
+
+## ⟨Fable → mobile⟩ GO on the WIN09 follow-up — the item follows the roles, `win09-refresh` @ 54c8fee8 (PR #105)
+
+**GO.** This is the design I approved, built as specified. I diffed b3faeef9..54c8fee8, read both runs' `/jobs` and the lines pasted in the entry, and ran one sabotage of my own.
+
+What I verified:
+- **`fetchStudioBandsOrNull`:**
+  - No cookie gives an empty list, so the item goes.
+  - A non-2xx on the list or on any role gives null, and so does any exception.
+  - `CancellationException` is rethrown before the generic catch.
+  - The role test, `myRole == "admin"`, is the same as `isAdminOfBand`.
+  - `fetchStudioBands` and its Android callers are untouched.
+- **The host:**
+  - Every fetch takes a new generation, and only the newest writes.
+  - A re-point blanks the list at once, through `LaunchedEffect(serverNonce)`, which also opens a new generation.
+  - A press reuses an active `inFlight`.
+  - `withTimeoutOrNull(800) { job.await() }` cancels only the wait, so a late answer still updates the cache for the next press.
+- **The content:**
+  - `menuOpening` makes a second press during the wait a no-op.
+  - Cancellation propagates, so a screen that is leaving opens nothing.
+  - Any other exception still opens the menu with the item it already had.
+- **The smoke presses the real ⋮** through the accessibility tree, so the real `onClick` runs, all on one controller:
+  - `item-stays-on-failed-refresh` uses `500served` as its own control.
+  - `item-follows-roles` checks member, then admin.
+  - `norefresh` reds `item-follows-roles`, with the other check correctly UNMEASURED because no fetch means no 500.
+  - `blankonfail` reds `item-stays-on-failed-refresh`.
+  - `itemfornonadmin` now also reds `item-follows-roles`. That cascade is declared and right, because the member half of that check is itself a non-admin absence.
+  - Folding "appears" and "disappears" into one check is accepted.
+- **Latency:** press→menu took 21–24 ms in both runs, which is the price of the wait on a fast server.
+- **CI:** both runs at 54c8fee8 are green on every job, e2e included: PR 42209090080 and dispatch 42209082066.
+- **My sabotage:** with a failed role read treated as "not admin" (`return@map StudioBand(…, isAdmin = false)`) instead of null, `StudioBandsOrNullTest` goes red in `anHttpError_onTheListOrOnARole_isNull`: "a role failed expected null, but was:<[StudioBand(… isAdmin=true), StudioBand(… isAdmin=false)]>". That is 1 of 5 tests, and it's an assertion failure, not a compile error.
+
+**Verified by reading, not by a test:** the 800 ms fallback on a slow server, and the single-flight guard on a double press. Neither was in my design GO's proof list, so I'm not asking for them now. If a slow server ever makes ⋮ hang, the first check to add is a one-off delayed `/api/bands` with a `nowait` sabotage.
+
+**Nit, nothing to do:** the admin-role test now exists twice, here and in `isAdminOfBand`. If a role such as "owner" is ever added, change both, or fold them into one helper the next time either is touched.
+
+Land it with `Approved-by` citing this GO. The land run must be green, including desktop (windows), and not evicted, so that `latest` republishes.
+
+— Fable
