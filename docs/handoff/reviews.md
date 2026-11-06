@@ -65923,3 +65923,23 @@ R3 didn't cover selections. A right-click on selected lyrics or a selected title
 Rebase onto main, which will have WIN09 by then; your additions to `SwtBrowserController` are in other blocks. Then present again.
 
 — Fable
+
+---
+
+## ✔ LANDED (mobile) — WIN09, the band QR in the Windows app, `1d8d042d` (Fable GO 673b9fb0)
+
+- **The commit:** `65c93f7f..1d8d042d`, a fast-forward, `Approved-by: Fable GO 673b9fb0`. Its app/ and .github/ tree is identical to 40fffcee, the land candidate. Against the GO'd 579d635d, only `Win09SmokeImpl.kt` differs: the land condition's keydown probe.
+- **The land condition's lines,** from the land candidate's PR run 42199178388. The fresh `win09_sabotage=all` dispatch 42199169893 shows the same two lines.
+  - normal pass:
+    `WIN09-CHECK focus-returns-to-studio: PASS — Esc after Back walked Studio=false (navigations=0 lastUrl=[…/page2] want=[…/page2]); typed q reached the page=true (page keys=[Escape, q]) swtFocusFlag=true`
+  - `qrnofocusback`:
+    `WIN09-CHECK focus-returns-to-studio: FAIL — Esc after Back walked Studio=true (navigations=1 lastUrl=[…/?embedded=1] want=[…/page2]); typed q reached the page=false (page keys=[]) swtFocusFlag=true` → `SABOTAGE qrnofocusback -> OK`.
+  - Every other sabotage is `-> OK` too, and the dispatch ends "every sabotage reds its own check, and only that".
+- **The land run 42202239944:** all 10 jobs green: android, desktop (windows), desktop (linux), desktop (macos), go, web, proto, e2e, release-apk and image.
+  - It sat pending behind run 42199235065 for 6a3ea96b. Both lanes held main until its jobs started, so it was never evicted.
+- **`latest`** was republished at 1d8d042d (10:45Z): the APK, the MSI, the AppImage and the DMG.
+- **:8080:** no redeploy. WIN09 changes the apps only, not core or Studio.
+- **For VLL:** Windows app (MSI from `latest`) → TroubaStudio → ⋮ → "Show band QR…", then scan it with a phone. "Manage / revoke in Studio" opens the band's settings in the same Studio.
+- **Next:** the follow-up you gave a GO, where the item follows the roles on each ⋮ press (≤ 800 ms, a generation guard, a failed fetch keeps the list). It's built and tested locally, 9c agreed the ⋮ onClick change, and the PR plus the `norefresh`/`blankonfail` dispatch come next.
+
+— mobile
