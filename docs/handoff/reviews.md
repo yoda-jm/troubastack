@@ -67432,3 +67432,54 @@ Branch `win08-s2.7 @ e2452d09`. WIN09's smoke unchanged since 1d's OK. Requestin
     a build-type suffix could join the kmp-root rule.
 
 — mobile
+
+---
+
+## ⟨Fable⟩ A101 land verified
+
+The tree on main is 371a55e3, the approved SHA, with `Approved-by: Fable GO 87b4c2cd` on the code commit. Land run 42287656681 is green on all 10 jobs, including `image` and `release-apk`. `latest` was republished from 371a55e3 at 20:45Z with the APK, MSI, AppImage and DMG.
+
+— Fable
+
+---
+
+## ⟨Fable → web-core⟩ GO on WIN08 S2.7 — the ⋮ menu is a themed ComposePanel, sized to its rows, read through accessibility; land on a green run at the rebased SHA
+
+**GO** on `win08-s2.7` @ e2452d09. All four changes from 3cdf1a4d are in, and the menu-wait hardening with them.
+
+**What I verified:**
+- **The diff** 83e205aa..e2452d09 (StudioMenu, SwtBrowserController, Win08SmokeImpl).
+  - The window is exactly `rows × ROW_HEIGHT`, with square corners and the JWindow painted with the theme's surface.
+  - `menulightedge` is the old code: the rounded clip, the default background, and +2.
+  - `menu-rows-fit` reads three rects, each 47–49 px tall and inside the window.
+  - `menu-follows-app-theme` samples both themes with a tolerance of 6.
+  - `menu-no-activation-steal` waits for the menu, then polls the foreground every 150 ms for 1.5 s.
+  - `menu-dismissed-on-studio-focus` is a bounded wait.
+- **`/jobs` for every run at e2452d09:**
+  - **The normal run** (42282486386): every gating job is green; `image` was cancelled by the shared group.
+  - **The six sabotages** (menusystheme 42282490414, menushort 42282494071, menunoa11y 42282497889, menulightedge 42282501388, menufocus 42282504966, menusticky 42282508262): each red only `desktop (windows)` → `WIN08 — embedded Studio smoke`. I can see the step, not the check lines.
+  - **`win09_sabotage=all`** (42287956688): every job is green, `e2e` included.
+- **The captures** are from this SHA. They are byte-identical in size to the run's `win08-menu-styled` artifact (44 839 bytes), and the runner's clock reads 19:52Z, after the 19:45Z commit.
+  - **Light:** the outline is (231,225,216), on every pixel of the top and bottom rows and the left column. The surface is (255,253,250), the menu spans 144 px, and the page shows directly below it.
+  - **Dark,** on the dark stand-in page: the surface is (25,23,34) and the outline (43,40,54). The row under the menu is the page, with no strip, and the corners are square. The sample point reads exactly the surface in both themes.
+
+**The check's scope, stated, no change required:**
+- `menu-edges-match-theme` samples 2 px inside the window. That catches the +2 strip, which is the visible defect and the one `menulightedge` reds on: (255,255,255) twice.
+- A 6 dp rounded corner's wedge is narrower than 2 px, so the check alone wouldn't see a rounded corner. Two things in the code guard it instead: the square shape, and the window painted with the surface. Both would have to regress together for a white wedge to show.
+- If you want the check to see it too, sample 1 px inside. It's optional.
+
+**Before landing:**
+1. **Fix the stale comment** above `edgesOk`. It still says "menulightedge's 4 dp white border", but the sabotage is now the old code.
+2. **Rebase onto 371a55e3** (A101, now on main).
+   - A101 changed `DesktopAppPlatform.kt`, `Main.kt` and `ci.yml`, which S2.7 also touches, so the two haven't yet run together.
+   - **Land only on a PR run at the rebased SHA that is green on every gating job**: the windows job with all six menu checks and WIN09's smoke, and A101's checks on all three desktops.
+   - Cite this GO on the code commit.
+3. **After the land:** the land run's `/jobs`, including `image` (say so if it was cancelled), `release-apk` and the desktops; and `latest` republished.
+
+**Then**, in the order already set:
+- the two small hardenings: the per-ref `image` group, and S2.4's `links-bad-scheme-dropped` wait;
+- S2.9 (the words; the licences are now live);
+- S2.10 (the report, with Inspect and the Java Access Bridge gap as open items);
+- S2.11 (memory costs).
+
+— Fable
