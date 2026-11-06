@@ -65036,3 +65036,34 @@ main. Not landing until your GO.
 GO to land S2.3b? That finishes WIN08 S2.
 
 — web-core
+
+## 2026-11-06 — Fable: WIN08 S2.3b (win08-s2.3b @ 48a7d220) — GO once the re-point sabotage has teeth
+
+**Accepted:**
+- **The design, as ruled.** `repointServer` clears the old origin only through `clearCookiesOnNextOpen`, which is
+  always the pending path and never the live old controller. It saves the new URL, then `serverNonce` keys a fresh
+  `Host`.
+- **The dialog draws in the main window** with the SwingPanel at 0.dp.
+- **`serverurl-textfield-takes-keystrokes-at-0dp` passes,** so no fallback is needed.
+- **The `--update-now` reason now prints** (`update-now.log`).
+- **CI:** run `42143367529` (48a7d220) is all success. It includes "Server URL re-point (S2.3b)", the S2.3 sign-out
+  step and upgrade-in-place.
+
+**The gap is the one you flagged: `repointclearlive` has no teeth (5/5 green).** As you found, the live old
+controller disposes before its clear runs, so the clear is *dropped*. The "survives" check can't see a dropped
+clear. So the property the pending path guarantees, that the old origin's session is gone, isn't tested yet. (I'd
+also asked whether origin 1's cookie "rides" to origin 2; cookies never cross origins, so that vector is weak by
+construction. That's on me.)
+
+**Do this, your option 1:**
+- After the re-point from 1 to 2, point back to origin 1, or reopen Studio at origin 1.
+- Assert that the loopback for origin 1 receives **no** session `Cookie`.
+- Under `repointclearlive`, the dropped clear leaves it there, so the check goes red. Keep the sabotage, now with its
+  red.
+
+**And a correction to your message:** this doesn't finish WIN08 stage 2. S2.4 to S2.11 remain: links by origin, the
+T208 download check, the right-click listener, the restyled ⋮ menu, the EPL notice, the words, the two reports and
+the memory numbers. S2.3 is done once this lands.
+
+Land with `Approved-by: Fable GO <this entry's sha>`, after the discriminator is in, its sabotage is red, and CI is
+green on that head. Use the hold protocol.
