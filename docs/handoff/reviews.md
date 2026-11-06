@@ -64750,3 +64750,88 @@ use rerun-failed-jobs; don't re-push.
     doesn't ride.
   - **Sabotage:** clear on the old controller instead → the "signed in on origin 2" check goes red at least
     sometimes. Report the rate over 5 runs.
+
+## 2026-11-06 — mobile presents A99: Studio's downloads save to the tablet's Downloads folder (GO fadcdb46) — reviewer: Fable
+
+Branch `mobile/a99-studio-downloads` @ ab664f08, PR #101, on top of WIN08 S2.3a's 0af1aaeb. **PR CI:** run
+**`42134666514`**, in progress; I'll post its /jobs. androidApp's unit tests pass locally: StudioDownloadRules 9,
+SignerCheck 3, UpdatePath 5.
+
+### As built
+
+- **`StudioDownloadRules.kt`**, all pure:
+  - `downloadFileName(cd, downloadAttribute, url)` takes `Content-Disposition` (`filename*` before `filename`), then the
+    link's `download` attribute, then the URL's last path segment.
+  - `safeFileName` (R1) keeps only the last path component (`../../x.pdf` → `x.pdf`), drops control characters, `:`
+    and leading dots, caps the name at 120 characters, and falls back to `download`.
+  - `ChunkAssembler` rejects an out-of-order index or overflow, and completes only at the exact size.
+  - `downloadAllowed(topLevelUrl, serverUrl)` compares the two origins.
+  - `downloadRequestHeaders` adds the Cookie only through `sessionCookieFor`.
+  - `BlobTransfers` allows one transfer at a time, caps it at `MAX_BLOB_BYTES` (512 MiB), and checks `allowed()` on
+    begin, on every chunk and at the end.
+- **`StudioDownloads.kt`** (Android):
+  - The `@JavascriptInterface` is **`TroubaStageDownloads`**, separate from Studio's bridge. Its calls are `begin`,
+    `chunk`, `end` and `download`.
+  - **R1:** each call reads `webView.url` **on the UI thread** (a `FutureTask` posted to the main looper), because the
+    interface runs on WebView's bridge thread.
+  - The DownloadListener path and the script's server-URL path both go to DownloadManager. They add the headers above
+    and save to `DIRECTORY_DOWNLOADS`, with Android's notification on completion. **Only ids this screen enqueued are
+    watched**, by a coroutine polling `DownloadManager.Query` until the download succeeds or fails.
+  - A blob goes from the temp file to Downloads: `MediaStore.Downloads` with `IS_PENDING` on 29+; on 26–28, the
+    public folder, a unique name, and `MediaScannerConnection`, whose content URI **Open** uses.
+  - **Open** uses `ACTION_VIEW`; with no viewer, it falls back to Android's Downloads app.
+- **The capture script**, injected with `evaluateJavascript` on every `Loaded`, once per document:
+  - it wraps `createObjectURL` and `revokeObjectURL` (a `url → Blob` map);
+  - a capture-phase `click` listener on `a[download]` handles a `blob:` link with `preventDefault` and chunks of 384 KiB
+    (512 KiB base64), and any other link with `preventDefault` and `download(href, name)`.
+- **`EditScreen.kt`:** the bottom line appears only when there's something to say. "Saved to Downloads: <name>" (Open,
+  OK) and "Couldn't save <name>." go after 8 s. On 26–28, "Allow storage access so TroubaStage can save files to
+  Downloads." (Continue, Not now) waits for an answer; Continue leads to Android's prompt.
+- **Manifest:** `WRITE_EXTERNAL_STORAGE`, `maxSdkVersion="28"`. Studio's code, its bridge, Stage and the session seed
+  (A98) are unchanged.
+
+### Proof
+
+- **Unit, 9 cases:** the name order, measured headers included (an encoded `filename*` with an em dash), safe names,
+  in-order reassembly byte-equal, out of order, truncated, and too many. Your R1 vectors: **an off-origin caller → nothing
+  opened**; `../../x.pdf` → `x.pdf`; **a cross-origin download → no Cookie header**. Plus a page leaving the origin
+  mid-transfer → not saved, and one transfer at a time within the cap.
+  - **Sabotage:** S1 removed the origin check from `begin` → red on "an off-origin caller" (a file was opened). S2
+    reduced `complete()` to `!failed` → red on "truncated: 768 of 1000 bytes". Restored.
+- **The emulator, API 34** (A96_API34, WebView 113; the scratch core :18097 with the demo seed; the head, versionCode 9999,
+  installed over `latest`). Every file is in `/storage/emulated/0/Download`. For `blob:` saves, "byte-exact" compares
+  against the Blob the page held: a DevTools hook kept the last Blob, and the page's CRC-32 is compared with the pulled
+  file's.
+
+  | # | Download | Saved as | Size | Check |
+  |---|---|---|---|---|
+  | 3 | Band export (`blob:`, **revoked**) | The-Troubadours-2026-11-05.tband.zip | 193 651 B | the server's size. The zip's 16 entries are equal to a direct fetch; only `band.json`'s `exportedAt` differs (23:28:01 vs 23:28:48, the server's own timestamp). |
+  | 2 | Setlist PDF (`blob:`, **revoked**) | The-Troubadours---Sat-@-The-Anchor.pdf | 1 747 B | **sha256 equal to the server's own output** (`c12e40f9…`) |
+  | 4 | Setlists ⋯ → Download PDF (PdfDialog `blob:`, **4 chunks**) | Sat @ The Anchor.pdf (Studio's `download` name) | 1 247 720 B | **CRC-32 `a0a03f03` = the page's Blob** |
+  | 1 | Song file ⋯ → Download PDF… (T208 `saveBlob`, **revoked**) | The Open Road - Lead sheet.pdf | 202 711 B | **CRC-32 `7a3a857e` = the page's Blob** |
+  | 5 | Download .tstage, detail page (server URL) | Sat @ The Anchor.tstage | 660 613 B | **sha256 equal to a direct fetch** (`205b22fa…`) |
+  | 5b | Download .tstage, setlist menu | Sat @ The Anchor-1.tstage (DownloadManager's own dedupe) | 660 613 B | DownloadManager: `Finished with status SUCCESS` |
+
+  So **the capture holds for both revoke-right-after cases** (your condition), byte-exact.
+  - **The line:** "Saved to Downloads: The-Troubadours---Sat-@-The-Anchor.pdf" with Open and OK, on 1 s frames, gone
+    after 8 s. **Open** brought up Google's PDF viewer (`PdfViewerActivity`) on the saved file.
+  - **Pixels:** Studio's band page with no download, main (`latest` 1bc466e9) twice against the head twice, installed
+    over each other: **identical in every pair** (PIL bbox None).
+- **API 28** (A97_API28, google_apis x86_64). **Its WebView is Chrome 69, where Studio itself doesn't run** (it needs
+  Chromium 80+; the page is blank). So the 26–28 path was measured on a **test page**: a measurement-only Python server
+  on 127.0.0.1:18098, with the app's Server URL pointed at it, so R1 treats it as the server. It saves a deterministic
+  900 000-byte Blob exactly as Studio's `saveBlob` does (temporary `<a download>`, click, revoke), and links a 700 000-byte
+  file sent with `Content-Disposition`.
+  - **The blob:** our line "Allow storage access so TroubaStage can save files to Downloads.", then Continue, then
+    Android's "Allow TroubaStage to access photos, media, and files on your device?", then Allow. **Saved
+    `blob-900000.bin`, 900 000 B, CRC-32 `bb98196e`**, equal to the expected bytes, in three chunks. The line followed.
+  - **The server URL:** saved **`server-file.bin`, 700 000 B, CRC-32 `2659eed`**, equal to the expected bytes, through
+    DownloadManager. The line followed.
+  - **Refused:** with the permission revoked, Not now gives "Couldn't save blob-900000.bin.", and nothing is written. The
+    first build lost this line through a clear-after-set ordering bug; it is fixed in this head.
+  - **R1 on the device:** on the server's origin, `TroubaStageDownloads.begin(...)` returned true (the control). With the
+    WebView moved to another origin (`:18097/login`), the interface is still visible to the page (`object`), but
+    `begin(...)` returned **false**, and nothing was written.
+- **Not checked:** MIUI's own download manager and notification behaviour. That's for VLL's pass. Uploads (the file
+  picker) are not in this task, and I didn't look at them.
+- Screenshots and pulled files: `scratchpad/a99rig/` (`h1…h5b`, `line-*`, `pix-*`, `a28-*`, `cmp/`).
