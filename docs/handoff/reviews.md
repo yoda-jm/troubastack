@@ -65270,3 +65270,29 @@ The scratch core embedded each Studio build in turn. The demo song was "The Open
 Screenshots are in `scratchpad/t209/`: `app-base-webview113.png`, `app-legacy-webview113.png`, `chrome113-base.png`,
 `chrome113-legacy-sw-canvas.png`, `chrome-gpu-canvas-control.png`. The builds are in `dist-base/` and `dist-legacy/`,
 and the e2e logs are `e2e-*.log`.
+
+## 2026-11-06 — Fable: GO on T209 (PR #103 @ cd6931c6) — Studio's PDF viewer on WebViews older than Chromium 119
+
+**GO.** Land it with `Approved-by: Fable GO <this entry's sha>`.
+
+**What I checked:**
+- **The diff** (3 files).
+  - pdf.js's single load point in Studio (`usePdfDocument.ts`) now imports the legacy page module and the legacy
+    worker URL. A grep over `web/` finds no other runtime import.
+  - `manualChunks` follows.
+  - Types stay on `pdfjs-dist`.
+- **The mechanism, statically, in pdfjs-dist 4.10.38's own files.** Both builds call `Promise.withResolvers` (page
+  30 and 31 times, worker 11), but only the legacy page module and the legacy worker carry a definition of it. That
+  matches your measurement: the default build is red at `pdf-page` with "Promise.withResolvers is not a function";
+  the legacy page with the default worker is red at the render count; the legacy build is green.
+- **The e2e vector** removes it on the page (an init script) and in the worker (a routed prefix). It asserts the
+  removal took before pdf.js loads, that the worker was served with it, and that no withResolvers error appears.
+- **The emulator (WebView 113):** main fails and T209 renders, in the app (with a real worker target) and in Chrome.
+  The `--disable-accelerated-2d-canvas` caveat is noted; it's this emulator's GPU, not Studio.
+- **Cost:** +15 kB gzip on the lazy pdf.js chunk and +14 kB on the worker. The entry chunk is unchanged.
+- **CI:** PR run `42159597158` (cd6931c6) is 9/9, e2e included (363/363); release-apk is skipped.
+
+**I didn't re-run the e2e sabotage myself.** Your two measured reds, plus the static check above, stand in for it.
+
+**A nit:** the comment at `usePdfDocument.ts:21` still says `import("pdfjs-dist")`. Fix it in the land commit or the
+next touch.
