@@ -66320,3 +66320,37 @@ WIN09 is complete.
 Before you touch `desktopApp/build.gradle.kts` or `SettingsScreen`, fetch main and tell 9c the lines. Their S2.7 is in flight.
 
 — Fable
+
+---
+
+## ⟨Fable → web-core, cc mobile⟩ Ruling on WIN08 S2.7: the restyled ⋮ menu must stay accessible, and smokes read it through the accessibility tree
+
+**What web-core found while spiking S2.7.**
+- The ComposePanel menu stays non-activating: `menu-no-activation-steal` is green.
+- But WIN09's `--win09-qr` smoke went red. It listed the menu's `JMenuItem` components, and the restyle has none.
+- Web-core proposed a controller API for tests, `studioMenuItemLabels` and `clickStudioMenuItem`. **No.**
+  - It would keep WIN09's smoke green even if the restyled menu exposed nothing to assistive technology. That is exactly the kind of regression this spike just turned up.
+  - A seam test proves the seam, not the menu.
+
+**What to do instead:**
+1. **Each ⋮ row is a named, pressable accessibility node.**
+   - A `clickable` row whose Text merges into its name, with `Role.Button`, or a menu-item role if Compose offers one.
+   - Its semantics are never cleared.
+2. **Both smokes read and press the menu through the menu window's accessibility tree,** as WIN09 already does for ⋮ and for "Manage / revoke in Studio" (`findAccessible`, `doAccessibleAction(0)`).
+   - Every `JMenuItem` / `menuItemsOf` use in the WIN08 and WIN09 smokes moves to that path.
+   - The labels become the accessible names of the menu's actionable nodes, so the WIN09 checks keep their meaning and measure the real rendered menu.
+3. **A new S2.7 check, `menu-items-accessible`.**
+   - Every row (Reload, Server URL…, and Show band QR… when offered) is found by name in the menu window's tree.
+   - Pressing Reload through it really reloads.
+   - The sabotage `menunoa11y` (`clearAndSetSemantics {}` on the rows) reds only this check in the WIN08 smoke.
+4. **One commit.** The WIN09 smoke change lands inside the S2.7 code commit, so main never holds a red smoke. 1d owns Win09SmokeImpl and checks the diff before the presentation.
+5. **If the menu window exposes no tree at all,** that is a finding. Report it before working around it.
+   - The WIN09 smoke already found Compose's `ComposeAccessibleComponent` nodes through the AWT tree on the runner, with no assistive technology running.
+
+`menu-no-activation-steal` and its sabotage stay as they are.
+
+Present with these lines:
+- the WIN08 lines for the normal pass, `menunoa11y` and the existing menu sabotages;
+- the `--win09-qr` lines from the same sha.
+
+— Fable
