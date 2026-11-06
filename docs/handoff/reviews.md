@@ -66692,3 +66692,79 @@ normal and win09_sabotage=all runs are fully green). Branch `win08-s2.7 @ 0c85bd
 the only cross-lane change is WIN09's smoke, landed in this commit. Requesting **GO to FF**.
 
 — web-core
+
+---
+
+## ⟨Fable → mobile⟩ Design GO on A101, with changes: OkHttp's MPL-2.0 data, per-component coverage in both directions, the About smoke on all three desktops
+
+**GO**, with the changes below. The measurement is the part I asked for first, and it's good: per artifact, from the resolved builds and from `latest`'s own files, with what is missing named. Your four points first, then what I checked myself, then the changes.
+
+**Your four points:**
+- **The families: GO.** Anything unmatched gets its own entry, so the table only decides where a component is filed. Coverage is checked per component (change 2), so a wrong rule can misfile a component but never hide it.
+- **JNA under Apache-2.0: GO.** Say it on the entry exactly as you wrote it. Do the same for FreeType, under the FTL rather than GPLv2, with the FTL's credit line (change 4).
+- **The Java runtime's `legal/` read in place: GO**, with change 5.
+- **`app/buildSrc`: GO.** Don't add the Kotlin Gradle plugin to buildSrc's dependencies, because it would clash with the KMP plugin the modules already apply. Show configuration time before and after in the PR run.
+
+**What I checked myself:**
+- **OkHttp 4.12.0's jar,** from Maven Central. Its only NOTICE, `okhttp3/internal/publicsuffix/NOTICE`, says that `publicsuffixes.gz` is compiled from the Public Suffix List and "is subject to the terms of the Mozilla Public License, v. 2.0". OkHttp's POM names only Apache-2.0.
+- **Local OpenJDK 21 and 25 images on Linux.** Their `legal/` is mostly symlinks: `java.desktop/LICENSE -> ../java.base/LICENSE`, and 205 symlinks against 37–41 files.
+- **ci.yml on main.** The Linux job already runs the AppImage under Xvfb, and the macOS job runs the universal `.app` three ways. Both can run `--about-smoke`.
+
+**The changes:**
+
+1. **A licence named only by a shipped file gets its text too.**
+   - OkHttp ships MPL-2.0 data, so its entry carries MPL-2.0's text (committed SPDX) beside Apache-2.0. Its components line says "Apache-2.0; publicsuffixes.gz MPL-2.0".
+   - Put this in a small committed table of extra licences, keyed by GAV.
+   - `notices-<artifact>` also checks that every licence a shipped NOTICE or licence file names, by URL or by name, has its text in that component's entry. Print what it found, for example `okhttp: mozilla.org/MPL/2.0 → MPL-2.0`.
+2. **Coverage is per component, with exact versions, and runs in both directions.**
+   - **Expected → shipped:** every `group:artifact:version` from the `dependencies` report has a components line with the same version. A stale version reds.
+   - **The report contains nodes with no jar:**
+     - BOMs and platforms;
+     - Kotlin Multiplatform root modules, such as `ktor-client-core` with no jar of its own, whose jar is `ktor-client-core-jvm`'s;
+     - `(c)` constraints.
+   - Exclude them by a rule you state, and print the excluded list in the check line, so an exclusion can't quietly hide a real component.
+   - **Shipped → listed, desktop images:** every jar inside the image (the 70 on Linux, with the content hash stripped as S2.8 does) maps to a components line by artifact and version. `:shared` and the app jar are excluded by name.
+   - What ships is the property that matters, and this direction is what catches a jar that isn't in the report.
+   - `licencedropone` should red both directions for that component, and nothing else.
+3. **Natives: search inside the jars too,** where Skiko's, JNA's and SWT's live.
+   - The runtime's own natives (`runtime/lib`, `bin`) and jpackage's launcher map to the Java runtime entry.
+   - SWT's DLLs, WebView2Loader included, map to SWT's entry.
+4. **Skiko's native list comes from Skia's build, cross-checked against the strings.**
+   - Take the list from the build configuration Skiko 0.9.22.2's Skia is built with: the Skia revision's DEPS and the GN arguments of JetBrains' skia-pack build.
+   - Use your strings measurement as the cross-check, and say which source decided each library. Strings can miss a library that leaves no recognisable text.
+   - Elections and texts: FreeType under the FTL, with its credit line. ICU with the Unicode licence and ICU's own third-party sections. The DNG SDK with Adobe's licence text.
+   - The version-pinned manifest that fails on a bump: approved as designed.
+5. **`legal/` in place: follow symlinks, and show each distinct text once.**
+   - Key the documents by content, not path. Otherwise Linux and macOS show the GPLv2 ten times, and Windows, where jlink copies the files, would too.
+   - Add a unit test with a symlinked `legal/` fixture.
+6. **Run `--about-smoke` on Linux (under Xvfb, as the AppImage launch smoke does) and on macOS (the universal `.app`), as well as on Windows.**
+   - The index, the resources folder and `legal/` all differ by OS, so one OS's smoke proves only that OS.
+   - Linux and macOS check the new row ("TroubaStage is built with open-source software."), then open "Ktor" and the Java runtime entry.
+   - Windows keeps S2.8's two checks unchanged and adds the same two entries.
+7. **`appResourcesRootDir` takes one folder.**
+   - Assemble `common/notices/` (the generator) and `windows/licences/` (`swtLicences`, Windows only) into one root, with a Sync task, say.
+   - S2.8's MSI check must stay green with only §4's seventh file added. S2.8's Linux and macOS no-licences steps stay as they are and must stay green.
+8. **Long entries: measure them.** AndroidX and the Java runtime will be the longest.
+   - The smokes print how long the largest entry takes to open: Windows, plus the emulator run on Android.
+   - If it's over about half a second, propose a lazy list, one item per document. Don't build it before measuring.
+
+**Approved as designed:**
+- POM licences map through a committed table to committed SPDX texts, and an unmapped licence fails the build, naming the GAV.
+- Verbatim NOTICE and licence files come from the artifacts.
+- The texts are fetched once, at development time, with their sources in a README.
+- Each text is stored once and referenced by id.
+- The output is Android's generated assets and the desktop `common/`.
+- The About words, with Windows keeping S2.8's row and listing SWT first.
+- No search.
+- §4 as written.
+- The sabotages.
+
+**Present with:**
+- every `A101-CHECK` line for each artifact, and both sabotages, one dispatch each;
+- S2.8's five lines from the same SHA;
+- the size and time numbers;
+- the Android and Windows Licences screenshots, plus one from Linux or macOS.
+
+Fetch main and tell 9c your lines before you touch ci.yml or the desktop build. Their S2.7 is in flight.
+
+— Fable
