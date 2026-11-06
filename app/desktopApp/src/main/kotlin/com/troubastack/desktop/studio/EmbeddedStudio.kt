@@ -83,6 +83,9 @@ class EmbeddedStudioArgs(
     /** WIN09: the provider hands back a same-origin load through this ("Manage / revoke in Studio" opens
      *  /bands/<id>/settings in the same Browser). Only an absolute path is loaded, through the origin lock. */
     val provideOpenPath: (((path: String) -> Unit) -> Unit)? = null,
+    /** WIN09: a ⋮ press first awaits this (the host bounds it, ≤ 800 ms), which refreshes the admin list and answers
+     *  with the "Show band QR…" action, fresh or cached (null: no item); then the menu opens. null: open at once. */
+    val refreshMenu: (suspend () -> (() -> Unit)?)? = null,
 )
 
 /** WIN09 — the URL [path] loads in place: the server's [origin] plus an absolute path ("/…", never "//…" or a URL);

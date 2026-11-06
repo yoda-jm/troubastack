@@ -57,6 +57,8 @@ class Win09SmokeRunnerImpl : Win09SmokeRunner {
     private val listGets = ConcurrentCounter()
     private val creates = AtomicInteger()    // POST /api/bands/{id}/invite-links
     private val pageKeys = java.util.concurrent.CopyOnWriteArrayList<String>()   // the stand-in page's keydowns (/win09-key)
+    private val failBandsOnce = AtomicBoolean(false)   // phase 4: answer the next /api/bands with a 500
+    private val failServed = AtomicBoolean(false)      // ...and that 500 was served (the stays check's control)
     @Volatile private var origin = ""
 
     private fun line(s: String) = win08log("win09: $s")
@@ -267,6 +269,29 @@ class Win09SmokeRunnerImpl : Win09SmokeRunner {
             val made = runBlocking { transport.createStandingInviteLink(BAND_B) }
             mark("create-counter-control", made != null && creates.get() == c0 + 1, "made=${made?.url} creates=${creates.get() - c0}")
             SwingUtilities.invokeAndWait { platform.back.dispatch() }
+
+            // ---- Phase 4: the item follows the roles while TroubaStudio stays open — one controller, no reopen. Each
+            // press is the REAL ⋮ (through the accessibility tree), which refreshes the list (≤ 800 ms) before the menu.
+            val c4 = openStudio(4, live(), mapOf(BAND_A to "admin", BAND_B to "member")) ?: return noStudio(4)
+            val (atOpen, latOpen) = menuAfterPress(c4, frame.get())   // the open's own fetch: A is admin (the precondition)
+            // A failed refresh keeps the list: the next /api/bands answers 500 while the roles say member.
+            roles = mapOf(BAND_A to "member", BAND_B to "member")
+            failServed.set(false); failBandsOnce.set(true)
+            val (onFail, latFail) = menuAfterPress(c4, frame.get())
+            failBandsOnce.set(false)
+            // Measurable only when the press made its fetch and got the 500 (its control); a press that fetched nothing is
+            // the follows-roles check's red, not this one's.
+            mark("item-stays-on-failed-refresh",
+                if (!failServed.get()) null else atOpen?.contains(ITEM) == true && onFail?.contains(ITEM) == true && live() === c4,
+                if (!failServed.get()) "the press made no fetch, so no 500 was served (atOpen=$atOpen afterPress=$onFail)"
+                else "atOpen=$atOpen 500served=true afterFailedRefresh=$onFail sameController=${live() === c4}")
+            // The roles flip, no reopen: member → the item goes; admin again → it comes back.
+            val (asMember, latMember) = menuAfterPress(c4, frame.get())
+            roles = mapOf(BAND_A to "admin", BAND_B to "member")
+            val (asAdmin, latAdmin) = menuAfterPress(c4, frame.get())
+            mark("item-follows-roles", asMember != null && ITEM !in asMember && asAdmin?.contains(ITEM) == true && live() === c4,
+                "member=$asMember admin=$asAdmin sameController=${live() === c4}")
+            line("menu press→open latency ms: open=$latOpen failedRefresh=$latFail member=$latMember admin=$latAdmin (the wait is ≤ 800)")
         } catch (e: Throwable) {
             mark("flow", false, "threw: $e\n${e.stackTraceToString()}")
         }
@@ -317,6 +342,22 @@ class Win09SmokeRunnerImpl : Win09SmokeRunner {
         return s
     }
 
+    /** Press the REAL ⋮ button (through the accessibility tree, so its onClick runs: the refresh, then the menu), read
+     *  the menu's labels, close it. Returns the labels (null if no menu opened) and the press→menu time in ms. */
+    private fun menuAfterPress(c: SwtBrowserController, frame: java.awt.Window?): Pair<List<String>?, Long> {
+        closeMenu(c)
+        val t0 = System.currentTimeMillis()
+        if (pressAccessible(frame, "⋮") == null) return null to -1
+        val end = t0 + 4_000
+        while (c.lastMenuWindow == null && System.currentTimeMillis() < end) Thread.sleep(20)
+        val took = System.currentTimeMillis() - t0
+        val w = c.lastMenuWindow ?: return null to took
+        var labels: List<String> = emptyList()
+        SwingUtilities.invokeAndWait { labels = menuItemsOf(w).map { it.text } }
+        closeMenu(c)
+        return labels to took
+    }
+
     /** Open the real ⋮ menu and read its item labels (null if it never opened). */
     private fun menuItems(c: SwtBrowserController): List<String>? {
         c.openStudioMenu()
@@ -328,7 +369,11 @@ class Win09SmokeRunnerImpl : Win09SmokeRunner {
         return labels
     }
 
-    private fun closeMenu(c: SwtBrowserController) = SwingUtilities.invokeAndWait { c.lastMenuWindow?.dispose() }
+    private fun closeMenu(c: SwtBrowserController) {
+        SwingUtilities.invokeAndWait { c.lastMenuWindow?.dispose() }
+        val end = System.currentTimeMillis() + 2_000
+        while (c.lastMenuWindow != null && System.currentTimeMillis() < end) Thread.sleep(20)
+    }
 
     /** Choose the open menu's item labelled [label], as a click does (JMenuItem.doClick → its action). */
     private fun clickMenuItem(c: SwtBrowserController, label: String): Boolean {
@@ -411,6 +456,10 @@ class Win09SmokeRunnerImpl : Win09SmokeRunner {
                 val k = java.net.URLDecoder.decode(query.removePrefix("k="), StandardCharsets.UTF_8)
                 pageKeys += k; line("fake core: page keydown [$k]")
                 Triple("204 No Content", "text/plain", "")
+            }
+            path == "/api/bands" && failBandsOnce.compareAndSet(true, false) -> {
+                failServed.set(true); line("fake core: /api/bands answered 500 (phase 4)")
+                Triple("500 Internal Server Error", json, "{}")
             }
             path == "/api/bands" -> Triple("200 OK", json, """{"bands":[{"id":"$BAND_A","name":"Smoke Band A"},{"id":"$BAND_B","name":"Smoke Band B"}]}""")
             bandRole != null -> { roleGets.incrementAndGet(); Triple("200 OK", json, """{"myRole":"${roles[bandRole] ?: "member"}"}""") }

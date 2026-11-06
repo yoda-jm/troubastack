@@ -106,5 +106,15 @@ internal fun BandPicker(bands: List<StudioBand>, onPick: (StudioBand) -> Unit, o
     }
 }
 
+/** WIN09 — the admin list's fetches: the newest generation alone writes; [inFlight] is the press-triggered one, shared
+ *  by presses that come while it runs. Touched on the UI thread only. */
+internal class BandsFetch {
+    var generation = 0
+    var inFlight: kotlinx.coroutines.Deferred<Unit>? = null
+}
+
+/** WIN09 — how long a ⋮ press waits for its refresh before the menu opens with the list it had. */
+internal const val MENU_REFRESH_WAIT_MS = 800L
+
 /** WIN09 — the `--win09-qr` smoke's sabotage (set from WIN09_SABOTAGE on that path only); the shared screen reads it too. */
 internal const val WIN09_SABOTAGE_PROPERTY = "troubastage.win09.sabotage"

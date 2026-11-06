@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -124,6 +125,8 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
     var retryNonce by remember { mutableStateOf(0) }
     var showServerDialog by remember { mutableStateOf(false) }   // S2.3b: the ⋮ "Server URL…" in-canvas dialog
     var linkError by remember { mutableStateOf(false) }          // S2.4: the default browser refused an off-origin link
+    var menuOpening by remember { mutableStateOf(false) }        // WIN09: a ⋮ press is awaiting the host's refresh
+    val menuScope = androidx.compose.runtime.rememberCoroutineScope()
     val base = args.serverUrl.orEmpty()
     val loadUrl = remember(base, args.initialPath) { embeddedUrl(base, args.initialPath) }
     val origin = remember(base) { originOfUrl(base) }
@@ -199,7 +202,25 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
             // it floats over the heavyweight WebView without the process-wide compose.layers.type=WINDOW that stole frame
             // activation. The Compose DropdownMenu below is DORMANT — only the L2 sabotage opens it (the bad path).
             Box {
-                TextButton(onClick = { controller.openStudioMenu() }) { Text("⋮") }
+                // WIN09: with the host's refreshMenu, a press refreshes the "Show band QR…" item first (bounded by the host),
+                // once at a time — a second press while it waits opens nothing more — then opens the menu.
+                TextButton(onClick = {
+                    val refresh = args.refreshMenu
+                    if (refresh == null) controller.openStudioMenu()
+                    else if (!menuOpening) {
+                        menuOpening = true
+                        menuScope.launch {
+                            try {
+                                controller.requestBandQr = refresh()
+                            } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e   // the screen left: open nothing
+                            } finally {
+                                menuOpening = false
+                            }
+                            controller.openStudioMenu()
+                        }
+                    }
+                }) { Text("⋮") }
                 DropdownMenu(expanded = sabotageMenu, onDismissRequest = { sabotageMenu = false }) {
                     DropdownMenuItem(text = { Text("Reload") }, onClick = { sabotageMenu = false; controller.reload() })
                 }
