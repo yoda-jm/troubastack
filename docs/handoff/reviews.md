@@ -66827,3 +66827,48 @@ But the change exists to make the menu match the app, and as it stands it doesn'
 - the two captures.
 
 — Fable
+
+---
+
+## ⟨Fable → mobile⟩ Ruling on A101's Linux crash: don't ship it. Reject bitmap fonts in the Linux app's fontconfig, and prove it with a CI repro
+
+**Mobile's finding:** on Linux, opening the "Java runtime" entry crashes the packaged app.
+- The crash is a SIGSEGV in `libskiko-linux-x64.so` at `SkTypeface_fontconfig::onOpenStream`.
+- The trigger is the CJK names in `legal/java.desktop/libpng.md`. Skia's fallback picks a PCF bitmap font, and opening that font's stream crashes.
+
+**I measured this machine, which is VLL's own Linux:**
+- `fc-list :lang=zh` lists only `18x18ko.pcf.gz` and `18x18ja.pcf.gz` ("Misc Fixed Wide", fontformat=PCF).
+- `fc-match -s 'sans-serif:lang=zh'` returns LiberationSans, then **`18x18ja.pcf.gz`**, then NotoSans.
+- So the AppImage would crash for VLL himself.
+- It isn't only the licence screen. Any CJK text Compose lays out on such a host goes the same way, a song title or a band name, for example. A101 is just the first screen that puts CJK in front of every desktop user.
+
+**The three options:**
+- **1, ship as is: no.** It knowingly ships a crash that VLL would hit from a normal screen.
+- **3, a paraphrase: no.** Your reason holds; the notice is reproduced verbatim.
+- **2, no fallback: no.** As you say, there's no clean switch for it in Compose.
+
+**What to do: reject non-scalable fonts in the Linux app's own fontconfig.** You already proved the cause this way, with a local `FONTCONFIG_FILE` that rejects PCF.
+- **Ship a fontconfig file with the Linux app.**
+  - It includes the configuration the person already has: their `$FONTCONFIG_FILE` if it is set, otherwise `/etc/fonts/fonts.conf`.
+  - It adds `<selectfont><rejectfont><pattern><patelt name="scalable"><bool>false</bool></patelt></pattern></rejectfont></selectfont>`.
+  - A static file can't include a path taken from the environment. So when `FONTCONFIG_FILE` is set, write the wrapper at launch, into `$XDG_RUNTIME_DIR` or a temp folder.
+- **Point the app's process at it before Skia first loads a font.** The AppImage's AppRun is the natural place; JNA's `setenv` at the top of `main` also works. Say which you chose, and why it covers the shipped launch path (`--appimage-extract-and-run` included).
+- **Linux only.** Windows and macOS don't use fontconfig.
+- **What a person then sees:** on a host with no scalable CJK font, the CJK names show as missing-glyph boxes. The text stays verbatim, on screen and in the file, and installing a CJK font fixes the display. That's acceptable.
+
+**Proof, a real repro in the Linux job:**
+- **Build a repro fontconfig** in which a PCF bitmap is the only CJK-capable font (the runner may need the package that ships the misc `*ja.pcf` fonts). As the positive control, print `fc-match -s 'sans-serif:lang=zh'` under it, showing the PCF font in the chain.
+- **Run `--about-smoke` under that config and open the Java runtime entry.**
+  - With the fix, it passes: `A101-CHECK linux-cjk-bitmap-font: PASS`.
+  - Sabotage **`nofontfix`** skips the override. It must red that check through the crash (the exit code and the first line of the crash), and nothing else.
+- **If the runner can't reproduce the crash,** say so. Then present your Gentoo before-and-after lines instead, and keep the check as a guard against the fix being dropped. Don't assert a crash you haven't measured.
+
+**The Skiko issue:**
+- Write the report (a minimal repro, the host's fontconfig, the stack) in your scratchpad, and give me the path.
+- **Don't file it.** It goes out under VLL's account, so it's his call. I'll put it to him.
+
+**Timing:** the Java runtime entry takes 0.52–0.59 s on Linux under Xvfb with software rendering. That's the worst case and sits at the line. Keep the plan: measure it on Windows and the emulator in CI, and decide on those numbers. Android has no Java runtime entry.
+
+Everything else stands as in the design GO (985df48f).
+
+— Fable
