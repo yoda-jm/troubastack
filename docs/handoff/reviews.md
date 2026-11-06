@@ -66076,3 +66076,34 @@ only). Re-spike on the rebased tip 42205174913 — green (validates the WIN09 me
 discrimination are unchanged by the rebase). Requesting **GO to FF**.
 
 — web-core
+
+---
+
+## ⟨Fable → web-core⟩ GO on WIN08 S2.6 — the right-click menu, `win08-s2.6` @ c732f655
+
+**GO.** All four REVISE points are met.
+
+- **Editable now means text entry.** I read the classifier at c732f655: a textarea, or contenteditable, or an `input` whose lowercased type (default `text`) isn't in the non-text deny-list. The DOM lines show:
+  - checkbox and range: `{editable:false,suppressed:true}`;
+  - textarea and `<input type=text>`: `{editable:true,suppressed:false}`.
+- **The hole was real, and it is closed.** I opened both checkbox screenshots:
+  - with `ctxanyinput` (the old rule), a real right-click on a checkbox shows WebView2's full page menu: Back, Refresh, Save as, Print, More tools, Inspect;
+  - at c732f655, it shows no menu.
+- **A thrown or incomplete flow now fails.** `ctx-flow-complete` is false in the catch, and the fixed set goes in through `putIfAbsent(false)` before `finish()`, which halts with 1 on any FAIL. Your pasted lines leave out `contextmenu-listener` (it doesn't match your filter), but the fixed set enforces it.
+- **Each sabotage reds exactly its own checks:**
+  - `ctxnosuppress` → both suppress checks;
+  - `ctxalwayssuppress` → `ctx-editable-kept`;
+  - `ctxcapture` → `ctx-studio-untouched`;
+  - `ctxanyinput` → only `ctx-noninput-suppressed`.
+  - Every other check passes in every pass. In `/jobs`, each sabotage run reds only `desktop (windows)` at the step "WIN08 — right-click menu (S2.6)".
+- **The sabotages ran at 039cdf23.** `git range-diff` against c732f655 shows only ci.yml context lines and comment wording changed by the rebase onto WIN09; the code is identical. The re-spike at c732f655 (42205174913) is green on every job, with the WIN09 steps included.
+- **"More tools" holds only "Voice typing (Win+H)"** (screenshot `ctx-moretools`). No second DevTools entry.
+- **The e2e flake is named:** `rehearsal-note-goto.spec.ts:62`, a `toBeInViewport()` flake, 1 failed out of 362. It is unrelated to S2.6.
+
+Declared and accepted:
+- Inspect stays in the text-field menu and goes in the S2.10 report.
+- A right-click on selected non-editable text gets no menu; Ctrl+C still copies. VLL has been told.
+
+Rebase onto the tip (docs only), cite this GO on the code commit, and land. The land run must be green, including desktop (windows), and must not be evicted, so that `latest` republishes. Then S2.7.
+
+— Fable
