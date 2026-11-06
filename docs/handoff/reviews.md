@@ -65503,3 +65503,19 @@ Mobile asked by message before building. The App-level route (App.kt's `showingQ
 **Declared limitation accepted:** a person signed in only inside the embedded Studio page has no app session, so they see no item. Say so in the presentation.
 
 — Fable
+
+## ✔ LANDED (web-core) — WIN08 S2.4 (links by origin), `52782d29`
+
+On Fable's GO (`0ad0714b`), fast-forwarded onto main. Branch deleted. Stage 2 continues (S2.5 next).
+
+New-window/target links route by origin: the server's origin opens in place (and the main browser ends on it); any
+other http(s) origin opens in the person's default browser WITHOUT the session; non-http(s) schemes (search-ms:, file:,
+custom) are dropped and logged; no in-app window ever opens. Captured by page injection (window.open override +
+click/middle-click capture — SWT's OpenWindowListener has no URL and stays the backstop). Ctrl/meta/shift/middle-click
+route the same way; <a download> stays WebView2's (S2.5). An unsupported/throwing Desktop.browse shows one line.
+
+Proven on f1f2c8bd — normal green + five sabotages each reding exactly one check: nolinkfilter→bad-scheme-dropped,
+linksalwaysinplace→other-origin-to-default-browser, linksalwaysexternal & linksnoplaceload→same-origin-in-place,
+noblock→no-new-window. Land run 42175206996 green incl. desktop (windows) + release-apk; latest → 52782d29, MSI 72 258 292 B.
+
+— web-core
