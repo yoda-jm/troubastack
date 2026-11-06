@@ -106,6 +106,10 @@ fun SettingsScreen(
     // WIN03 D2 — "Full screen when performing": null ⇒ no window modes ⇒ no switch (Android).
     fullScreenWhenPerforming: Boolean? = null,
     onFullScreenWhenPerforming: (Boolean) -> Unit = {},
+    // WIN08 S2.8 — the open-source licences this build ships (SWT on Windows): one line under About and a Licences
+    // button. null on platforms that ship none to show, which then show neither.
+    licencesLine: String? = null,
+    onShowLicences: (() -> Unit)? = null,
     onBack: () -> Unit,
 ) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -180,6 +184,12 @@ fun SettingsScreen(
                         }
                     }
                     TextButton(onClick = { clipboard.setText(AnnotatedString(lines.joinToString("\n"))) }) { Text("Copy") }
+                }
+                if (licencesLine != null && onShowLicences != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(licencesLine, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(onClick = onShowLicences) { Text("Licences") }
+                    }
                 }
                 if (onCheckForUpdates != null) {
                     if (updatePhase != null) {

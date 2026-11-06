@@ -2,6 +2,8 @@
 // Compose for Desktop application{} + a per-user MSI via nativeDistributions. Holds no logic of its own:
 // a skeleton window (title + build line) now; WIN03 puts the Stage app in it. Depends only on :shared (I14).
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import java.util.jar.Manifest
+import java.util.zip.ZipFile
 
 // WIN08 — the SWT WebView2 code (src/windows/kotlin) and its dependency are added ONLY on a Windows host build.
 // Linux/macOS build the same module with neither, keep "Coming soon.", and their app images hold no SWT jar.
@@ -87,11 +89,101 @@ tasks.withType<Test>().configureEach {
     testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
 }
 
+// WIN08 S2.8 — SWT's licences, shipped in the Windows app image only (`resources/licences/`, read by Parameters → About).
+// SWT is EPL-2.0 and carries third-party content with notices of its own (about.html + about_files/: libjpeg, PuTTY's
+// zlib code, Microsoft's WebView2 loader under BSD). This copies those from the SWT jar the build RESOLVED (so they are
+// that version's), adds the EPL-2.0 text, and writes SWT-NOTICE.txt naming the exact version and where its source is
+// published (EPL-2.0 §3.2). Registered only on a Windows host — the same switch that adds SWT — and put under
+// appResourcesRootDir's `windows/` folder, so the Linux and macOS images get none of it. WIN08_SABOTAGE
+// licencewrongversion / licencenofile (a CI measurement run only) breaks it so the MSI check can be shown to red.
+abstract class SwtLicences : DefaultTask() {
+    @get:InputFiles abstract val swtJar: ConfigurableFileCollection
+    @get:Input abstract val swtModule: Property<String>
+    @get:Input abstract val swtVersion: Property<String>
+    @get:InputFile abstract val eplText: RegularFileProperty
+    @get:Input abstract val sabotage: Property<String>
+    @get:OutputDirectory abstract val outDir: DirectoryProperty
+
+    @TaskAction
+    fun write() {
+        val dir = outDir.get().asFile.resolve("windows/licences").apply { deleteRecursively(); mkdirs() }
+        val jar = swtJar.singleFile
+        ZipFile(jar).use { zip ->
+            val manifest = zip.getInputStream(zip.getEntry("META-INF/MANIFEST.MF")).use { Manifest(it) }
+            val bundleVersion = manifest.mainAttributes.getValue("Bundle-Version") ?: error("no Bundle-Version in $jar")
+            // about.html and every about_files/ entry, byte for byte (the CI check compares them with the jar's).
+            val copied = zip.entries().asSequence().filter { !it.isDirectory && (it.name == "about.html" || it.name.startsWith("about_files/")) }.toList()
+            check(copied.any { it.name == "about.html" }) { "no about.html in $jar" }
+            for (e in copied) dir.resolve(e.name).apply { parentFile.mkdirs() }.writeBytes(zip.getInputStream(e).use { it.readBytes() })
+            dir.resolve("SWT-about.txt").writeText(htmlToText(dir.resolve("about.html").readText()))
+            val wrong = sabotage.get() == "licencewrongversion"
+            dir.resolve("SWT-NOTICE.txt").writeText(notice(
+                if (wrong) "3.0.0" else swtVersion.get(), if (wrong) "3.0.0.v00000000-0000" else bundleVersion))
+        }
+        if (sabotage.get() != "licencenofile") eplText.get().asFile.copyTo(dir.resolve("EPL-2.0.txt"))
+    }
+
+    private fun notice(version: String, bundleVersion: String): String {
+        val module = swtModule.get()
+        val sources = "https://repo1.maven.org/maven2/org/eclipse/platform/$module/$version/$module-$version-sources.jar"
+        return """
+            |SWT in TroubaStage for Windows
+            |
+            |TroubaStage for Windows shows TroubaStudio with SWT, the Eclipse Standard Widget Toolkit:
+            |  Component: org.eclipse.platform:$module
+            |  Version: $version
+            |  Bundle-Version: $bundleVersion
+            |
+            |SWT is made available under the Eclipse Public License 2.0. Its text is in EPL-2.0.txt, beside this file.
+            |
+            |The source code of this exact version of SWT is published at:
+            |  $sources
+            |and in the SWT project's repository:
+            |  https://github.com/eclipse-platform/eclipse.platform.swt
+            |
+            |SWT itself includes third-party content: the Independent JPEG Group's JPEG software, code from PuTTY,
+            |and Microsoft's WebView2 loader. SWT's own notice for it is about.html (also as plain text, SWT-about.txt),
+            |with the texts it refers to in about_files/. They sit beside this file, copied unchanged from the SWT jar in
+            |this app.
+            |""".trimMargin()
+    }
+
+    /** about.html as readable text: block ends become line breaks, tags go, the few entities it uses are decoded. */
+    private fun htmlToText(html: String): String = html
+        .replace(Regex("(?is)<head.*?</head>"), "")
+        .replace(Regex("(?i)<br\\s*/?>"), "\n")
+        .replace(Regex("(?i)</(p|h[1-6]|li|div|tr|pre|ul|ol)>"), "\n\n")
+        .replace(Regex("<[^>]*>"), "")
+        .replace("&quot;", "\"").replace("&rsquo;", "\u2019").replace("&lsquo;", "\u2018").replace("&nbsp;", " ")
+        .replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+        .lines().joinToString("\n") { it.trimEnd() }
+        .replace(Regex("\n{3,}"), "\n\n").trim() + "\n"
+}
+
+if (isWindowsHost) {
+    val swtModuleName = "org.eclipse.swt.win32.win32.x86_64"
+    val swtArtifacts = configurations.named("runtimeClasspath").flatMap { it.incoming.artifacts.resolvedArtifacts }
+    fun swtOnly(all: Set<org.gradle.api.artifacts.result.ResolvedArtifactResult>) =
+        all.filter { (it.id.componentIdentifier as? org.gradle.api.artifacts.component.ModuleComponentIdentifier)?.module == swtModuleName }
+    tasks.register<SwtLicences>("swtLicences") {
+        swtJar.from(swtArtifacts.map { all -> swtOnly(all).map { it.file } })
+        swtModule.set(swtModuleName)
+        swtVersion.set(swtArtifacts.map { all ->
+            swtOnly(all).map { (it.id.componentIdentifier as org.gradle.api.artifacts.component.ModuleComponentIdentifier).version }.single()
+        })
+        eplText.set(layout.projectDirectory.file("licences/EPL-2.0.txt"))
+        sabotage.set(providers.environmentVariable("WIN08_SABOTAGE").orElse(""))
+        outDir.set(layout.buildDirectory.dir("swt-licences"))
+    }
+}
+
 compose.desktop {
     application {
         mainClass = "com.troubastack.desktop.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
+            // WIN08 S2.8 — SWT's licences (above): its `windows/` folder reaches the Windows app image only.
+            if (isWindowsHost) appResourcesRootDir.set(tasks.named<SwtLicences>("swtLicences").flatMap { it.outDir })
             // WIN03 — the JDK modules the packaged runtime needs beyond Compose's default: the first three are what
             // `./gradlew :desktopApp:suggestRuntimeModules` reports for the shared app (ktor, coroutines); jdk.crypto.ec
             // is loaded as a security provider, which jdeps cannot see, and HTTPS needs it (servers, GitHub for WIN04).

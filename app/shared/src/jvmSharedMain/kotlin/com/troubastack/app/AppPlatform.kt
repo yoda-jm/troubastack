@@ -88,7 +88,14 @@ interface AppPlatform {
      *  Android's emulator alias for its host; null on the desktop, where Connect starts at "http://" and nothing is
      *  contacted until a server is set. */
     val defaultServerUrl: String?
+
+    /** WIN08 S2.8 — the open-source licences this build ships, for Parameters → About and its Licences screen. null:
+     *  none to show (Android today; the desktop wherever SWT does not ship, i.e. outside the Windows image). */
+    val licences: ShippedLicences? get() = null
 }
+
+/** WIN08 S2.8 — what About shows ([line]) and what its Licences screen lists ([entries], read when it opens). */
+class ShippedLicences(val line: String, val entries: () -> List<com.troubastack.shared.ui.LicenceEntry>)
 
 /** WIN03 D2/D4 — the desktop window as the shared app sees it. */
 interface WindowControls {

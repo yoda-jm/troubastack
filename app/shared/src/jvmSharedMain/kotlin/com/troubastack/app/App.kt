@@ -153,6 +153,7 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
     // offline, tap-to-perform) or via TroubaStudio (manage: import/update/edit affordances).
     var connecting by remember { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
+    var showLicences by rememberSaveable { mutableStateOf(false) }   // WIN08 S2.8: Parameters → About → Licences
     var showEdited by rememberSaveable { mutableStateOf(false) } // A92: the "edited since their last bake" list
     // A65: the native Studio browse (Concerts | Bands launchers) is the TroubaStudio entry point; a row
     // taps into the Studio WebView at a deep-link path, with the band name for the frame title.
@@ -195,6 +196,16 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
     }
 
     if (settings) {
+        // WIN08 S2.8 — About's Licences: the shipped open-source texts, a list of entries, then one entry's texts; Back
+        // steps from an entry to the list, then to Parameters.
+        val shipped = platform.licences
+        if (showLicences && shipped != null) {
+            val entries = remember(shipped) { shipped.entries() }
+            var opened by remember { mutableStateOf<com.troubastack.shared.ui.LicenceEntry?>(null) }
+            com.troubastack.shared.ui.LicencesScreen(entries, opened, onOpen = { opened = it }, onBack = { showLicences = false })
+            platform.BackHandler { if (opened != null) opened = null else showLicences = false }
+            return
+        }
         // A36 Parameters hub. Theme comes from the entrypoint (it drives TroubaTheme); the Stage
         // reading/colour modes are the SAME persisted keys Stage's ⚙ writes, so editing here sets the
         // default the next Stage open reads (VLL: keep them in concert mode too — both edit one value).
@@ -249,6 +260,8 @@ fun App(platform: AppPlatform, themePref: ThemePref, onThemePref: (ThemePref) ->
             reservedKeys = platform.window?.reservedKeys ?: emptySet(),
             fullScreenWhenPerforming = platform.window?.fullScreenWhenPerforming,
             onFullScreenWhenPerforming = { platform.window?.chooseFullScreenWhenPerforming(it) },
+            licencesLine = shipped?.line,
+            onShowLicences = shipped?.let { { showLicences = true } },
             onBack = { settings = false },
         )
         platform.BackHandler { settings = false }

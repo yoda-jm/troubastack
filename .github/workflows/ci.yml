@@ -655,6 +655,8 @@ jobs:
       - name: package the per-user MSI (version 1.0.<run_number>)
         if: runner.os == 'Windows'
         working-directory: app
+        env:
+          WIN08_SABOTAGE: ${{ github.event.inputs.win08_sabotage }}   # S2.8: licencewrongversion / licencenofile break swtLicences; empty on push/PR
         # createDistributable leaves the app-image (the exe the smoke runs) on disk; packageMsi wraps it.
         run: .\gradlew.bat :desktopApp:createDistributable :desktopApp:packageMsi "-PdesktopVersion=1.0.${{ github.run_number }}"
       - name: keep the artifact MSI aside (before building n+1)
@@ -944,6 +946,98 @@ jobs:
           name: win09-qr-captures
           path: app/win09-out-*/*.png
           if-no-files-found: ignore
+      # WIN08 S2.8 — SWT's licences inside the built MSI. Extract the artifact MSI with an administrative install, take
+      # the SWT version from the jar INSIDE it (file name + MANIFEST Bundle-Version), and check: the six files are in
+      # the image's resources/licences (sizes listed); SWT-NOTICE.txt names both versions; EPL-2.0.txt is the EPL; and
+      # about.html + every about_files/ text are byte-identical to the jar's. Sabotages (win08_sabotage):
+      # licencewrongversion → msi-notice-names-built-version; licencenofile → msi-licence-files.
+      - name: WIN08 S2.8 — SWT's licences inside the MSI
+        if: runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem troubastage-1.0.*.msi | Select-Object -First 1
+          if (-not $msi) { Write-Error "no artifact MSI to extract"; exit 1 }
+          $x = Join-Path $env:RUNNER_TEMP "msi-admin"
+          if (Test-Path $x) { Remove-Item -Recurse -Force $x }
+          $p = Start-Process msiexec.exe -ArgumentList @("/a", "`"$($msi.FullName)`"", "/qn", "TARGETDIR=`"$x`"", "/l*v", "`"$env:RUNNER_TEMP\msi-admin.log`"") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content "$env:RUNNER_TEMP\msi-admin.log" -Tail 40 | Write-Host; Write-Error "msiexec /a exited $($p.ExitCode)"; exit 1 }
+          $jar = Get-ChildItem -Path $x -Recurse -Filter "org.eclipse.swt.win32.win32.x86_64-*.jar" | Select-Object -First 1
+          if (-not $jar) { Write-Error "no SWT jar in the extracted MSI"; exit 1 }
+          # The image renames jars with a content hash (…x86_64-3.134.0-<32 hex>.jar): the version is the part before it.
+          $ver = [regex]::Match($jar.Name, 'x86_64-(\d+(?:\.\d+)*)(?:-[0-9a-f]{32})?\.jar$').Groups[1].Value
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($jar.FullName)
+          function EntryBytes([string]$name) {
+            $e = $zip.GetEntry($name); if (-not $e) { return $null }
+            $st = $e.Open(); $ms = New-Object System.IO.MemoryStream; $st.CopyTo($ms); $st.Dispose(); return ,$ms.ToArray()
+          }
+          $mf = [System.Text.Encoding]::UTF8.GetString((EntryBytes "META-INF/MANIFEST.MF"))
+          $bv = [regex]::Match($mf, '(?m)^Bundle-Version:\s*(\S+)').Groups[1].Value
+          $lic = Join-Path $jar.Directory.FullName "resources\licences"
+          Write-Host "SWT in the MSI: $($jar.Name) (version $ver, Bundle-Version $bv); licences expected at $lic"
+          $want = @("SWT-NOTICE.txt", "EPL-2.0.txt", "about.html", "about_files\WebView2_LICENSE.txt", "about_files\IJG_README", "about_files\mpl-v11.txt")
+          $missing = @()
+          foreach ($f in $want) {
+            $path = Join-Path $lic $f
+            if (Test-Path $path) { Write-Host ("  {0,-36} {1,8} bytes" -f $f, (Get-Item $path).Length) } else { Write-Host "  $f  MISSING"; $missing += $f }
+          }
+          $eplPath = Join-Path $lic "EPL-2.0.txt"
+          $epl = (Test-Path $eplPath) -and ((Get-Content $eplPath -TotalCount 1) -eq "Eclipse Public License - v 2.0")
+          $files = $missing.Count -eq 0 -and $epl
+          Write-Host "S28-CHECK msi-licence-files: $(if ($files) { 'PASS' } else { 'FAIL' }) — missing=[$($missing -join ', ')] EPL heading=$epl"
+          $noticePath = Join-Path $lic "SWT-NOTICE.txt"
+          $notice = if (Test-Path $noticePath) { Get-Content $noticePath -Raw } else { "" }
+          $bvBase = ($bv.Split('.') | Select-Object -First 3) -join '.'   # 3.134.0.v20260515-1429 → 3.134.0, the jar's own version
+          $names = $ver -ne "" -and $ver -eq $bvBase -and ($notice -match "(?m)^\s*Version:\s*$([regex]::Escape($ver))\s*$") -and ($notice -match "(?m)^\s*Bundle-Version:\s*$([regex]::Escape($bv))\s*$")
+          $nv = [regex]::Match($notice, '(?m)^\s*Version:\s*(\S+)').Groups[1].Value
+          Write-Host "S28-CHECK msi-notice-names-built-version: $(if ($names) { 'PASS' } else { 'FAIL' }) — notice Version=[$nv], built jar $ver / $bv"
+          $jarTexts = @($zip.Entries | Where-Object { $_.FullName -eq "about.html" -or ($_.FullName.StartsWith("about_files/") -and -not $_.FullName.EndsWith("/")) })
+          $diff = @()
+          foreach ($e in $jarTexts) {
+            $path = Join-Path $lic ($e.FullName -replace '/', '\')
+            $a = EntryBytes $e.FullName
+            if (-not (Test-Path $path)) { $diff += "$($e.FullName) (absent)"; continue }
+            $b = [System.IO.File]::ReadAllBytes($path)
+            if ($a.Length -ne $b.Length -or -not [System.Linq.Enumerable]::SequenceEqual([byte[]]$a, [byte[]]$b)) { $diff += $e.FullName }
+          }
+          $zip.Dispose()
+          $same = $diff.Count -eq 0 -and $jarTexts.Count -ge 4
+          Write-Host "S28-CHECK msi-swt-notices-identical: $(if ($same) { 'PASS' } else { 'FAIL' }) — jar texts compared=$($jarTexts.Count): [$(($jarTexts | ForEach-Object FullName) -join ', ')]; differing=[$($diff -join ', ')]"
+          if (-not ($files -and $names -and $same)) { Write-Error "S2.8: the MSI's licences are wrong (see the S28-CHECK lines)"; exit 1 }
+          Write-Host "S2.8: SWT $ver's licences ship in the MSI, as built"
+      # WIN08 S2.8 — the About smoke on the packaged image: the About line names the shipped notice's version, which is
+      # the SWT jar's the app runs with; Licences → SWT shows the notice and the EPL. Runs even if the MSI check failed, so
+      # a sabotage run reports both (licencewrongversion also reds about-line-shows-version; licencenofile also reds
+      # licences-screen-shows-files).
+      - name: WIN08 S2.8 — About shows the licences (--about-smoke)
+        if: always() && runner.os == 'Windows'
+        working-directory: app
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          if (-not $exe) { Write-Error "no packaged TroubaStage.exe"; exit 1 }
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "about-home"
+          if (Test-Path $env:TROUBASTAGE_HOME) { Remove-Item -Recurse -Force $env:TROUBASTAGE_HOME }
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "about-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--about-smoke", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(180000)
+          if (-not $exited) { $p.Kill() }
+          $log = Join-Path $out "about-smoke.log"
+          $lines = if (Test-Path $log) { @(Get-Content $log) } else { @() }
+          Write-Host "---- about-smoke.log ----"; $lines | Write-Host
+          if (-not $exited) { Write-Error "about-smoke hung (>180s)"; exit 1 }
+          $bad = @("about-line-shows-version", "licences-screen-shows-files") | Where-Object { $n = $_; -not ($lines | Where-Object { $_ -match "S28-CHECK $n`: PASS" }) }
+          if ($bad.Count -gt 0 -or $p.ExitCode -ne 0) { Write-Error "S2.8 About checks not passing: [$($bad -join ', ')] (exit $($p.ExitCode))"; exit 1 }
+          Write-Host "S2.8: About names SWT's version and opens its licences"
+      - name: WIN08 S2.8 — upload the About captures
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: s28-about-captures
+          path: app/about-out/*.png
+          if-no-files-found: ignore
       # WIN08 S2.6 — right-click (R3): a host contextmenu listener suppresses the page menu on a non-editable target
       # (the chart, and any non-text input) but keeps WebView2's native edit menu on a text input/textarea/contenteditable,
       # and leaves a Studio-handled right-click (defaultPrevented) alone. Sabotages (win08_sabotage): ctxnosuppress reds
@@ -1204,6 +1298,15 @@ jobs:
           hits="$(find "$root" -iname '*swt*.jar' 2>/dev/null || true)"
           if [ -n "$hits" ]; then echo "::error::WIN08: an SWT jar reached the Linux app image:"; echo "$hits"; exit 1; fi
           echo "WIN08: no SWT jar in the Linux app image ($(find "$root" -name '*.jar' | wc -l) jars, none SWT)"
+      - name: WIN08 S2.8 — no SWT licences in the Linux app image (they ship with SWT, on Windows only)
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: |
+          set -uo pipefail
+          root="desktopApp/build/compose/binaries/main/app/TroubaStage"
+          hits="$(find "$root" \( -name 'SWT-NOTICE.txt' -o -name 'EPL-2.0.txt' -o -type d -name licences \) 2>/dev/null || true)"
+          if [ -n "$hits" ]; then echo "::error::S2.8: SWT's licences reached the Linux app image:"; echo "$hits"; exit 1; fi
+          echo "S2.8: no SWT licences in the Linux app image"
       - name: wrap it as one AppImage (appimagetool 1.9.1 + type2-runtime 20251108, pinned by sha256)
         if: runner.os == 'Linux'
         working-directory: app
@@ -1325,6 +1428,12 @@ jobs:
           hits="$(find "$RUNNER_TEMP/universal/TroubaStage.app" -iname '*swt*.jar' 2>/dev/null || true)"
           if [ -n "$hits" ]; then echo "::error::WIN08: an SWT jar reached the macOS app:"; echo "$hits"; exit 1; fi
           echo "WIN08: no SWT jar in the macOS universal app"
+      - name: WIN08 S2.8 — no SWT licences in the macOS app (they ship with SWT, on Windows only)
+        run: |
+          set -uo pipefail
+          hits="$(find "$RUNNER_TEMP/universal/TroubaStage.app" \( -name 'SWT-NOTICE.txt' -o -name 'EPL-2.0.txt' -o -type d -name licences \) 2>/dev/null || true)"
+          if [ -n "$hits" ]; then echo "::error::S2.8: SWT's licences reached the macOS app:"; echo "$hits"; exit 1; fi
+          echo "S2.8: no SWT licences in the macOS universal app"
       - name: launch smoke ×3 — natively, under Rosetta, and through LaunchServices; each draws, each on its own runtime
         working-directory: app
         run: |

@@ -38,6 +38,7 @@ import com.troubastack.app.QrPresentScreen
 import com.troubastack.app.Presence
 import com.troubastack.app.RehearsalNotesStore
 import com.troubastack.app.SkiaImageDecoder
+import com.troubastack.app.ShippedLicences
 import com.troubastack.app.SkiaNoteBitmapCodec
 import com.troubastack.app.StudioHost
 import com.troubastack.app.sessionCookieFor
@@ -341,6 +342,9 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
     /** No starting server: Connect starts at "http://" and nothing is contacted until one is set (never the Android
      *  emulator's alias, which on a 10.x LAN is somebody's machine). */
     override val defaultServerUrl: String? = null
+
+    /** WIN08 S2.8 — SWT's licences where this image ships them (the Windows image); null elsewhere, so no About line. */
+    override val licences: ShippedLicences? by lazy { shippedSwtLicences(licencesDir()) }
 }
 
 /** D6 — the TroubaStudio screen on Windows: its heading, "Coming soon.", and Back. */
