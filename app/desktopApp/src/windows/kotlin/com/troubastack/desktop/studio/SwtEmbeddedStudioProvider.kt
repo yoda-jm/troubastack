@@ -169,6 +169,8 @@ internal fun EmbeddedStudioContent(args: EmbeddedStudioArgs, onController: (SwtB
 
     // WIN09: the ⋮ "Show band QR…" item follows the host's admin list, which arrives after the first composition.
     SideEffect { controller.requestBandQr = args.onShowBandQr }
+    // S2.7: the ⋮ menu matches the app's resolved theme (read on open), not the OS setting.
+    SideEffect { controller.resolveDark = args.resolveDark }
     // WIN09: while the host overlay shows, it holds the focus; when it closes, the Browser gets the focus back (the
     // SwingPanel is full size again in the same composition). Sabotage qrnofocusback (the --win09-qr smoke) skips it.
     var hadHostOverlay by remember { mutableStateOf(false) }

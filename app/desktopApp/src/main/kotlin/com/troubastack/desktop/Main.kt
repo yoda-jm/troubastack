@@ -438,7 +438,11 @@ private fun runApp(updateFrom: String?, onWindow: (bringToFront: () -> Unit) -> 
             onWindow { windowState.isMinimized = false; window.toFront(); window.requestFocus() }
         }
         RememberPlacement(windowState, storage, opening)
-        TroubaTheme(dark = themePref.resolveDark()) {
+        val resolvedDark = themePref.resolveDark()
+        // S2.7: hand the embedded Studio's ⋮ menu (a separate ComposePanel composition) the app's resolved theme, so a
+        // Parameters theme that differs from Windows' setting themes the menu too.
+        androidx.compose.runtime.SideEffect { platform.currentDark = resolvedDark }
+        TroubaTheme(dark = resolvedDark) {
             // D3: Stage's pointer icons and glyph tooltips exist here only (Android passes neither).
             val stagePointer = remember { desktopStagePointerIcons() }
             // D7: list screens keep a readable width on a big window (Android leaves it full width).

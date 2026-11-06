@@ -36,6 +36,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var cookieHeader: String? = null
     @Volatile private var served = false
     @Volatile private var capturedBack: (() -> Unit)? = null   // S2.2: the back action the provider hands the host (chrome-back check)
+    @Volatile private var smokeForcedDark = false   // S2.7: the "app theme" the ⋮ menu reads (menu-follows-app-theme toggles it)
     @Volatile private var serveNoReady = false   // S2.1: when set, the loopback serves a page that never handshakes
     @Volatile private var accepting = true        // S2.1 retry: when false, the loopback closes connections at once (server "off")
     @Volatile private var serverSocket: ServerSocket? = null
@@ -79,6 +80,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 frameWindow = { frameHolder.get() },
                 probeReachable = null,   // the loopback is always reachable; the smoke tests the controller, not the cover
                 provideRequestBack = { capturedBack = it },   // S2.2: capture the host's Back action (what WindowAction.BACK calls)
+                resolveDark = { smokeForcedDark },   // S2.7: the check toggles the "app theme" to sample the ⋮ menu in both
             )
 
             // Check-7 discriminator: WIN08_SABOTAGE=noclose makes onCloseRequest ignore the close (log, don't exit).
@@ -100,7 +102,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                     LaunchedEffect(Unit) {
                         frameHolder.set(window)
                         win08log("smoke: window composed; starting checker thread")
-                        Thread { runChecks(controller, edgeDataDir, origin) { frameHolder.get() } }.apply { isDaemon = true; start() }
+                        Thread { runChecks(controller, edgeDataDir, origin, outDir) { frameHolder.get() } }.apply { isDaemon = true; start() }
                     }
                 }
             }
@@ -862,7 +864,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         }
     }
 
-    private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File, origin: String, frame: () -> java.awt.Window?) {
+    private fun runChecks(controller: SwtBrowserController?, edgeDataDir: File, origin: String, outDir: File, frame: () -> java.awt.Window?) {
         val results = LinkedHashMap<String, Boolean>()
         // S2.3: time each check (since the previous mark) and the cumulative, so the backstop + engine wait get sized
         // from real green-run numbers (slowest of 3 + margin) instead of by feel. Totals logged at finish().
@@ -967,8 +969,14 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             Thread.sleep(600)
             val fgBefore = frameWin != null && Win08Native.foregroundIsFrame(frameWin)
             c.openStudioMenu()
-            Thread.sleep(1500) // let the popup show on the EDT
-            val fgIsFrame = frameWin != null && Win08Native.foregroundIsFrame(frameWin)
+            // Wait on the CONDITION, not a fixed sleep (a slow runner under load raced the 1500 ms): let the owned menu
+            // window appear (under menufocus it never does — the DropdownMenu path takes activation instead).
+            waitFor(5_000) { c.lastMenuWindow != null }
+            // menu-no-activation-steal checks that something does NOT happen, so POLL the foreground over ~1.5 s — it must
+            // be the frame EVERY time (a single read after a settle could pass on a steal that arrives a few hundred ms late).
+            var fgIsFrame = frameWin != null
+            run { val end = System.currentTimeMillis() + 1_500
+                while (System.currentTimeMillis() < end) { if (frameWin == null || !Win08Native.foregroundIsFrame(frameWin)) fgIsFrame = false; Thread.sleep(150) } }
             val menuWin = c.lastMenuWindow
             val menuTopmost = menuWin != null && Win08Native.isWindowTopmost(menuWin)
             win08log("menu: fgBefore=$fgBefore foregroundIsFrameWithMenu=$fgIsFrame menuShown=${menuWin != null} menuTopmost=$menuTopmost")
@@ -983,9 +991,83 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             // click by focusing the Browser; the menu window must be gone. Sabotage 'menusticky' skips that listener → reds.
             if (System.getenv("WIN08_SABOTAGE") != "menufocus") {  // (menufocus uses the Compose path; lastMenuWindow already null)
                 c.focusBrowserForSmoke()
-                Thread.sleep(1200)
-                win08log("menu: lastMenuWindow after Studio focus = ${c.lastMenuWindow}")
-                mark("menu-dismissed-on-studio-focus", c.lastMenuWindow == null)
+                val gone = waitFor(6_000) { c.lastMenuWindow == null }   // bounded wait on the dismiss, not a fixed sleep
+                win08log("menu: lastMenuWindow after Studio focus = ${c.lastMenuWindow} gone=$gone")
+                mark("menu-dismissed-on-studio-focus", gone)
+            }
+
+            // S2.7 — the THREE-row ⋮ menu (stub the dialogs so "Server URL…" + "Show band QR…" are offered too), read and
+            // pressed through its accessibility tree (both smokes' one path). menu-items-accessible = the three names in
+            // order, each press dispatches, and Reload really reloads (readied, since reloadCount++ runs before exec).
+            // menu-rows-fit = every row's screen rect inside the window (menushort clips the last). menu-follows-app-theme
+            // = the menu matches the APP theme not the OS (sampled in forced-Dark; menusystheme falls back to the OS →
+            // light on the runner → reds). Two captures (Light + Dark) for review. Skipped under menufocus (no owned menu).
+            if (System.getenv("WIN08_SABOTAGE") != "menufocus") {
+                val serverOrig = c.requestServerDialog; val qrOrig = c.requestBandQr
+                var serverFired = false; var qrFired = false
+                c.requestServerDialog = { serverFired = true }; c.requestBandQr = { qrFired = true }
+                try {
+                    val want = listOf("Reload", "Server URL…", "Show band QR…")
+                    val darkSurface = java.awt.Color(0x19, 0x17, 0x22); val lightSurface = java.awt.Color(0xFF, 0xFD, 0xFA)
+                    fun frameShot(name: String): java.awt.image.BufferedImage? { val b = frameWin?.bounds ?: return null
+                        val img = java.awt.Robot().createScreenCapture(java.awt.Rectangle(b.x, b.y, b.width, b.height)); javax.imageio.ImageIO.write(img, "png", File(outDir, name)); return img }
+                    // A menu-relative pixel from the on-screen FRAME capture (the menu's nominal 240 px runs past the screen
+                    // edge, so a menu-region capture reads off-screen black on the right).
+                    fun px(img: java.awt.image.BufferedImage, mb: java.awt.Rectangle, dx: Int, dy: Int): java.awt.Color {
+                        val fb = frameWin!!.bounds; val sx = (mb.x - fb.x) + dx; val sy = (mb.y - fb.y) + dy
+                        return if (sx in 0 until img.width && sy in 0 until img.height) java.awt.Color(img.getRGB(sx, sy)) else java.awt.Color(0, 0, 0) }
+                    fun near(a: java.awt.Color, b: java.awt.Color, tol: Int) = kotlin.math.abs(a.red - b.red) <= tol && kotlin.math.abs(a.green - b.green) <= tol && kotlin.math.abs(a.blue - b.blue) <= tol
+
+                    // Light: enumerate names + each row's rect + the window; sample the row-1 surface (x=140, right of
+                    // "Reload", inside the rendered menu); capture.
+                    smokeForcedDark = false; c.openStudioMenu(); Thread.sleep(1200)
+                    var names = emptyList<String>(); var rowRects = emptyList<java.awt.Rectangle>(); var winRect: java.awt.Rectangle? = null
+                    (c.lastMenuWindow as? javax.accessibility.Accessible)?.let { acc -> javax.swing.SwingUtilities.invokeAndWait {
+                        names = accessibleActionNames(acc); rowRects = accessibleActionRects(acc); winRect = (acc as java.awt.Window).bounds } }
+                    var lightPx = java.awt.Color(0, 0, 0)
+                    frameShot("menu-light.png")?.let { img -> c.lastMenuWindow?.bounds?.let { lightPx = px(img, it, 140, 24) } }
+                    runCatching { javax.swing.SwingUtilities.invokeAndWait { c.lastMenuWindow?.dispose() } }
+
+                    // Dark, on a dark stand-in page: sample the row-1 surface AND the window edges (corners + bottom-row
+                    // middle) — these must be the theme colour, not the opaque JWindow's white; capture.
+                    c.smokePageDark(); Thread.sleep(300); smokeForcedDark = true; c.openStudioMenu(); Thread.sleep(1200)
+                    var darkPx = java.awt.Color(255, 255, 255); var edges = emptyList<java.awt.Color>()
+                    frameShot("menu-dark.png")?.let { img -> c.lastMenuWindow?.bounds?.let { mb ->
+                        darkPx = px(img, mb, 140, 24)
+                        edges = listOf(px(img, mb, 2, 2), px(img, mb, 2, mb.height - 2), px(img, mb, 90, mb.height - 2), px(img, mb, 90, 2)) } }
+                    runCatching { javax.swing.SwingUtilities.invokeAndWait { c.lastMenuWindow?.dispose() } }
+                    smokeForcedDark = false; c.smokePageLight(); Thread.sleep(300)
+
+                    // Presses (each disposes the menu): Server URL…, Show band QR…, then Reload (which reloads; wait re-ready).
+                    var pS = false; var pQ = false; var pR = false
+                    c.openStudioMenu(); Thread.sleep(1000); (c.lastMenuWindow as? javax.accessibility.Accessible)?.let { a -> javax.swing.SwingUtilities.invokeAndWait { pS = pressAccessibleNamed(a, "Server URL…") } }; Thread.sleep(300)
+                    c.openStudioMenu(); Thread.sleep(1000); (c.lastMenuWindow as? javax.accessibility.Accessible)?.let { a -> javax.swing.SwingUtilities.invokeAndWait { pQ = pressAccessibleNamed(a, "Show band QR…") } }; Thread.sleep(300)
+                    val beforeR = c.reloadCount; val readyBefore = c.readyCount
+                    c.openStudioMenu(); Thread.sleep(1000); (c.lastMenuWindow as? javax.accessibility.Accessible)?.let { a -> javax.swing.SwingUtilities.invokeAndWait { pR = pressAccessibleNamed(a, "Reload") } }
+                    val reloaded = pR && waitFor(5_000) { c.reloadCount > beforeR }
+                    val readied = reloaded && waitFor(12_000) { c.readyCount > readyBefore }
+                    runCatching { javax.swing.SwingUtilities.invokeAndWait { c.lastMenuWindow?.dispose() } }
+
+                    // menu-rows-fit: read the RENDERED rows — exactly 3 rects, each ROW_HEIGHT±1 tall and inside the window
+                    // (a window-vs-literal compare can't fail once Compose clips the bounds). Vacuous when a11y is cleared
+                    // (menunoa11y), which menu-items-accessible already reds.
+                    val rowsFit = names.isEmpty() || (rowRects.size == 3 && winRect != null && rowRects.all { it.height in 47..49 && winRect!!.contains(it) })
+                    // menu-follows-app-theme: forced-Dark is BrandDark.surface AND Light is BrandLight.surface (tol ≤ 6).
+                    val themeOk = near(darkPx, darkSurface, 6) && near(lightPx, lightSurface, 6)
+                    // menu-edges-match-theme: the menu's corners + bottom-row middle match its OWN surface (darkPx) — not
+                    // the opaque JWindow bleeding through. Comparing to the surface (not an absolute dark) means a menu
+                    // that is wholly the wrong theme (menusystheme) reds menu-follows-app-theme, not this. menulightedge's
+                    // old code (rounded clip + default bg + the +2 strip) shows the JWindow's white at the edges → reds here.
+                    val edgesOk = edges.isNotEmpty() && edges.all { near(it, darkPx, 24) }
+                    win08log("menu-items: names=$names serverFired=$serverFired qrFired=$qrFired pS=$pS pQ=$pQ pR=$pR reloaded=$reloaded readied=$readied")
+                    win08log("menu-size: rows=${rowRects.size} heights=${rowRects.map { it.height }} window=$winRect rowsFit=$rowsFit")
+                    win08log("menu-theme: darkPx=(${darkPx.red},${darkPx.green},${darkPx.blue}) lightPx=(${lightPx.red},${lightPx.green},${lightPx.blue}) themeOk=$themeOk")
+                    win08log("menu-edges: ${edges.map { "(${it.red},${it.green},${it.blue})" }} edgesOk=$edgesOk")
+                    mark("menu-items-accessible", names == want && pS && serverFired && pQ && qrFired && readied)
+                    mark("menu-rows-fit", rowsFit)
+                    mark("menu-follows-app-theme", themeOk)
+                    mark("menu-edges-match-theme", edgesOk)
+                } finally { c.requestServerDialog = serverOrig; c.requestBandQr = qrOrig; runCatching { c.smokePageLight() } }
             }
 
             // ── S2.1 (R1) — the no-ready → cover timer, scoped to host-initiated loads ─────────────────────────────

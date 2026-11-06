@@ -75,6 +75,11 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
     /** The app's window, for the file dialog's parent; set by the entrypoint once the window exists. */
     var awtWindow: ComposeWindow? = null
 
+    /** S2.7: the app's current resolved theme (themePref.resolveDark()), kept here by the entrypoint so the embedded
+     *  Studio's ⋮ menu — a separate ComposePanel composition — can match it (resolveDark() is @Composable, so a plain
+     *  lambda can't call it; the entrypoint computes it and updates this). */
+    @Volatile var currentDark: Boolean = false
+
     /** Esc, Alt+Left and the mouse Back button (outside Stage) dispatch here; the entrypoint routes them. */
     val back = BackDispatcher()
 
@@ -277,6 +282,7 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
             hostOverlay = hostOverlay,           // WIN09: the picker or the QR is drawn over the embedded screen
             provideOpenPath = provideOpenPath,   // WIN09: "Manage / revoke in Studio" loads in the same Browser
             refreshMenu = refreshMenu,           // WIN09: each ⋮ press refreshes the item first (≤ 800 ms)
+            resolveDark = { currentDark },       // S2.7: the ⋮ menu matches the app's resolved theme
         )
     }
 

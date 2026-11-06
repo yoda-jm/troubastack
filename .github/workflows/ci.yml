@@ -801,6 +801,13 @@ jobs:
           if ($p.ExitCode -ne 0) { Write-Error "win08-smoke checks failed"; exit 1 }
           if ($sv.Count -ne 0) { Write-Error "WIN08 check 7: $($sv.Count) msedgewebview2 survivor(s) held the data dir"; exit 1 }
           Write-Host "WIN08 smoke: all checks passed; process exited; no survivor"
+      - name: upload WIN08 styled ⋮ menu PNG (S2.7)
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: win08-menu-styled
+          path: app/win08-out/menu-*.png
+          if-no-files-found: ignore
       - name: WIN08 — forced no-WebView2 shows the message (S1.6)
         if: runner.os == 'Windows'
         working-directory: app

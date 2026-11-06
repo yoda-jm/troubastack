@@ -112,11 +112,17 @@ internal class SwtBrowserController(
     private fun onEdt(block: () -> Unit) = SwingUtilities.invokeLater(block)
 
     /** ⋮ Reload — A93: stay on the page you are on (or the entry if it is blank / a different origin). */
-    fun reload() = exec {
+    @Volatile var reloadCount: Int = 0; private set   // S2.7: bumped on each reload() — the menu-items-accessible check
+                                                      // presses "Reload" through the a11y tree and waits for this to rise.
+
+    fun reload() {
+        reloadCount++
+        exec {
         val b = browser ?: return@exec
         b.url = reloadUrl(b.url, loadUrl)
         armNoReadyTimer()   // S2.1 (R1): ⋮ Reload / Retry is host-initiated → cover if it doesn't ready in 10s
         onEdt { onReloadStarted?.invoke() }   // host resets to "Loading…" (so a failed reload can show the cover again)
+        }
     }
 
     /**
@@ -186,6 +192,10 @@ internal class SwtBrowserController(
      *  NO menu (normal); under ctxanyinput it wrongly counts editable and Chromium shows the full page menu. */
     fun smokeFullCheckbox() = exec { browser?.execute(
         "document.body.innerHTML='';var c=document.createElement('input');c.id='checkbox';c.type='checkbox';c.style.cssText='position:absolute;left:40px;top:40px;width:120px;height:120px;transform:scale(4);transform-origin:top left';document.body.appendChild(c);") }
+
+    /** S2.7 menu-edges-match-theme: a dark stand-in page, so the ⋮ menu's edges are judged against a dark Studio. */
+    fun smokePageDark() = exec { browser?.execute("document.documentElement.style.background='#191722';document.body.style.background='#191722';") }
+    fun smokePageLight() = exec { browser?.execute("document.documentElement.style.background='';document.body.style.background='';") }
 
     /** S2.5 smoke: run Studio's REAL download path verbatim — fetch(credentials) → Blob → filenameFromDisposition →
      *  saveBlob (createObjectURL → temp <a download> → click → immediate revokeObjectURL). Copied from
@@ -308,6 +318,9 @@ internal class SwtBrowserController(
     /** Set by EmbeddedStudioContent — the L2 sabotage opens the REAL bad path (a Compose DropdownMenu, under
      *  compose.layers.type=WINDOW) through this, since that is what actually steals the frame's activation. */
     @Volatile var requestComposeMenu: (() -> Unit)? = null
+    /** S2.7: the app's resolved theme (themePref.resolveDark()), read when the ⋮ menu opens so it matches a Parameters
+     *  theme that differs from Windows'. Set by EmbeddedStudioContent from the host's EmbeddedStudioArgs.resolveDark. */
+    @Volatile var resolveDark: () -> Boolean = { false }
     /** S2.3b: set by EmbeddedStudioContent when a server is configured — the ⋮ "Server URL…" item calls it to open the
      *  in-canvas re-point dialog. null hides the item (no server set). */
     @Volatile var requestServerDialog: (() -> Unit)? = null
@@ -332,16 +345,27 @@ internal class SwtBrowserController(
         val w = javax.swing.JWindow(owner)
         w.isAlwaysOnTop = false                     // NEVER topmost (Fable's criterion)
         w.focusableWindowState = false              // never activating → the frame keeps activation (title bar active)
-        val panel = javax.swing.JPanel().apply {
-            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
-            border = javax.swing.BorderFactory.createLineBorder(java.awt.Color(0x60, 0x60, 0x60))
+        // S2.7: the menu content is a ComposePanel (TroubaTheme) in the SAME owned, non-focusable, never-topmost window,
+        // so non-activation is unchanged. Stage-1 item order; each disposes the window then runs its handler on the EDT.
+        val items = buildList<Pair<String, () -> Unit>> {
+            add("Reload" to { w.dispose(); reload() })
+            // S2.3b: "Server URL…" opens the in-canvas re-point dialog (only when a server is set → requestServerDialog != null).
+            requestServerDialog?.let { req -> add("Server URL…" to { w.dispose(); req() }) }
+            // WIN09: "Show band QR…" (only while the person administers a band → requestBandQr != null).
+            requestBandQr?.let { req -> add("Show band QR…" to { w.dispose(); req() }) }
         }
-        panel.add(javax.swing.JMenuItem("Reload").apply { addActionListener { reload(); w.dispose() } })
-        // S2.3b: "Server URL…" opens the in-canvas re-point dialog (only when a server is set → requestServerDialog != null).
-        requestServerDialog?.let { req -> panel.add(javax.swing.JMenuItem("Server URL…").apply { addActionListener { w.dispose(); req() } }) }
-        // WIN09: "Show band QR…" (only while the person administers a band → requestBandQr != null); the menu goes first.
-        requestBandQr?.let { req -> panel.add(javax.swing.JMenuItem("Show band QR…").apply { addActionListener { w.dispose(); req() } }) }
-        w.contentPane.add(panel); w.pack()
+        val dark = resolveDark()   // S2.7: the app's resolved theme, read on open
+        // Paint the opaque JWindow to the menu surface so any sub-pixel edge is the theme colour, not white. menulightedge
+        // leaves the DEFAULT paint, so the old code (rounded clip + +2 strip) shows the defect this guards against.
+        if (sabotage != "menulightedge") w.background = java.awt.Color(if (dark) 0x19_17_22 else 0xFF_FD_FA)
+        w.contentPane.add(studioMenuPanel(
+            items,
+            dark = dark,
+            noA11y = sabotage == "menunoa11y",
+            useSystemTheme = sabotage == "menusystheme",   // S2.7: fall back to the OS theme → menu-follows-app-theme reds
+            short = sabotage == "menushort",               // S2.7: 44 px/row → the last row is clipped
+            lightEdge = sabotage == "menulightedge",       // S2.7: rounded corners → white wedges → menu-edges-match-theme reds
+        )); w.pack()
         val loc = canvas.locationOnScreen
         w.setLocation(loc.x + canvas.width - w.width - 8, loc.y + 2)
         w.isVisible = true
