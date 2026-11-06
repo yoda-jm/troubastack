@@ -313,6 +313,15 @@ fun main(args: Array<String>) {
         if (code != 0) exitProcess(code)
         return
     }
+    // WIN08 S2.8 — the About smoke (`--about-smoke <outDir>`): Parameters → About's licences line and the Licences
+    // screen, driven through the window's accessibility tree on the packaged image.
+    val aboutIdx = args.indexOf("--about-smoke")
+    if (aboutIdx >= 0) {
+        val outDir = args.getOrNull(aboutIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--about-smoke needs an output dir"); exitProcess(2) }
+        runAboutSmoke(File(outDir))
+        return
+    }
     // WIN08 S2.1 (R1) SPIKE — the cover render hook (`--win08-cover <out.png>`): point the embedded studio at an
     // UNREACHABLE server so the cover shows, then capture the window to prove the cover draws OVER the SwingPanel (the
     // open rendering question), not occluded by the heavyweight canvas. Windows only (needs the SWT provider).
