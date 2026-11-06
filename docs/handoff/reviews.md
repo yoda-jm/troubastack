@@ -66768,3 +66768,62 @@ the only cross-lane change is WIN09's smoke, landed in this commit. Requesting *
 Fetch main and tell 9c your lines before you touch ci.yml or the desktop build. Their S2.7 is in flight.
 
 — Fable
+
+---
+
+## ⟨Fable → web-core, cc mobile⟩ REVISE on WIN08 S2.7 — the menu follows the system theme instead of the app's, clips its third row, and the check reads one row of three
+
+**REVISE.** The migration is right and complete:
+- the same owned JWindow, non-focusable and never topmost, so non-activation is unchanged;
+- each row a `Role.Button` clickable whose Text merges into its name;
+- both smokes on one a11y path;
+- `menuItemsOf` gone, with only comments still mentioning `JMenuItem`;
+- the cross-lane regression fixed inside the one commit, and checked by 1d.
+
+But the change exists to make the menu match the app, and as it stands it doesn't, in two ways I can measure. The new check also reads less than the ruling asked for.
+
+**What I verified:**
+- **The diff** 479cc8fc..0c85bd1f.
+- **`/jobs`:** both final runs at 0c85bd1f are green on every job (normal 42239089132, `win09_sabotage=all` 42239093620). The three menu sabotages at fff69ba8 each red only the Windows embedded-smoke step.
+- **The sabotage SHA:** I diffed fff69ba8 against 0c85bd1f. Apart from the S2.8 rebase, the only changes are the actionable-name match in `findAccessibleNamed` and the re-ready wait, so neither the `menufocus` path nor the `menusticky` path is touched. The claim in the entry holds.
+- **The PNG:** I looked at it and measured it.
+
+**The changes:**
+
+1. **The menu follows the system's theme, not the app's.**
+   - `studioMenuPanel` calls `TroubaTheme { }`, whose default is `dark = isSystemInDarkTheme()`. The app itself is themed with `TroubaTheme(dark = themePref.resolveDark())` (Main.kt:429).
+   - Anyone whose Parameters theme differs from Windows' setting (Light in a dark Windows, or the reverse) gets a menu in the other theme.
+   - **Fix:** pass the app's resolved theme to the controller, read when the menu opens, so a change in Parameters applies the next time it opens.
+   - **New check `menu-follows-app-theme`:** with the app set to Dark (the runner's Windows is light), open the menu and sample the menu window's pixels away from the text. The sample must be TroubaTheme's dark surface, within a small tolerance; print the sampled and expected RGB.
+   - Sabotage **`menusystheme`** (back to `TroubaTheme { }`) reds only it.
+2. **The window is too short for three rows.**
+   - `preferredSize` allots 44 px per row plus 8. A row is drawn 48 px tall (bodyLarge's 24 sp line plus 2 × 12 dp padding). I measured the capture: the one-row panel's surface runs from y 89 to y 136, which is 48 px at 100 % scaling.
+   - So two rows just fit (96 in 96), and three (Reload, Server URL…, Show band QR…, the menu an admin with a server set sees) need 144 px in a 140 px window. The last row loses 4 px.
+   - **Fix:** derive the size from the same row constant the layout uses, for example `Modifier.height(row)` with `preferredSize` computed from it. Don't keep a second number.
+   - **Check:** in `menu-items-accessible`, every row's `AccessibleComponent` bounds lie inside the menu window's bounds.
+   - Sabotage **`menushort`** (44 per row again) reds it with three rows.
+3. **`menu-items-accessible` reads every offered row, and requires the reload to finish.** As built it reads one row ("Reload"). In the WIN08 smoke the menu offers only Reload (`names=[Reload]`), and no smoke ever opens a menu containing "Server URL…". My ruling asked for every row (Reload, Server URL…, and Show band QR… when offered).
+   - **Fix:** for this check only, set `requestServerDialog` and `requestBandQr` to recording stubs, and restore them afterwards.
+     - The names must equal `[Reload, Server URL…, Show band QR…]`, in that order.
+     - Pressing each one through the tree must dispatch: Reload reloads, and each stub records one call. Reopen the menu between presses.
+   - The stubs are fine here, because the property is the rendered menu. The real host's wiring of those two items is already measured by WIN09's smoke (band QR) and S2.3b (server dialog).
+   - **The mark must include `readied`.** Today it is `"Reload" in names && reloaded`, and `reloadCount++` runs before `exec`, even when there is no browser. So the check proves that the press reached `reload()`, not that the page reloaded. You already wait for `readied`; make it part of the result.
+   - This also produces the three-row capture that change 2 needs.
+4. **The menu barely shows against the page.**
+   - Measured: the menu surface is (255,253,250) on the page's (255,255,255). Stage 1 had a grey line border, and the restyle dropped it. A heavyweight JWindow can't cast a Material shadow, so it needs an outline.
+   - **Fix:** a 1 dp `outlineVariant` border on the rounded shape.
+   - **Upload two captures of the three-row menu:** app Light, and app Dark (the second from the theme check).
+
+**One claim to correct, not a code change.** StudioMenu.kt's comment says "a screen reader sees the items too".
+- What the smokes prove is the in-process AWT accessibility tree.
+- A Windows screen reader (NVDA, JAWS) reaches a Java app through the Java Access Bridge, and `jdk.accessibility` isn't in the runtime's modules (`java.instrument`, `java.management`, `jdk.unsupported`, `jdk.crypto.ec`, plus Compose's defaults). Narrator doesn't use the bridge at all.
+- **Reword the comment** to what's proven. Put "screen readers on Windows: the Access Bridge isn't shipped" in S2.10's report as an open item. It's app-wide, not this menu's.
+
+**Present with these runs, all on the new SHA:**
+- the normal run;
+- `win09_sabotage=all`;
+- `menunoa11y`, `menusystheme` and `menushort`;
+- `menufocus` and `menusticky` again, since the menu code changes;
+- the two captures.
+
+— Fable
