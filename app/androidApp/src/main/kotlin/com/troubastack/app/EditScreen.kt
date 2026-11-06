@@ -1,5 +1,6 @@
 package com.troubastack.app
 
+import android.Manifest
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +32,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.delay
 import com.troubastack.shared.distribution.embeddedUrl
 import com.troubastack.shared.distribution.reloadUrl
 import com.troubastack.shared.seams.Storage
@@ -59,11 +64,22 @@ fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null
     var state by remember { mutableStateOf<WebViewHost.State>(WebViewHost.State.Loading) }
     val loadUrl = embeddedUrl(serverUrl, initialPath)
 
-    val host = remember {
-        WebViewHost(context).apply {
-            onState = { state = it }
-            onStudioMessage { json -> Log.i("ShellBridge", "studio → shell: $json") }
-        }
+    // A99: Studio's downloads — the line at the bottom, shown once, and Android's storage prompt (API 26–28) behind it.
+    val scope = rememberCoroutineScope()
+    var line by remember { mutableStateOf<DownloadLine?>(null) }
+    var storageAsk by remember { mutableStateOf<DownloadLine.AskStorage?>(null) }
+    val storagePrompt = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        storageAsk?.then?.invoke(granted)
+        storageAsk = null
+    }
+    val (host, downloads) = remember {
+        val h = WebViewHost(context)
+        val d = StudioDownloads(context, storage, h.view, serverUrl = { serverUrl }, scope = scope, show = { line = it })
+        h.view.addJavascriptInterface(d.Bridge(), StudioDownloads.INTERFACE_NAME) // before the first load
+        h.view.setDownloadListener { url, _, contentDisposition, mimetype, _ -> d.onDownloadStart(url, contentDisposition, mimetype) }
+        h.onState = { state = it; if (it == WebViewHost.State.Loaded) d.inject() }
+        h.onStudioMessage { json -> Log.i("ShellBridge", "studio → shell: $json") }
+        h to d
     }
     fun open(url: String) {
         // Seed the app's Connect session (B03) into the WebView so Edit doesn't re-prompt: the session
@@ -102,6 +118,18 @@ fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null
                     WebViewHost.State.Loading -> Text("Loading…", Modifier.align(Alignment.Center))
                     is WebViewHost.State.Error -> ErrorCover(s.message, onRetry = { reload() }, onBack = onBack)
                     WebViewHost.State.Loaded -> Unit
+                }
+                line?.let { l ->
+                    DownloadLineBar(
+                        l,
+                        onOpen = { saved -> downloads.open(saved); line = null },
+                        onAllowStorage = { ask -> storageAsk = ask; line = null; storagePrompt.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE) },
+                        // Clear first: a refused storage ask then shows "Couldn't save …" (set by then(false)).
+                        onDismiss = { line = null; if (l is DownloadLine.AskStorage) l.then(false) },
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+                    // "Saved" and "Couldn't save" go by themselves; the storage question waits for an answer.
+                    if (l !is DownloadLine.AskStorage) LaunchedEffect(l) { delay(8_000); if (line == l) line = null }
                 }
             }
         }
@@ -171,4 +199,31 @@ private fun ServerDialog(current: String, onDismiss: () -> Unit, onSave: (String
             }
         },
     )
+}
+
+/** A99 — the one line at the bottom of the Studio screen after a download. */
+@Composable
+private fun DownloadLineBar(
+    line: DownloadLine,
+    onOpen: (DownloadLine.Saved) -> Unit,
+    onAllowStorage: (DownloadLine.AskStorage) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(modifier.fillMaxWidth().padding(12.dp), shape = MaterialTheme.shapes.medium, tonalElevation = 6.dp, shadowElevation = 4.dp) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            val text = when (line) {
+                is DownloadLine.Saved -> "Saved to Downloads: ${line.name}"
+                is DownloadLine.Failed -> "Couldn't save ${line.name}."
+                is DownloadLine.AskStorage -> "Allow storage access so TroubaStage can save files to Downloads."
+            }
+            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            when (line) {
+                is DownloadLine.Saved -> TextButton(onClick = { onOpen(line) }) { Text("Open") }
+                is DownloadLine.AskStorage -> TextButton(onClick = { onAllowStorage(line) }) { Text("Continue") }
+                is DownloadLine.Failed -> Unit
+            }
+            TextButton(onClick = onDismiss) { Text(if (line is DownloadLine.AskStorage) "Not now" else "OK") }
+        }
+    }
 }
