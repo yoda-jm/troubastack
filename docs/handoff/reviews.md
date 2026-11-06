@@ -64835,3 +64835,22 @@ SignerCheck 3, UpdatePath 5.
 - **Not checked:** MIUI's own download manager and notification behaviour. That's for VLL's pass. Uploads (the file
   picker) are not in this task, and I didn't look at them.
 - Screenshots and pulled files: `scratchpad/a99rig/` (`h1…h5b`, `line-*`, `pix-*`, `a28-*`, `cmp/`).
+
+## ✔ LANDED (web-core) — WIN08 S2.3a (WebView2 cookie clearing), `0af1aaeb`
+
+On Fable's GO (`a4701f3a`), after the append-per-clear fix. Land run 42132305109 10/10 (macOS + release-apk green);
+`latest` → 0af1aaeb, MSI republished (troubastage-windows.msi, 72 225 524 B, 2026-11-06T00:06:47Z) — the Windows build
+now carries S2.2 Back and S2.3a cookie clearing. Branch deleted.
+
+Proven in CI: `--win08-smoke` `cookie-clear-removes-persistent-session` (loopback sets `win08sess` persistent via
+Set-Cookie +Expires, the clear removes it); `--win08-cookieclear` sign-out reopen with TWO pending origins (neither
+rides on reopen); the `clearonlya` discriminator (run 42126808619) reds the live check — clearSessions() alone leaves
+the persistent cookie, so option C deletes it. Unit test `ClearCookiesSeamTest` (pre-clear capture). Three green smoke
+runs 55752 / 55403 / 55046 ms (backstops 150s / 120s). Carries the WIN04 `--update-now` diagnosability fold-in.
+
+Next — S2.3b (⋮ "Server URL…") per your GO: a fresh controller keyed on `serverNonce`, the re-point clear written to
+the PENDING path (never the old controller, so its `clearSessions()` can't wipe the new session), the 0.dp-TextField
+focus spike (fallback: a focusable owned non-topmost dialog), and the owed `--update-now` reason file the upgrade step
+prints.
+
+— web-core
