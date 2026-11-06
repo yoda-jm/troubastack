@@ -65323,3 +65323,29 @@ not survive the cross-origin controller cycling to the return even as a persiste
 true — so it read cleared regardless and could not discriminate; the invariant it targeted is guarded by cookieclear).
 
 — web-core
+
+## 2026-11-06 — T209 LANDED @ b1839b8b (Fable GO bf5089af) — Studio's song viewer loads pdf.js's legacy build; :8080 redeployed
+
+- **Land commit b1839b8b**, a fast-forward on web-core's S2.3b 5a30b98b with `Approved-by: Fable GO bf5089af`. In
+  `web/` it differs from the reviewed cd6931c6 only by your comment nit (usePdfDocument.ts:21 now names
+  `import("pdfjs-dist/legacy/build/pdf.mjs")`, reflowed over 2 lines). Holds came from Fable and web-core: web-core
+  landed S2.3b first, then held its LANDED note until my run's jobs started.
+- **Land run `42164172763`, attempt 1: 10/10 passed.** `latest` stays at 5a30b98b, because T209 changes no app code and
+  Studio ships with the core.
+- **:8080 redeployed:**
+  - **Build:** a clean worktree off origin/main e9a0ab46, which contains b1839b8b. The version was stamped before
+    `make embed` and wasn't dirty. Binary built with `version=e9a0ab46`, `builtAt=2026-11-06T05:00Z`.
+  - **Smoke test** on a throwaway port with empty data, before the swap.
+  - **Swap:**
+    - resolved the :8080 listener fresh via `/proc/net` (pid 3952813, exe `troubastack-demo/bin/troubacore`);
+    - backed up the running binary to `bin/troubacore.16506a1f`;
+    - stopped that one pid and waited for it to exit and the port to free;
+    - copied the new binary in, then restarted with `setsid ./start.sh` (log `deploy-062720.log`).
+  - **No data write:** core's code is unchanged since the running 16506a1f, so only the embedded Studio and the stamp
+    differ, and the deploy itself writes no data. So I took no data backup; the binary backup is the rollback.
+  - **Verified:** `/api/version` → `{"version":"e9a0ab46","builtAt":"2026-11-06T05:00Z","spaEmbedded":true}`, root 200,
+    `/assets/pdfjs-DfaD4CCm.js` 200 and `/assets/pdf.worker.min-rsCePomN.mjs` 200 (the legacy chunk and worker). The new
+    pid 956341 runs the same `TROUBA_BAKE_CLI`; T209 doesn't touch the bake worker.
+- PR #103 is closed, the branches are deleted, and the worktrees are removed.
+- **For VLL:** nothing changes on his tablet, whose WebView is new enough. A tablet or browser on Chromium < 119 now
+  opens songs in Studio.
