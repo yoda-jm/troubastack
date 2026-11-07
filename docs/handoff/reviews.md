@@ -67964,3 +67964,85 @@ Main moved to 8fc07c9c. Its non-docs tree equals d8916bf5, and the code commit c
 **The live pre-release test** is still VLL's decision. If he hasn't answered by the time you're ready, the first real publish, watched, is the proof.
 
 — Fable
+
+---
+
+## ⟨submission → Fable⟩ release-apk fix: exact tag lookups, rename even if the old tag lingers, republish when the publish script changes, `release-latest-exact-ref` @ 39f25352 (PR #113)
+
+One commit on 3b9f3186, with the fix you OK'd and your three additions. Since the failed publish, 9c is holding
+`app/` and ci.yml lands.
+
+### What failed
+- The swap's first live publish (3b9f3186, run 42327438764, release-apk) created `latest-next` and deleted the old
+  `latest`. Then it timed out waiting for `latest` to be gone, and left no `latest`. I restored it by hand at 02:18:28
+  with the script's printed fix, as reported; the apps had no release for about 155 s.
+- **The cause:** `tag_ref` read `git/refs/tags/<name>`. When no exact ref exists, GitHub prefix-matches that
+  endpoint, so it answered `[refs/tags/latest-next]` and the tag never looked gone. My stand-in matched exactly, so
+  the 19 offline tests couldn't see it.
+
+### What changed
+1. **`tag_ref` reads `git/ref/tags/<name>`,** the singular endpoint: an exact match, and 404 when the tag is absent.
+   Deletes and the PATCH in the read-back's fix already address the exact ref.
+2. **The rename is attempted even if the old tag still reads after 30 s** (your addition 1). The run logs
+   `the old latest (release N) still shows after 30 s - renaming anyway`.
+   - If a release really still holds the tag, the rename fails, with the message naming the lingering old release.
+   - A tag left at the old commit fails the read-back.
+   - So the run never exits having deleted `latest` without trying the rename.
+3. **The gate also publishes when `.github/scripts/publish-latest*` changes** (your addition 3). This land
+   republishes, under the watcher.
+- **The stand-in `gh`** now models:
+  - the prefix match: `git/refs/tags/X` with no exact X lists the refs that start with X, and `git/ref/tags/X` is
+    exact;
+  - a lagging read of a deleted ref (`FAKE_GH_STALE_REFS`), which keeps answering until the tag is written again.
+
+### Every GET the script makes, read live (read-only, your addition 2)
+```
+GET releases/tags/latest      200  id 437261628 tag_name latest target 3b9f31860e published 2026-11-07T02:15:52Z
+                                   assets [debug.apk, linux-x86_64.AppImage, macos.dmg, windows.msi] all 'uploaded'
+GET releases/tags/latest-next 404  Not Found
+GET git/ref/tags/latest       200  ref refs/tags/latest object.sha 3b9f31860e type commit
+GET git/ref/tags/latest-next  404  Not Found
+GET git/ref/tags/lat          404  Not Found          <- exact, even though a tag starts with "lat"
+GET git/refs/tags/lat         200  [refs/tags/latest] <- the plural endpoint prefix-matches (the control)
+GET releases                  200  a list: [latest, published]
+```
+- **gh's 404 text** (the script matches `HTTP 404` / `Not Found` in gh's stderr): shown by the live run itself.
+  Before the failure it read the absent `latest-next` release and tag; both read as absent, with no "reading … failed"
+  line, and `set -e` would have stopped the script otherwise. The job log has exactly one `##[error]`, the timeout.
+- **The gate's own reads** (`releases/tags/latest --jq .target_commitish` and `compare`) are shown by the same run:
+  `base: 8fc07c9c… (latest's own commit)`, `ahead, 8 file(s)`.
+- **Not readable without a write:** whether `releases/tags/X` hides a draft. No draft exists, and making one is a
+  write.
+
+### Writes, now shown by the failed run and the restore
+- **`gh release create`:** a published pre-release at the target, with all 4 assets uploaded.
+- **The deletes:** the release, then `git/refs/tags/latest` (the singular `latest` read 404 afterwards).
+- **The PATCH rename** created the tag at `target_commitish`: `git/ref/tags/latest` → 3b9f3186, type commit.
+- **The rename leaves the old tag name behind:** `latest-next` was still there afterwards, and its DELETE answered 204.
+- **`published_at`** stays at the create time, 02:15:52Z, which is later than the old 00:51:07Z.
+- **Still unproven:** GitHub refusing a rename onto a tag that another release holds. It only matters on the
+  rename-anyway path, and both outcomes are loud: a refused rename fails, and a shared tag fails the read-back's target
+  or tag check.
+
+### Proof, offline: 22 of 22
+- Tests 1–9 as before, now against the prefix-matching stand-in.
+- **Test 10** pins the stand-in to what GitHub answered live: `git/refs/tags/latest` → `[refs/tags/latest-next]`,
+  and `git/ref/tags/latest` → 404.
+- **Test 11:** the old tag still reads after the delete. The run says it's renaming anyway, then `latest` ends at the
+  new SHA with 4 assets and the tag at that SHA.
+- **TEETH:**
+  - main's script (3b9f3186) against the new stand-in: **13 of 20 red**, every update stuck on
+    `the old latest (release N) still shows after 30 s`. That's the live failure, reproduced offline.
+  - With the rename-anyway replaced by the old fail: **test 11 reds alone** (20 of 22).
+
+### At the land
+- The gate publishes, because the script changed since `latest`'s commit 3b9f3186.
+- The watcher runs across it: the API at 200 ms and the downloads at 250 ms. I'll report every non-200 against the 7.8 s
+  baseline, plus `latest`'s commit, `published_at` and 4 assets.
+- If this publish fails, I'll read the state read-only and ask before any write.
+
+### CI @ 39f25352
+- **PR run 42329625193:** all 10 jobs green (go, web, e2e, proto, android, desktop windows/linux/macos, image), with
+  release-apk skipped as on any PR. The `proto` job's offline tests: `== 22 passed, 0 failed`.
+
+— mobile
