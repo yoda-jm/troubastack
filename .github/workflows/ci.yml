@@ -253,6 +253,11 @@ jobs:
       - uses: bufbuild/buf-setup-action@v1
         with:
           github_token: ${{ github.token }}
+      # release-apk's publish script, tested offline against a stand-in gh (it only ever runs on main, so this is where
+      # a change to it is proven before it lands): first publish, updates, a failed upload, a failed delete, a rename
+      # failing after the delete (and its one-command fix), recovery from each, the read-back check.
+      - name: release-apk's publish script (offline, stand-in gh)
+        run: bash .github/scripts/publish-latest-test/run-tests.sh .github/scripts/publish-latest.sh
       - name: buf lint
         working-directory: proto
         run: buf lint
@@ -370,6 +375,11 @@ jobs:
   release-apk:
     needs: [android, desktop, desktop-macos]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # One publish at a time: two land runs must never interleave their swaps of `latest`. GitHub keeps one pending
+    # run per group, so a newer land waiting here replaces an older waiting one, and `latest` ends at the newest.
+    concurrency:
+      group: release-latest
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -382,27 +392,46 @@ jobs:
       # which is what builds and names them -- DESK02's own landing commit touches only `.github/workflows/ci.yml`
       # and must still republish, so the DMG reaches `latest`. A workflow-level `paths:` filter cannot express this:
       # it would gate the WHOLE of CI, not this job. So decide here, via the compare API (no checkout needed, and
-      # the token is already set). FAIL OPEN: if the base is unknown (branch creation, force push) or the compare
-      # call fails, publish anyway -- a missed publish is worse than a redundant one.
+      # the token is already set).
+      # Compared against what `latest` actually holds (its target_commitish), not the push's `before`: release-latest
+      # keeps one pending job, so a land's pending publish can be replaced by a later docs-only push, which must still
+      # publish the land's app/ changes. `before` is the fallback only when there is no readable `latest`. A run whose
+      # commit is OLDER than `latest`'s (say a re-run of an old failed job) keeps the release: it must never put older
+      # builds back. FAIL OPEN otherwise: an unknown base, a failed compare, a diverged history, or a file list at the
+      # compare API's 300-file cap publish anyway -- a missed publish is worse than a redundant one.
       - name: do the release contents change?
         id: gate
         env:
           GH_TOKEN: ${{ github.token }}
           BEFORE: ${{ github.event.before }}
         run: |
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            echo "base unknown - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if ! files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
-                         --jq '.files[].filename' 2>/dev/null); then
-            echo "compare failed - publishing anyway"; echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if printf '%s\n' "$files" | grep -qE '^(app/|\.github/workflows/ci\.yml$)'; then
-            echo "app/ or the CI workflow touched - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "no change to the release contents - keeping the existing release"; echo "publish=false" >> "$GITHUB_OUTPUT"
-          fi
+          set +e
+          out() { echo "$1"; echo "publish=$2" >> "$GITHUB_OUTPUT"; exit 0; }
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq .target_commitish 2>&1)
+          if [[ "$latest" =~ ^[0-9a-f]{40}$ ]]; then base=$latest; how="latest's own commit"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then base=$BEFORE; how="the push's before (no readable latest: ${latest:0:100})"
+          else out "base unknown (no readable latest: ${latest:0:100}; no before) - publishing" true; fi
+          echo "base: $base ($how); this commit: $GITHUB_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/compare/$base...$GITHUB_SHA" > "$RUNNER_TEMP/compare.json" 2> "$RUNNER_TEMP/compare.err" \
+            || out "compare failed ($(head -c 200 "$RUNNER_TEMP/compare.err")) - publishing anyway" true
+          read -r status nfiles < <(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("status"), len(d.get("files") or []))' "$RUNNER_TEMP/compare.json")
+          echo "compare $base...$GITHUB_SHA: $status, $nfiles file(s)"
+          case "$status" in
+            identical) out "latest already holds this commit - keeping the existing release" false ;;
+            behind) out "latest ($base) is newer than this commit - keeping it (an older run must not put older builds back)" false ;;
+            ahead) ;;
+            *) out "history is $status - publishing anyway" true ;;
+          esac
+          [ "$nfiles" -lt 300 ] || out "the compare lists $nfiles files (the API's cap) - publishing anyway" true
+          if python3 -c 'import json,sys; print("\n".join(f["filename"] for f in json.load(open(sys.argv[1]))["files"]))' "$RUNNER_TEMP/compare.json" \
+              | grep -qE '^(app/|\.github/workflows/ci\.yml$)'; then out "app/ or the CI workflow touched since $how - publishing" true
+          else out "no change to the release contents since $how - keeping the existing release" false; fi
 
+      # The publish script (and nothing else) — first, because checkout cleans the workspace the artifacts land in.
+      - uses: actions/checkout@v7
+        if: steps.gate.outputs.publish == 'true'
+        with:
+          sparse-checkout: .github/scripts
       - name: fetch the APK the android job built
         if: steps.gate.outputs.publish == 'true'
         uses: actions/download-artifact@v7
@@ -471,13 +500,11 @@ jobs:
             echo "Linux: troubastage-linux-x86_64.AppImage — no installation: make it executable and run it, same commit."
             echo "macOS: troubastage-macos.dmg — one app for Apple silicon and Intel Macs, not signed yet, same commit."
           } > notes.md
-          gh release delete latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
-          gh release create latest troubastage-debug.apk troubastage-windows.msi troubastage-linux-x86_64.AppImage troubastage-macos.dmg \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --prerelease \
-            --title "Latest debug build" \
-            --notes-file notes.md
+          # Build the new release beside `latest`, then swap the tag (the script says why: the apps judge "newer" by
+          # published_at, which an edit never moves; and a delete-then-create left minutes without assets, or no
+          # release at all when the create failed, with the delete's error thrown away).
+          .github/scripts/publish-latest.sh "$GITHUB_SHA" notes.md \
+            troubastage-debug.apk troubastage-windows.msi troubastage-linux-x86_64.AppImage troubastage-macos.dmg
 
   e2e:
     runs-on: ubuntu-latest

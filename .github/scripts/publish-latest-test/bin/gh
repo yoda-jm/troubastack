@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""A stand-in `gh` for testing publish-latest.sh offline. State: $FAKE_GH_STATE (JSON); every call is appended to
+$FAKE_GH_LOG. Injected failures: $FAKE_GH_FAIL="<regex over the joined argv>@<n>[,...]" fails the n-th matching call
+(n may be "all"). $FAKE_GH_FREEZE_CLOCK=1 publishes without advancing published_at.
+Models GitHub/gh as the script relies on: GET a release by tag (drafts are invisible there), git refs, DELETE a
+release (its tag stays), PATCH a release's tag_name/target_commitish (a missing tag is created at the target; an
+existing one is kept), and `gh release create` with assets = a draft, the uploads, then publish (a failed upload leaves
+the draft)."""
+import json, os, re, sys
+
+state_path, log_path = os.environ["FAKE_GH_STATE"], os.environ["FAKE_GH_LOG"]
+st = json.load(open(state_path)) if os.path.exists(state_path) else {"releases": [], "tags": {}, "next_id": 1, "clock": 0, "calls": {}}
+argv = sys.argv[1:]
+joined = " ".join(argv)
+with open(log_path, "a") as f: f.write(joined + "\n")
+
+def save(): json.dump(st, open(state_path, "w"), indent=1)
+def die(msg, code=1):
+    save(); sys.stderr.write(msg + "\n"); sys.exit(code)
+
+hit = None   # count every matching spec first, then fail if any says so
+for spec in filter(None, os.environ.get("FAKE_GH_FAIL", "").split(",")):
+    pat, n = spec.rsplit("@", 1)
+    if re.search(pat, joined):
+        st["calls"][spec] = st["calls"].get(spec, 0) + 1
+        if n == "all" or st["calls"][spec] == int(n): hit = hit or spec
+if hit: die(f"gh: injected failure for [{hit}] (HTTP 500)")
+
+def pub(r):
+    return {k: r[k] for k in ("id", "tag_name", "target_commitish", "published_at", "name", "prerelease", "body")} | {
+        "assets": [{"name": a, "state": "uploaded"} for a in r["assets"]]}
+
+def by_tag(t): return next((r for r in st["releases"] if r["tag_name"] == t and not r["draft"]), None)
+
+if argv[0] == "api":
+    method, path, fields, i = "GET", None, {}, 1
+    while i < len(argv):
+        if argv[i] == "-X": method = argv[i + 1]; i += 2
+        elif argv[i] in ("-f", "-F"): k, v = argv[i + 1].split("=", 1); fields[k] = v; i += 2
+        else: path = argv[i]; i += 1
+    m = re.match(r"repos/[^/]+/[^/]+/(.*)$", path)
+    rest = m.group(1)
+    if (m2 := re.match(r"releases/tags/(.+)$", rest)) and method == "GET":
+        r = by_tag(m2.group(1))
+        if not r: die("gh: Not Found (HTTP 404)")
+        print(json.dumps(pub(r))); save(); sys.exit(0)
+    if (m2 := re.match(r"git/refs/tags/(.+)$", rest)):
+        t = m2.group(1)
+        if method == "GET":
+            if t not in st["tags"]: die("gh: Not Found (HTTP 404)")
+            print(json.dumps({"ref": f"refs/tags/{t}", "object": {"sha": st["tags"][t]}})); save(); sys.exit(0)
+        if method == "DELETE":
+            if t not in st["tags"]: die("gh: Reference does not exist (HTTP 422)")
+            del st["tags"][t]; save(); sys.exit(0)
+    if (m2 := re.match(r"releases/(\d+)$", rest)):
+        rid = int(m2.group(1)); r = next((x for x in st["releases"] if x["id"] == rid), None)
+        if not r: die("gh: Not Found (HTTP 404)")
+        if method == "DELETE":
+            st["releases"].remove(r); save(); sys.exit(0)
+        if method == "PATCH":
+            if "tag_name" in fields:
+                t = fields["tag_name"]
+                # GitHub creates a missing tag at target_commitish ($FAKE_GH_TAG_DRIFT: at another commit, to test the
+                # tag read-back) and keeps an existing tag where it is; target_commitish is the release's own field.
+                if t not in st["tags"]: st["tags"][t] = os.environ.get("FAKE_GH_TAG_DRIFT") or fields.get("target_commitish", r["target_commitish"])
+                r["tag_name"] = t
+                r["target_commitish"] = fields.get("target_commitish", r["target_commitish"])
+            save(); print(json.dumps(pub(r))); sys.exit(0)
+    if rest == "releases" and method == "GET":
+        print(json.dumps([pub(r) | {"draft": r["draft"]} for r in st["releases"]])); save(); sys.exit(0)
+    die(f"gh (stand-in): unsupported api call: {joined}")
+
+if argv[:2] == ["release", "create"]:
+    tag, files, opts, i = argv[2], [], {}, 3
+    while i < len(argv):
+        if argv[i].startswith("--"):
+            if argv[i] in ("--prerelease",): opts[argv[i]] = True; i += 1
+            else: opts[argv[i]] = argv[i + 1]; i += 2
+        else: files.append(argv[i]); i += 1
+    if by_tag(tag): die(f"a release with the same tag name already exists: {tag}")
+    rid = st["next_id"]; st["next_id"] += 1
+    r = {"id": rid, "tag_name": tag, "target_commitish": opts["--target"], "published_at": None, "name": opts.get("--title", ""),
+         "prerelease": "--prerelease" in opts, "body": open(opts["--notes-file"]).read(), "assets": [], "draft": True}
+    st["releases"].append(r)
+    for f in files:
+        if not os.path.isfile(f): die(f"failed to upload {f}: no such file (the draft release {rid} is left)")
+        r["assets"].append(os.path.basename(f))
+    if not os.environ.get("FAKE_GH_FREEZE_CLOCK"): st["clock"] += 1
+    r["published_at"] = f"2026-11-07T00:00:{st['clock']:02d}Z"; r["draft"] = False
+    if tag not in st["tags"]: st["tags"][tag] = opts["--target"]
+    save(); print(f"https://github.com/x/y/releases/tag/{tag}"); sys.exit(0)
+
+die(f"gh (stand-in): unsupported: {joined}")
