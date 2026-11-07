@@ -216,6 +216,22 @@ fun main(args: Array<String>) {
         runWin08Studio(url, user, pass, System.getenv("TROUBA_WIN08_SONG_PATH"))
         return
     }
+    // WIN08 S2.11 — the cost hook (`--win08-cost <outDir> <loopback URL>`): one process signs in like --win08-studio,
+    // shows the real App on Home, then swaps Studio's editor in and out as App does, one phase per command file from
+    // the CI step, which measures the process tree at each. Loopback only; credentials and the song path from the
+    // environment, as for --win08-studio.
+    val costIdx = args.indexOf("--win08-cost")
+    if (costIdx >= 0) {
+        val out = args.getOrNull(costIdx + 1)?.takeUnless { it.startsWith("--") }
+        val url = args.getOrNull(costIdx + 2)?.takeUnless { it.startsWith("--") }
+        if (out == null || url == null) { System.err.println("--win08-cost needs <outDir> <loopback URL>"); exitProcess(2) }
+        val host = runCatching { java.net.URI(url).host }.getOrNull()
+        if (host != "127.0.0.1" && host != "localhost") { System.err.println("--win08-cost: loopback URL only"); exitProcess(2) }
+        val user = System.getenv("TROUBA_WIN08_USER") ?: run { System.err.println("--win08-cost: TROUBA_WIN08_USER unset"); exitProcess(5) }
+        val pass = System.getenv("TROUBA_WIN08_PASS") ?: run { System.err.println("--win08-cost: TROUBA_WIN08_PASS unset"); exitProcess(5) }
+        runWin08Cost(File(out), url, user, pass, System.getenv("TROUBA_WIN08_SONG_PATH"))
+        return
+    }
     // WIN08 item 8 — the Stage CI hook (`--win08-stage <concert.tstage>`): import the demo concert and show it
     // INTERACTIVELY in Stage (no sign-in), with the desktop glyph-tooltip provider, so a screenshot can capture a
     // Stage tooltip (a compose.layers popup) and check a page-turn key still turns the page while it shows.
@@ -500,6 +516,86 @@ private fun runWin08Studio(url: String, user: String, pass: String, songPath: St
             LaunchedEffect(Unit) { platform.awtWindow = window }
             TroubaTheme(dark = false) {
                 platform.studio.Edit(storage, onBack = { exitApplication() }, initialPath = songPath, bandTitle = "CI Band")
+            }
+        }
+    }
+}
+
+/**
+ * WIN08 S2.11 — what Studio costs, in one process. Signs in through the app's own sign-in code (as [runWin08Studio]),
+ * then walks: home-0 (the real App, Studio never opened), studio-1 (the editor at [songPath], composed as App composes
+ * it while editing), then five times back to Home and into Studio again, and a last Home: home-1, studio-2, …,
+ * studio-6, home-6. Each phase is written to `<out>/phase` and `<out>/cost.log`; the CI step measures the process tree,
+ * then creates `<out>/next` to move on. Leaving a Home phase runs System.gc() and logs the used heap: the JVM's leak
+ * signal (its working set rarely shrinks after the heap grows). The Home composition is rebuilt on each return, where
+ * the app keeps App composed; Studio's host is created and disposed on each entry as in the app.
+ * `WIN08_COST_SABOTAGE=leak` keeps 64 MiB per Studio entry, so the step's JVM check must red.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+private fun runWin08Cost(out: File, url: String, user: String, pass: String, songPath: String?) {
+    System.setProperty("win08.log", "1")
+    out.mkdirs()
+    val log = File(out, "cost.log")
+    fun note(line: String) { println(line); log.appendText("${System.currentTimeMillis()} $line\n") }
+    Thread {
+        try { Thread.sleep(20 * 60_000L) } catch (_: InterruptedException) { return@Thread }
+        note("win08-cost: BACKSTOP (>20 min)"); Runtime.getRuntime().halt(1)
+    }.apply { isDaemon = true; start() }
+    val storage = Storage()
+    storage.putSecret("coreUrl", url)
+    val transport = HttpTransport(storage, defaultServerUrl = null) { _, _ -> }
+    val err = runBlocking { transport.connect(user, pass) }
+    if (err != null) { note("win08-cost: sign-in failed: $err"); exitProcess(5) }
+    val phases = listOf("home-0") + (1..6).flatMap { listOf("studio-$it", "home-$it") }
+    val phase = mutableStateOf(0)
+    val leak = System.getenv("WIN08_COST_SABOTAGE") == "leak"
+    val kept = ArrayList<ByteArray>()
+    fun enter(i: Int) {
+        val name = phases[i]
+        if (leak && name.startsWith("studio")) kept += ByteArray(64 shl 20).also { it.fill(1) }
+        File(out, "phase").writeText("$i $name")
+        note("WIN08-COST phase $name")
+    }
+    enter(0)
+    Thread {
+        val next = File(out, "next")
+        while (true) {
+            Thread.sleep(100)
+            if (!next.exists()) continue
+            next.delete()
+            val i = phase.value
+            if (phases[i].startsWith("home")) {
+                repeat(2) { System.gc(); Thread.sleep(500) }
+                val rt = Runtime.getRuntime()
+                note("WIN08-COST heap ${phases[i]} used=${rt.totalMemory() - rt.freeMemory()} total=${rt.totalMemory()}")
+            }
+            if (i + 1 == phases.size) { note("WIN08-COST done"); File(out, "phase").writeText("${phases.size} done"); exitProcess(0) }
+            phase.value = i + 1
+            enter(i + 1)
+        }
+    }.apply { isDaemon = true; start() }
+    application {
+        val windowState = rememberWindowState(width = 1400.dp, height = 900.dp, position = WindowPosition(0.dp, 0.dp))
+        val platform = remember { DesktopAppPlatform(storage, windowState) }
+        Window(onCloseRequest = ::exitApplication, title = "TroubaStage", state = windowState, onKeyEvent = { e -> windowKey(e, platform) }) {
+            LaunchedEffect(Unit) { platform.awtWindow = window }
+            TroubaTheme(dark = false) {
+                if (phases[phase.value].startsWith("studio")) {
+                    MaterialTheme(colorScheme = lightColorScheme()) {
+                        platform.studio.Edit(storage, onBack = {}, initialPath = songPath, bandTitle = "CI Band")
+                    }
+                } else {
+                    // As runApp composes App (its locals; Stage isn't opened here, but Home is the app's own).
+                    val stagePointer = remember { desktopStagePointerIcons() }
+                    CompositionLocalProvider(
+                        LocalStagePointerIcons provides stagePointer,
+                        LocalCommandModifier provides if (hostOs == HostOs.MACOS) CommandModifier.META else CommandModifier.CTRL,
+                        LocalGlyphTooltip provides desktopGlyphTooltip,
+                        LocalMaxContentWidth provides 960.dp,
+                    ) {
+                        App(platform, themePref = ThemePref.parse(null), onThemePref = {})
+                    }
+                }
             }
         }
     }
