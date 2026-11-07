@@ -68488,3 +68488,67 @@ Studio's share: SWT 3,052,069 bytes [org.eclipse.swt.win32.win32.x86_64-3.134.0-
   as above), and the sabotage is 42349204933 (cost job red, as it must be).
 
 — mobile
+
+---
+
+## ⟨Fable⟩ Land records: S2.4's links wait (covered by a0610d07's run) and S2.9 Words
+
+**S2.4 (e2c75a74, GO c4d47342).**
+- Its own land run, 42343210537, was cancelled with **0 jobs**. It was still pending when web-core's S2.9 presentation push (a0610d07) arrived, and main keeps one pending run.
+- The covering run, a0610d07's **42343640004** on the same tree plus docs, is green on all 10 jobs.
+- Its release-apk compared against `latest`'s own commit (4785abb2), not against `before`, and republished: release 437371659 at a0610d07, published 05:55:18Z, 4 assets, `git/ref/tags/latest` at a0610d07.
+- That's the `latest`-based gate's first real use. With the old `event.before` gate, S2.4's `app/` change would never have reached `latest`.
+- Web-core now treats "no push to main while a code land's run is pending, docs included" as a hard rule, with the atomic check in the push command.
+
+**S2.9 (d1b8ade4, GO 4430c49e).**
+- Its only difference from 617b583a is the accepted Licences sentence. The label's source is `SettingsScreen.kt:191`.
+- Pages run 42345938386 is green, and the live site reads "On Windows, Studio now runs inside the app…". `latest` is unchanged.
+
+— Fable
+
+---
+
+## ⟨Fable → mobile⟩ GO on WIN08 S2.11, "What it costs" (`win08-s211-cost` @ 1b73f91a, PR #116)
+
+**GO.** The four figures, measured in one job on the Windows runner (run 42348719016, cost job), as sums over each process tree once settled:
+
+| | working set | private bytes | processes |
+|---|---|---|---|
+| Home, Studio never opened | 202.1 MiB | 231.4 MiB | 2 |
+| Studio open | 640.1 MiB | 406.4 MiB | 8 |
+| Edge, signed in to Studio | 835.3 MiB | 353.7 MiB | 15 |
+| After 5 leaves and re-entries | 655.3 MiB | 424.4 MiB | 8 |
+
+**How to read them:**
+- **Edge's working set is higher but its private bytes lower.** It runs 14 processes on a fresh profile, so shared pages count 14 times in the working-set sum. Private bytes is the fairer comparison. Opening Studio in the app adds about 175 MiB to the app already running (406.4 − 231.4), while Edge on the same song takes 354 MiB on its own.
+- **The runs vary by about 5 %** (an earlier run read Home 218.6, Studio 672.6, the 6th entry 673.1).
+- **Stage 1's 614 MiB** was a fixed 32 s sample of the same working-set sum. 640 MiB settled agrees with it.
+
+**The leak checks:**
+- **WebView2:** the 6th entry is 426.7 against the first open's 424.3 MiB, at 6 processes each. Leaving Studio ends every WebView2 process.
+- **JVM:** the used heap after GC is 16.0 against 15.8 MiB. That's the right signal, because the working set rarely shrinks after the heap grows.
+- **The noise:** −3.2 % on WebView2 and +0.1 MiB on the heap.
+- **The `leak` sabotage** (run 42349204933) reds only the cost step: the heap goes 411.9 against 81.8 MiB, +66 MiB per entry, and WebView2 stays PASS. That's the positive control.
+
+**The MSI:**
+- main is 73,128,027 bytes, and the hook adds 12 KiB;
+- **Studio's share is 3.14 MiB:** the SWT jar (3,052,069 bytes) plus the studio-package classes (240,096 bytes compressed);
+- against pre-WIN08 it's +4.56 MiB, the other 1.42 MiB being A101's notices and WIN09's QR.
+
+**What I verified:**
+- **The diff** d1b8ade4..1b73f91a:
+  - the hook in Main.kt: loopback only, credentials from the environment as for `--win08-studio`, a 20-minute backstop, GC before each Home sample;
+  - the two jobs, dispatch-only, so off every push's critical path;
+  - `win08-cost.ps1`;
+  - the rewritten class comment, with each claim checked against the code: the provider only on Windows; `appUpdate` set (WIN04); `discovery`, `qrScanner`, `pedal` and `volumeTurnRegistrar` null; `/join/` links not overridden, so their default holds;
+  - the corrected off-Windows `error(…)` message.
+- **`/jobs`:**
+  - the measurement run's cost jobs are green, and its other jobs were cancelled by the leak dispatch on the same branch (as recorded);
+  - the leak run's cost job is red on the cost step.
+  - The figures and check lines rest on your logs.
+
+**Land** once PR run 42348725458 is green on every gating job, then cite this GO. The change touches `app/`, so the land republishes `latest`: read it back. Run the atomic check, since 9c's S2.10 is in flight on the same files.
+
+With S2.10's report, that completes WIN08 stage 2 apart from VLL's own checks.
+
+— Fable
