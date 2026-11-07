@@ -47,6 +47,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var probeS210Expiry = false            // gate /api/me validation + /api/bands JSON (expiry probe)
     @Volatile private var validSession = ""                  // the cookie value /api/me treats as valid (else 401)
     @Volatile private var reauthSetCookie: String? = null    // when set, a page response Set-Cookies this (an in-Studio re-auth)
+    @Volatile private var pageCookieHeader: String? = null   // S2.10 Probe A: the Cookie of the last WebView PAGE request only (never an /api call)
     private val s210PageByPort = java.util.concurrent.ConcurrentHashMap<Int, String>()  // port -> "top"/"child" for the iframe probe
 
     private fun line(s: String) = win08log(s)
@@ -862,24 +863,29 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             val c = if (waitFor(40_000) { ctrlRef.get()?.bridgeReady == true }) ctrlRef.get() else null
             if (c == null) { rec("FAIL: no controller"); writeReport(outDir, "s210-expiry-report.txt", report); Runtime.getRuntime().halt(1); return }
 
-            // 1. Baseline — the WebView carries the app's session; document.cookie cannot see it (HttpOnly).
+            // 1. Baseline — the WebView carries the app's session; document.cookie cannot see it (HttpOnly). Read the
+            //    page-cookie observation (pageCookieHeader), written ONLY by WebView page requests — never an /api call.
             waitFor(5_000) { c.docCookie != null }
-            rec("baseline: WebView sends appold=${(cookieHeader ?: "").contains("win08sess=appold")}  " +
-                "document.cookie hides the session=${!(c.docCookie ?: "").contains("win08sess")}  docCookie=[${c.docCookie}]")
+            val webSendsAppold = (pageCookieHeader ?: "").contains("win08sess=appold")
+            rec("baseline: WebView page request sends appold=$webSendsAppold  document.cookie hides the session=${!(c.docCookie ?: "").contains("win08sess")}  docCookie=[${c.docCookie}]  pageCookie=[$pageCookieHeader]")
             val storeBefore = storage.getSecret(SESSION_COOKIE_KEY)
             rec("store before: SESSION_COOKIE_KEY=[$storeBefore]  SESSION_ORIGIN_KEY=[${storage.getSecret(SESSION_ORIGIN_KEY)}]")
 
-            // 2. The WebView's session is revoked server-side and RE-AUTHED in place to a fresh value; the app's store
-            //    is never told (there is no channel from the WebView's Set-Cookie back to the app's Storage).
+            // 2. The WebView's session is revoked server-side and RE-AUTHED in place to a fresh value. The reload that
+            //    RECEIVES the Set-Cookie still SENDS the old cookie, so the re-auth is proven only by a SECOND same-origin
+            //    page request whose Cookie header carries the fresh value. The app's store is never told.
             validSession = "win08sess=webv2"       // appold is now revoked; only webv2 is valid
-            reauthSetCookie = "win08sess=webv2"     // the next load re-auths the WebView (fresh HttpOnly Set-Cookie)
+            reauthSetCookie = "win08sess=webv2"     // reload #1 re-auths the WebView (fresh HttpOnly Set-Cookie)
             var n = reqCount; c.reload()
-            val reloaded = waitFor(6_000) { reqCount > n }
-            val webReauthed = waitFor(6_000) { (cookieHeader ?: "").contains("win08sess=webv2") }
-            reauthSetCookie = null
-            rec("re-auth: reloaded=$reloaded  WebView now sends webv2=$webReauthed  lastCookieHeader=[${cookieHeader}]")
+            waitFor(6_000) { reqCount > n }         // reload #1 arrives carrying appold, RECEIVES Set-Cookie webv2
+            reauthSetCookie = null                  // stop re-issuing; the WebView now holds webv2
+            pageCookieHeader = null; n = reqCount; c.reload()
+            val reloaded2 = waitFor(6_000) { reqCount > n }   // reload #2 must CARRY webv2 iff the WebView really re-authed
+            val webReauthed = reloaded2 && (pageCookieHeader ?: "").contains("win08sess=webv2")
+            rec("re-auth: second reload arrived=$reloaded2  WebView now sends webv2=$webReauthed  pageCookie=[$pageCookieHeader]")
             val storeAfter = storage.getSecret(SESSION_COOKIE_KEY)
-            rec("store after re-auth: SESSION_COOKIE_KEY=[$storeAfter]  unchanged=${storeAfter == storeBefore}")
+            val storeUnchanged = storeAfter == storeBefore
+            rec("store after re-auth: SESSION_COOKIE_KEY=[$storeAfter]  unchanged=$storeUnchanged  (the WebView's Set-Cookie never reaches the app's Storage)")
 
             // 3. THE FINDING — the app's OWN request (HttpTransport.probePresence, exactly what Home uses) still replays
             //    the STALE stored cookie, so the server 401s while the local store is non-empty (signed-in-but-stale).
@@ -894,10 +900,12 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             val fresh = kotlinx.coroutines.runBlocking { HttpTransport(storage, defaultServerUrl = null) { _, _ -> }.probePresence() }
             rec("CONTROL app request with FRESH stored session: presence=${fresh.javaClass.simpleName}  Online=${fresh is Presence.Online}")
 
-            val discriminated = stale is Presence.Unauthorized && fresh is Presence.Online
-            rec("control discriminated (stale→Unauthorized AND fresh→Online) = $discriminated")
+            // Exit 0 REQUIRES the WebView to have really re-authed (else store-unchanged is vacuous), the store to be
+            // unchanged by it, and the stand-in to discriminate stale vs fresh (so the probe isn't blind).
+            val valid = webReauthed && storeUnchanged && stale is Presence.Unauthorized && fresh is Presence.Online
+            rec("control valid (webReauthed=$webReauthed AND storeUnchanged=$storeUnchanged AND stale→Unauthorized AND fresh→Online) = $valid")
             writeReport(outDir, "s210-expiry-report.txt", report)
-            Runtime.getRuntime().halt(if (discriminated) 0 else 1)
+            Runtime.getRuntime().halt(if (valid) 0 else 1)
         } catch (e: Throwable) {
             rec("threw: ${e.message}"); writeReport(outDir, "s210-expiry-report.txt", report); Runtime.getRuntime().halt(1)
         }
@@ -987,28 +995,82 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
 
             // FINDINGS: only a child's OWN direct call can bear child-direct (the forward can't), so that is "the child
             // reached Java"; and whether a child action drove the app's external-launch sink (the security question).
-            val childDirectReached = lines(c.s210BridgeMarkers).any { it.contains("child-direct") }
-            val childSinkReached = lines(c.s210SinkMarkers).any { it.contains("child-direct") }
-            rec("FINDING child-direct bridge call reached Java = $childDirectReached")
+            // ── SURFACE × FRAME TABLE (computed from the markers, not hand-derived) ──────────────────────────────────
+            // Attribution: receive/window.open/link by the route/URL tag in the payload; ctx/back by phase window (fixed
+            // payloads carry no route); the native new-window door by phase window too (no URL on the SWT event). A child
+            // cell is INCONCLUSIVE when the TOP cell for that surface shows no arrival — then the child's absence proves
+            // nothing (the top control never exercised it).
+            val allBridge = lines(c.s210BridgeMarkers)
+            val topBridgeLines = allBridge.take(topBoundary)
+            val childBridgeLines = allBridge.drop(topBoundary)
+            val allNewWin = lines(c.s210NewWindowMarkers)
+            val topNewWinN = lines(topNewWin).size
+            val topNewWinLines = allNewWin.take(topNewWinN)
+            val childNewWinLines = allNewWin.drop(topNewWinN)
+            val allSink = lines(c.s210SinkMarkers)
+            fun guardOf(line: String) = when { line.contains("guardPass=true") -> "pass"; line.contains("guardPass=false") -> "fail"; else -> "-" }
+            fun sinkFor(key: String): String {
+                val m = allSink.firstOrNull { it.contains(key) } ?: return "none"
+                return when { m.contains("external") -> "external-reached"; m.contains("inplace") -> "inplace"; m.contains("dropped") -> "dropped"; else -> "?" }
+            }
+            data class Cell(val door: String, val guard: String, val sink: String)
+            fun cellFor(surface: String, frame: String): Cell {
+                val bridge = if (frame == "top") topBridgeLines else childBridgeLines
+                val newWin = if (frame == "top") topNewWinLines else childNewWinLines
+                return when (surface) {
+                    "receive" -> bridge.firstOrNull { it.contains("\"surface\":\"receive\"") && it.contains("\"route\":\"$frame-direct\"") }
+                        ?.let { Cell("bridge", guardOf(it), "none") } ?: Cell("none", "-", "none")
+                    "window.open", "link" -> {
+                        val key = (if (surface == "window.open") "open-" else "link-") + "$frame-direct"
+                        val m = bridge.firstOrNull { it.contains(key) }
+                        when {
+                            m != null -> Cell("bridge", guardOf(m), sinkFor(key))        // routed through the app's bridge
+                            newWin.isNotEmpty() -> Cell("newwindow", "-", "none")         // native new-window (phase-attributed; URL-less)
+                            else -> Cell("none", "-", "none")
+                        }
+                    }
+                    "ctx" -> bridge.firstOrNull { it.contains("\"ctxmenu\"") }?.let { Cell("bridge", guardOf(it), "none") } ?: Cell("none", "-", "none")
+                    "back" -> bridge.firstOrNull { it.contains("\"mousebackseen\"") }?.let { Cell("bridge", guardOf(it), "none") } ?: Cell("none", "-", "none")
+                    else -> Cell("none", "-", "none")
+                }
+            }
+            val surfaces = listOf("receive", "window.open", "link", "ctx", "back")
+            val table = StringBuilder("surface | frame | door | guard | sink\n")
+            for (surface in surfaces) {
+                val top = cellFor(surface, "top")
+                val child = cellFor(surface, "child")
+                table.append("$surface | top | ${top.door} | ${top.guard} | ${top.sink}\n")
+                val childDoor = if (top.door == "none") "INCONCLUSIVE(top-absent)" else child.door
+                table.append("$surface | child | $childDoor | ${child.guard} | ${child.sink}\n")
+            }
+            rec("SURFACE x FRAME TABLE:\n$table")
+
+            // Headline findings — only a child's OWN direct call can bear route child-direct (the parent-forward can't):
+            val receiveChild = cellFor("receive", "child")
+            val childBridgeReached = childBridgeLines.any { it.contains("\"route\":\"child-direct\"") }
+            val childSinkReached = allSink.any { it.contains("-child-direct") }
+            rec("FINDING child-direct bridge call reached Java = $childBridgeReached  (guard on that call = ${receiveChild.guard})")
             rec("FINDING a child action reached the app's external-launch sink = $childSinkReached")
 
-            // CONTROLS
-            val topMarkerPresent = lines(topBridge).any { it.contains("top-direct") } || topEnded
-            rec("CONTROL top trigger produced a Java marker = $topMarkerPresent")
-            val noLateTop = lines(c.s210BridgeMarkers).drop(topBoundary).none { it.contains("top-direct") }
-            rec("CONTROL no top-tagged marker arrived after the boundary = $noLateTop")
+            // ── CONTROLS ─────────────────────────────────────────────────────────────────────────────────────────────
+            val noLateTop = childBridgeLines.none { it.contains("\"route\":\"top-direct\"") }
+            rec("CONTROL no top-tagged marker arrived after the phase boundary = $noLateTop")
+            val topReceivePresent = cellFor("receive", "top").door != "none"
+            rec("CONTROL top control exercised the bridge (receive-top arrival) = $topReceivePresent")
             val ok: Boolean
             if (relax) {
-                // pass 2 control: the iframe actually LOADED (the forward arrived), so a "fn absent" reading is a true
-                // negative, not a failed load. The relax must have been honoured (recorded).
-                ok = forwarded && topMarkerPresent && noLateTop
-                rec("CONTROL pass2 iframe loaded (forward arrived)=$forwarded relaxedRecorded=${c.s210IframeVetoRelaxed} → ok=$ok")
+                // pass 2: the iframe actually LOADED (the parent forward arrived), so a "surface absent" reading is a
+                // true negative, not a failed load; and the relax must have been honoured (recorded).
+                ok = forwarded && c.s210IframeVetoRelaxed && topReceivePresent && noLateTop
+                rec("CONTROL pass2: iframe loaded (forward arrived)=$forwarded relaxRecorded=${c.s210IframeVetoRelaxed} → ok=$ok")
             } else {
-                // pass 1 control: the origin lock has teeth — a deliberate TOP off-origin nav is vetoed.
+                // pass 1: the origin lock vetoed the dedicated TOP control nav — checked on s210TopVetoed, NOT the shared
+                // navVetoed (a subframe veto also sets navVetoed, so it could not prove the top nav was vetoed).
                 c.probeOffOriginNav("https://example.org/s210-lock-control")
-                val lockHasTeeth = waitFor(8_000) { c.navVetoed }
-                ok = lockHasTeeth && topMarkerPresent && noLateTop
-                rec("CONTROL pass1 origin lock vetoes a TOP off-origin nav=$lockHasTeeth (subframeVetoed=${c.s210IframeVetoed}) → ok=$ok")
+                val topVetoed = waitFor(8_000) { c.s210TopVetoed }
+                ok = topVetoed && topReceivePresent && noLateTop
+                rec("CONTROL pass1: origin lock vetoed the TOP control nav=$topVetoed loc=[${c.s210TopVetoLocation}] " +
+                    "(subframeChangingFired=${c.s210IframeChangingFired} subframeVetoed=${c.s210IframeVetoed}) → ok=$ok")
             }
             writeReport(outDir, "s210-iframe-report.txt", report)
             Runtime.getRuntime().halt(if (ok) 0 else 1)
@@ -1037,14 +1099,20 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                         if (!accepting) return@use   // S2.1 retry: server "off" — close the socket at once (connection refused/reset)
                         val reader = s.getInputStream().bufferedReader()
                         val requestLine = reader.readLine() ?: ""   // "GET /path HTTP/1.1"
+                        val path = requestLine.substringAfter(' ', "").substringBefore(' ')
                         var reqCookie = ""
                         var l = reader.readLine()
                         while (l != null && l.isNotEmpty()) {
-                            if (l.startsWith("Cookie:", ignoreCase = true)) { cookieHeader = l.substringAfter(":").trim(); cookieByPort[s.localPort] = cookieHeader!!; reqCookie = cookieHeader!! }
+                            if (l.startsWith("Cookie:", ignoreCase = true)) {
+                                cookieHeader = l.substringAfter(":").trim(); cookieByPort[s.localPort] = cookieHeader!!; reqCookie = cookieHeader!!
+                                // S2.10 Probe A: a SEPARATE page-cookie observation written ONLY by WebView page requests, so
+                                // HttpTransport's own /api calls (probePresence) can't clobber it. The shared cookieHeader/
+                                // cookieByPort keep their meaning (the default-path checks read them) — unchanged on purpose.
+                                if (!path.startsWith("/api")) pageCookieHeader = reqCookie
+                            }
                             l = reader.readLine()
                         }
                         served = true
-                        val path = requestLine.substringAfter(' ', "").substringBefore(' ')
                         val out = s.getOutputStream()
                         if (path.startsWith("/api/me")) {
                             // S2.1: answer probePresence()'s reachability GET with 401 → Presence.Unauthorized (reachable),

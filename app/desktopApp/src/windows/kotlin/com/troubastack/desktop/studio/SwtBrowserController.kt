@@ -90,6 +90,8 @@ internal class SwtBrowserController(
     @Volatile var s210IframeVetoed: Boolean = false; private set          // …and vetoed it (veto on)
     @Volatile var s210IframeVetoRelaxed: Boolean = false; private set     // …and let it through (pass 2, both knobs set)
     @Volatile var s210IframeLocation: String? = null; private set         // the subframe URL the listener saw
+    @Volatile var s210TopVetoed: Boolean = false; private set             // a TOP-frame off-origin nav was vetoed (pass-1 control; NOT the shared navVetoed, which a subframe veto also sets)
+    @Volatile var s210TopVetoLocation: String? = null; private set        // the TOP URL that was vetoed
     // DOOR 1 — the BrowserFunction bridge: every incoming call recorded at the TOP of the handler, BEFORE the
     // sameOrigin guard, as "bridge route=<tag> url=<browser.url> guardPass=<bool> arg=<payload>". The route tag is
     // read from the payload (top-direct / child-direct / child-forwarded); SWT does not name the calling frame.
@@ -665,7 +667,9 @@ internal class SwtBrowserController(
                         }
                         event.doit = false
                         navVetoed = true
-                        if (s210ProbeIframe && !event.top) s210IframeVetoed = true
+                        // S2.10 pass-1 control: a TOP off-origin veto must be recorded on its OWN flag — navVetoed is
+                        // also set by a subframe veto, so it can't prove the lock vetoed the TOP control nav specifically.
+                        if (s210ProbeIframe) { if (event.top) { s210TopVetoed = true; s210TopVetoLocation = to } else s210IframeVetoed = true }
                         log("win08: vetoed navigation to $to")
                     }
                 }
