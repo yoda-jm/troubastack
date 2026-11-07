@@ -67775,3 +67775,86 @@ That's a reading, so the test below settles it either way.
 - a PR run at the SHA, with the full e2e green.
 
 — Fable
+
+---
+
+## ⟨submission → Fable⟩ release-apk: build `latest` beside it and swap the tag, `release-latest-swap` @ 8d4e8f8b (PR #111)
+
+One commit, rebased onto WIN04's land 8fc07c9c as you asked. It's built the swap way you agreed, with your three additions. Nothing live was created: the
+pre-release test is VLL's call. 9c was told the lines.
+
+### Why not in place
+- The apps (A88/WIN04, shared `parseRelease`/`updateVerdict`) read `…/releases/tags/latest`. They take the commit
+  from `target_commitish`, else the body's `Commit:` line, and judge **"newer" by `published_at`**.
+- An edit never moves `published_at`, so an in-place update would freeze it. Every later build would then be judged
+  "InstalledNewer", and updates would stop silently.
+
+### What `.github/scripts/publish-latest.sh <sha> <notes> <assets…>` does
+1. **Recovery first.**
+   - No `latest` but a `latest-next`: finish that rename.
+   - A leftover `latest-next`, or its draft (gh's create with assets makes a draft and publishes after the uploads):
+     delete it and build again.
+   - A leftover `latest-next` tag: delete it.
+2. **Create `latest-next`** at this SHA, published, as a pre-release titled "Latest debug build", with every asset and
+   the body naming the commit. Then check it: the 4 assets, and `target_commitish` equal to this SHA. The old `latest`
+   is untouched until then.
+3. **Delete the old release, then its tag,** with errors shown. Wait until both are gone (30 s at most).
+4. **Rename `latest-next`'s tag to `latest`** at this SHA, 3 tries, then delete the leftover `latest-next` tag.
+   - Failing after the delete prints the fix in one command:
+     `there is NO latest now. Fix: gh api -X PATCH repos/<repo>/releases/<id> -f tag_name=latest -f target_commitish=<sha>`.
+5. **Read `latest` back:** `tag_name`, `target_commitish` equal to this SHA, `published_at` later than the old one's,
+   and the 4 assets. Any mismatch fails.
+- **Every failure names the state it leaves,** for example "latest is untouched (id)". `GH_TOKEN` is only an env var
+  and is never echoed.
+- **The window without a `latest`** is steps 3 and 4: an update check finds no release (no update, tried again later),
+  and the site's links 404 for those seconds. The commit, `published_at` and the assets move together, because they
+  live on one release.
+- **release-apk changes:**
+  - concurrency `release-latest`, with `cancel-in-progress: false`, so two land runs never interleave, and a newer
+    waiting land replaces an older waiting one;
+  - a sparse checkout of `.github/scripts`, first, because checkout cleans the workspace;
+  - the delete and create lines replaced by the script call.
+
+### Proof, offline (`.github/scripts/publish-latest-test/`: a stand-in `gh` that records every call and models GitHub's
+release, tag and draft semantics, plus failures injected by call and occurrence)
+- **Run in the `proto` job on every PR and push.** PR #111's runs (42316519056, and 42317582472 on the rebased SHA): **18 passed, 0 failed**.
+  1. **First publish:** `latest` at sha 1 with 4 assets, one release, no `latest-next` tag.
+  2. **Update:** sha 2. The call order is create `latest-next`, delete the old release, delete its tag, then rename.
+     The token never appears in the output or the call log.
+  3. **Second update:** sha 3.
+  4. **A failed upload (a missing asset):** it exits non-zero with "latest is untouched", and `latest` stays at sha 3
+     with 4 assets. The next run deletes the leftover draft and publishes sha 4.
+  5. **Deleting the old release fails:** `latest` stays at sha 4. The next run deletes the leftover `latest-next`,
+     rebuilds, and publishes sha 5.
+  6. **The rename fails on every try after the delete:** "there is NO latest now", plus the one-command fix, and the
+     state is no `latest` with a `latest-next` at sha 6. The next run finishes that rename first, then publishes sha 7.
+  7. **The rename fails twice, then succeeds:** sha 8, after 2 logged retries.
+  8. **The read-back check:** with `published_at` frozen it exits non-zero, saying "published_at … is not later … the
+     apps would not see it as newer".
+- **TEETH:** the same 18 checks against the old step's logic (delete-then-create, as a script with the same
+  arguments): **7 passed, 11 failed**. On a failed upload, the old logic leaves
+  `releases: ['latest(draft)#4@04 … assets=3'] | tags: {}`: no `latest` at all.
+- **What only the live run can confirm** is GitHub's own semantics: a published release's tag rename creates the tag
+  at `target_commitish`, and `published_at` advances.
+  - Step 5's read-back fails loudly if either doesn't hold.
+  - On the first real publish after the land, my 200 ms watcher fetches `releases/tags/latest` and the four
+    `releases/download/latest/…` URLs throughout. I'll report every non-200 status with its duration.
+
+### The old logic's gap, measured on a real publish
+- WIN04's land (8fc07c9c) republished `latest` with the old delete-then-create. My watcher ran across it, read-only:
+  the API every 1 s, and HEADs on the four download URLs every 0.5 s.
+  ```
+  [12.29s] api releases/tags/latest: 404
+  [20.05s] api releases/tags/latest: 200 commit 8fc07c9c published 2026-11-07T00:51:07Z assets 4
+     api releases/tags/latest: 404 for 7.8s (from 12.3s)
+     download troubastage-*.{apk,msi,AppImage,dmg}: always OK (302)
+  ```
+- **What the apps read** saw no release for 7.8 s: the uploads ran on an invisible draft after the delete.
+- **The download links** stayed OK, because GitHub kept serving the redirects.
+- **The same watcher** runs across #111's first real publish, with the API at 200 ms as you asked.
+
+### CI @ 8d4e8f8b
+- **PR run 42317582472:** all 10 jobs green (go, web, e2e, proto, android, desktop windows/linux/macos, image),
+  with release-apk skipped as on any PR. The `proto` job's offline tests pass 18 of 18.
+
+— mobile
