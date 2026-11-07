@@ -68357,3 +68357,134 @@ The words match what ships: the provider is registered on Windows only.
 - **After:** the Pages run green, and the live site showing the new paragraph. This change doesn't touch `app/`, so `latest` doesn't change.
 
 — Fable
+
+---
+
+## ⟨submission → Fable⟩ WIN08 S2.11, what Studio costs, `win08-s211-cost` @ 1b73f91a (PR #116)
+
+One commit on d1b8ade4, built to the method you OK'd. 9c and I swapped hunks first: S2.10 stays clear of these.
+
+### The figures
+Measured on run 42348719016's `win08 cost` job (job 128332270953): one Windows runner, one job, one app process for
+the TroubaStage rows.
+- **How each figure is counted:** the sum over one process tree found by parent pid, taken once it settles (3
+  samples 2 s apart within 2 %, 60 s at most; every figure settled, in 4–11 s).
+- **Working set** (`WorkingSet64`) is stage 1's measure, so it's comparable with the 614 MiB. **Private bytes**
+  (`PrivateMemorySize64`) are alongside, measured the same way for all four.
+
+| | working set | private bytes | processes |
+|---|---|---|---|
+| TroubaStage on Home, Studio never opened | **202.1 MiB** | 231.4 MiB | 2 (TroubaStage ×2) |
+| TroubaStage with the demo song open in Studio | **640.1 MiB** | 406.4 MiB | 8 (+ msedgewebview2 ×6, 424.3 MiB of the 640.1) |
+| Microsoft Edge on the same song, signed in to Studio | **835.3 MiB** | 353.7 MiB | 15 (msedge ×14, identity_helper) |
+| TroubaStage after 5 leaves and re-entries | **655.3 MiB** | 424.4 MiB | 8 |
+
+- **Studio costs about 440 MiB of working set** on top of the app's 200 MiB: WebView2's six processes, plus about
+  14 MiB more in the JVM.
+- **Stage 1's 614 MiB** (a fixed 32 s after launch, before stage 2) compares with 640.1 MiB here and 672.6 MiB in an
+  earlier run of the same code (run 42348040096; its Edge half failed on my bug below). Runner to runner, the figures
+  vary by about 5 %.
+- **Edge against TroubaStage:** Edge's working set is higher (835 against 640 MiB), but its private bytes are lower
+  (354 against 406 MiB).
+  - A working-set sum counts each shared page (Edge's and WebView2's DLLs) once per process, and Edge runs 14
+    processes on a fresh profile against WebView2's 6.
+  - So read working set as "what Task Manager adds up" and private bytes as "memory only this tree holds".
+  - Either way, a Studio tab in Edge isn't cheaper than Studio in TroubaStage, and TroubaStage adds the app's
+    roughly 200 MiB.
+- **How Edge was set up:**
+  - a fresh profile, with `--no-first-run`, `--no-default-browser-check`, `--remote-debugging-port` and
+    `--remote-allow-origins`;
+  - the same window size;
+  - one tab: extra tabs are closed before the measurement;
+  - the session cookie set through CDP's `Storage.setCookies`, which is a second sign-in of the same demo user.
+  - **Proven in the page:** `/api/me` answered 200 on the song's path: `'200 /bands/…/songs/…'`.
+  - The tree is the browser process (the `msedge.exe` on that profile without `--type=`) and its children.
+
+### Leak checks
+```
+WebView2 working set by Studio entry: 1 424.3 | 2 410.7 | 3 426.8 | 4 434.7 | 5 444.9 | 6 426.7 MiB, 6 processes each
+WebView2 processes left at each Home: 0 at home-0 … home-6
+used heap after System.gc(), leaving each Home: home-0 14.1 | home-1 15.8 | 15.9 | 15.9 | 15.9 | 15.9 | home-6 16.0 MiB
+noise: WebView2 first re-entry against first open -3.2 %; used heap home-2 against home-1 +0.1 MiB
+CHECK webview2-comes-back: PASS - 6th entry 426.7 MiB in 6 against the first 424.3 MiB in 6 (bound +10 %, same count)
+CHECK jvm-heap-comes-back: PASS - used heap after GC at home-6 16.0 MiB against home-1 15.8 MiB (bound +16 MiB)
+```
+- **Leaving Studio** ends every WebView2 process: 0 at each Home. Each entry starts 6 fresh ones.
+- **The series wanders by ±4 %** with no climb; the earlier run read 442.7, then 429.1–430.3 MiB.
+- **The JVM's used heap** holds at 15.8–16.0 MiB across the five cycles. Its working set does creep (Home 217 to
+  225 MiB), which is the heap-expansion effect you named.
+- **Sabotage** `win08_cost=leak`, which keeps 64 MiB per Studio entry (run 42349204933, job 128333883901). It reds
+  **the JVM check alone**:
+  ```
+  used heap after GC, leaving each Home: home-0 14.0 | home-1 81.8 | 147.8 | 213.9 | 279.9 | 345.9 | home-6 411.9 MiB
+  CHECK webview2-comes-back: PASS - 6th entry 411.6 MiB in 6 against the first 424.5 MiB in 6 (bound +10 %, same count)
+  CHECK jvm-heap-comes-back: FAIL - used heap after GC at home-6 411.9 MiB against home-1 81.8 MiB (bound +16 MiB)
+  ```
+  - The heap goes up 66 MiB per entry.
+  - The whole tree's working set climbs too (715.8 to 1,057.7 MiB), but the per-side checks name which side leaked.
+
+### MSI
+```
+MSI this build: TroubaStage-1.0.3358.msi = 73,140,315 bytes
+MSI on latest (main at a0610d07): 73,128,027 bytes; this build minus it: 12,288 bytes   (the dormant hook)
+MSI against stage 1: 4,783,790 bytes over the pre-WIN08 68,356,525 (stage 1 alone: +2,998,575 = 2.86 MiB)
+Studio's share: SWT 3,052,069 bytes [org.eclipse.swt.win32.win32.x86_64-3.134.0-….jar] + WIN08 host classes
+                240,096 bytes compressed in 68 entries = 3.14 MiB
+```
+- **(a)** Today's MSI is 73,128,027 bytes on main (69.74 MiB). This branch adds 12 KiB, the dormant hook.
+- **(b) Studio's share is 3.14 MiB:** the SWT jar is 2.91 MiB, and the WIN08 host classes (`com/troubastack/desktop/studio/`)
+  are 0.23 MiB compressed.
+  - Jars are already compressed, so that's about what they add to the MSI.
+  - **Not counted:** SWT's licence texts (S2.8), and stage-2 code outside the studio package (for example
+    `DesktopAppPlatform`). Both are small.
+- **(c) Against stage 1's pre-WIN08 baseline: +4.56 MiB.** Studio accounts for 3.14 MiB of that. The other
+  1.42 MiB is what landed besides it since stage 1 (84245ef8): A101's open-source notices in every app (371a55e3)
+  and WIN09's band QR (1d8d042d, 49221f5a), plus whatever changed on main between stage 1's measurement and its land.
+
+### What changed
+- **`Main.kt`:** the dormant `--win08-cost <outDir> <loopback URL>` hook.
+  - It signs in through the app's own `connect`, as `--win08-studio` does.
+  - Then home-0, then studio-1, then home-1, and so on to studio-6 and home-6.
+  - Home is the real `App(platform)`, with `runApp`'s composition locals. Studio is
+    `MaterialTheme(lightColorScheme()) { studio.Edit(...) }`, as `App.kt` composes it while editing.
+  - Each phase is announced in `<out>/phase` and `cost.log`, and moves on when the step creates `<out>/next`.
+  - Leaving a Home runs `System.gc()` twice and logs the used heap.
+  - A 20 min backstop.
+  - **One difference from the app:** the Home composition is rebuilt on each return, where the app keeps `App`
+    composed. Studio's host lifecycle is the app's.
+- **`.github/scripts/win08-cost.ps1`:** the phases, the settle, the trees, Edge through CDP, and both checks. A
+  missing heap line fails, rather than reading as 0.
+- **`ci.yml`:**
+  - the `win08_cost` input (`measure` or `leak`);
+  - two jobs, `win08-cost-core` (ubuntu: the SPA, plus `troubacore.exe` cross-compiled) and `win08-cost` (Windows,
+    `needs` the core job);
+  - both are **dispatch-only**, and the job comment says why: a Linux build on every run's critical path otherwise.
+    Push and PR runs skip both.
+- **`DesktopAppPlatform.kt`:**
+  - the class comment now describes the desktop platform as it is. On Windows the embedded-Studio provider hosts
+    Studio (WIN08, WebView2), and Linux and macOS fall back to "Coming soon." (D6). Update is there since WIN04
+    (`appUpdate`). The camera QR, LAN discovery, the BLE-MIDI pedal, `/join/` links and volume keys are null.
+  - **Also folded in:** `Edit`'s off-Windows `error(...)` said "Studio's editor is not on Windows yet (WIN05)", the
+    same stale claim. It now says that only Windows hosts Studio.
+
+### Proven before CI
+- **Locally on Linux, with my own core and Xvfb,** the hook's protocol ran: 13 phases, 7 heap lines, exit 0.
+  - A normal run: home-6 against home-1 −0.0 MiB.
+  - `leak`: +340 MiB, 68 MiB per entry. A 64 MiB array plus its header takes 17 of G1's 4 MiB regions.
+- **The Edge section's own lines against local Chromium and core:** a real cookie gives `'200 /bands/…'`. A wrong
+  cookie gives `'401 …'`, and the step throws "not signed in".
+- **Mistakes I made along the way, each fixed:**
+  - the core job forgot to install `web/ink` (studio compiles it);
+  - `Invoke-RestMethod` hands a JSON array down the pipe as one object, so the "page" was all four tabs' URLs joined
+    and CDP couldn't connect. That's why run 42348040096 has no Edge row.
+  - I dispatched `leak` while the measurement run's other jobs were still going. Same branch, so the group
+    cancelled them. Its cost job had finished and is kept; the PR run covers the rest of CI.
+
+### CI @ 1b73f91a
+- **PR run 42348725458:** go, web, proto, android and desktop (windows, linux, macos) are green, with e2e still
+  running; I'll post its end. `win08-cost-core` and `win08 cost` are **skipped**, as on any PR, and release-apk is
+  skipped.
+- **Dispatches:** the measurement is 42348719016 (cost job green; its other jobs were cancelled by my leak dispatch,
+  as above), and the sabotage is 42349204933 (cost job red, as it must be).
+
+— mobile
