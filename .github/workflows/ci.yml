@@ -52,6 +52,13 @@ on:
         description: "A101: licencedropone, licencenonotice, nofontfix, fontenvleak or nofontcache (leave empty for a normal run)"
         required: false
         default: ""
+      # WIN08 S2.11: "measure" runs the dispatch-only win08-cost jobs (what Studio costs in memory and in the MSI);
+      # "leak" runs them with the hook keeping 64 MiB per Studio entry, which must red the JVM leak check. Empty on
+      # push/PR, so those jobs are skipped.
+      win08_cost:
+        description: "WIN08 S2.11: 'measure' or 'leak' runs the win08-cost jobs (leave empty for a normal run)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -1933,3 +1940,144 @@ jobs:
           path: |
             app/troubastage-macos.dmg
             app/smoke-*.png
+
+  # WIN08 S2.11 — what Studio costs: a REPORT, so dispatch-only (win08_cost=measure; =leak for the JVM leak check's
+  # positive control). Real Studio needs a core with the Studio SPA, and the SPA only builds on Linux (TagInput.tsx and
+  # tagInput.ts collide on Windows' case-insensitive filesystem). Giving `desktop (windows)` a Linux-built core would put
+  # a Linux job on every run's critical path; instead this job builds the SPA and cross-compiles troubacore.exe, and
+  # win08-cost (Windows) builds the app as `desktop` does and takes every figure in that one job.
+  win08-cost-core:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.win08_cost != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            web/studio/package-lock.json
+            web/ink/package-lock.json
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+      - name: build the Studio SPA and cross-compile troubacore.exe with it embedded
+        run: |
+          (cd web/ink && npm ci --no-workspaces)   # studio's build compiles ../ink (perfect-freehand etc.)
+          (cd web/studio && npm ci --no-workspaces && npm run build)
+          rm -rf core/internal/webassets/dist && mkdir -p core/internal/webassets/dist
+          cp -r web/studio/dist/* core/internal/webassets/dist/
+          (cd core && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o troubacore.exe ./cmd/troubacore)
+          ls -l core/troubacore.exe
+      - uses: actions/upload-artifact@v7
+        with:
+          name: win08-cost-troubacore
+          path: core/troubacore.exe
+          retention-days: 3
+
+  win08-cost:
+    name: win08 cost (Studio's memory and MSI share)
+    needs: win08-cost-core
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.win08_cost != ''
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v6
+      - name: check WiX 3 is available (jpackage MSI needs it)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
+            choco install wixtoolset --version=3.14.1 -y --no-progress
+            "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          }
+      - uses: actions/download-artifact@v7
+        with:
+          name: win08-cost-troubacore
+          path: corebin
+      # Production serves Studio from a Linux core (.mjs as text/javascript). A Windows core asks the registry
+      # (Go's mime.TypeByExtension reads HKCR), where .mjs is unregistered and WebView2 then rejects the module.
+      - name: register .mjs and .wasm MIME types, as a Linux core serves them
+        shell: pwsh
+        run: |
+          reg add "HKCR\.mjs" /v "Content Type" /t REG_SZ /d "text/javascript" /f
+          reg add "HKCR\.wasm" /v "Content Type" /t REG_SZ /d "application/wasm" /f
+      - name: start the core on a scratch data dir and seed the demo band, song and one-page PDF
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $data = Join-Path $env:RUNNER_TEMP "win08-cost-data"; New-Item -ItemType Directory -Force $data | Out-Null
+          $env:TROUBA_APP_STORE = "file"; $env:TROUBA_STORE = "file"; $env:TROUBA_DATA_DIR = $data; $env:TROUBACORE_ADDR = "127.0.0.1:8080"
+          $core = Start-Process -FilePath corebin\troubacore.exe -PassThru -WindowStyle Hidden
+          $up = $false
+          for ($i = 0; $i -lt 60; $i++) { try { Invoke-WebRequest http://127.0.0.1:8080/healthz -UseBasicParsing | Out-Null; $up = $true; break } catch { Start-Sleep 1 } }
+          if (-not $up) { Write-Error "the core did not come up"; exit 1 }
+          $B = "http://127.0.0.1:8080"
+          Invoke-RestMethod -Method Post "$B/api/auth/register" -ContentType application/json -Body '{"username":"ci","displayName":"CI","password":"ci-pass-123"}' | Out-Null
+          $s = $null
+          Invoke-RestMethod -Method Post "$B/api/auth/login" -ContentType application/json -Body '{"username":"ci","password":"ci-pass-123"}' -SessionVariable s | Out-Null
+          $band = (Invoke-RestMethod -Method Post "$B/api/bands" -ContentType application/json -Body '{"name":"CI Band"}' -WebSession $s).band.id
+          $song = (Invoke-RestMethod -Method Post "$B/api/bands/$band/songs" -ContentType application/json -Body '{"title":"CI Song","artist":"CI"}' -WebSession $s).song.id
+          $cookie = $s.Cookies.GetCookies($B)["trouba_session"].Value
+          curl.exe -sf -b "trouba_session=$cookie" -X POST "$B/api/bands/$band/songs/$song/files" -F "file=@web/studio/e2e/fixtures/sample.pdf;type=application/pdf" | Out-Null
+          if ($LASTEXITCODE -ne 0) { Write-Error "uploading the demo PDF failed"; exit 1 }
+          # Edge's session (a second sign-in of the same demo user); the file stays on the runner, never in the log.
+          Set-Content -Path (Join-Path $env:RUNNER_TEMP "win08-cost-cookie.txt") -Value $cookie -NoNewline
+          "/bands/$band/songs/$song" | Set-Content -Path songpath.txt -NoNewline
+          Write-Host "core pid $($core.Id); seeded the demo song at /bands/$band/songs/$song"
+      - name: package the app (version 1.0.<run_number>), as desktop (windows) does
+        working-directory: app
+        run: .\gradlew.bat :desktopApp:createDistributable :desktopApp:packageMsi "-PdesktopVersion=1.0.${{ github.run_number }}"
+      - name: WIN08 S2.11 — memory on Home, in Studio, after 5 re-entries, and Edge on the same song
+        shell: pwsh
+        env:
+          WIN08_COST_SABOTAGE: ${{ github.event.inputs.win08_cost == 'leak' && 'leak' || '' }}
+          TROUBA_WIN08_USER: ci
+          TROUBA_WIN08_PASS: ci-pass-123
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = Get-ChildItem -Path app\desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBA_WIN08_SONG_PATH = (Get-Content songpath.txt -Raw).Trim()
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-cost-home"
+          Write-Host "sabotage: [$env:WIN08_COST_SABOTAGE]"
+          & .github\scripts\win08-cost.ps1 -Exe $exe.FullName -Out (Join-Path (Get-Location) "win08-cost-out") `
+            -SongPath $env:TROUBA_WIN08_SONG_PATH -CookieFile (Join-Path $env:RUNNER_TEMP "win08-cost-cookie.txt")
+      # What Studio adds to the MSI: the SWT jar and the WIN08 host classes, read from the packaged app image (jars are
+      # already compressed, so their size is about what they add to the MSI). Beside it, this MSI against the one on
+      # `latest` (main's) and against stage 1's figures (68,356,525 before WIN08; 71,355,100 with stage 1).
+      - name: WIN08 S2.11 — the MSI, and Studio's share of it
+        if: always()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $msi = Get-ChildItem app\desktopApp\build\compose\binaries\main\msi\*.msi | Select-Object -First 1
+          $rel = Invoke-RestMethod -Headers @{ Authorization = "Bearer $env:GH_TOKEN" } "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/latest"
+          $mainMsi = $rel.assets | Where-Object { $_.name -eq "troubastage-windows.msi" }
+          $image = Get-ChildItem app\desktopApp\build\compose\binaries\main\app -Directory | Select-Object -First 1
+          $swt = @(Get-ChildItem $image.FullName -Recurse -Filter "org.eclipse.swt*.jar")
+          $swtBytes = [int64]0; foreach ($j in $swt) { $swtBytes += $j.Length }
+          $hostBytes = [int64]0; $hostEntries = 0
+          foreach ($j in @(Get-ChildItem $image.FullName -Recurse -Filter "desktopApp*.jar")) {
+            $z = [System.IO.Compression.ZipFile]::OpenRead($j.FullName)
+            try { foreach ($e in $z.Entries) { if ($e.FullName -like "com/troubastack/desktop/studio/*") { $hostBytes += $e.CompressedLength; $hostEntries++ } } } finally { $z.Dispose() }
+          }
+          Write-Host ("WIN08-COST MSI this build: {0} = {1:N0} bytes" -f $msi.Name, $msi.Length)
+          Write-Host ("WIN08-COST MSI on latest (main at {0}): {1:N0} bytes; this build minus it: {2:N0} bytes" -f $rel.target_commitish.Substring(0, 8), $mainMsi.size, ($msi.Length - $mainMsi.size))
+          Write-Host ("WIN08-COST MSI against stage 1: {0:N0} bytes over the pre-WIN08 68,356,525 (stage 1 alone: +2,998,575 = 2.86 MiB)" -f ($msi.Length - 68356525))
+          Write-Host ("WIN08-COST Studio's share: SWT {0:N0} bytes [{1}] + WIN08 host classes {2:N0} bytes compressed in {3} entries = {4:N2} MiB" -f $swtBytes, (($swt | ForEach-Object { $_.Name }) -join ", "), $hostBytes, $hostEntries, (($swtBytes + $hostBytes) / 1MB))
+      - name: upload the cost logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: win08-cost-logs
+          path: win08-cost-out/
+          retention-days: 7

@@ -67,9 +67,11 @@ import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 
 /**
- * WIN03 — the Windows [AppPlatform] (D1 and the gate's additions). Studio is present but says "Coming soon" (D6);
- * the camera QR scanner, LAN discovery, the BLE-MIDI pedal, the in-app update (until WIN04), `/join/` links and
- * volume keys are null, so their affordances are hidden. Keyboard pedals and learned keys still work (A72).
+ * The desktop [AppPlatform]: Windows (WIN03, D1 and the gate's additions), and Linux and macOS since DESK01. Studio: on
+ * Windows the embedded-Studio provider hosts it in the window (WIN08, WebView2); on Linux and macOS no provider is
+ * registered, so Studio falls back to "Coming soon." (D6). The in-app update is here since WIN04 ([appUpdate]). The
+ * camera QR scanner, LAN discovery, the BLE-MIDI pedal, `/join/` links and volume keys are null, so their affordances
+ * are hidden. Keyboard pedals and learned keys still work (A72).
  */
 class DesktopAppPlatform(override val storage: Storage, windowState: WindowState) : AppPlatform {
     /** The app's window, for the file dialog's parent; set by the entrypoint once the window exists. */
@@ -200,7 +202,7 @@ class DesktopAppPlatform(override val storage: Storage, windowState: WindowState
                 }
                 BackHandler { (embeddedBack ?: onBack).invoke() }   // S2.2: chrome Back walks history
             } else {
-                error("Studio's editor is not on Windows yet (WIN05)")
+                error("no embedded-Studio provider on this OS: only Windows hosts Studio; Linux and macOS show \"Coming soon.\"")
             }
         }
 
