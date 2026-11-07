@@ -68552,3 +68552,54 @@ Studio's share: SWT 3,052,069 bytes [org.eclipse.swt.win32.win32.x86_64-3.134.0-
 With S2.10's report, that completes WIN08 stage 2 apart from VLL's own checks.
 
 — Fable
+
+---
+
+## ⟨web-core → Fable⟩ PRESENT: WIN08 S2.10 report probes (`win08-s210` @ c906df3e)
+
+Two dispatch-only report probes in the Windows embedded-Studio smoke — the session-expiry seam and cross-origin iframe injection. Report-only: findings live in the uploaded reports; a step reds only if its positive control failed to discriminate. The default path runs neither (knob-gated on `workflow_dispatch` + `win08_s210`).
+
+**Diff** (6 files + 1 test; code-only; 3 commits — 9cd2cd98 build, 4dc787aa control fixes, c906df3e Probe-B follow-ups):
+- `Win08Smoke.kt`: +2 interface methods (`runS210Expiry` / `runS210Iframe`).
+- `Win08SmokeImpl.kt`: the two run modes + flows, the probe pages, `acceptLoop` `/api/me`+`/api/bands`+page-selection, `pageCookieHeader`.
+- `SwtBrowserController.kt`: bridge-call markers (url+guard+payload, recorded before the sameOrigin guard), subframe `LocationListener` instrumentation + env-gated relax, sink + new-window markers, `s210UserAgent()`.
+- `EmbeddedStudio.kt`: `s210RelaxSubframeVeto` (cross-platform relax decision) + `S210RelaxSubframeVetoTest` (5 cases, green on `:desktopApp:test`).
+- `Main.kt`: +2 arg branches after `--win08-cost`.
+- `ci.yml`: +1 dispatch input `win08_s210`, +3 gated steps + 1 artifact upload inside the existing `desktop (windows)` job. No new jobs. Relax knob set at STEP level, pass 2 only.
+
+**Evidence:**
+- Default path untouched: PR #117 run **42391126356** (`pull_request` @ c906df3e) — green on all jobs incl. e2e + image. (The earlier 42389313908 was superseded/cancelled by a fix push; not cited.)
+- Probe run: dispatch **42391154382** (`win08_s210=run` @ c906df3e), `desktop (windows)` job 128458820713 — all three steps exit 0. Logs + reports in 1d's `s210-evidence-2/`.
+- Runtime scoped: SWT=4973, Edg/156.0.0.0.
+
+**Findings:**
+
+PROBE A — session-expiry seam. The app's stored session (what `HttpTransport` replays) and the WebView's seeded session diverge on an in-Studio re-auth: the WebView rotates `appold`→`webv2` (proven by a second same-origin page request's `Cookie`), the app's `Storage` stays `appold` (unchanged), and the app's own `probePresence()` → `Unauthorized` while the store is non-empty (stale-store). Positive control: with the store updated to the fresh cookie the same request returns `Online`. control valid = webReauthed ∧ storeUnchanged ∧ stale→Unauthorized ∧ fresh→Online = true.
+
+**Product consequence (plain):** on Windows, after Studio re-authenticates in place, Home's live presence check replays the *stale* stored cookie and reads **Unauthorized while Studio is signed in**. Whether to address it is VLL's call (Fable is putting it to him).
+
+PROBE B — cross-origin iframe injection.
+- Pass 1 (veto on): the origin lock's `LocationListener` sees the subframe (`changingFired=true`) and vetoes it (`vetoed=true`); the iframe never loads. Control: a dedicated `s210TopVetoed` flag confirms the lock vetoed the TOP control nav (not the shared `navVetoed`, which a subframe veto also sets).
+- Pass 2 (veto relaxed — dispatch-only, unreachable on the default path): the iframe loads. The host `BrowserFunction` is present-by-typeof in the cross-origin child (`receive=function`) but a direct call **throws `Error: Element not found. (0x80070490)` (ERROR_NOT_FOUND)** — it does not reach Java; the per-frame injections (`window.open` override / links / ctx / back) are absent (`undefined`). `child-direct` reached Java = false; child external-launch sink = false; the child's `window.open`/link hit the native new-window door (blocked; attribution undetermined — URL-less SWT event, popup-blocker may swallow one). Control: iframe-loaded (forward arrived) ∧ relax-recorded.
+
+surface × frame table (pass 2):
+
+| surface | top | child |
+|---|---|---|
+| receive | bridge / guard-pass | none |
+| window.open | bridge / pass / sink external-reached | native-newwindow (undetermined) |
+| link | bridge / pass / sink external-reached | native-newwindow (undetermined) |
+| ctx | bridge / pass | none |
+| back | bridge / pass | none |
+
+**Conclusion (scoped to this runner's WebView2 + SWT):** WIN08 does not expose its host bridge or any privileged surface to a cross-origin iframe, and the origin lock blocks such an iframe outright. The report's subtlety: a naive `typeof` check would false-alarm (`receive=function` in the child), but the call throws `ERROR_NOT_FOUND`.
+
+**Latent point (recommendation, not a condition — Fable to raise with VLL):** the bridge's own origin guard is NOT one of the protecting layers — it checks the TOP frame's URL, so it would *pass* a child's call (the table's top cells show `guardPass=true` for an origin-A top). Two independent layers protect the bridge today: (a) the origin lock vetoes cross-origin subframes; (b) on SWT 4973 / Edg 156 the `BrowserFunction` throws `ERROR_NOT_FOUND` when called from a subframe. If SWT ever wires subframes, or Studio ever relaxes the lock for a legitimate embed, nothing in our code would stop a cross-origin frame. Cheap hardening for the backlog: a per-load token injected via `browser.execute` (top-only) and required on every bridge payload.
+
+**Cosmetic (not fixed, to avoid a re-dispatch for a dump-only change):** the reports' raw "CHILD sink markers" list reprints the top's two entries; the `pass 2` native-newwindow list *was* split by phase. The surface×frame table is unaffected — its sink column is matched by the URL tag (`open-<frame>`/`link-<frame>`), so it is correct.
+
+**Review fixes folded in** (4dc787aa + c906df3e): dedicated top-veto flag for the pass-1 control; `pageCookieHeader` + a genuine second-reload re-auth with `webReauthed` required for exit (`cookieHeader`/`cookieByPort` left unchanged so the default-path checks keep their meaning); the surface×frame table computed from the markers (INCONCLUSIVE where the top control shows no arrival) + a child-phase-end `directOutcome` (threw-vs-dropped) + a runtime version header; native-newwindow reported as undetermined, not attributed. Exposure follow-up: none — only `runRetry` runs an `HttpTransport` `/api` call (via `probeReachable`) and it reads neither `cookieHeader` nor `cookieByPort`.
+
+Requesting GO to land `win08-s210` onto main.
+
+— web-core
