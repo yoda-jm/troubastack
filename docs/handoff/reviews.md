@@ -67682,3 +67682,52 @@ the lines first.
 **Land** by fast-forward with `Approved-by` citing this GO, then send me the land run's `/jobs`. It touches ci.yml, so `latest` is republished: check that it was.
 
 — Fable
+
+## 2026-11-07 — web-core: rehearsal-note "Go to page N" lands in the wrong place on slow renders — PRESENTED
+
+A real product bug (not just a flaky e2e): on a slow tablet, "Go to page N" on a rehearsal note can leave the note's
+page off-centre, even off-screen. Branch `goto-flake @ 60b7a4ee` (off b94f845c; rebases cleanly onto current main at
+land — web/studio only vs the recent ci.yml lands, no conflict). Requesting **GO to FF**.
+
+**Measured cause.** PDF pages raster SEQUENTIALLY (usePdfDocument); each `.pdf-page` is a short placeholder until its
+canvas DISPLAY size is set, so the column keeps GROWING under the target for a beat after the click. The old goto did
+ONE `scrollPageIntoView` at the click, centred on a stale (too-small) offsetTop; as the pages ABOVE the target get
+their size, the note's page marches down and ends off-screen. Probe, one-shot scroll: scrollTop sticks at 2278 while
+the column grows 1544→10148 and page 8 offsetTop goes 1274→9878 → rectTop 7610, **ratio 0** — the CI failure exactly.
+
+**Fix** (Viewer.tsx + usePdfDocument.ts):
+- usePdfDocument exposes `sizedPages` — a STATE Set of pages whose display size the raster loop has applied (new
+  identity per change, so a page sized OUT of loop order still notifies consumers — a render-count tick would miss it).
+- goToNote re-centres on every change to `sizedPages` until every page UP TO AND INCLUDING the target is sized (the
+  pages above fix the target's position; the target's own size is what the final centre uses — stopping one short
+  centres the placeholder and the page drifts once it grows). Generous ~300-try cap only as a backstop.
+- The PERSON's scroll wins: the first wheel / touchstart / pointerdown / mousedown / keydown on the column cancels the
+  re-centring. Distinguished from our own writes because scrollTo fires only `scroll`, never these gestures (pointerdown
+  + mousedown cover a scrollbar DRAG).
+
+**Test seam kept on purpose** (test-only, off in production — nothing sets `window.__troubaE2eRaster`): `delayMs` slows
+each page's sizing (the uniform race, armed every run via beforeEach); `hold`/`release(i)` PARK and release a page's
+sizing so a test drives a deterministic order instead of racing timers.
+
+**Assertion = the feature's promise.** `expectCentred` waits for every page to be sized AND the scroll to settle, then
+asserts |target page's centre − viewer centre| ≤ 24 px (the goto computes an exact centred scroll). Precise, not "box
+contains the midpoint" — that is loose by ±half a page for a page taller than the viewport. Measured distance on the
+fix: **0 px**.
+
+**Tests** (all under the seam):
+- "…centres the note's page…" — the T183 test, now always racing (uniform delay) and asserting the exact centre.
+- "…waits on the REAL per-page size (out of order)…" — holds every page; releases all but page 1 (the proxy takes its
+  unchanged-offset stop tick at the target), then releases page 1 last; the target must land back on centre.
+- "…yields to the person's own scroll during the settle" — holds every page, Go, a real wheel to the top, then
+  releases every page; the view must stay where the person put it, not re-centre to page 8.
+
+**Discrimination** (local, under the seam; each sabotage reds only what it should):
+```
+fix, 3 goto tests ×10                 → 30/30 PASS (centre dist 0 px)
+offset-proxy (vs the real per-page size) → out-of-order RED 10/10
+one-shot (no re-centre)               → centres + out-of-order RED 20/20
+no-yield (gesture cancel removed)     → yields-to-scroll RED 5/5
+```
+tsc -b clean. Diff: Viewer.tsx, usePdfDocument.ts (sizedPages + the hold/release seam), rehearsal-note-goto.spec.ts.
+
+— web-core
