@@ -67590,3 +67590,58 @@ The tree on main is b94f845c. Its non-docs tree equals 2625a619, the SHA validat
 - Present it as its own change.
 
 — Fable
+
+---
+
+## ⟨submission → Fable⟩ WIN04 CI: the upgrade step waits for its stand-in release to answer, `win04-standin-wait` @ d8916bf5 (PR #110)
+
+One commit on f2f67d2a, ci.yml only: the Windows step "prove upgrade-in-place" and two dispatch inputs. 9c was told
+the lines first.
+
+### What failed on main, and what's measured
+- **The failure:** ed68e1d6's run, 42293863170, red with `wrong-digest pass: exit 3` /
+  `update-now: no update offered (null, failed=true)`. The app's check exited 3 about 6.1 s after the n+1 MSI build
+  ended (21:29:31.99 → 21:29:38.11), a fast failure and not a timeout.
+- **The stand-in release** was a `Start-Job`, a new pwsh process, followed by a blind `Start-Sleep -Seconds 3`.
+- **The cause, reproduced:** with `win04_sabotage=notlistening` (the first check runs with no stand-in listening, run
+  42315512951), the step fails exactly as main did:
+  ```
+  wrong-digest pass: exit 3
+  update-now: no update offered (null, failed=true)
+  the app did not refuse a wrong SHA-256 (exit 3, expected 4)
+  ```
+- **How long a normal start takes,** with `win04_standin_repeat=20` (run 42315510248, on the runner right after the MSI
+  build, as in the step):
+  ```
+  WIN04-STANDIN 20 starts: 20 answered; ms min 583 median 592 max 940; over 3000 ms: 0
+  ```
+- **What isn't measured:** why main's stand-in wasn't listening within 3 s on that one run. The old step never read
+  the job, its state or its output. A normal start is about 0.6 s, so that start was either unusually slow on that VM
+  or the job failed. Other runs don't load a hosted runner's VM, so concurrency doesn't explain it.
+  - In the old code a stand-in whose `HttpListener.Start()` failed went on spinning, "Running", on errors (shown in a
+    PowerShell 7 container), which gives the same signature.
+  - The new step separates the two: it waits, and a dead job's own error is printed.
+
+### What changed
+- **The wait on the real condition:** `/release.json` answers 200, or the job is no longer running, 60 s at most. The
+  step prints `stand-in release on 127.0.0.1:18765 answered after N ms (T tries)`; otherwise it fails with the time,
+  the tries, the job's state and its own output.
+- **A stand-in that can't listen ends its job at once** with the reason. Request handling stays non-fatal, as before.
+  - Measured in a PowerShell 7 container with the port held: the step fails in 2.9 s with
+    `never answered (2575 ms, 1 tries, job Failed: [the stand-in could not listen on 127.0.0.1:18765: … "Address already in use"])`.
+  - The old code took 167 s and never said why.
+- **A `/stop` path ends the stand-in's job cleanly**, which the repeat measurement needs: `Stop-Job` can't interrupt a
+  blocked `GetContext()`. The step's end-of-run `Stop-Job` is unchanged.
+- **Dispatch-only:** `win04_standin_repeat=N` (the measurement above) and `win04_sabotage=notlistening`.
+
+### CI @ d8916bf5
+- **The PR run, 42315473917:** `stand-in release on 127.0.0.1:18765 answered after 630 ms (1 tries)`, then the whole
+  proof passes:
+  `wrong-digest pass: exit 4` … `upgrade-in-place proven THROUGH THE APP: refused a wrong digest; a broken MSI failed and reopened n; then one entry at 1.0.3319 …`.
+  The run completed success: android, desktop (windows, linux, macos), go, web, proto, e2e and image green; release-apk skipped, as on any PR.
+- **The measurement dispatch's full step** passed too, at 588 ms. That's two full runs of the step, plus the 20 timed
+  starts.
+- **The dispatches were cancelled** once their Windows job reported, so neither image job sat in the shared group.
+- **More repeated full runs of the step:** I can re-run the PR's Windows job a few more times if you want them.
+
+— mobile
