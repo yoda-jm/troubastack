@@ -861,6 +861,8 @@ export function Viewer({
     imgOverlayRef,
     numPages,
     pdfRenderCount,
+    sizedPages,
+    sizedFor,
     zoomSelectValue,
     customZoomPercent,
     stepZoom,
@@ -1411,30 +1413,82 @@ export function Viewer({
     [doc.objects, scrollPageIntoView],
   );
 
-  // T185 ⟨D3⟩ — "Go to" a rehearsal note. A resolved note (fileId set) goes to ITS file and page: if that is
-  // a different file, we switch to it and DEFER the scroll, because the new file's pages mount a frame later
-  // (scrolling now would move the file we are leaving). The pending target is flushed by the effect below,
-  // keyed on pdfRenderCount so it fires once the new file has actually rendered. An unresolved note keeps
-  // today's behaviour: scroll within the open file.
-  const pendingGoTo = useRef<number | null>(null);
+  // T185 ⟨D3⟩ — "Go to" a rehearsal note. A resolved note (fileId set) goes to ITS file and page: if that is a
+  // different file, we switch to it and DEFER the scroll, because the new file's pages mount a frame later (scrolling
+  // now would move the file we are leaving). An unresolved note scrolls within the open file.
+  //
+  // T183 flake fix — a goto's target page may not have had its SIZE yet. Pages raster progressively (usePdfDocument),
+  // and a .pdf-page is a short placeholder until its canvas is sized, so the column keeps GROWING under the target
+  // for a beat after the click. A single scroll computed at the click centres on a stale (too-small) offsetTop; as
+  // the pages ABOVE the target get their size the note's page marches down and ends off-screen — on a slow tablet
+  // "Go to page N" lands in the wrong place (the e2e saw ratio 0). So re-centre until every page UP TO AND INCLUDING
+  // the target has its size (sizedPages) — the pages above fix the target's position, the target's own size the final
+  // centre. Driven by sizedPages itself (not the raster count) so a page sized out of order still advances us. The
+  // person's own scroll wins (below).
+  const goToPageRef = useRef<number | null>(null);
+  const goToFileRef = useRef<string | null>(null); // the file the goto target lives in (T185 ⟨D3⟩ cross-file)
+  const goToTriesRef = useRef(0);
   const goToNote = useCallback(
     (note: RehearsalNote) => {
       setUnderlayOn(true);
+      const page = note.fileId ? note.filePage ?? 0 : note.pageInSong;
+      goToPageRef.current = page;
+      goToFileRef.current = note.fileId ?? selectedFileId; // resolved → its own file; unresolved → the open file
+      goToTriesRef.current = 0;
       if (note.fileId && note.fileId !== selectedFileId) {
-        pendingGoTo.current = note.filePage ?? 0;
-        setSelectedFileId(note.fileId);
+        setSelectedFileId(note.fileId); // the new file's pages mount later; the effect scrolls once they are sized
         return;
       }
-      scrollPageIntoView(note.fileId ? note.filePage ?? 0 : note.pageInSong);
+      scrollPageIntoView(page);
     },
     [selectedFileId, scrollPageIntoView],
   );
   useEffect(() => {
-    if (pendingGoTo.current === null) return;
-    const page = pendingGoTo.current;
-    pendingGoTo.current = null;
+    const page = goToPageRef.current;
+    if (page === null) return;
+    // Act only once the sized set (and the mounted .pdf-page elements) are the TARGET's file — on a cross-file goto
+    // this effect first runs while both are still the OLD file's, and settling there would scroll the wrong file and
+    // never reach the note. Wait until the new file has loaded (sizedFor flips to it) and its target page is mounted.
+    if (sizedFor !== goToFileRef.current) return;
+    if (!scrollRef.current?.querySelectorAll<HTMLElement>(".pdf-page")?.[page]) return;
     scrollPageIntoView(page);
-  }, [selectedFileId, pdfRenderCount, scrollPageIntoView]);
+    // Settle once every page up to AND INCLUDING the target has its size: the pages above fix the target's POSITION,
+    // and the target's own size is what the final centre uses — stopping before it would centre the placeholder and
+    // leave the note's page off once it grows. The ~300-try cap is only a backstop against a layout that never
+    // settles; it is far beyond any page count.
+    let settled = true;
+    for (let i = 0; i <= page; i++) {
+      if (!sizedPages.has(i)) {
+        settled = false;
+        break;
+      }
+    }
+    if (settled || ++goToTriesRef.current > 300) goToPageRef.current = null;
+  }, [selectedFileId, sizedPages, sizedFor, scrollPageIntoView]);
+  // The PERSON's own scroll wins over our re-centring: cancel on the first input GESTURE on the column — wheel,
+  // touch, a pointer/mouse press (a scrollbar drag fires none of wheel/touch/key, so pointerdown+mousedown cover it),
+  // or a scroll key. We listen for gestures, never the `scroll` event: our own scrollTo fires `scroll` but none of
+  // these, so this never mistakes our write for the person's.
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const cancel = () => {
+      goToPageRef.current = null;
+    };
+    const passive = { passive: true } as AddEventListenerOptions;
+    scroll.addEventListener("wheel", cancel, passive);
+    scroll.addEventListener("touchstart", cancel, passive);
+    scroll.addEventListener("pointerdown", cancel, passive);
+    scroll.addEventListener("mousedown", cancel, passive);
+    scroll.addEventListener("keydown", cancel);
+    return () => {
+      scroll.removeEventListener("wheel", cancel);
+      scroll.removeEventListener("touchstart", cancel);
+      scroll.removeEventListener("pointerdown", cancel);
+      scroll.removeEventListener("mousedown", cancel);
+      scroll.removeEventListener("keydown", cancel);
+    };
+  }, []);
 
   // Delete the current selection (one or many objects). Only objects on the
   // ACTIVE editable layer are deleted; everything else (locked OR on a non-active

@@ -94,6 +94,19 @@ export function usePdfDocument(args: {
   // bumps this; an annotation edit must NOT. Surfaced via a hidden data-testid.
   const pdfRenderCountRef = useRef(0);
   const [pdfRenderCount, setPdfRenderCount] = useState(0);
+  // T183 — which pages have had their DISPLAY size applied (so their wrapper is at its final height, not a short
+  // placeholder). The raster loop fills this as it sizes each page; "Go to page N" re-centres until every page above
+  // its target is in here. It is a state Set (new identity per change) so a page sized OUT of loop order — including
+  // the test seam's deferred sizing — still notifies consumers, which a render-count tick would miss.
+  const [sizedPages, setSizedPages] = useState<ReadonlySet<number>>(() => new Set());
+  const markSized = useCallback((i: number) => {
+    setSizedPages((prev) => (prev.has(i) ? prev : new Set(prev).add(i)));
+  }, []);
+  // T185 ⟨D3⟩ — the file id `sizedPages` and the mounted .pdf-page elements describe. On a cross-file goto, the goto
+  // effect runs in the commit where the file FLIPS, while the set and DOM are still the OLD file's; without this it
+  // could "settle" on the old file (which had its pages sized) and never scroll to the new file's note. The goto
+  // scrolls only once sizedFor matches its target's file.
+  const [sizedFor, setSizedFor] = useState<string | null>(null);
   // One-shot "settle" redraw (flip fix): after a file's FIRST successful render pass
   // we schedule exactly one more clean render on the next frame.
   const [renderNonce, setRenderNonce] = useState(0);
@@ -120,6 +133,8 @@ export function usePdfDocument(args: {
     overlayRefs.current = [];
     pageSizesRef.current = [];
     setNumPages(0);
+    setSizedPages(new Set()); // a new file's pages are unsized until this load's raster pass sizes them
+    setSizedFor(selectedFile.id); // the set now describes THIS file (used by the cross-file goto, T185 ⟨D3⟩)
 
     if (selectedFile.contentType.startsWith("image/")) {
       // Image: nothing to rasterize; <img> + overlay handle it.
@@ -331,8 +346,42 @@ export function usePdfDocument(args: {
 
         canvas.width = Math.round(viewport.width);
         canvas.height = Math.round(viewport.height);
-        canvas.style.width = `${cssW}px`;
-        canvas.style.height = `${cssH}px`;
+        // Applying the DISPLAY size grows the page's wrapper from a placeholder to its real height AND marks the page
+        // "sized" for the goto re-centre (the backing store above is already set, so the raster below is unaffected).
+        const applyDisplaySize = () => {
+          if (cancelled) return;
+          canvas.style.width = `${cssW}px`;
+          canvas.style.height = `${cssH}px`;
+          markSized(i);
+        };
+        // Test-only seam (off in production — nothing sets window.__troubaE2eRaster): e2e raster control so the goto
+        // re-centre race runs on every spec run. `delayMs` slows each page's sizing (the uniform race). `isHeld(i)`
+        // PARKS a page's sizing — the loop registers its sizer and the test calls `release(i)` to size it exactly when
+        // it wants, giving the out-of-order test a deterministic order instead of racing timers. A held page's sizer
+        // ignores `cancelled` (a release can arrive after a settle-redraw re-ran this pass) — it sizes the same canvas
+        // element, which is the out-of-order landing the real-condition re-centre must survive.
+        const e2e = (
+          globalThis as {
+            __troubaE2eRaster?: {
+              delayMs?: number;
+              isHeld?: (i: number) => boolean;
+              register?: (i: number, size: () => void) => void;
+            };
+          }
+        ).__troubaE2eRaster;
+        if (e2e?.isHeld?.(i)) {
+          const el = canvas;
+          e2e.register?.(i, () => {
+            el.style.width = `${cssW}px`;
+            el.style.height = `${cssH}px`;
+            markSized(i);
+          });
+        } else if (e2e?.delayMs) {
+          await new Promise((r) => setTimeout(r, e2e.delayMs));
+          applyDisplaySize();
+        } else {
+          applyDisplaySize();
+        }
 
         const ctx = canvas.getContext("2d");
         if (!ctx) continue;
@@ -703,6 +752,8 @@ export function usePdfDocument(args: {
     imgOverlayRef,
     numPages,
     pdfRenderCount,
+    sizedPages,
+    sizedFor,
     zoomSelectValue,
     customZoomPercent,
     stepZoom,
