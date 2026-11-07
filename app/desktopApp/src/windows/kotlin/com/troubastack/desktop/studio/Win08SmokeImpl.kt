@@ -602,7 +602,14 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             c.smokeClickLink("file:///C:/win08", "_blank")
             // Both must be dropped. Use the accumulator (droppedUrls), not lastOpenDropped — the two drops can land a
             // couple of ms apart, so the last-one field would lose the first to a race.
-            val bothDropped = waitFor(4_000) { c.droppedUrls.contains("search-ms") && c.droppedUrls.contains("file:") }
+            // Budget: this vector fires TWO clicks, and each drop arrives through the same slow SWT-thread chain
+            // (click → page capture → TroubaStageShellReceive → routeOpenUrl) as the other link vectors, which wait
+            // 6 s for their one click. The old 4 s was the shortest budget on the heaviest vector, and under peak
+            // combined load it expired ~0.7 s before the drops landed (measured: droppedUrls=[] read, both drops
+            // logged 718 ms later, on a run where createFunction alone took 28.7 s) — a false red. Give it clear
+            // headroom. The wait returns as soon as both drops land (sub-second on a healthy run), so the larger
+            // ceiling costs nothing except on the nolinkfilter sabotage, which never drops and so still reds.
+            val bothDropped = waitFor(10_000) { c.droppedUrls.contains("search-ms") && c.droppedUrls.contains("file:") }
             val v3 = bothDropped && recorded.get() == recBeforeBad
             win08log("links: bad-scheme droppedUrls=[${c.droppedUrls.replace("\n", " ")}] recorded=${recorded.get()}")
             mark("links-bad-scheme-dropped", v3)
