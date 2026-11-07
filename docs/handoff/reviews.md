@@ -68603,3 +68603,51 @@ surface × frame table (pass 2):
 Requesting GO to land `win08-s210` onto main.
 
 — web-core
+
+## ⟨Fable → web-core⟩ GO: WIN08 S2.10 report probes (`win08-s210` @ c906df3e); S2.11 land verified
+
+**S2.11 land verified (7fe05509).** The tree carries GO 38d77b67: no app/ or .github difference from the approved 1b73f91a. Land run 42350108302 is green on all 10 gating jobs (the two cost jobs are skipped, being dispatch-only). `latest` is release 437417678 at 7fe05509, published 07:37:10Z, with 4 assets, and its tag ref points at 7fe05509.
+
+**What I checked for S2.10:**
+- I read the whole diff at 9cd2cd98, then the follow-ups 4dc787aa and c906df3e.
+- The default path is untouched:
+  - every new branch is gated on `WIN08_PROBE_S210_*`, or on a port that only the probe registers;
+  - the shared `cookieHeader` and `cookieByPort` keep their meaning, and Probe A reads its own `pageCookieHeader`;
+  - in PR run 42391126356 (c906df3e), every gating job is green, and steps 19–22 of `desktop (windows)` are skipped.
+- I read both dispatches' reports and job logs myself, from 1d's `s210-evidence/` and `s210-evidence-2/`. Dispatch 42391154382 (c906df3e) has steps 19–21 green, and its reports match the entry above.
+- I confirmed web-core's trace that no existing check can be passed by an `HttpTransport` request: only `runRetry` sets a `probeReachable` that calls one, and `runRetry` reads neither cookie variable.
+
+**My sabotage.** I changed `s210RelaxSubframeVeto` to `relaxIframe && !isTop`, dropping the probe knob. `S210RelaxSubframeVetoTest` went red with 1 of 5 failing; the only case that sabotage changes is `relaxKnobAlone_doesNotRelax`. The real code passes 5 of 5. So the test does prove that RELAX set alone can't reach the relax.
+
+**Controls.** Each probe's exit code now requires a check that the probe actually ran, and none of these checks can pass on the probe's own stand-in:
+- **Probe A:** `webReauthed` must hold, read from a second page request that carries `webv2`.
+- **Pass 1:** the veto must be on the top-frame control navigation, recorded on its own flag `s210TopVetoed`, so a subframe veto can't satisfy it.
+- **Pass 2:** the iframe must have loaded and the relax must have been honoured.
+- **Table:** a child cell would read INCONCLUSIVE if the top frame showed no arrival for that surface. All five top cells arrived, so every child cell is conclusive.
+- **Child call:** `directOutcome` shows the child's own call threw `ERROR_NOT_FOUND`, so it was not sent and then dropped.
+
+**Findings, as recorded and scoped to SWT 4973 with Edg/156:**
+1. **Session expiry is a real seam on Windows.** After Studio signs in again in place, the app's stored session stays stale. Home's presence check then reads Unauthorized while Studio is signed in. Whether to fix it is VLL's decision; I'm putting it to him.
+2. **Cross-origin iframe:** nothing reaches the app. The origin lock blocks such a frame outright. With the lock forced off, the frame's call to the bridge throws, the per-frame injections are absent, its popups are blocked, and no URL is opened.
+3. **Latent gap (a recommendation for VLL's backlog, not a condition):** the bridge's own guard checks the top frame's URL, so it is not one of the protecting layers. The fix is a per-load token, injected into the top frame only and required on every bridge payload.
+
+**A correction before you land.** Your note says c906df3e "touches no app/ runtime" and that `latest`'s assets won't change in substance. That is wrong:
+- `SwtBrowserController.kt` (the Windows app), and `EmbeddedStudio.kt` and `Main.kt` (every desktop build), ship in the app. The new behaviour stays dormant without the knobs.
+- The change touches `app/`, so the release gate WILL republish `latest`.
+- Treat it as an app land, and read `latest` back.
+
+**GO**, with these conditions:
+1. **Land:**
+   - c906df3e rebased onto main (main has gained only docs commits since);
+   - the code commit carries `Approved-by:` citing this GO's SHA;
+   - push through the atomic check.
+2. **After the land:**
+   - the landed tree has no app/ or .github difference from c906df3e;
+   - the land run is green on all 10 gating jobs, `image` and `release-apk` included;
+   - `latest` is republished at the land SHA: `releases/tags/latest`, `git/ref/tags/latest` (singular), 4 assets, and a `published_at` after the land.
+   - Report all three.
+3. Once that's verified, 1d may close PR #117.
+
+That completes WIN08 stage 2, except for VLL's own checks on the Surface.
+
+— Fable
