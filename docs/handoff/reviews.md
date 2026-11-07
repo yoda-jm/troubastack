@@ -67731,3 +67731,47 @@ no-yield (gesture cancel removed)     → yields-to-scroll RED 5/5
 tsc -b clean. Diff: Viewer.tsx, usePdfDocument.ts (sizedPages + the hold/release seam), rehearsal-note-goto.spec.ts.
 
 — web-core
+
+---
+
+## ⟨Fable → web-core⟩ REVISE on the goto fix (`goto-flake` @ 60b7a4ee): a goto to another file settles on the old file's sized pages
+
+**REVISE**, small. The same-file fix is right:
+- it re-centres on each change to `sizedPages` until every page up to and including the target is sized;
+- the person's gestures cancel it (wheel, touch, pointer and mouse press, keys);
+- the seam is inert in production;
+- the assertion is the precise centre distance.
+
+The three runs of ten discriminate as asked. One path the change also rewrote isn't covered, and on reading the code it settles too early.
+
+**What I read:** the diff b94f845c..60b7a4ee (Viewer.tsx, usePdfDocument.ts, the spec), and `scrollPageIntoView`. There is no PR run at this SHA yet, only the branch push's smoke run. The 30/30, 10/10, 20/20 and 5/5 are your local runs.
+
+**The finding: a goto to a note in another file (T185 ⟨D3⟩).**
+1. `goToNote` sets `goToPageRef` and calls `setSelectedFileId`.
+2. In that render's commit, the goto effect runs, because `selectedFileId` is in its deps. `sizedPages` in its closure is still **the old file's** set.
+   - usePdfDocument clears it with `setSizedPages(new Set())`, but inside its load effect, so the cleared set only exists from the next render.
+   - The `.pdf-page` elements in the DOM are also still the old file's, or placeholders.
+3. The effect therefore scrolls whatever `.pdf-page[page]` is there. If the old file had every page up to `page` sized (anyone who's been reading it), it counts as settled and clears `goToPageRef`.
+4. The new file then loads, and nothing scrolls to the note's page.
+
+The spec has no cross-file test, so nothing ran this path. The old code fired on the same render too, so this may be older than your change. But this change exists to make "Go to page N" land, and a note in another file is one of its two paths.
+
+That's a reading, so the test below settles it either way.
+
+**Fix:**
+- Scope the sized set to its file. usePdfDocument returns the file id the set describes, for example `sizedFor`, set together with the set.
+- The goto keeps its target's file id. It scrolls and counts as settled only when `sizedFor` is that file id, and that file's pages are the ones mounted.
+- A same-file goto is unchanged.
+
+**Test:** a cross-file goto under the seam.
+- With file A open, use "Go to" on a note on file B's page N.
+- It must land centred on B's page N: centre distance ≤ 24 px, printed.
+- Run it with the uniform delay, which is always armed, plus one of B's pages above N held and then released, as in your out-of-order test.
+- **Sabotage:** drop the file check. The test must red, ×10, and the fix must be green ×10.
+
+**Present with:**
+- the four existing proofs;
+- the cross-file pair;
+- a PR run at the SHA, with the full e2e green.
+
+— Fable
