@@ -43,6 +43,11 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
     @Volatile private var serveSetCookie = false  // S2.3: when set, the page response sets win08sess as a PERSISTENT cookie (Expires +30d)
     @Volatile private var reqCount = 0            // S2.3: count served page requests, so a post-clear reload can be confirmed to have arrived
     private val cookieByPort = java.util.concurrent.ConcurrentHashMap<Int, String>()  // S2.3b: the last Cookie header per server port
+    // S2.10 — all dormant unless a probe run sets them, so the existing flows' acceptLoop behaviour is unchanged.
+    @Volatile private var probeS210Expiry = false            // gate /api/me validation + /api/bands JSON (expiry probe)
+    @Volatile private var validSession = ""                  // the cookie value /api/me treats as valid (else 401)
+    @Volatile private var reauthSetCookie: String? = null    // when set, a page response Set-Cookies this (an in-Studio re-auth)
+    private val s210PageByPort = java.util.concurrent.ConcurrentHashMap<Int, String>()  // port -> "top"/"child" for the iframe probe
 
     private fun line(s: String) = win08log(s)
 
@@ -805,6 +810,213 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         finish(results) { null }
     }
 
+    private fun writeReport(outDir: File, name: String, report: StringBuilder) {
+        runCatching { File(outDir, name).writeText(report.toString()) }
+        win08log("s210: report written to ${File(outDir, name).absolutePath}")
+    }
+
+    // ── S2.10 Probe A — session expiry seam (report only) ───────────────────────────────────────────────────────────
+    override fun runS210Expiry(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        win08log("s210expiry: run start; WIN08_PROBE_S210_EXPIRY=[${System.getenv("WIN08_PROBE_S210_EXPIRY")}] log=$win08LogFile")
+        Thread { try { Thread.sleep(90_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("s210expiry: BACKSTOP firing (>90s)"); Runtime.getRuntime().halt(1) }.apply { isDaemon = true; start() }
+        try {
+            probeS210Expiry = true
+            val server = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+            serverSocket = server
+            val origin = "http://127.0.0.1:${server.localPort}"
+            Thread { acceptLoop(server) }.apply { isDaemon = true; start() }
+            val edgeDataDir = File(desktopDataRoot(), "webview2")
+            // The app's STORED session (what HttpTransport replays) and the WebView's seeded session start IDENTICAL.
+            val storage = Storage()
+            storage.putSecret("coreUrl", origin)
+            storage.putSecret(SESSION_COOKIE_KEY, "win08sess=appold")
+            storage.putSecret(SESSION_ORIGIN_KEY, origin)
+            validSession = "win08sess=appold"   // at the start, appold IS the server's valid session
+            val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+            val args = EmbeddedStudioArgs(origin, null, "TroubaStudio", "win08sess=appold", edgeDataDir, {}, {}, { false }, { null }, null)
+            application {
+                Window(onCloseRequest = ::exitApplication, title = "TroubaStage", state = rememberWindowState(width = 1200.dp, height = 820.dp)) {
+                    EmbeddedStudioContent(args, onController = { ctrlRef.set(it) })
+                    LaunchedEffect(Unit) { Thread { s210ExpiryFlow(outDir, storage, ctrlRef) }.apply { isDaemon = true; start() } }
+                }
+            }
+        } catch (e: Throwable) { win08log("s210expiry: run FAILED: $e\n${e.stackTraceToString()}"); Runtime.getRuntime().halt(1) }
+        return 0
+    }
+
+    private fun s210ExpiryFlow(
+        outDir: File, storage: Storage,
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+    ) {
+        fun waitFor(ms: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + ms
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(100) }
+            return cond()
+        }
+        val report = StringBuilder()
+        fun rec(s: String) { report.appendLine(s); win08log("s210expiry: $s") }
+        try {
+            rec("WIN08 S2.10 Probe A — session expiry seam (report only)")
+            val c = if (waitFor(40_000) { ctrlRef.get()?.bridgeReady == true }) ctrlRef.get() else null
+            if (c == null) { rec("FAIL: no controller"); writeReport(outDir, "s210-expiry-report.txt", report); Runtime.getRuntime().halt(1); return }
+
+            // 1. Baseline — the WebView carries the app's session; document.cookie cannot see it (HttpOnly).
+            waitFor(5_000) { c.docCookie != null }
+            rec("baseline: WebView sends appold=${(cookieHeader ?: "").contains("win08sess=appold")}  " +
+                "document.cookie hides the session=${!(c.docCookie ?: "").contains("win08sess")}  docCookie=[${c.docCookie}]")
+            val storeBefore = storage.getSecret(SESSION_COOKIE_KEY)
+            rec("store before: SESSION_COOKIE_KEY=[$storeBefore]  SESSION_ORIGIN_KEY=[${storage.getSecret(SESSION_ORIGIN_KEY)}]")
+
+            // 2. The WebView's session is revoked server-side and RE-AUTHED in place to a fresh value; the app's store
+            //    is never told (there is no channel from the WebView's Set-Cookie back to the app's Storage).
+            validSession = "win08sess=webv2"       // appold is now revoked; only webv2 is valid
+            reauthSetCookie = "win08sess=webv2"     // the next load re-auths the WebView (fresh HttpOnly Set-Cookie)
+            var n = reqCount; c.reload()
+            val reloaded = waitFor(6_000) { reqCount > n }
+            val webReauthed = waitFor(6_000) { (cookieHeader ?: "").contains("win08sess=webv2") }
+            reauthSetCookie = null
+            rec("re-auth: reloaded=$reloaded  WebView now sends webv2=$webReauthed  lastCookieHeader=[${cookieHeader}]")
+            val storeAfter = storage.getSecret(SESSION_COOKIE_KEY)
+            rec("store after re-auth: SESSION_COOKIE_KEY=[$storeAfter]  unchanged=${storeAfter == storeBefore}")
+
+            // 3. THE FINDING — the app's OWN request (HttpTransport.probePresence, exactly what Home uses) still replays
+            //    the STALE stored cookie, so the server 401s while the local store is non-empty (signed-in-but-stale).
+            val stale = kotlinx.coroutines.runBlocking { HttpTransport(storage, defaultServerUrl = null) { _, _ -> }.probePresence() }
+            val storeNonEmpty = !storage.getSecret(SESSION_COOKIE_KEY).isNullOrEmpty()
+            rec("FINDING app request with STALE stored session: presence=${stale.javaClass.simpleName}  storeNonEmpty=$storeNonEmpty  " +
+                "stale-store(=401 while signed-in-locally)=${stale is Presence.Unauthorized && storeNonEmpty}")
+
+            // 4. POSITIVE CONTROL — update the store to the fresh session; the SAME request now returns Online, proving
+            //    the 401 above is cookie-specific (a stale store), not a blanket failure. Without this the probe is blind.
+            storage.putSecret(SESSION_COOKIE_KEY, "win08sess=webv2")
+            val fresh = kotlinx.coroutines.runBlocking { HttpTransport(storage, defaultServerUrl = null) { _, _ -> }.probePresence() }
+            rec("CONTROL app request with FRESH stored session: presence=${fresh.javaClass.simpleName}  Online=${fresh is Presence.Online}")
+
+            val discriminated = stale is Presence.Unauthorized && fresh is Presence.Online
+            rec("control discriminated (stale→Unauthorized AND fresh→Online) = $discriminated")
+            writeReport(outDir, "s210-expiry-report.txt", report)
+            Runtime.getRuntime().halt(if (discriminated) 0 else 1)
+        } catch (e: Throwable) {
+            rec("threw: ${e.message}"); writeReport(outDir, "s210-expiry-report.txt", report); Runtime.getRuntime().halt(1)
+        }
+    }
+
+    // ── S2.10 Probe B — cross-origin iframe injection (report only) ─────────────────────────────────────────────────
+    override fun runS210Iframe(outDir: File): Int {
+        outDir.mkdirs(); enableWin08FileLog()
+        val relax = System.getenv("WIN08_PROBE_S210_IFRAME_RELAX") == "1"
+        win08log("s210iframe: run start (pass ${if (relax) 2 else 1}); WIN08_PROBE_S210_IFRAME=[${System.getenv("WIN08_PROBE_S210_IFRAME")}] " +
+            "WIN08_PROBE_S210_IFRAME_RELAX=[${System.getenv("WIN08_PROBE_S210_IFRAME_RELAX")}] log=$win08LogFile")
+        Thread { try { Thread.sleep(120_000) } catch (_: InterruptedException) { return@Thread }
+            win08log("s210iframe: BACKSTOP firing (>120s)"); Runtime.getRuntime().halt(1) }.apply { isDaemon = true; start() }
+        try {
+            val serverA = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+            val serverB = ServerSocket(0, 0, InetAddress.getLoopbackAddress())
+            serverSocket = serverA
+            val originA = "http://127.0.0.1:${serverA.localPort}"
+            val originB = "http://127.0.0.1:${serverB.localPort}"
+            s210PageByPort[serverA.localPort] = "top"
+            s210PageByPort[serverB.localPort] = "child"
+            Thread { acceptLoop(serverA) }.apply { isDaemon = true; start() }
+            Thread { acceptLoop(serverB) }.apply { isDaemon = true; start() }
+            win08log("s210iframe: A=$originA (top, the locked origin) B=$originB (child, cross-origin)")
+            val edgeDataDir = File(desktopDataRoot(), "webview2")
+            val ctrlRef = java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>()
+            // openInDefaultBrowser is a no-op here; routeOpenUrl ALSO suppresses the launch under the probe knob, so even
+            // a production launcher could not start a browser on the runner (Start-Process -Wait would wait for its tree).
+            val args = EmbeddedStudioArgs(originA, null, "TroubaStudio", "win08sess=smoke", edgeDataDir,
+                {}, {}, { false }, { null }, null, openInDefaultBrowser = { false })
+            application {
+                Window(onCloseRequest = ::exitApplication, title = "TroubaStage", state = rememberWindowState(width = 1200.dp, height = 820.dp)) {
+                    EmbeddedStudioContent(args, onController = { ctrlRef.set(it) })
+                    LaunchedEffect(Unit) { Thread { s210IframeFlow(outDir, originB, relax, ctrlRef) }.apply { isDaemon = true; start() } }
+                }
+            }
+        } catch (e: Throwable) { win08log("s210iframe: run FAILED: $e\n${e.stackTraceToString()}"); Runtime.getRuntime().halt(1) }
+        return 0
+    }
+
+    private fun s210IframeFlow(
+        outDir: File, originB: String, relax: Boolean,
+        ctrlRef: java.util.concurrent.atomic.AtomicReference<SwtBrowserController?>,
+    ) {
+        fun waitFor(ms: Long, cond: () -> Boolean): Boolean {
+            val end = System.currentTimeMillis() + ms
+            while (System.currentTimeMillis() < end) { if (cond()) return true; Thread.sleep(100) }
+            return cond()
+        }
+        fun lines(s: String?) = (s ?: "").split("\n").filter { it.isNotBlank() }
+        val report = StringBuilder()
+        fun rec(s: String) { report.appendLine(s); win08log("s210iframe: ${s.replace("\n", " | ")}") }
+        try {
+            rec("WIN08 S2.10 Probe B — cross-origin iframe injection (report only); PASS ${if (relax) 2 else 1} relax=$relax")
+            val c = if (waitFor(40_000) { ctrlRef.get()?.bridgeReady == true }) ctrlRef.get() else null
+            if (c == null) { rec("FAIL: no controller"); writeReport(outDir, "s210-iframe-report.txt", report); Runtime.getRuntime().halt(1); return }
+            // The page-level injections (window.open override, link capture, ctx listener) land in the TOP frame from
+            // the controller's completed() handler; wait for them so the TOP control genuinely exercises each surface.
+            val injected = waitFor(15_000) { c.linksInjected && c.ctxInjected }
+            rec("top injections present (links+ctx) = $injected")
+
+            // TOP PHASE (the positive control): run the identical trigger sequence in the TOP frame, so a later absence
+            // of a child marker is meaningful. It ends with a top-phase-end bridge call; append the iframe only once
+            // Java has recorded it, so ctx/back (fixed payloads) are attributable to a frame by time window.
+            c.smokeS210RunTop()
+            val topEnded = waitFor(8_000) { c.s210BridgeMarkers.contains("top-phase-end") }
+            Thread.sleep(600)
+            val topBridge = c.s210BridgeMarkers; val topSink = c.s210SinkMarkers; val topNewWin = c.s210NewWindowMarkers
+            val topBoundary = lines(topBridge).size
+            rec("TOP phase ended=$topEnded")
+            rec("TOP bridge markers:\n$topBridge")
+            rec("TOP sink markers:\n$topSink")
+            rec("TOP newwindow markers:\n$topNewWin")
+
+            // CHILD PHASE: append the cross-origin iframe (origin B) from the TOP frame; the child self-runs on load.
+            c.smokeS210AddIframe("$originB/child")
+            val forwarded = waitFor(15_000) { c.s210ForwardedChildReport != null }
+            Thread.sleep(1_200)   // let the child's direct triggers + any door settle
+            rec("CHILD iframe appended; forwarded report arrived=$forwarded")
+            rec("subframe origin lock: changingFired=${c.s210IframeChangingFired} vetoed=${c.s210IframeVetoed} " +
+                "relaxed=${c.s210IframeVetoRelaxed} location=[${c.s210IframeLocation}]")
+            rec("CHILD typeof table (reliable, via parent forward): ${c.s210ForwardedChildReport}")
+            val childBridge = lines(c.s210BridgeMarkers).drop(topBoundary)
+            rec("CHILD bridge markers (after the top boundary):\n${childBridge.joinToString("\n")}")
+            rec("CHILD sink markers:\n${c.s210SinkMarkers}")
+            rec("CHILD newwindow markers:\n${c.s210NewWindowMarkers}")
+
+            // FINDINGS: only a child's OWN direct call can bear child-direct (the forward can't), so that is "the child
+            // reached Java"; and whether a child action drove the app's external-launch sink (the security question).
+            val childDirectReached = lines(c.s210BridgeMarkers).any { it.contains("child-direct") }
+            val childSinkReached = lines(c.s210SinkMarkers).any { it.contains("child-direct") }
+            rec("FINDING child-direct bridge call reached Java = $childDirectReached")
+            rec("FINDING a child action reached the app's external-launch sink = $childSinkReached")
+
+            // CONTROLS
+            val topMarkerPresent = lines(topBridge).any { it.contains("top-direct") } || topEnded
+            rec("CONTROL top trigger produced a Java marker = $topMarkerPresent")
+            val noLateTop = lines(c.s210BridgeMarkers).drop(topBoundary).none { it.contains("top-direct") }
+            rec("CONTROL no top-tagged marker arrived after the boundary = $noLateTop")
+            val ok: Boolean
+            if (relax) {
+                // pass 2 control: the iframe actually LOADED (the forward arrived), so a "fn absent" reading is a true
+                // negative, not a failed load. The relax must have been honoured (recorded).
+                ok = forwarded && topMarkerPresent && noLateTop
+                rec("CONTROL pass2 iframe loaded (forward arrived)=$forwarded relaxedRecorded=${c.s210IframeVetoRelaxed} → ok=$ok")
+            } else {
+                // pass 1 control: the origin lock has teeth — a deliberate TOP off-origin nav is vetoed.
+                c.probeOffOriginNav("https://example.org/s210-lock-control")
+                val lockHasTeeth = waitFor(8_000) { c.navVetoed }
+                ok = lockHasTeeth && topMarkerPresent && noLateTop
+                rec("CONTROL pass1 origin lock vetoes a TOP off-origin nav=$lockHasTeeth (subframeVetoed=${c.s210IframeVetoed}) → ok=$ok")
+            }
+            writeReport(outDir, "s210-iframe-report.txt", report)
+            Runtime.getRuntime().halt(if (ok) 0 else 1)
+        } catch (e: Throwable) {
+            rec("threw: ${e.message}"); writeReport(outDir, "s210-iframe-report.txt", report); Runtime.getRuntime().halt(1)
+        }
+    }
+
     /** A raw HTTP/1.0 GET with NO Cookie; returns the status code (or -1). Proves the /pdf endpoint needs the session. */
     private fun rawGetStatus(origin: String, path: String): Int = runCatching {
         val port = origin.substringAfterLast(':').toInt()
@@ -837,8 +1049,22 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                         if (path.startsWith("/api/me")) {
                             // S2.1: answer probePresence()'s reachability GET with 401 → Presence.Unauthorized (reachable),
                             // not a 200 HTML body it would fail to parse (→ a false Unreachable).
-                            out.write("HTTP/1.0 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(StandardCharsets.US_ASCII))
-                            out.flush()
+                            // S2.10 expiry probe: validate the Cookie — 200 only if it carries the CURRENT valid session
+                            // (validSession); else 401. So the app's stored OLD cookie reads 401 (the stale-store finding),
+                            // and the SAME request with the fresh cookie reads 200 (Online) — the positive control. Gated,
+                            // so every other flow keeps the fixed-401 reachability answer above.
+                            val valid = probeS210Expiry && validSession.isNotEmpty() && reqCookie.contains(validSession)
+                            if (valid) {
+                                val b = "{\"user\":{\"id\":\"ci\",\"displayName\":\"CI\"}}".toByteArray(StandardCharsets.US_ASCII)
+                                out.write(("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${b.size}\r\nConnection: close\r\n\r\n").toByteArray(StandardCharsets.US_ASCII)); out.write(b); out.flush()
+                            } else {
+                                out.write("HTTP/1.0 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(StandardCharsets.US_ASCII)); out.flush()
+                            }
+                        } else if (path.startsWith("/api/bands") && probeS210Expiry) {
+                            // S2.10 expiry probe: probePresence() follows a 200 /api/me with GET /api/bands for the band
+                            // label; answer with an empty list so it resolves to Presence.Online (bandLabel([]) = "").
+                            val b = "{\"bands\":[]}".toByteArray(StandardCharsets.US_ASCII)
+                            out.write(("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${b.size}\r\nConnection: close\r\n\r\n").toByteArray(StandardCharsets.US_ASCII)); out.write(b); out.flush()
                         } else if (path.startsWith("/pdf")) {
                             // S2.5: the PDF endpoint needs the seeded HttpOnly session cookie (credentials:"include"); 401
                             // without it. The name comes from Content-Disposition — both filename and filename*=UTF-8''
@@ -853,14 +1079,23 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                             }
                         } else {
                             reqCount++
-                            // S2.1: a never-ready page (loads but never handshakes) while serveNoReady is set.
-                            val pageStr = if (serveNoReady) PAGE_NOREADY else PAGE
+                            // S2.10 iframe probe serves the top page (carrying an <iframe> to origin B) or the child page,
+                            // keyed by this socket's port; otherwise the S2.1 never-ready page or the normal PAGE.
+                            val pageStr = when (s210PageByPort[s.localPort]) {
+                                "top" -> PAGE_S210_TOP
+                                "child" -> PAGE_S210_CHILD
+                                else -> if (serveNoReady) PAGE_NOREADY else PAGE
+                            }
                             val body = pageStr.toByteArray(StandardCharsets.UTF_8)
                             // S2.3: the server sets win08sess as a PERSISTENT cookie — same name, Path=/, no Domain (host-only),
                             // Expires +30d — so the clear test proves Max-Age=0 on (name,domain,path) deletes a persistent cookie,
                             // which clearSessions() (option A) alone would NOT. HttpOnly matches the seeded session cookie.
-                            val setCookie = if (serveSetCookie)
-                                "Set-Cookie: win08sess=persist; Path=/; Expires=Tue, 01 Dec 2026 00:00:00 GMT; HttpOnly\r\n" else ""
+                            // S2.10 expiry: reauthSetCookie issues a FRESH HttpOnly win08sess (an in-Studio re-auth) when set.
+                            val setCookie = when {
+                                serveSetCookie -> "Set-Cookie: win08sess=persist; Path=/; Expires=Tue, 01 Dec 2026 00:00:00 GMT; HttpOnly\r\n"
+                                reauthSetCookie != null -> "Set-Cookie: $reauthSetCookie; Path=/; HttpOnly\r\n"
+                                else -> ""
+                            }
                             val head = "HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" + setCookie +
                                 "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
                             out.write(head.toByteArray(StandardCharsets.US_ASCII)); out.write(body); out.flush()
@@ -1212,5 +1447,45 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         // S2.1: loads and completes, but NEVER calls TroubaStageShellReceive → no `ready`. Used for the never-ready
         // cover check and the in-page-nav-no-cover vector.
         const val PAGE_NOREADY = """<!doctype html><html><head><meta charset="utf-8"></head><body><h1>no ready</h1></body></html>"""
+
+        // S2.10 — the frame trigger sequence, shared by the top page (origin A) and the child page (origin B). For the
+        // given [route] it (1) DIRECT-calls the host bridge carrying route + this frame's typeof table of every injected
+        // surface, then exercises (2) window.open, (3) a target=_blank link, (4) a contextmenu and (5) a mouse-back — each
+        // carrying the route in its URL/payload where it can, so a Java-side door marker is attributable to this frame.
+        const val S210_RUN_JS = """
+function s210run(route){
+  var fns={receive:typeof window.TroubaStageShellReceive,shell:typeof window.__troubastageShell,win08links:typeof window.__win08links,win08ctx:typeof window.__win08ctx,win08back:typeof window.__win08back,openOverridden:((''+window.open).indexOf('native')<0)};
+  try{var r=window.TroubaStageShellReceive;if(typeof r==='function')r(JSON.stringify({type:'s210call',surface:'receive',route:route,origin:location.origin,fns:fns}));}catch(e){}
+  try{window.open('http://s210.invalid/open-'+route,'_blank');}catch(e){}
+  try{var a=document.createElement('a');a.href='http://s210.invalid/link-'+route;a.target='_blank';a.textContent='x';document.body.appendChild(a);a.click();}catch(e){}
+  try{document.body.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));}catch(e){}
+  try{window.dispatchEvent(new MouseEvent('mouseup',{button:3,bubbles:true}));}catch(e){}
+}
+"""
+
+        // S2.10 top page (origin A): the bridge handshake (so bridgeReady latches and the flow proceeds) + a message
+        // listener that forwards any child postMessage to the host bridge tagged route "child-forwarded" (the reliable
+        // channel — a TOP-frame call, so it can NEVER bear child-direct). It does NOT embed the iframe; the flow appends
+        // it only after the top phase ends, so ctx/back are attributable to a frame by time window.
+        const val PAGE_S210_TOP = """<!doctype html><html><head><meta charset="utf-8"><script>""" + S210_RUN_JS + """
+(function(){
+  if(typeof window.TroubaStageShellReceive==='function'){
+    window.__troubastageShell={deliver:function(j){try{if(JSON.parse(j).type==='hello')window.TroubaStageShellReceive(JSON.stringify({type:'ready'}));}catch(e){}}};
+    window.TroubaStageShellReceive(JSON.stringify({type:'ready'}));
+    window.addEventListener('message',function(e){try{var r=window.TroubaStageShellReceive;if(r)r(JSON.stringify({type:'s210fwd',route:'child-forwarded',child:String(e.data)}));}catch(x){}});
+    window.__win08='shell-present';
+  }
+})();
+</script></head><body><h1>win08 s210 top (origin A)</h1></body></html>"""
+
+        // S2.10 child page (origin B, loaded into a cross-origin iframe): first postMessage its typeof table to the
+        // parent (the reliable "the child loaded" signal — carries NO route, so the forward can't be mistaken for a
+        // child-direct), then run the DIRECT trigger sequence tagged route "child-direct".
+        const val PAGE_S210_CHILD = """<!doctype html><html><head><meta charset="utf-8"><script>""" + S210_RUN_JS + """
+(function(){
+  try{parent.postMessage(JSON.stringify({type:'s210childreport',origin:location.origin,fns:{receive:typeof window.TroubaStageShellReceive,shell:typeof window.__troubastageShell,win08links:typeof window.__win08links,win08ctx:typeof window.__win08ctx,win08back:typeof window.__win08back,openOverridden:((''+window.open).indexOf('native')<0)}}),'*');}catch(e){}
+  s210run('child-direct');
+})();
+</script></head><body><h1>win08 s210 child (origin B)</h1></body></html>"""
     }
 }

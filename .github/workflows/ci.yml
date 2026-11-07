@@ -59,6 +59,15 @@ on:
         description: "WIN08 S2.11: 'measure' or 'leak' runs the win08-cost jobs (leave empty for a normal run)"
         required: false
         default: ""
+      # WIN08 S2.10 (report probes): "run" adds three dispatch-only steps to the desktop (windows) job — the session-
+      # expiry seam, and the cross-origin iframe injection in pass 1 (veto on) and pass 2 (veto relaxed). Empty on
+      # push/PR, so the default path runs none of them; the relax is honoured only with BOTH the iframe knob and the
+      # step-level RELAX knob, so a normal run can never reach it. Each probe is a REPORT (findings live in its uploaded
+      # report); a step reds only if its positive control failed to discriminate.
+      win08_s210:
+        description: "WIN08 S2.10: 'run' adds the dispatch-only report probes (expiry + iframe pass 1/2) (leave empty for a normal run)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -963,6 +972,88 @@ jobs:
         with:
           name: win08-download-panel
           path: app/win08-download-out/download-panel.png
+          if-no-files-found: ignore
+      # WIN08 S2.10 (report) — three dispatch-only probe steps (win08_s210='run'), in this one run so there is a single
+      # run ID and three step logs. The relax knob is set at STEP level, pass 2 only (never job level); pass 1's header
+      # shows it absent. Each step gets a FRESH TROUBASTAGE_HOME (⇒ fresh data dir + WebView2 profile) and its own
+      # bounded Start-Process; `!cancelled()` so a later probe still runs if an earlier one fails or times out. A probe
+      # exits 0 iff its positive control discriminated (report trustworthy); FINDINGS live in the report, not the exit.
+      - name: WIN08 S2.10 — session expiry seam (Probe A)
+        if: ${{ !cancelled() && runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && github.event.inputs.win08_s210 != '' }}
+        working-directory: app
+        shell: pwsh
+        run: |
+          Write-Host "S2.10 Probe A (expiry): WIN08_PROBE_S210_EXPIRY=1; iframe knobs unset"
+          $env:WIN08_PROBE_S210_EXPIRY = "1"
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-s210-expiry-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "win08-s210-expiry-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-s210-expiry", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(120000)
+          if (-not $exited) { $p.Kill() }
+          Start-Sleep -Seconds 2
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Write-Host "---- win08.log (s210-expiry) ----"; Get-Content $log.FullName | Write-Host } else { Write-Host "::warning::no win08.log" }
+          if (Test-Path "$out\s210-expiry-report.txt") { Write-Host "---- s210-expiry-report.txt ----"; Get-Content "$out\s210-expiry-report.txt" | Write-Host }
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $exited) { Write-Error "win08-s210-expiry hung (>120s)"; exit 1 }
+          Write-Host "win08-s210-expiry exit $($p.ExitCode) (0 = fresh-cookie control discriminated; the stale-store finding is in the report)"
+          if ($p.ExitCode -ne 0) { Write-Error "win08-s210-expiry: positive control did not discriminate — report not trustworthy"; exit 1 }
+      - name: WIN08 S2.10 — cross-origin iframe, pass 1 veto ON (Probe B)
+        if: ${{ !cancelled() && runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && github.event.inputs.win08_s210 != '' }}
+        working-directory: app
+        shell: pwsh
+        run: |
+          Write-Host "S2.10 Probe B pass 1: WIN08_PROBE_S210_IFRAME=1; RELAX unset (is [$env:WIN08_PROBE_S210_IFRAME_RELAX])"
+          $env:WIN08_PROBE_S210_IFRAME = "1"
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-s210-iframe1-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "win08-s210-iframe1-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-s210-iframe", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(150000)
+          if (-not $exited) { $p.Kill() }
+          Start-Sleep -Seconds 2
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Write-Host "---- win08.log (s210-iframe pass1) ----"; Get-Content $log.FullName | Write-Host } else { Write-Host "::warning::no win08.log" }
+          if (Test-Path "$out\s210-iframe-report.txt") { Write-Host "---- s210-iframe-report.txt (pass1) ----"; Get-Content "$out\s210-iframe-report.txt" | Write-Host }
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $exited) { Write-Error "win08-s210-iframe pass1 hung (>150s)"; exit 1 }
+          Write-Host "win08-s210-iframe pass1 exit $($p.ExitCode) (0 = origin lock has teeth; subframe coverage is in the report)"
+          if ($p.ExitCode -ne 0) { Write-Error "win08-s210-iframe pass1: control (origin lock vetoes a top off-origin nav) did not hold"; exit 1 }
+      - name: WIN08 S2.10 — cross-origin iframe, pass 2 veto RELAXED (Probe B)
+        if: ${{ !cancelled() && runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && github.event.inputs.win08_s210 != '' }}
+        working-directory: app
+        shell: pwsh
+        run: |
+          Write-Host "S2.10 Probe B pass 2: WIN08_PROBE_S210_IFRAME=1 AND WIN08_PROBE_S210_IFRAME_RELAX=1 (relax needs BOTH)"
+          $env:WIN08_PROBE_S210_IFRAME = "1"
+          $env:WIN08_PROBE_S210_IFRAME_RELAX = "1"
+          $exe = Get-ChildItem -Path desktopApp\build\compose\binaries -Recurse -Filter TroubaStage.exe | Select-Object -First 1
+          $env:TROUBASTAGE_HOME = Join-Path $env:RUNNER_TEMP "win08-s210-iframe2-home"
+          New-Item -ItemType Directory -Force -Path $env:TROUBASTAGE_HOME | Out-Null
+          $out = Join-Path (Get-Location) "win08-s210-iframe2-out"
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList @("--win08-s210-iframe", $out) -PassThru -WorkingDirectory (Get-Location)
+          $exited = $p.WaitForExit(150000)
+          if (-not $exited) { $p.Kill() }
+          Start-Sleep -Seconds 2
+          $log = Get-ChildItem -Recurse -Filter win08.log $env:TROUBASTAGE_HOME -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Write-Host "---- win08.log (s210-iframe pass2) ----"; Get-Content $log.FullName | Write-Host } else { Write-Host "::warning::no win08.log" }
+          if (Test-Path "$out\s210-iframe-report.txt") { Write-Host "---- s210-iframe-report.txt (pass2) ----"; Get-Content "$out\s210-iframe-report.txt" | Write-Host }
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $exited) { Write-Error "win08-s210-iframe pass2 hung (>150s)"; exit 1 }
+          Write-Host "win08-s210-iframe pass2 exit $($p.ExitCode) (0 = iframe loaded under relax; injection-surface findings are in the report)"
+          if ($p.ExitCode -ne 0) { Write-Error "win08-s210-iframe pass2: control (iframe loaded under relax) did not hold"; exit 1 }
+      - name: upload WIN08 S2.10 reports
+        if: ${{ always() && runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && github.event.inputs.win08_s210 != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: win08-s210-reports
+          path: |
+            app/win08-s210-expiry-out/
+            app/win08-s210-iframe1-out/
+            app/win08-s210-iframe2-out/
           if-no-files-found: ignore
       # WIN09 — the band QR in the Windows app: the TroubaStudio screen (the app's own Browse, signed in) against a loopback
       # fake core. Checks: the ⋮ "Show band QR…" item is absent for a non-admin and present for an admin; choosing it
