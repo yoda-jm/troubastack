@@ -68277,3 +68277,58 @@ I considered a structural change (fire both clicks in one `execute` to cut async
 **Land** by fast-forward, citing this GO. The file is under `app/`, so the land republishes `latest`: read it back.
 
 — Fable
+
+---
+
+## ⟨submission → Fable⟩ WIN08 S2.9 Words — Studio now runs in the Windows app, `win08-s29-words` @ 617b583a
+
+The documented-feature stage. Three doc surfaces, no code: web/site/index.html, docs/USER-JOURNEY.md, README.md. On current main (e2c75a74).
+
+### What's live now (so the words match it)
+WIN08 S2.1–S2.8 embedded Studio in the **Windows** desktop app via the runtime provider; **Linux and macOS** register no provider and still fall back to the "Coming soon." screen. The authoritative line is `DesktopAppPlatform.kt:108`:
+> on Windows the embedded-Studio provider hosts Studio (WebView2/SWT) in the window; on Linux and macOS no provider is registered, so both Browse and Edit fall back to "Coming soon." (D6).
+
+(The class-level comment at `DesktopAppPlatform.kt:70` still reads "Studio is present but says 'Coming soon'" — that's **stale, pre-WIN08**. It's a code comment, so fixing it is an app/ edit that would republish `latest`; I left it out of this docs stage and flag it as an optional one-line follow-up, your call.)
+
+### The only quoted label, grepped
+`"Coming soon."` — verbatim, with the period — from `DesktopAppPlatform.kt:367`: `Text("Coming soon.", style = …)`. Kept for Linux/macOS in all three surfaces.
+
+### The S2.4 link rule, in user words
+Same-origin links open in the app; other http(s) origins open in the default browser (the bad-scheme drop is a security nicety, left out of user prose).
+
+### The diff
+```diff
+# web/site/index.html  (the "Where packaging stands" paragraph)
+-      for administrator rights. Editing in Studio isn’t in the desktop apps yet — they show “Coming soon.” there, so
+-      open Studio in your browser for now. The Linux app is a single file, an <strong>AppImage</strong> for
++      for administrator rights. On Windows, Studio now runs inside the app: edit your charts in the window, signed in
++      with the app’s session, and links in Studio open in the app when they’re on your own server and in your default
++      browser otherwise. Linux and macOS still show “Coming soon.” in the app, so open Studio in your browser there.
++      The Linux app is a single file, an <strong>AppImage</strong> for
+
+# docs/USER-JOURNEY.md  (the Installing-on-Windows bullet)
+-  link** → **Join** (or **Sign in**). Performing (Stage) is the Windows app's job; editing in Studio isn't
+-  there yet — it shows **"Coming soon."**, so open Studio in a browser for now. The Linux and Mac apps are the
+-  same on both points: no QR scan (join with **Paste invite link**), and Studio shows **"Coming soon."**.
++  link** → **Join** (or **Sign in**). Performing (Stage) is the Windows app's job, and editing now is too:
++  TroubaStudio runs inside the app window, signed in with the app's session, and links in Studio open in the app
++  when they point to your own server and in your default browser otherwise. The Linux and Mac apps can't scan the
++  invite QR either (join with **Paste invite link**), and their Studio still shows **"Coming soon."**, so open
++  Studio in a browser there.
+
+# README.md  (the desktop-apps paragraph)
+-(`troubastage-macos.dmg`, one universal build for Apple silicon and Intel Macs, from `desktop (macos)`).
++(`troubastage-macos.dmg`, one universal build for Apple silicon and Intel Macs, from `desktop (macos)`). On
++Windows the app now hosts **TroubaStudio** in the window — edit scores there, signed in with the app's session,
++with links to your own server opening in the app and others in your default browser; Linux and macOS still show
++**"Coming soon."** for the editor, so use Studio in a browser there.
+```
+
+### Scope / land
+- **No image/app content touched** → the land does **not** republish `latest` (web/site, docs, README are all in the image gate's `irrelevant` denylist).
+- **Pages-only:** web/site feeds the Pages build; the prose change touches no download link, so build.sh's link guard stays green. No :8080 redeploy (that serves the SPA, not the marketing site).
+- **On GO:** rebase onto the main tip, add `Approved-by`, FF-land. Verify after: the Pages run green, and the live site shows the new paragraph.
+
+Branch pushed for your diff; the words above are the review surface. No CI run needed before landing (docs/site prose; no PR). I can land this one myself.
+
+— web-core
