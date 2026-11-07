@@ -83,6 +83,29 @@ internal class SwtBrowserController(
     @Volatile var canvasClient: String = "?"; private set
     @Volatile var shellClient: String = "?"; private set
     @Volatile var rectsMatch: Boolean = false; private set
+    // S2.10 (report) — cross-origin iframe recon. All dormant unless WIN08_PROBE_S210_IFRAME is set; each is a
+    // newline-joined marker log the flow snapshots at phase boundaries (top-trigger window vs child-trigger window)
+    // to attribute every door to a frame. One line per arrival so nothing is lost to a race.
+    @Volatile var s210IframeChangingFired: Boolean = false; private set   // the LocationListener saw a SUBFRAME navigation
+    @Volatile var s210IframeVetoed: Boolean = false; private set          // …and vetoed it (veto on)
+    @Volatile var s210IframeVetoRelaxed: Boolean = false; private set     // …and let it through (pass 2, both knobs set)
+    @Volatile var s210IframeLocation: String? = null; private set         // the subframe URL the listener saw
+    @Volatile var s210TopVetoed: Boolean = false; private set             // a TOP-frame off-origin nav was vetoed (pass-1 control; NOT the shared navVetoed, which a subframe veto also sets)
+    @Volatile var s210TopVetoLocation: String? = null; private set        // the TOP URL that was vetoed
+    // DOOR 1 — the BrowserFunction bridge: every incoming call recorded at the TOP of the handler, BEFORE the
+    // sameOrigin guard, as "bridge route=<tag> url=<browser.url> guardPass=<bool> arg=<payload>". The route tag is
+    // read from the payload (top-direct / child-direct / child-forwarded); SWT does not name the calling frame.
+    @Volatile var s210BridgeMarkers: String = ""; private set
+    // DOOR 2 — the native new-window event (OpenWindowListener): "newwindow blocked=<required>" per fire.
+    @Volatile var s210NewWindowMarkers: String = ""; private set
+    // SINK — the app's URL-open: "sink=<inplace|external|dropped> url=<url>" per routeOpenUrl decision. The URL encodes
+    // open-<frame>/link-<frame>, so this says whether a child action drove the app's external launch (the security question).
+    @Volatile var s210SinkMarkers: String = ""; private set
+    @Volatile var s210ForwardedChildReport: String? = null; private set   // the child frame's typeof table, via the parent forward (reliable; posted BEFORE its triggers)
+    @Volatile var s210ForwardedChildEnd: String? = null; private set      // the child's phase-end report (its direct-call outcome), via the parent forward; posted AFTER its triggers
+    // Set by Main from WIN08_PROBE_S210_IFRAME / _RELAX before start(); read by the handler and the origin lock.
+    private val s210ProbeIframe: Boolean = System.getenv("WIN08_PROBE_S210_IFRAME") == "1"
+    private val s210RelaxIframe: Boolean = System.getenv("WIN08_PROBE_S210_IFRAME_RELAX") == "1"
 
     @Volatile private var display: Display? = null
     @Volatile private var shell: Shell? = null
@@ -157,6 +180,28 @@ internal class SwtBrowserController(
      *  arm the no-ready timer. Proof that S2.4's in-place links can't trip the cover (navNoReadyFired must stay false). */
     fun smokeInPageNav(sameOrigin: String) = exec { browser?.setUrl(sameOrigin) }
 
+    /** S2.10 smoke: run the TOP frame's trigger sequence (route "top-direct"; the page's head defined s210run), then a
+     *  "top-phase-end" bridge call so the flow appends the iframe only once the top phase is fully recorded — ctx/back
+     *  are attributed by time window, so the top window must close before the child's opens. */
+    fun smokeS210RunTop() = exec { browser?.execute(
+        "try{s210run('top-direct');var r=window.TroubaStageShellReceive;if(r)r(JSON.stringify({type:'s210call',route:'top-phase-end'}));}catch(e){}") }
+
+    /** S2.10 smoke: append an <iframe src=[childUrl]> in the TOP frame (browser.execute runs in the top frame). The
+     *  child page self-runs its own trigger sequence (route "child-direct") on load and postMessages its typeof table
+     *  to the parent, which forwards it over the bridge as "child-forwarded". */
+    fun smokeS210AddIframe(childUrl: String) = exec { browser?.execute(
+        "if(!document.getElementById('s210child')){var f=document.createElement('iframe');f.id='s210child';f.src='$childUrl';f.width='320';f.height='200';document.body.appendChild(f);}") }
+
+    /** S2.10: the top frame's navigator.userAgent (carries the Edg/WebView2 runtime version), read synchronously on the
+     *  SWT thread so the report can scope its conclusion to this runner's runtime. Null if not available. */
+    fun s210UserAgent(): String? {
+        val d = display ?: return null
+        if (d.isDisposed) return null
+        var ua: String? = null
+        runCatching { d.syncExec { ua = runCatching { browser?.takeIf { !it.isDisposed }?.evaluate("return navigator.userAgent;") as? String }.getOrNull() } }
+        return ua
+    }
+
     /** Smoke only (S2.2): dispatch a synthetic mouseup with button===3 in the page, to exercise the injected mouse-back
      *  listener → bridge {type:"back"} → requestBack chain (not the real XBUTTON1; that's the --win08-back recon). */
     fun smokeDispatchMouseBack() = exec { browser?.execute("window.dispatchEvent(new MouseEvent('mouseup',{button:3,bubbles:true}))") }
@@ -224,7 +269,9 @@ internal class SwtBrowserController(
         val sab = System.getenv("WIN08_SABOTAGE")
         val scheme = url.substringBefore(':', "").lowercase()
         if (sab != "nolinkfilter" && scheme != "http" && scheme != "https") {
-            lastOpenDropped = url; droppedUrls += "$url\n"; log("win08: S2.4 dropped non-http(s) link: $url"); return
+            lastOpenDropped = url; droppedUrls += "$url\n"
+            if (s210ProbeIframe) s210SinkMarkers += "sink=dropped url=$url\n"   // S2.10 SINK: dropped by the scheme filter
+            log("win08: S2.4 dropped non-http(s) link: $url"); return
         }
         val inPlace = when (sab) {
             "linksalwaysinplace" -> true
@@ -232,14 +279,25 @@ internal class SwtBrowserController(
             else -> sameOrigin(url, origin)
         }
         if (inPlace) {
-            lastOpenInPlace = url; log("win08: S2.4 same-origin link → in place: $url")
+            lastOpenInPlace = url
+            if (s210ProbeIframe) s210SinkMarkers += "sink=inplace url=$url\n"   // S2.10 SINK: routed in-place (same-origin)
+            log("win08: S2.4 same-origin link → in place: $url")
             // Sabotage linksnoplaceload: make the in-place DECISION but never load it → the page doesn't change, so the
             // same-origin check (which asserts the main browser ended on the link) reds. "In place" must actually navigate.
             if (sab != "linksnoplaceload") exec { browser?.setUrl(url) }
         } else {
-            lastOpenExternal = url; log("win08: S2.4 other-origin link → default browser: $url")
-            Thread { if (!openInDefaultBrowser(url)) { log("win08: S2.4 default browser refused $url"); onEdt(onLinkError) } }
-                .apply { isDaemon = true; start() }
+            lastOpenExternal = url
+            // S2.10 SINK: the app's external launch is REACHED — but on the CI runner a real browser start would make
+            // the step's `Start-Process -Wait` wait for the whole process tree and hang out its log tail. Under the
+            // probe knob, record entry (url carries open-<frame>/link-<frame>) and SUPPRESS the launch.
+            if (s210ProbeIframe) {
+                s210SinkMarkers += "sink=external-REACHED-launch-suppressed url=$url\n"
+                log("win08: S2.10 SINK reached for $url — launch suppressed by probe")
+            } else {
+                log("win08: S2.4 other-origin link → default browser: $url")
+                Thread { if (!openInDefaultBrowser(url)) { log("win08: S2.4 default browser refused $url"); onEdt(onLinkError) } }
+                    .apply { isDaemon = true; start() }
+            }
         }
     }
 
@@ -545,6 +603,23 @@ internal class SwtBrowserController(
             fun registerBridge() {
                 object : BrowserFunction(browser, "TroubaStageShellReceive") {
                     override fun function(arguments: Array<out Any?>?): Any? {
+                        // S2.10 DOOR 1 — record EVERY incoming bridge call BEFORE the sameOrigin guard: browser.url at
+                        // this instant (SWT exposes only the top URL, never the calling frame), the guard's decision,
+                        // and the payload (which carries the route tag). This is how the probe answers "does an iframe
+                        // call reach Java, and what did the guard decide" without assuming either way.
+                        if (s210ProbeIframe) {
+                            val u = runCatching { browser.url ?: "" }.getOrDefault("")
+                            val pass = sameOrigin(u, origin)
+                            val raw = (arguments?.getOrNull(0) as? String)?.replace("\n", " ")
+                            s210BridgeMarkers += "bridge url=$u guardPass=$pass arg=${raw?.take(300)}\n"
+                            // The parent-forward wrapper is itself a TOP-frame call tagged child-forwarded; it carries the
+                            // child's reports reliably but can NEVER bear child-direct (only the child's own call can). The
+                            // child posts two: its typeof table (before triggers) and a phase-end carrying its direct-call
+                            // outcome (after triggers) — the flow waits for the end one before snapshotting.
+                            if (raw != null && raw.contains("child-forwarded")) {
+                                if (raw.contains("s210childend")) s210ForwardedChildEnd = raw else s210ForwardedChildReport = raw
+                            }
+                        }
                         if (!sameOrigin(browser.url ?: "", origin)) return null
                         val json = arguments?.getOrNull(0) as? String ?: return null
                         when {
@@ -590,9 +665,26 @@ internal class SwtBrowserController(
             if (sabotage != "nav") browser.addLocationListener(object : LocationAdapter() {
                 override fun changing(event: LocationEvent) {
                     val to = event.location ?: return
+                    // S2.10 DOOR 2 — a SUBFRAME navigation reaching the origin lock (top=false). Record it whether or
+                    // not it is vetoed, so the report can say if the lock even SEES an iframe's cross-origin load.
+                    if (s210ProbeIframe && !event.top) {
+                        s210IframeChangingFired = true
+                        s210IframeLocation = to
+                        log("win08: S2.10 subframe changing to=$to top=${event.top}")
+                    }
                     if (to != "about:blank" && !sameOrigin(to, origin)) {
+                        // S2.10 pass 2 (dispatch-only): the single relax decision, lifted to the cross-platform
+                        // s210RelaxSubframeVeto so a test proves the default path can't reach it. Subframe + BOTH knobs.
+                        if (s210RelaxSubframeVeto(s210ProbeIframe, s210RelaxIframe, event.top)) {
+                            s210IframeVetoRelaxed = true
+                            log("win08: S2.10 PROBE relax — NOT vetoing subframe nav to $to (dispatch-only)")
+                            return
+                        }
                         event.doit = false
                         navVetoed = true
+                        // S2.10 pass-1 control: a TOP off-origin veto must be recorded on its OWN flag — navVetoed is
+                        // also set by a subframe veto, so it can't prove the lock vetoed the TOP control nav specifically.
+                        if (s210ProbeIframe) { if (event.top) { s210TopVetoed = true; s210TopVetoLocation = to } else s210IframeVetoed = true }
                         log("win08: vetoed navigation to $to")
                     }
                 }
@@ -630,6 +722,9 @@ internal class SwtBrowserController(
             browser.addOpenWindowListener(object : org.eclipse.swt.browser.OpenWindowListener {
                 override fun open(event: org.eclipse.swt.browser.WindowEvent) {
                     newWindowRequested = true
+                    // S2.10 DOOR 3 — a native new-window request reached Java (a child's window.open with no injected
+                    // override would land here). No URL on the SWT event, so the flow attributes it by phase window.
+                    if (s210ProbeIframe) s210NewWindowMarkers += "newwindow blocked=${sabotage != "noblock"}\n"
                     // Block the popup via SWT's OWN path: required=true + browser left null → Edge.handleNewWindowRequested
                     // calls put_Handled(true) with NO NewWindow, so WebView2 opens nothing and window.open() returns null.
                     // (Leaving browser null WITHOUT required=true does NOT block on Edge — a full chrome window opens,

@@ -50,6 +50,24 @@ interface Win08SmokeRunner {
      *  non-editable targets (the chart) but keeps WebView2's own edit menu on input/textarea/contenteditable, and
      *  leaves a target Studio already handled (defaultPrevented) untouched. Writes ctx-chart.png / ctx-field.png. */
     fun runContextMenu(outDir: File): Int
+
+    /** S2.10 (report) — session expiry seam: the app's STORED session (what HttpTransport replays) and the WebView's
+     *  seeded session are separate. Seed both to the same cookie, then expire/re-auth the WebView's session in place
+     *  (fresh Set-Cookie) and show the app's own `probePresence()` still carrying the OLD stored cookie → 401 while
+     *  the local store is non-empty (the stale-store finding). The positive control: with the store updated to the
+     *  fresh cookie, the same request returns Online — so the 401 is cookie-specific, not a blanket failure. Report
+     *  only; exit 0 iff the control discriminated. Writes s210-expiry-report.txt. */
+    fun runS210Expiry(outDir: File): Int
+
+    /** S2.10 (report) — cross-origin iframe injection recon. A loopback page on origin A embeds an <iframe> from a
+     *  second loopback origin B; the child frame enumerates `typeof` each injected surface and (a) tries to call the
+     *  host bridge DIRECTLY and (b) postMessages its report to the parent, which forwards it over its own bridge.
+     *  Pass 1 (veto on): records whether the origin lock's LocationListener fired for the subframe and vetoed it (the
+     *  positive control is that the lock has teeth on a top off-origin nav). Pass 2 (WIN08_PROBE_S210_IFRAME_RELAX=1,
+     *  dispatch-only, never the default path): relaxes the veto for the subframe so B loads, then records which of the
+     *  injected fns reached the cross-origin frame and whether its direct bridge call passed the top-URL guard. Report
+     *  only; exit 0 iff the control held. Writes s210-iframe-report.txt. */
+    fun runS210Iframe(outDir: File): Int
 }
 
 val win08SmokeRunner: Win08SmokeRunner? by lazy {
