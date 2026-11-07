@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """A stand-in `gh` for testing publish-latest.sh offline. State: $FAKE_GH_STATE (JSON); every call is appended to
 $FAKE_GH_LOG. Injected failures: $FAKE_GH_FAIL="<regex over the joined argv>@<n>[,...]" fails the n-th matching call
-(n may be "all"). $FAKE_GH_FREEZE_CLOCK=1 publishes without advancing published_at.
-Models GitHub/gh as the script relies on: GET a release by tag (drafts are invisible there), git refs, DELETE a
+(n may be "all"). $FAKE_GH_FREEZE_CLOCK=1 publishes without advancing published_at. $FAKE_GH_STALE_REFS=1: a deleted
+tag ref still reads (GET git/ref, git/refs) at its old commit until that tag is written again, as a lagging cache would.
+Models GitHub/gh as the script relies on: GET a release by tag (drafts are invisible there), git refs (GET git/ref/<ref>
+is exact; GET git/refs/<ref> with no exact ref PREFIX-matches and answers a list, as GitHub did live), DELETE a
 release (its tag stays), PATCH a release's tag_name/target_commitish (a missing tag is created at the target; an
 existing one is kept), and `gh release create` with assets = a draft, the uploads, then publish (a failed upload leaves
 the draft)."""
@@ -44,13 +46,22 @@ if argv[0] == "api":
         r = by_tag(m2.group(1))
         if not r: die("gh: Not Found (HTTP 404)")
         print(json.dumps(pub(r))); save(); sys.exit(0)
+    stale = st.setdefault("stale", {})
+    def ref(t): return {"ref": f"refs/tags/{t}", "object": {"sha": st["tags"].get(t) or stale[t]}}
+    if (m2 := re.match(r"git/ref/tags/(.+)$", rest)) and method == "GET":
+        t = m2.group(1)
+        if t not in st["tags"] and t not in stale: die("gh: Not Found (HTTP 404)")
+        print(json.dumps(ref(t))); save(); sys.exit(0)
     if (m2 := re.match(r"git/refs/tags/(.+)$", rest)):
         t = m2.group(1)
         if method == "GET":
-            if t not in st["tags"]: die("gh: Not Found (HTTP 404)")
-            print(json.dumps({"ref": f"refs/tags/{t}", "object": {"sha": st["tags"][t]}})); save(); sys.exit(0)
+            if t in st["tags"] or t in stale: print(json.dumps(ref(t))); save(); sys.exit(0)
+            prefixed = sorted(k for k in st["tags"] if k.startswith(t))
+            if not prefixed: die("gh: Not Found (HTTP 404)")
+            print(json.dumps([ref(k) for k in prefixed])); save(); sys.exit(0)
         if method == "DELETE":
             if t not in st["tags"]: die("gh: Reference does not exist (HTTP 422)")
+            if os.environ.get("FAKE_GH_STALE_REFS"): stale[t] = st["tags"][t]
             del st["tags"][t]; save(); sys.exit(0)
     if (m2 := re.match(r"releases/(\d+)$", rest)):
         rid = int(m2.group(1)); r = next((x for x in st["releases"] if x["id"] == rid), None)
@@ -63,6 +74,7 @@ if argv[0] == "api":
                 # GitHub creates a missing tag at target_commitish ($FAKE_GH_TAG_DRIFT: at another commit, to test the
                 # tag read-back) and keeps an existing tag where it is; target_commitish is the release's own field.
                 if t not in st["tags"]: st["tags"][t] = os.environ.get("FAKE_GH_TAG_DRIFT") or fields.get("target_commitish", r["target_commitish"])
+                st.setdefault("stale", {}).pop(t, None)
                 r["tag_name"] = t
                 r["target_commitish"] = fields.get("target_commitish", r["target_commitish"])
             save(); print(json.dumps(pub(r))); sys.exit(0)

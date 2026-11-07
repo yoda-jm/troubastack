@@ -6,8 +6,8 @@
 # first published and an edit never moves it, so `latest` can't be updated in place: it must be a new release each
 # time. To keep the window without a `latest` as short as possible, the new release is built BESIDE the old one, under
 # the tag latest-next (published, so its published_at is now, every asset uploaded, the body naming the commit), and
-# only then swapped in: delete the old release and its tag, wait until both are gone, rename the new release's tag to
-# latest. Between the delete and the rename (two API calls), a check finds no release ("no update") and the site's
+# only then swapped in: delete the old release and its tag, wait until both are gone (30 s at most, then rename anyway),
+# rename the new release's tag to latest. Between the delete and the rename (two API calls), a check finds no release ("no update") and the site's
 # download links 404. Nobody ever sees the new commit beside the old assets: they live on the same release.
 #
 # Recovery comes first, so one failed run can't wedge the next: no `latest` but a latest-next → finish that rename; a
@@ -33,10 +33,12 @@ release_by_tag() {
   case "$out" in *"HTTP 404"*|*"Not Found"*) return 0 ;; esac
   fail "reading the release at tag $1 failed: $out"
 }
-# A tag ref: prints its JSON, or nothing on 404.
+# A tag ref: prints its JSON, or nothing on 404. git/ref (singular) matches exactly; git/refs/tags/<name> PREFIX-matches
+# when there is no exact ref (no `latest` but a `latest-next` answers 200 with [refs/tags/latest-next]), which made the
+# first live publish wait 30 s for a `latest` that was already gone.
 tag_ref() {
   local out
-  if out=$(gh api "repos/$repo/git/refs/tags/$1" 2>&1); then printf '%s' "$out"; return 0; fi
+  if out=$(gh api "repos/$repo/git/ref/tags/$1" 2>&1); then printf '%s' "$out"; return 0; fi
   case "$out" in *"HTTP 404"*|*"Not Found"*) return 0 ;; esac
   fail "reading the tag ref $1 failed: $out"
 }
@@ -81,7 +83,7 @@ for id in $(gh api "repos/$repo/releases" | python3 -c 'import json,sys; print("
   gh api -X DELETE "repos/$repo/releases/$id" >/dev/null || fail "a leftover draft $next (release $id) could not be deleted"
 done
 [ -z "$(tag_ref "$next")" ] || { gh api -X DELETE "repos/$repo/git/refs/tags/$next" >/dev/null || fail "a leftover tag $next could not be deleted"; }
-old_published=""; old_id=""
+old_published=""; old_id=""; lingering=""
 if [ -n "$old" ]; then old_published=$(field "$old" published_at); old_id=$(field "$old" id); log "$tag is release $old_id, commit $(field "$old" target_commitish), published $old_published"
 else log "no $tag yet: the first publish"; fi
 
@@ -99,11 +101,14 @@ got=$(asset_names "$new")
 # 2. The swap: the old release and its tag go, then the new release takes the tag.
 if [ -n "$old_id" ]; then
   delete_release_and_tag "$old_id" "$tag"
-  for i in $(seq 1 15); do [ -z "$(release_by_tag "$tag")" ] && [ -z "$(tag_ref "$tag")" ] && break; sleep 2; done
-  [ -z "$(release_by_tag "$tag")" ] && [ -z "$(tag_ref "$tag")" ] || fail "the old $tag (release $old_id) still shows after 30 s; $next (release $new_id) is ready. Fix: delete it, then gh api -X PATCH repos/$repo/releases/$new_id -f tag_name=$tag -f target_commitish=$sha"
+  gone() { [ -z "$(release_by_tag "$tag")" ] && [ -z "$(tag_ref "$tag")" ]; }
+  lingering=1; for i in $(seq 1 15); do gone && { lingering=""; break; }; sleep 2; done
+  # Never exit having deleted $tag without trying the rename: GitHub refuses it while a release still holds the tag,
+  # and a tag left at the old commit fails the read-back below.
+  [ -z "$lingering" ] || log "the old $tag (release $old_id) still shows after 30 s - renaming anyway"
 fi
 log "rename $next (release $new_id) to $tag"
-rename_to_tag "$new_id" || fail "the old $tag is deleted but renaming $next (release $new_id) failed: there is NO $tag now. Fix: gh api -X PATCH repos/$repo/releases/$new_id -f tag_name=$tag -f target_commitish=$sha"
+rename_to_tag "$new_id" || fail "the old $tag ${lingering:+(release $old_id, which still showed after 30 s) }is deleted but renaming $next (release $new_id) failed: there is NO $tag now. Fix: gh api -X PATCH repos/$repo/releases/$new_id -f tag_name=$tag -f target_commitish=$sha"
 gh api -X DELETE "repos/$repo/git/refs/tags/$next" >/dev/null 2>&1 || true   # the rename leaves the old tag name behind
 
 # 3. Read it back.

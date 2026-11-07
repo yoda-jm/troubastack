@@ -390,7 +390,8 @@ jobs:
       #
       # What can change the assets: a change under `app/` (the apps themselves), OR a change to this workflow,
       # which is what builds and names them -- DESK02's own landing commit touches only `.github/workflows/ci.yml`
-      # and must still republish, so the DMG reaches `latest`. A workflow-level `paths:` filter cannot express this:
+      # and must still republish, so the DMG reaches `latest`. A change to the publish script (or its tests) also
+      # republishes, so a land that changes HOW `latest` is published proves it on that land. A workflow-level `paths:` filter cannot express this:
       # it would gate the WHOLE of CI, not this job. So decide here, via the compare API (no checkout needed, and
       # the token is already set).
       # Compared against what `latest` actually holds (its target_commitish), not the push's `before`: release-latest
@@ -424,7 +425,7 @@ jobs:
           esac
           [ "$nfiles" -lt 300 ] || out "the compare lists $nfiles files (the API's cap) - publishing anyway" true
           if python3 -c 'import json,sys; print("\n".join(f["filename"] for f in json.load(open(sys.argv[1]))["files"]))' "$RUNNER_TEMP/compare.json" \
-              | grep -qE '^(app/|\.github/workflows/ci\.yml$)'; then out "app/ or the CI workflow touched since $how - publishing" true
+              | grep -qE '^(app/|\.github/workflows/ci\.yml$|\.github/scripts/publish-latest)'; then out "app/, the CI workflow or the publish script touched since $how - publishing" true
           else out "no change to the release contents since $how - keeping the existing release" false; fi
 
       # The publish script (and nothing else) — first, because checkout cleans the workspace the artifacts land in.
