@@ -159,7 +159,10 @@ release APK is the remaining half of the deploy story
 ([`docs/tasks/OPS01`](docs/tasks/OPS01-production-serving.md)). The same rolling release also carries desktop apps built on every green `main` push, unsigned like the APK: a
 **Windows installer** (`troubastage-windows.msi`, a per-user MSI via jpackage, from the `desktop (windows)` job),
 a **Linux AppImage** (`troubastage-linux-x86_64.AppImage`, from `desktop (linux)`), and a **macOS app**
-(`troubastage-macos.dmg`, one universal build for Apple silicon and Intel Macs, from `desktop (macos)`).
+(`troubastage-macos.dmg`, one universal build for Apple silicon and Intel Macs, from `desktop (macos)`). On
+Windows the app now hosts **TroubaStudio** in the window — edit scores there, signed in with the app's session,
+with links to your own server opening in the app and others in your default browser; Linux and macOS still show
+**"Coming soon."** for the editor, so use Studio in a browser there.
 
 ---
 

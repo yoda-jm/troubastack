@@ -49,7 +49,8 @@ sets up the server, makes accounts happen, and gets everyone in.
   (A88) and the Windows app (WIN04). Parameters → About → **Check for updates**, then
   **Update**; they also check once a day on their own, never during a concert. On Windows
   the app closes, installs the new version and opens again; the band's concerts, notes
-  and sign-in are kept.
+  and sign-in are kept. The same **About** screen also lists, under **Licences**, the
+  open-source software in each app with its full licence texts.
 - **Linux desktop** (DESK01): the same app as one AppImage on the `latest` release, for
   64-bit PCs with glibc 2.35 or newer (built on Ubuntu 22.04; most distributions from 2022
   on). Make it executable and run it, nothing to install; data in
@@ -66,9 +67,11 @@ sets up the server, makes accounts happen, and gets everyone in.
   your browser or Windows may warn first — choose to keep or run it anyway. It installs for your user
   only, without asking for administrator rights, then keeps itself up to date as above. Windows can't
   scan the invite QR, so you join through **Connect to your band** → the **Invite** tab → **Paste invite
-  link** → **Join** (or **Sign in**). Performing (Stage) is the Windows app's job; editing in Studio isn't
-  there yet — it shows **"Coming soon."**, so open Studio in a browser for now. The Linux and Mac apps are the
-  same on both points: no QR scan (join with **Paste invite link**), and Studio shows **"Coming soon."**.
+  link** → **Join** (or **Sign in**). Performing (Stage) is the Windows app's job, and editing now is too:
+  TroubaStudio runs inside the app window, signed in with the app's session, and links in Studio open in the app
+  when they point to your own server and in your default browser otherwise. The Linux and Mac apps can't scan the
+  invite QR either (join with **Paste invite link**), and their Studio still shows **"Coming soon."**, so open
+  Studio in a browser there.
 
 **Gaps:**
 - **Running the server like an adult** — TLS, systemd service, backups, a signed
