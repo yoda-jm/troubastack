@@ -97,6 +97,16 @@ internal fun studioPathUrl(origin: String, path: String): String? =
     if (path.startsWith("/") && !path.startsWith("//") && '\\' !in path) origin + path else null
 
 /**
+ * S2.10 (report probe) — whether the origin lock's off-origin veto is RELAXED for a given navigation. It is relaxed
+ * ONLY for a subframe ([isTop] == false) AND only when BOTH the iframe probe knob ([probeIframe]) and the relax knob
+ * ([relaxIframe]) are set. This is the single decision the Windows LocationListener consults, lifted here to the
+ * cross-platform source so it can be unit-tested off a Windows host: the default path ([probeIframe] == false) can
+ * never reach the relax even with [relaxIframe] alone, and a top-frame navigation is never relaxed. Dispatch-only.
+ */
+internal fun s210RelaxSubframeVeto(probeIframe: Boolean, relaxIframe: Boolean, isTop: Boolean): Boolean =
+    probeIframe && relaxIframe && !isTop
+
+/**
  * The embedded-Studio provider on the classpath, or null. On Windows the SWT provider is registered through
  * `META-INF/services` (added to the jar only on a Windows host build); elsewhere this is null. Resolved once.
  */

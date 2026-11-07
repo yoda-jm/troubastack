@@ -232,6 +232,31 @@ fun main(args: Array<String>) {
         runWin08Cost(File(out), url, user, pass, System.getenv("TROUBA_WIN08_SONG_PATH"))
         return
     }
+    // WIN08 S2.10 (report) — session-expiry seam (`--win08-s210-expiry <outDir>`): the app's STORED session and the
+    // WebView's session diverge on an in-Studio re-auth, so the app's own probePresence() 401s while the local store is
+    // non-empty (the stale-store finding), with a fresh-cookie Online as the positive control. Windows only; dispatch-only.
+    val s210ExpiryIdx = args.indexOf("--win08-s210-expiry")
+    if (s210ExpiryIdx >= 0) {
+        val outDir = args.getOrNull(s210ExpiryIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-s210-expiry needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner ?: run { System.err.println("win08-s210-expiry: Windows only"); exitProcess(2) }
+        val code = runner.runS210Expiry(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
+    // WIN08 S2.10 (report) — cross-origin iframe injection (`--win08-s210-iframe <outDir>`): a page on origin A embeds an
+    // iframe from origin B; records which injected surfaces reach Java from the cross-origin child and what the origin
+    // guard decided (every door + the sink). Pass 2 (WIN08_PROBE_S210_IFRAME_RELAX=1) relaxes the subframe veto so B
+    // loads — dispatch-only, never the default path. Windows only.
+    val s210IframeIdx = args.indexOf("--win08-s210-iframe")
+    if (s210IframeIdx >= 0) {
+        val outDir = args.getOrNull(s210IframeIdx + 1)?.takeUnless { it.startsWith("--") }
+            ?: run { System.err.println("--win08-s210-iframe needs an output dir"); exitProcess(2) }
+        val runner = win08SmokeRunner ?: run { System.err.println("win08-s210-iframe: Windows only"); exitProcess(2) }
+        val code = runner.runS210Iframe(File(outDir))
+        if (code != 0) exitProcess(code)
+        return
+    }
     // WIN08 item 8 — the Stage CI hook (`--win08-stage <concert.tstage>`): import the demo concert and show it
     // INTERACTIVELY in Stage (no sign-in), with the desktop glyph-tooltip provider, so a screenshot can capture a
     // Stage tooltip (a compose.layers popup) and check a page-turn key still turns the page while it shows.
