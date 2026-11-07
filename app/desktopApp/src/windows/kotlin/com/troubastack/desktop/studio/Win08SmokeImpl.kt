@@ -862,6 +862,7 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             rec("WIN08 S2.10 Probe A — session expiry seam (report only)")
             val c = if (waitFor(40_000) { ctrlRef.get()?.bridgeReady == true }) ctrlRef.get() else null
             if (c == null) { rec("FAIL: no controller"); writeReport(outDir, "s210-expiry-report.txt", report); Runtime.getRuntime().halt(1); return }
+            rec("runtime: SWT=${org.eclipse.swt.SWT.getVersion()}  userAgent=[${c.s210UserAgent()}]")
 
             // 1. Baseline — the WebView carries the app's session; document.cookie cannot see it (HttpOnly). Read the
             //    page-cookie observation (pageCookieHeader), written ONLY by WebView page requests — never an /api call.
@@ -966,6 +967,8 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             // the controller's completed() handler; wait for them so the TOP control genuinely exercises each surface.
             val injected = waitFor(15_000) { c.linksInjected && c.ctxInjected }
             rec("top injections present (links+ctx) = $injected")
+            // Scope the conclusion: the bridge/frame behaviour is a property of this runner's WebView2 runtime + SWT.
+            rec("runtime: SWT=${org.eclipse.swt.SWT.getVersion()}  userAgent=[${c.s210UserAgent()}]  (findings hold for this runner's WebView2 runtime + SWT version)")
 
             // TOP PHASE (the positive control): run the identical trigger sequence in the TOP frame, so a later absence
             // of a child marker is meaningful. It ends with a top-phase-end bridge call; append the iframe only once
@@ -980,14 +983,18 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
             rec("TOP sink markers:\n$topSink")
             rec("TOP newwindow markers:\n$topNewWin")
 
-            // CHILD PHASE: append the cross-origin iframe (origin B) from the TOP frame; the child self-runs on load.
+            // CHILD PHASE: append the cross-origin iframe (origin B) from the TOP frame; the child self-runs on load. It
+            // posts a typeof table (LOADED signal), runs its triggers, then posts a child-phase-end carrying its direct
+            // call's outcome. Wait for that END marker (so a late async child-direct call isn't missed) + a settle.
             c.smokeS210AddIframe("$originB/child")
-            val forwarded = waitFor(15_000) { c.s210ForwardedChildReport != null }
-            Thread.sleep(1_200)   // let the child's direct triggers + any door settle
-            rec("CHILD iframe appended; forwarded report arrived=$forwarded")
+            val forwarded = waitFor(15_000) { c.s210ForwardedChildReport != null }     // child LOADED (first forward)
+            val childEnded = waitFor(10_000) { c.s210ForwardedChildEnd != null }        // child FINISHED its triggers (phase-end forward)
+            Thread.sleep(3_000)                                                         // settle for any late async child-direct Java marker
+            rec("CHILD iframe appended; forwarded typeof-report arrived=$forwarded  child-phase-end arrived=$childEnded")
             rec("subframe origin lock: changingFired=${c.s210IframeChangingFired} vetoed=${c.s210IframeVetoed} " +
                 "relaxed=${c.s210IframeVetoRelaxed} location=[${c.s210IframeLocation}]")
             rec("CHILD typeof table (reliable, via parent forward): ${c.s210ForwardedChildReport}")
+            rec("CHILD direct-call OUTCOME (from child-phase-end; distinguishes threw vs called-but-dropped): ${c.s210ForwardedChildEnd}")
             val childBridge = lines(c.s210BridgeMarkers).drop(topBoundary)
             rec("CHILD bridge markers (after the top boundary):\n${childBridge.joinToString("\n")}")
             rec("CHILD sink markers:\n${c.s210SinkMarkers}")
@@ -1025,7 +1032,9 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                         val m = bridge.firstOrNull { it.contains(key) }
                         when {
                             m != null -> Cell("bridge", guardOf(m), sinkFor(key))        // routed through the app's bridge
-                            newWin.isNotEmpty() -> Cell("newwindow", "-", "none")         // native new-window (phase-attributed; URL-less)
+                            // Native new-window door: URL-less on the SWT event, and the child fires TWO such triggers
+                            // (window.open + link) so one recorded event can't be pinned to a surface — see the NOTE below.
+                            newWin.isNotEmpty() -> Cell("native-newwindow(undetermined)", "-", "none")
                             else -> Cell("none", "-", "none")
                         }
                     }
@@ -1044,6 +1053,13 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
                 table.append("$surface | child | $childDoor | ${child.guard} | ${child.sink}\n")
             }
             rec("SURFACE x FRAME TABLE:\n$table")
+            // Native new-window attribution: the child fires TWO popup triggers (window.open with no override + a
+            // target=_blank link click), but SWT's new-window event carries no URL, and Chromium's no-gesture popup
+            // blocker may swallow one before it raises an event. So the ${childNewWinLines.size} recorded child
+            // native-new-window event(s) are shared between the window.open and link rows — which surface raised which
+            // is NOT determined; both are blocked regardless (required=true). Count this round: ${childNewWinLines.size}.
+            rec("NOTE native-new-window: child recorded ${childNewWinLines.size} event(s) across {window.open, link}; " +
+                "attribution undetermined (no URL on the SWT event; popup blocker may swallow one); all blocked.")
 
             // Headline findings — only a child's OWN direct call can bear route child-direct (the parent-forward can't):
             val receiveChild = cellFor("receive", "child")
@@ -1523,7 +1539,14 @@ class Win08SmokeRunnerImpl : Win08SmokeRunner {
         const val S210_RUN_JS = """
 function s210run(route){
   var fns={receive:typeof window.TroubaStageShellReceive,shell:typeof window.__troubastageShell,win08links:typeof window.__win08links,win08ctx:typeof window.__win08ctx,win08back:typeof window.__win08back,openOverridden:((''+window.open).indexOf('native')<0)};
-  try{var r=window.TroubaStageShellReceive;if(typeof r==='function')r(JSON.stringify({type:'s210call',surface:'receive',route:route,origin:location.origin,fns:fns}));}catch(e){}
+  // Capture the direct bridge call's OUTCOME so "no Java marker" can be told apart from a throw (binding missing in the
+  // frame) vs a call that returned but was dropped. Read later via window.__s210directOutcome and reported by the child.
+  var outcome;
+  try{var r=window.TroubaStageShellReceive;
+      if(typeof r==='function'){var rv=r(JSON.stringify({type:'s210call',surface:'receive',route:route,origin:location.origin,fns:fns}));outcome='called;returned='+String(rv);}
+      else{outcome='receive-not-a-function(typeof '+(typeof r)+')';}}
+  catch(e){outcome='threw '+((e&&e.name)||'Error')+': '+((e&&e.message)||String(e));}
+  window.__s210directOutcome=outcome;
   try{window.open('http://s210.invalid/open-'+route,'_blank');}catch(e){}
   try{var a=document.createElement('a');a.href='http://s210.invalid/link-'+route;a.target='_blank';a.textContent='x';document.body.appendChild(a);a.click();}catch(e){}
   try{document.body.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));}catch(e){}
@@ -1553,6 +1576,10 @@ function s210run(route){
 (function(){
   try{parent.postMessage(JSON.stringify({type:'s210childreport',origin:location.origin,fns:{receive:typeof window.TroubaStageShellReceive,shell:typeof window.__troubastageShell,win08links:typeof window.__win08links,win08ctx:typeof window.__win08ctx,win08back:typeof window.__win08back,openOverridden:((''+window.open).indexOf('native')<0)}}),'*');}catch(e){}
   s210run('child-direct');
+  // AFTER the triggers: a child-phase-end report carrying the direct call's outcome, so the flow can WAIT for the
+  // child to finish (not snapshot early) and tell a throw from a call-but-dropped. Routed via the parent forward
+  // because the child can't reach Java directly — the whole question being measured.
+  try{parent.postMessage(JSON.stringify({type:'s210childend',origin:location.origin,directOutcome:window.__s210directOutcome}),'*');}catch(e){}
 })();
 </script></head><body><h1>win08 s210 child (origin B)</h1></body></html>"""
     }

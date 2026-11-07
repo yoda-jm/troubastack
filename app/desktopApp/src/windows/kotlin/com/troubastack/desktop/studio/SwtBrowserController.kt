@@ -101,7 +101,8 @@ internal class SwtBrowserController(
     // SINK — the app's URL-open: "sink=<inplace|external|dropped> url=<url>" per routeOpenUrl decision. The URL encodes
     // open-<frame>/link-<frame>, so this says whether a child action drove the app's external launch (the security question).
     @Volatile var s210SinkMarkers: String = ""; private set
-    @Volatile var s210ForwardedChildReport: String? = null; private set   // the child frame's typeof table, via the parent forward (reliable)
+    @Volatile var s210ForwardedChildReport: String? = null; private set   // the child frame's typeof table, via the parent forward (reliable; posted BEFORE its triggers)
+    @Volatile var s210ForwardedChildEnd: String? = null; private set      // the child's phase-end report (its direct-call outcome), via the parent forward; posted AFTER its triggers
     // Set by Main from WIN08_PROBE_S210_IFRAME / _RELAX before start(); read by the handler and the origin lock.
     private val s210ProbeIframe: Boolean = System.getenv("WIN08_PROBE_S210_IFRAME") == "1"
     private val s210RelaxIframe: Boolean = System.getenv("WIN08_PROBE_S210_IFRAME_RELAX") == "1"
@@ -190,6 +191,16 @@ internal class SwtBrowserController(
      *  to the parent, which forwards it over the bridge as "child-forwarded". */
     fun smokeS210AddIframe(childUrl: String) = exec { browser?.execute(
         "if(!document.getElementById('s210child')){var f=document.createElement('iframe');f.id='s210child';f.src='$childUrl';f.width='320';f.height='200';document.body.appendChild(f);}") }
+
+    /** S2.10: the top frame's navigator.userAgent (carries the Edg/WebView2 runtime version), read synchronously on the
+     *  SWT thread so the report can scope its conclusion to this runner's runtime. Null if not available. */
+    fun s210UserAgent(): String? {
+        val d = display ?: return null
+        if (d.isDisposed) return null
+        var ua: String? = null
+        runCatching { d.syncExec { ua = runCatching { browser?.takeIf { !it.isDisposed }?.evaluate("return navigator.userAgent;") as? String }.getOrNull() } }
+        return ua
+    }
 
     /** Smoke only (S2.2): dispatch a synthetic mouseup with button===3 in the page, to exercise the injected mouse-back
      *  listener → bridge {type:"back"} → requestBack chain (not the real XBUTTON1; that's the --win08-back recon). */
@@ -600,10 +611,14 @@ internal class SwtBrowserController(
                             val u = runCatching { browser.url ?: "" }.getOrDefault("")
                             val pass = sameOrigin(u, origin)
                             val raw = (arguments?.getOrNull(0) as? String)?.replace("\n", " ")
-                            s210BridgeMarkers += "bridge url=$u guardPass=$pass arg=${raw?.take(260)}\n"
+                            s210BridgeMarkers += "bridge url=$u guardPass=$pass arg=${raw?.take(300)}\n"
                             // The parent-forward wrapper is itself a TOP-frame call tagged child-forwarded; it carries the
-                            // child's typeof table reliably but can NEVER bear child-direct (only the child's own call can).
-                            if (raw != null && raw.contains("child-forwarded")) s210ForwardedChildReport = raw
+                            // child's reports reliably but can NEVER bear child-direct (only the child's own call can). The
+                            // child posts two: its typeof table (before triggers) and a phase-end carrying its direct-call
+                            // outcome (after triggers) — the flow waits for the end one before snapshotting.
+                            if (raw != null && raw.contains("child-forwarded")) {
+                                if (raw.contains("s210childend")) s210ForwardedChildEnd = raw else s210ForwardedChildReport = raw
+                            }
                         }
                         if (!sameOrigin(browser.url ?: "", origin)) return null
                         val json = arguments?.getOrNull(0) as? String ?: return null
