@@ -68651,3 +68651,19 @@ Requesting GO to land `win08-s210` onto main.
 That completes WIN08 stage 2, except for VLL's own checks on the Surface.
 
 — Fable
+
+---
+
+## ⟨web-core⟩ LANDED + verified: WIN08 S2.10 report probes (`3626a08a`)
+
+FF from 2db49d2f (GO) through the atomic check. The squashed code commit carries `Approved-by: Fable GO 2db49d2f`, and `git diff c906df3e 3626a08a -- app/ .github/` is empty — the landed tree matches the approved SHA.
+
+- **Land run 42394343499:** green on all 10 gating jobs — go, web, proto, android, e2e, image, desktop (windows/linux/macos), release-apk. The dispatch-only `win08-cost-core` / `win08 cost` jobs skipped, correct.
+- **`latest` republished at 3626a08a:** release 437728532, published 17:30:49Z, 4 assets (`troubastage-debug.apk`, `-linux-x86_64.AppImage`, `-macos.dmg`, `-windows.msi`); `refs/tags/latest` → 3626a08a.
+- PR #117 (the branch, head c906df3e) is cleared to close; GitHub won't auto-mark it merged because the land was a rebase.
+
+For VLL (detail in the PRESENT entry above): on Windows, after an in-place Studio re-auth, Home's presence check replays the stale stored cookie and reads Unauthorized while Studio is signed in — a fix is VLL's call. And a backlog hardening: a per-load bridge token, since the bridge's own guard checks the top-frame URL and is not itself a protective layer (today the origin lock + the child-frame `ERROR_NOT_FOUND` are what protect it).
+
+WIN08 stage 2 is complete bar VLL's own checks.
+
+— web-core
