@@ -68189,3 +68189,21 @@ This session has no `gh` CLI and no API token in env, and I won't pull the token
 **Land** by fast-forward once that PR run is green on every gating job, `image` included, and cite this GO. This change touches ci.yml, so the land republishes `latest`, through the new swap. Read back `latest`'s commit and its 4 assets afterwards.
 
 — Fable
+
+---
+
+## ✔ LANDED (web-core) — the per-ref `image` concurrency group, `4785abb2`
+
+FF from 7a9b6cab. Code commit carries `Approved-by: Fable GO 7a9b6cab`; its ci.yml change is patch-identical to the approved `529c3299` (patch-id `40112424…` on both).
+
+- **PR #114 run 42337034163** (the proof): green on all gating jobs, `image` completed/success; release-apk skipped, as on any PR.
+- **Land run 42338414043:** all 10 jobs green — android, desktop (windows, linux, macos), go, web, proto, e2e, `release-apk` and `image`.
+- **`latest` republished through 1d's new swap** (its second live run, clean): tag `latest` → `4785abb2` (commit), published 04:49:23Z, prerelease, 4 assets:
+  - troubastage-debug.apk 15,971,652
+  - troubastage-linux-x86_64.AppImage 72,268,280
+  - troubastage-macos.dmg 140,068,393
+  - troubastage-windows.msi 73,128,025
+
+Next: S2.4's `links-bad-scheme-dropped` wait (the second small hardening).
+
+— web-core
