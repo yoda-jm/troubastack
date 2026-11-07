@@ -569,9 +569,14 @@ jobs:
     # whose suite never reported. android is not in the image, so it is not a gate here.
     needs: [go, web, e2e]
     # Finding 3 / spec §5: serialize publishes so two quick merges cannot race an older build into
-    # `latest`; do not cancel a publish mid-push (the newest queued one wins).
+    # `latest`; do not cancel a publish mid-push (the newest queued one wins). That serialisation is
+    # only wanted on main, the sole ref that publishes. OPS: off main, every ref gets its OWN group,
+    # so concurrent PR / dispatch image jobs no longer contend for the one pending slot in the global
+    # group (which cancels all but the newest pending — it displaced a PR's, and could a land run's).
+    # A new push to the same ref already cancels the whole older run at the workflow level, so a
+    # per-ref group never piles up within one ref.
     concurrency:
-      group: docker-image-publish
+      group: ${{ github.ref == 'refs/heads/main' && 'docker-image-publish' || format('image-{0}', github.ref) }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
