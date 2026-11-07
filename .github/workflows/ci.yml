@@ -32,6 +32,18 @@ on:
         description: "WIN09: 'all' runs the band-QR sabotage passes instead of the normal smoke (leave empty for a normal run)"
         required: false
         default: ""
+      # WIN04: the upgrade-in-place step's stand-in release. win04_sabotage=notlistening runs the app's first update check
+      # before the stand-in is started (main's "no update offered (failed=true)" flake, by its cause, on demand);
+      # win04_standin_repeat=N first times N starts of the stand-in, to measure how long it takes to answer. Both empty
+      # on push/PR.
+      win04_sabotage:
+        description: "WIN04: 'notlistening' runs the upgrade step's first check with no stand-in release listening (leave empty for a normal run)"
+        required: false
+        default: ""
+      win04_standin_repeat:
+        description: "WIN04: time this many starts of the upgrade step's stand-in release first (leave empty for a normal run)"
+        required: false
+        default: ""
       # A101: licencedropone / licencenonotice break the notices generator (at build time, as the Gradle property
       # a101Sabotage); nofontfix turns off the Linux app's fontconfig fix, fontenvleak opens links the way it did before
       # (both at run time, as A101_SABOTAGE); nofontcache skips writing the CJK repro's font cache (CI only). A sabotage
@@ -1189,6 +1201,9 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: app
         shell: pwsh
+        env:
+          WIN04_SABOTAGE: ${{ github.event.inputs.win04_sabotage }}               # empty on push/PR
+          WIN04_STANDIN_REPEAT: ${{ github.event.inputs.win04_standin_repeat }}   # empty on push/PR
         run: |
           $ErrorActionPreference = "Stop"
           # WIN04 (H1): the data root's folder name holds a space, &, (, ) and %, so the update helper's paths are tested
@@ -1247,10 +1262,14 @@ jobs:
           $port = 18765
           $modeFile = Join-Path $env:RUNNER_TEMP "release-mode.txt"
           "bad" | Set-Content $modeFile
-          $server = Start-Job -ScriptBlock {
+          $standIn = {
             param($port, $msi, $sha, $size, $brokenMsi, $brokenSha, $brokenSize, $modeFile)
-            $l = [System.Net.HttpListener]::new(); $l.Prefixes.Add("http://127.0.0.1:$port/"); $l.Start()
-            while ($true) {
+            $l = [System.Net.HttpListener]::new(); $l.Prefixes.Add("http://127.0.0.1:$port/")
+            # A stand-in that can't listen ends its job at once (the wait below reports why); errors while serving a
+            # request stay non-fatal, as before.
+            try { $l.Start() } catch { throw "the stand-in could not listen on 127.0.0.1:${port}: $($_.Exception.Message)" }
+            $serving = $true
+            while ($serving) {
               $ctx = $l.GetContext(); $res = $ctx.Response
               switch ($ctx.Request.Url.AbsolutePath) {
                 "/release.json" {
@@ -1265,12 +1284,58 @@ jobs:
                   $file = if ((Get-Content $modeFile -Raw).Trim() -eq "broken") { $brokenMsi } else { $msi }
                   $b = [IO.File]::ReadAllBytes($file); $res.ContentLength64 = $b.Length; $res.OutputStream.Write($b, 0, $b.Length)
                 }
+                "/stop" { $serving = $false }   # ends the job cleanly (Stop-Job can't interrupt GetContext)
                 default { $res.StatusCode = 404 }
               }
               $res.Close()
             }
-          } -ArgumentList $port, $msiN1, $sha, $size, $brokenMsi, $brokenSha, $brokenSize, $modeFile
-          Start-Sleep -Seconds 3
+            $l.Stop()
+          }
+          $standInArgs = @($port, $msiN1, $sha, $size, $brokenMsi, $brokenSha, $brokenSize, $modeFile)
+          # The stand-in runs as a background job, which is a new pwsh process. A blind 3 s sleep did not always cover its
+          # start: main's run 42293863170 failed "no update offered (null, failed=true)" 6 s after the MSI build, the app's
+          # check refused by a server not yet listening. So wait on the real condition instead: /release.json answers
+          # (200), or the job is no longer running (its own error printed), 60 s at most.
+          function Wait-StandIn($job) {
+            $sw = [Diagnostics.Stopwatch]::StartNew(); $tries = 0
+            while ($sw.Elapsed.TotalSeconds -lt 60 -and $job.State -eq "Running") {
+              $tries++
+              try {
+                $r = Invoke-WebRequest -Uri "http://127.0.0.1:$port/release.json" -UseBasicParsing -TimeoutSec 2
+                if ($r.StatusCode -eq 200) { return [pscustomobject]@{ Ok = $true; Ms = $sw.ElapsedMilliseconds; Tries = $tries; Detail = "" } }
+              } catch { }
+              Start-Sleep -Milliseconds 200
+            }
+            $out = (Receive-Job $job -ErrorAction Continue 2>&1 | Out-String).Trim()   # the job's own error, not rethrown
+            [pscustomobject]@{ Ok = $false; Ms = $sw.ElapsedMilliseconds; Tries = $tries; Detail = "job $($job.State): [$out]" }
+          }
+          # WIN04 measurement (win04_standin_repeat=N, dispatch only): how long N fresh starts of the stand-in take to answer.
+          if ($env:WIN04_STANDIN_REPEAT -match '^\d+$') {
+            $times = @()
+            foreach ($k in 1..[int]$env:WIN04_STANDIN_REPEAT) {
+              $j = Start-Job -ScriptBlock $standIn -ArgumentList $standInArgs
+              $w = Wait-StandIn $j
+              try { Invoke-WebRequest -Uri "http://127.0.0.1:$port/stop" -UseBasicParsing -TimeoutSec 5 | Out-Null } catch { }
+              Wait-Job $j -Timeout 15 | Out-Null; Remove-Job $j -Force
+              Write-Host "stand-in start ${k}: $(if ($w.Ok) { "answered after $($w.Ms) ms ($($w.Tries) tries)" } else { "NOT ready after $($w.Ms) ms, $($w.Detail)" })"
+              if ($w.Ok) { $times += $w.Ms }
+            }
+            $sorted = $times | Sort-Object
+            Write-Host ("WIN04-STANDIN {0} starts: {1} answered; ms min {2} median {3} max {4}; over 3000 ms: {5}" -f $env:WIN04_STANDIN_REPEAT, $times.Count,
+              $sorted[0], $sorted[[int][math]::Floor(($sorted.Count - 1) / 2)], $sorted[-1], @($times | Where-Object { $_ -gt 3000 }).Count)
+          }
+          if ($env:WIN04_SABOTAGE -eq "notlistening") {
+            Write-Host "::warning::WIN04 sabotage notlistening: the first update check runs with no stand-in release listening"
+            $server = $null
+          } else {
+            $server = Start-Job -ScriptBlock $standIn -ArgumentList $standInArgs
+            $ready = Wait-StandIn $server
+            if (-not $ready.Ok) {
+              Stop-Job $server; Remove-Job $server -Force
+              Write-Error "the stand-in release on 127.0.0.1:$port never answered ($($ready.Ms) ms, $($ready.Tries) tries, $($ready.Detail))"; exit 1
+            }
+            Write-Host "stand-in release on 127.0.0.1:$port answered after $($ready.Ms) ms ($($ready.Tries) tries)"
+          }
           $installedExe = Join-Path $install "TroubaStage.exe"
           if (-not (Test-Path $installedExe)) { Write-Error "installed exe not found at $installedExe"; exit 1 }
           $release = "http://127.0.0.1:$port/release.json"
