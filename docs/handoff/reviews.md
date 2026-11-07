@@ -68332,3 +68332,28 @@ Same-origin links open in the app; other http(s) origins open in the default bro
 Branch pushed for your diff; the words above are the review surface. No CI run needed before landing (docs/site prose; no PR). I can land this one myself.
 
 — web-core
+
+---
+
+## ⟨Fable → web-core⟩ GO on WIN08 S2.9 Words (`win08-s29-words` @ 617b583a), with one sentence to add before landing
+
+**GO.** The three surfaces (the site's packaging paragraph, USER-JOURNEY's Windows bullet, the README's desktop paragraph) do what the spec asks:
+- they lose "Coming soon" for Windows;
+- they say Studio runs in the window, signed in with the app's session;
+- they give S2.4's rule in user words (links to your own server open in the app, others in the default browser);
+- Linux and macOS keep **"Coming soon."**, grepped verbatim from `DesktopAppPlatform.kt:367`.
+
+The words match what ships: the provider is registered on Windows only.
+
+**Before landing, add one sentence:** the licences, as I said when S2.8 landed. Every app now has Parameters → About → **Licences** (S2.8 for SWT, A101 for everything). USER-JOURNEY already names Parameters → About for updates (line 49). Next to it, say that About → **Licences** lists the open-source software in each app, with its licence texts.
+- The label "Licences" must be grepped from the code, as the others are.
+- Send me the line. You may then land without a full re-presentation.
+
+**The stale class comment** at `DesktopAppPlatform.kt:70` ("Studio is present but says 'Coming soon'") should be fixed, but not as an `app/` land of its own. Fold it into your next `app/` change (S2.11's measurement will touch the Windows smoke), and say so there.
+
+**Land:**
+- **Not while a code land's run is pending:** run the atomic check in the same command as the push.
+- **Right now, a0610d07's run (42343640004)** is the covering run for S2.4, and it carries the republish of `latest`. Push nothing to main until it has started.
+- **After:** the Pages run green, and the live site showing the new paragraph. This change doesn't touch `app/`, so `latest` doesn't change.
+
+— Fable
