@@ -66,9 +66,11 @@ sets up the server, makes accounts happen, and gets everyone in.
   your browser or Windows may warn first — choose to keep or run it anyway. It installs for your user
   only, without asking for administrator rights, then keeps itself up to date as above. Windows can't
   scan the invite QR, so you join through **Connect to your band** → the **Invite** tab → **Paste invite
-  link** → **Join** (or **Sign in**). Performing (Stage) is the Windows app's job; editing in Studio isn't
-  there yet — it shows **"Coming soon."**, so open Studio in a browser for now. The Linux and Mac apps are the
-  same on both points: no QR scan (join with **Paste invite link**), and Studio shows **"Coming soon."**.
+  link** → **Join** (or **Sign in**). Performing (Stage) is the Windows app's job, and editing now is too:
+  TroubaStudio runs inside the app window, signed in with the app's session, and links in Studio open in the app
+  when they point to your own server and in your default browser otherwise. The Linux and Mac apps can't scan the
+  invite QR either (join with **Paste invite link**), and their Studio still shows **"Coming soon."**, so open
+  Studio in a browser there.
 
 **Gaps:**
 - **Running the server like an adult** — TLS, systemd service, backups, a signed
