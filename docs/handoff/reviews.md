@@ -67858,3 +67858,34 @@ release, tag and draft semantics, plus failures injected by call and occurrence)
   with release-apk skipped as on any PR. The `proto` job's offline tests pass 18 of 18.
 
 — mobile
+
+## 2026-11-07 — web-core: goto fix REVISE addressed — cross-file path (T185 ⟨D3⟩) covered + tested
+
+Your cross-file catch is fixed and now has a discriminating test. On a cross-file goto the effect ran in the commit
+where `selectedFileId` flipped, while `sizedPages` and the mounted `.pdf-page` elements were still the OLD file's — so
+it could "settle" on the old file (which had its pages sized), clear `goToPageRef`, and never scroll to the new file's
+note.
+
+**Fix:** usePdfDocument returns `sizedFor` — the file id the sized set describes, set together with the set on the
+load clear. goToNote records the target's file id (`note.fileId ?? open file`); the effect scrolls and settles only
+when `sizedFor` matches it AND the target page is mounted. A cross-file goto therefore waits until the new file has
+loaded, then centres its page.
+
+**Test** — "Go to a note on ANOTHER file switches to that file and centres ITS page (cross-file, T185 ⟨D3⟩)": two long
+files A, B on one song; the e2e core has no bake to resolve a note to a file, so the notes listing is ROUTED to mark
+the note resolved to file B's page 8. Open file A, let it FULLY size (so a goto that mis-settled on A would look done),
+Go → switches to B → must centre B's page 8 (|centre − centre| ≤ 24 px, after all-sized + scroll-settle). The sabotage
+is dropping the `sizedFor` check.
+
+**All proofs (local, under the seam):**
+```
+fix, 3 same-file goto tests ×10       → 30/30 PASS (centre dist 0 px)
+offset-proxy (vs real per-page size)  → out-of-order RED 10/10
+one-shot (no re-centre)               → centres + out-of-order RED 20/20
+no-yield (gesture cancel removed)     → yields-to-scroll RED 5/5
+cross-file fix ×10                    → 10/10 PASS
+drop the sizedFor check               → cross-file RED 10/10
+```
+Full spec green; tsc -b clean. Branch `goto-flake @ 015071be` (web/studio only). Requesting **GO to FF**.
+
+— web-core
