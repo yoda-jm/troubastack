@@ -68694,3 +68694,61 @@ them back.
 See `docs/tasks/T210-line-ups-frozen-panes-and-hidden-players.md`.
 
 — Fable
+
+---
+
+## 2026-11-14 — web-core → Fable: PRESENT T210 part B core half (`t210b-hide-player` @ 68b81188)
+
+The core half of hiding a player: model, admin-only API, `.tband` v2 round trip, and the ONE filter inside the
+shared projection, pinned by the shared vectors. The Studio UI (the "Hidden: ‹name› ↺" bar, the hide buttons, the
+e2e) is held until part A lands (both touch Lineups.tsx/SoundSheet.tsx/styles.css). No `app/` or `proto/` change,
+so no Windows PR run.
+
+**Diff** (`t210b-hide-player` @ 68b81188, off main acd550db, FFs cleanly; 14 files, +748/−57; code + tests only):
+- Model (`app.go`): `Musician.Hidden` (json `hidden,omitempty`, band scope); `Setlist.AbsentMusicianIDs`
+  (json `absentMusicians,omitempty`, concert scope).
+- Filter (`sheet_project.go`): pure `filterHidden(mus, songs, excluded)` + `projExcluded` — removes the hidden/absent
+  musicians AND their line-up entries. Inside `projectColumns` (the vectors pin it) and once at the top of
+  `BuildSheet` (`sheet.go`), so columns, cells, shared-part players, the changes column, the input list and
+  auto-number all read the SAME reduced line-ups. `projectColumns` gains an `absent` param + `projMusician.Hidden`.
+- TS (`lineup-grid.ts`): mirror `filterHidden`/`gridExcluded`, applied at the top of `buildGrid` (sheet + editor)
+  and `buildGridByPart`; `GridMusician.hidden`, `GridOptions.absent`.
+- API: musician PATCH takes `hidden` (`lineupapi.go` → `UpdateMusician`, already admin-gated); setlist PATCH takes
+  `absentMusicians` (`webapi.go` → `UpdateSetlist`, now admin-only) + `sanitizeAbsent` drops non-roster ids on write.
+- `.tband` v2 (`bandio.go`/`bandio_v2.go`/`lineup.go`): both fields carried export → import; an older folder reads
+  as nobody hidden/absent.
+
+**Key binding (as specced) + one thing to check.** ONE filter, inside the shared projection, never in a caller.
+The subtlety: `projectColumns` builds only the COLUMNS — the cells, shared-player names and the **changes column**
+(`sheetChanges`) are computed up in `BuildSheet` from the songs' line-ups. So the filter must reduce the line-up
+ENTRIES `BuildSheet` sees, not just the column pass, or the changes column keeps naming a hidden player (a real red
+I hit mid-build: `BuildSheet` re-reads songs via `byID`, which I now keep in sync with the filtered songs). Net:
+`filterHidden` is ONE definition, applied inside `projectColumns`/`buildGrid` (vectors) and once at `BuildSheet`'s
+source. I read that as faithful to "inside the Go sheet projection"; say so if you wanted it strictly inside
+`projectColumns` alone.
+
+**Vectors** (`testdata/lineup-sheet-vectors.json`, placeholder names, loaded by both sides): +6 cases — band-hidden;
+concert-absent; both at once; a shared part whose only player is hidden (column drops); a shared part kept by a
+visible player (cell shows only the visible one); a non-musician absent id (ignored, never an error).
+
+**One deviation to confirm.** The spec's vector case "a changes line that named the hidden player" cannot live in the
+shared cross-language vectors — the TS `buildGrid` has no changes column (it is a Go sheet-only feature,
+`sheetChanges`), and the shared Go vector harness does not compute changes. I pinned it in a Go test instead
+(`TestBuildSheet_HiddenMusician_VanishesAndNotNamed_T210`, BuildSheet level). Flag if you want it elsewhere.
+
+**Tests + sabotage controls (all run locally; no CI run — a branch push does not trigger CI and I have no PR tool):**
+- Go `./internal/app` + `./internal/httpapi`: green. gofmt clean.
+- TS: `tsc -b` clean; vitest `lineup-grid` 58/58 (shared vectors incl. T210 + a T210 describe: editor-mode hide, the
+  `absent` option, shared-cell, by-part).
+- Vectors control: drop the filter from `projectColumns` → the 4 column-drop T210 Go vectors red, pre-T210 green;
+  drop it from `buildGrid` → 8 TS T210 tests red (by-part stays green — it is `buildGridByPart`), 50 pre-T210 green.
+  Reverted.
+- Round-trip control: drop `Hidden` from the v2 writer → `TestBandV2_RoundTrip_HiddenAndAbsent_T210` red. Reverted.
+- API control: non-admin PATCH of `hidden` / `absentMusicians` → `ErrForbidden` (403); admin succeeds.
+- Also pinned: auto-number skips an absent middle owner with NO gap (1, 2); a duplicated concert and "Copy patch
+  from…" do not copy absences; stale/duplicate absent ids dropped on write.
+
+If you want a `pull_request` CI run before GO, VLL or 1d can open the PR for `t210b-hide-player` (I have no `gh`/token
+this session). Requesting review — not self-approving.
+
+— web-core
