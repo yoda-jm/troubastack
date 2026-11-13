@@ -15,46 +15,175 @@ async function boxX(page: Page, sel: string): Promise<number> {
   return x;
 }
 
-// T203-FIX3 — the Line-ups grid: a sticky header under the topbar + a sticky song column, so a long/wide list
-// never loses its headers or its song titles.
-test("sticky header under the topbar + sticky song column, popup still anchored", async ({ page }) => {
-  const u = `sticky${stamp()}`;
-  await register(page, u);
-  const { id } = await createBandAndOpen(page, `Band ${stamp()}`);
-  // Many musicians (wide) + many songs (tall).
-  for (let i = 0; i < 8; i++) await page.request.post(`/api/bands/${id}/musicians`, { data: { name: `Guest ${i}` } });
-  for (let i = 0; i < 45; i++) await page.request.post(`/api/bands/${id}/songs`, { data: { title: `Song ${i}` } });
+// T210: each line-up grid scrolls inside its own box (LineupScroll), so these tests scroll the BOX, not the
+// window. boxEdge is the box's inner edges: where a stuck header row or song column must sit.
+async function boxEdge(page: Page, grid: string) {
+  return page.locator(grid).evaluate((g) => {
+    const box = g.closest(".lineup-scroll") as HTMLElement;
+    const r = box.getBoundingClientRect();
+    return { top: r.top + box.clientTop, left: r.left + box.clientLeft };
+  });
+}
+const scrollBox = (page: Page, grid: string, to: "top" | "bottom" | "left" | "right") =>
+  page.locator(grid).evaluate((g, where) => {
+    const box = g.closest(".lineup-scroll") as HTMLElement;
+    if (where === "top") box.scrollTop = 0;
+    else if (where === "bottom") box.scrollTop = box.scrollHeight;
+    else if (where === "left") box.scrollLeft = 0;
+    else box.scrollLeft = box.scrollWidth;
+  }, to);
 
+// The "+ part" popup is painted where it says it is, whole: inside the window, and the element at each of its
+// inner corners is the popup itself (an overflow box clipping it, or anything covering it, fails this).
+async function expectWholePopup(page: Page) {
+  const pop = page.getByTestId("lineup-assign");
+  await expect(pop).toBeVisible();
+  const r = await pop.evaluate((el) => {
+    const b = el.getBoundingClientRect();
+    const hit = (x: number, y: number) => el.contains(document.elementFromPoint(x, y));
+    return {
+      inWindow: b.left >= 0 && b.top >= 0 && b.right <= document.documentElement.clientWidth && b.bottom <= window.innerHeight,
+      corners: [hit(b.left + 4, b.top + 4), hit(b.right - 4, b.top + 4), hit(b.left + 4, b.bottom - 4), hit(b.right - 4, b.bottom - 4)],
+    };
+  });
+  expect(r).toEqual({ inWindow: true, corners: [true, true, true, true] });
+}
+
+// 9 musicians (each a Voice column after "Add common parts") and `songs` songs: wide and tall.
+async function seedWide(page: Page, songs: number) {
+  await register(page, `sticky${stamp()}`);
+  const { id } = await createBandAndOpen(page, `Band ${stamp()}`);
+  for (let i = 0; i < 8; i++) await page.request.post(`/api/bands/${id}/musicians`, { data: { name: `Guest ${i}` } });
+  for (let i = 0; i < songs; i++) await page.request.post(`/api/bands/${id}/songs`, { data: { title: `Song ${i}` } });
   await page.getByTestId("nav-lineups").click();
   await expect(page.getByTestId("lineups-title")).toBeVisible();
   await page.getByTestId("lineups-add-common").click(); // seeds voice parts → every musician gets a Voice column
   await expect(page.getByTestId("lineup-col-owner").first()).toBeVisible();
+}
 
-  // 1. Scroll to the bottom — the header row sits right under the topbar.
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+const GRID = '[data-testid="lineup-grid"]';
+
+// T203-FIX3, inside T210's box: a header stuck at the box's top and a song column stuck at its left, so a long,
+// wide list never loses its headers or its song titles. The "+ part" popup opens whole, at either end.
+test("sticky header + song column inside the box, the popup whole at either end", async ({ page }) => {
+  await seedWide(page, 45);
+
+  // 1. Scroll the box to the bottom: the header row sits at the box's top.
+  await scrollBox(page, GRID, "bottom");
   await expect.poll(async () => {
-    const topbar = await page.locator("header.topbar").boundingBox();
+    const edge = await boxEdge(page, GRID);
     const owner = await page.getByTestId("lineup-col-owner").first().boundingBox();
-    if (!topbar || !owner) return 999;
-    return Math.abs(owner.y - (topbar.y + topbar.height));
+    return owner ? Math.abs(owner.y - edge.top) : 999;
   }).toBeLessThan(2);
   await expect(page.getByTestId("lineup-col-owner").first()).toBeVisible();
 
-  // 2. Narrow viewport, scroll right — the song-title column stays at x ≈ 0.
+  // 2. Narrow viewport, scroll the box right: the song-title column stays at the box's left...
   await page.setViewportSize({ width: 480, height: 800 });
-  await page.evaluate(() => window.scrollTo(document.body.scrollWidth, 0));
+  await scrollBox(page, GRID, "right");
   await expect.poll(async () => {
+    const edge = await boxEdge(page, GRID);
     const cell = await page.getByTestId("lineup-row").first().locator("td").first().boundingBox();
-    return cell ? Math.abs(cell.x) : 999;
+    return cell ? Math.abs(cell.x - edge.left) : 999;
   }).toBeLessThan(2);
+  // ...and the page itself is no wider than the window.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
-  // 3. The "+ part" popup still opens below its trigger.
-  await page.evaluate(() => window.scrollTo(0, 0));
+  // 3. The "+ part" popup opens below its trigger, whole: at the right-hand column (the box still scrolled right)...
+  await scrollBox(page, GRID, "top");
+  const last = page.getByTestId("lineup-add-part").last();
+  await last.click();
+  const trig = (await last.boundingBox())!;
+  const pop = (await page.getByTestId("lineup-assign").boundingBox())!;
+  expect(pop.y).toBeGreaterThanOrEqual(trig.y - 1); // below (or level with) the trigger
+  await expectWholePopup(page);
+  await page.getByTestId("lineup-assign-close").click();
+  await expect(page.getByTestId("lineup-assign")).toHaveCount(0);
+
+  // ...and at the first column (the box scrolled back left).
+  await scrollBox(page, GRID, "left");
   await page.getByTestId("lineup-add-part").first().click();
-  await expect(page.getByTestId("lineup-assign")).toBeVisible();
-  const trig = await page.getByTestId("lineup-add-part").first().boundingBox();
-  const pop = await page.getByTestId("lineup-assign").boundingBox();
-  expect(pop!.y).toBeGreaterThanOrEqual(trig!.y - 1); // below (or level with) the trigger
+  await expectWholePopup(page);
+});
+
+// T210 — on desktop the box is no trap: at either end of the box, the wheel goes on to the page.
+test("T210: the wheel goes on to the page at the box's ends", async ({ page }) => {
+  await seedWide(page, 45);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight + 100)).toBe(true);
+  const b = (await page.getByTestId("lineup-scroll").boundingBox())!;
+
+  // The box at its bottom end: a wheel down over it scrolls the page.
+  await scrollBox(page, GRID, "bottom");
+  await page.mouse.move(b.x + b.width / 2, Math.min(b.y + 100, 700));
+  const y0 = await page.evaluate(() => window.scrollY);
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(y0 + 50);
+  // The page at ITS end too: the header is still in view under the topbar (the box leaves room for the page's
+  // bottom padding, which the page can scroll past the box).
+  await page.mouse.wheel(0, 2000);
+  await expect.poll(() => page.evaluate(() => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 1)).toBe(true);
+  const topbar = (await page.locator("header.topbar").boundingBox())!;
+  const owner = (await page.getByTestId("lineup-col-owner").first().boundingBox())!;
+  expect(owner.y).toBeGreaterThanOrEqual(topbar.y + topbar.height - 1);
+
+  // The box at its top end: a wheel up over it scrolls the page back.
+  await scrollBox(page, GRID, "top");
+  await page.mouse.move(b.x + b.width / 2, 400);
+  const y1 = await page.evaluate(() => window.scrollY);
+  await page.mouse.wheel(0, -400);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(y1 - 50);
+});
+
+// T210 + M4 — an arrow key onto a cell outside the box's view scrolls the box to it, and never leaves it under the
+// stuck header rows or the stuck song column. Checked after EVERY key: focus() alone scrolls only a cell that is
+// outside the box, so a middle row going up (or a column going left) stays hidden under them.
+test("T210: arrow keys keep the focused cell in the box, clear of the header and song column", async ({ page }) => {
+  await seedWide(page, 45);
+  await page.setViewportSize({ width: 600, height: 700 });
+  const clear = () =>
+    page.evaluate(() => {
+      const el = document.activeElement as HTMLElement;
+      const td = el.closest("td")!.getBoundingClientRect();
+      const g = document.querySelector('[data-testid="lineup-grid"]')!;
+      const head = g.querySelector("thead")!.getBoundingClientRect();
+      const corner = g.querySelector(".lineup-corner")!.getBoundingClientRect();
+      const box = g.closest(".lineup-scroll") as HTMLElement;
+      const b = box.getBoundingClientRect();
+      const bottom = Math.min(b.top + box.clientTop + box.clientHeight, window.innerHeight);
+      const right = b.left + box.clientLeft + box.clientWidth;
+      const at = `row ${el.dataset.row} col ${el.dataset.col}`;
+      if (td.top < head.bottom - 1) return `${at}: under the header (${Math.round(td.top)} < ${Math.round(head.bottom)})`;
+      if (td.bottom > bottom + 1) return `${at}: below the box or window (${Math.round(td.bottom)} > ${Math.round(bottom)})`;
+      if (td.left < corner.right - 1) return `${at}: under the song column (${Math.round(td.left)} < ${Math.round(corner.right)})`;
+      if (td.right > right + 1) return `${at}: right of the box (${Math.round(td.right)} > ${Math.round(right)})`;
+      return "clear";
+    });
+  const hidden: string[] = []; // every key that left the focused cell hidden, so a red run lists them all
+  const press = async (key: string, times: number) => {
+    for (let i = 0; i < times; i++) {
+      await page.keyboard.press(key);
+      const c = await clear();
+      if (c !== "clear") hidden.push(`${key} #${i + 1}: ${c}`);
+    }
+  };
+  await page.getByTestId("lineup-cell-voice").first().focus();
+  const cols = await page.getByTestId("lineup-subcol").count();
+  await press("ArrowDown", 44); // to the last row
+  await press("ArrowUp", 44); // back to the first: the middle rows pass under the header
+  await press("ArrowRight", cols - 1); // to the last column
+  await press("ArrowLeft", cols - 1); // back to the first: the middle columns pass under the song column
+  expect(hidden).toEqual([]);
+});
+
+// T210 — a musician column still drags to a new place inside the box.
+test("T210: a musician column drags to a new place inside the box", async ({ page }) => {
+  await seedWide(page, 3);
+  const owners = page.getByTestId("lineup-col-owner");
+  const names = async () => (await owners.allTextContents()).map((t) => t.split(/[◀+]/)[0].trim());
+  const before = await names();
+  await owners.nth(2).dragTo(owners.nth(0));
+  await expect.poll(names).not.toEqual(before);
+  expect((await names())[0]).toBe(before[2]);
 });
 
 // T203-FIX3 binding (Fable): the whole thead is one sticky block, NOT per-row offsets — so a taller header row
@@ -79,7 +208,7 @@ test("sound sheet: stuck header rows stay flush (no overlap) at 125% zoom", asyn
   await expect(page.getByTestId("setlist-detail-title")).toBeVisible(); // T206: shared concert header h1
   await expect(page.locator('[data-testid="sheet-grid"] thead tr')).toHaveCount(3);
   await page.evaluate(() => { (document.documentElement.style as unknown as { zoom: string }).zoom = "1.25"; });
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await scrollBox(page, '[data-testid="sheet-grid"]', "bottom");
 
   // The header stays stuck (visible) after scrolling to the bottom...
   await expect(page.getByTestId("sheet-owner").first()).toBeVisible();
@@ -109,7 +238,7 @@ test("T203-FIX4: first Voice header keeps the tint and scrolls away while the co
   await page.getByTestId("lineups-add-common").click();
   await expect(page.getByTestId("lineup-col-owner").first()).toBeVisible();
 
-  const grid = '[data-testid="lineup-grid"]';
+  const grid = GRID;
   const firstSub = `${grid} thead tr:nth-child(2) th`;
   // 1. the first Voice sub-header carries the header tint — the SAME paint as the owner header above it (both
   //    thead cells), and not the body's transparent/surface white (the regression made this cell white). Polled:
@@ -122,18 +251,19 @@ test("T203-FIX4: first Voice header keeps the tint and scrolls away while the co
     return a === o ? "ok" : `mismatch a=${a} o=${o}`;
   }).toBe("ok");
 
-  // 2. scrolled right, the Voice header scrolls away (not pinned) while the corner stays at x≈0.
+  // 2. scrolled right, the Voice header scrolls away (not pinned) while the corner stays at the box's left.
   await page.setViewportSize({ width: 480, height: 800 });
   const x0 = await boxX(page, firstSub);
-  await page.evaluate(() => window.scrollTo(document.body.scrollWidth, 0));
+  await scrollBox(page, grid, "right");
   await expect.poll(async () => {
+    const edge = await boxEdge(page, grid);
     const b = await page.locator(`${grid} .lineup-corner`).boundingBox();
-    return b ? b.x : 999;
+    return b ? Math.abs(b.x - edge.left) : 999;
   }).toBeLessThan(2);
   const cornerX = await boxX(page, `${grid} .lineup-corner`);
   const x1 = await boxX(page, firstSub);
   // It didn't just move — it scrolled PAST the corner's left edge. FIX6: a stuck-left header would sit AT the
-  // corner (x1≈0) and still satisfy x1<x0-5, so that check alone is blind to the bug.
+  // corner (x1≈cornerX) and still satisfy x1<x0-5, so that check alone is blind to the bug.
   expect(x1).toBeLessThan(x0 - 5);
   expect(x1).toBeLessThan(cornerX);
 });
@@ -167,15 +297,16 @@ test("T203-FIX4: sound sheet first channel header keeps the tint and scrolls awa
 
   await page.setViewportSize({ width: 480, height: 800 });
   const x0 = await boxX(page, firstChan);
-  await page.evaluate(() => window.scrollTo(document.body.scrollWidth, 0));
+  await scrollBox(page, grid, "right");
   await expect.poll(async () => {
+    const edge = await boxEdge(page, grid);
     const b = await page.locator(`${grid} .lineup-corner`).boundingBox();
-    return b ? b.x : 999;
+    return b ? Math.abs(b.x - edge.left) : 999;
   }).toBeLessThan(2);
   const cornerX = await boxX(page, `${grid} .lineup-corner`);
   const x1 = await boxX(page, firstChan);
-  // FIX6: scrolled PAST the corner's left edge, not merely moved (a stuck-left header sits at x1≈0 and still
-  // passes x1<x0-5).
+  // FIX6: scrolled PAST the corner's left edge, not merely moved (a stuck-left header sits at x1≈cornerX and
+  // still passes x1<x0-5).
   expect(x1).toBeLessThan(x0 - 5);
   expect(x1).toBeLessThan(cornerX);
 });

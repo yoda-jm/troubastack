@@ -58,6 +58,7 @@
   --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent);
 
   --maxw: 1040px;
+  --page-pad: clamp(1rem, 3vw, 2rem); /* .content and .page padding; the line-up box subtracts it (T210) */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -189,7 +190,7 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   font-size: .72rem; font-weight: 700;
 }
 
-.content, .page { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: clamp(1rem, 3vw, 2rem); }
+.content, .page { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: var(--page-pad); }
 
 .auth-page {
   max-width: 400px; margin: 0 auto;
@@ -1881,7 +1882,7 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 /* T206 — the concert's tab strip (Setlist | Sound sheet). Underline tabs (the .drawer-tab family,
    not the .details-tab pills): a bottom rule under the whole strip, the active tab's own rule in the brand.
    NavLinks, so each is a real route and NavLink sets the .active class itself. The strip is normal flow —
-   it scrolls away with the header, so the sticky sheet grid header still pins at --topbar-h underneath. */
+   it scrolls away with the header; the sheet grid below scrolls in its own box (T210). */
 .concert-tabs { display: flex; gap: .25rem; margin: .4rem 0 1.1rem; border-bottom: 1px solid var(--border); }
 .concert-tab {
   padding: .45rem .9rem; font-weight: 600; font-size: .92rem;
@@ -2558,14 +2559,25 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .lineups-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .4rem 0; }
 .lineups-suggest { list-style: none; padding: 0; margin: .25rem 0; display: flex; flex-wrap: wrap; gap: .4rem; }
 .lineups-suggest button { border: 1px solid var(--border, #ddd); border-radius: 6px; background: var(--surface, #fff); padding: .15rem .5rem; cursor: pointer; }
-.lineup-grid { border-collapse: collapse; width: 100%; margin-top: .5rem; font-size: .9rem; }
+/* T210 — every line-up grid scrolls inside its own box (LineupScroll.tsx), one screen tall under the topbar. On a
+   touch engine a table wider than the screen otherwise widens the page's layout viewport, and the header and song
+   column ride away with a finger drag. Less the bottom padding of .page and .content: the page can scroll that far
+   past the box, so a full-screen box would end with its header above the screen (41 px, measured in the app).
+   The vh line is the fallback for an engine without dvh. No overscroll-behavior: at the box's ends the wheel (or a
+   new drag) goes on to the page. */
+.lineup-scroll {
+  overflow: auto; margin-top: .5rem;
+  max-height: calc(100vh - var(--topbar-h, 0px) - 2 * var(--page-pad));
+  max-height: calc(100dvh - var(--topbar-h, 0px) - 2 * var(--page-pad));
+}
+.lineup-grid { border-collapse: collapse; width: 100%; font-size: .9rem; }
 .lineup-grid th, .lineup-grid td { border: 1px solid var(--border, #e3e3e3); padding: .25rem .4rem; text-align: center; white-space: nowrap; }
 /* T203-FIX3 — sticky header + sticky song column on the Line-ups grid, the by-part view and the Sound sheet
-   (all share .lineup-grid). The page scrolls (no overflow wrapper), so sticky works against the page. The WHOLE
+   (all share .lineup-grid). Since T210 they stick to the box's top and left, not the page's. The WHOLE
    thead is one sticky block (not per-row offsets): row heights are only a minimum, so a taller header row (the
    owner row's ◀▶/+part, the sound sheet's input row, zoom) can't make stuck rows overlap. Opaque background so
    cells scroll under; z-index below the topbar (10) + the "+ part" popup, above the cells. */
-.lineup-grid thead { position: sticky; top: var(--topbar-h, 0px); z-index: 3; }
+.lineup-grid thead { position: sticky; top: 0; z-index: 3; }
 .lineup-grid thead th { background: var(--brand-tint); }
 /* T203-FIX4: target the corner + song column by CLASS, never :first-child — the "Song" corner is rowSpan 2/3,
    so :first-child also hit row 2/3's first musician header (it went white and stuck left over the corner). */
@@ -2578,7 +2590,8 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .lineup-addpart { margin-left: .4rem; font-size: .8rem; }
 .lineup-addpart-wrap { position: relative; display: inline-block; }
 .lineup-assign-close { float: right; margin-left: .5rem; }
-.lineup-assign { position: absolute; top: 100%; left: 0; z-index: 5; background: var(--surface, #fff); border: 1px solid var(--border, #ccc); border-radius: 6px; padding: .3rem; display: flex; flex-direction: column; gap: .2rem; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+/* fixed, not absolute: the box would clip it. Lineups.tsx places it from its trigger's rect (T210). */
+.lineup-assign { position: fixed; overflow-y: auto; z-index: 5; background: var(--surface, #fff); border: 1px solid var(--border, #ccc); border-radius: 6px; padding: .3rem; display: flex; flex-direction: column; gap: .2rem; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
 
 /* T203 M4 — grid keyboard nav + reorder affordances */
 .lineup-grid th[draggable="true"] { cursor: grab; }
