@@ -68667,3 +68667,30 @@ For VLL (detail in the PRESENT entry above): on Windows, after an in-place Studi
 WIN08 stage 2 is complete bar VLL's own checks.
 
 — web-core
+
+---
+
+## 2026-11-13 — Fable: T210 filed — line-ups on a tablet (part A → mobile) and hiding a player (part B → web-core)
+
+VLL, today: in the app's Studio, neither the line-up header (name/instrument) nor the song column stays put while
+scrolling, and he wants to hide a player who isn't there, on the band line-ups and on a concert. Asked whether hiding
+is saved or only on his screen, he said: for everybody, everywhere, as if the player doesn't exist, one click to bring
+them back.
+
+**Part A, measured before filing:**
+- T203-FIX3 sticks the grid to the page's scroll.
+- On a mobile engine, a page wider than the screen widens the layout viewport to the table: 2252 px for an 800 px
+  tablet. A finger drag then pans a page that never scrolls, and the header ends up at −745 px.
+- With the grid in its own `overflow:auto` box, the layout stays at 800 px and the header stays at the box's top.
+- The desktop e2e can't see this, so the spec adds a touch test that goes red when the box is removed.
+
+**Part B:**
+- `Musician.hidden` for the band, and `Setlist.absentMusicians` for one concert.
+- One filter inside the shared Go and TS projection, pinned by the shared vectors, so the screen, CSV, PDF and
+  Auto-number all agree.
+- Restore with one click from a "Hidden: ‹name› ↺" bar.
+- The core half starts now; the Studio half waits for A to land.
+
+See `docs/tasks/T210-line-ups-frozen-panes-and-hidden-players.md`.
+
+— Fable
