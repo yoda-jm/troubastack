@@ -7,6 +7,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { ApiError, api, type SheetModel, type SheetOrder, type ChannelPatch, type Setlist } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useDialogs } from "../components/Dialog";
+import { LineupScroll } from "../components/LineupScroll";
 import { useConcert } from "./ConcertLayout";
 
 type Draft = Record<string, { input: string; strip: string }>;
@@ -153,80 +154,82 @@ export function SoundSheet() {
       </div>
 
       {model && (
-        <table className="lineup-grid sheet-grid" data-testid="sheet-grid">
-          <thead>
-            <tr>
-              <th rowSpan={3} className="lineup-corner">Song</th>
-              {model.ownerSpans.map((s, i) => <th key={i} colSpan={s.span} data-testid="sheet-owner">{s.ownerName}</th>)}
-              <th rowSpan={3}>Changes</th>
-              <th rowSpan={3}>Sound note</th>
-            </tr>
-            <tr>
-              {model.subcols.map((sc) => <th key={sc.key} data-testid="sheet-channel">{sc.channel}</th>)}
-            </tr>
-            <tr>
-              {model.subcols.map((sc) =>
-                isAdmin && sc.amplified ? (
-                  <th key={sc.key} className="sheet-patch-cell">
-                    {(() => {
-                      const n = parseInt(draft[sc.key]?.input ?? "", 10);
-                      const isDup = !Number.isNaN(n) && n > 0 && dupInputs.has(n);
-                      return (
-                        <input
-                          className={"sheet-in" + (isDup ? " dup" : "")}
-                          type="number"
-                          min={0}
-                          value={draft[sc.key]?.input ?? ""}
-                          data-testid="sheet-in"
-                          data-dup={isDup ? "1" : undefined}
-                          aria-invalid={isDup || undefined}
-                          aria-label={`input number for ${sc.ownerName} ${sc.channel}`}
-                          onChange={(e) => { dirty.current.add(sc.key); setDraft((d) => ({ ...d, [sc.key]: { input: e.target.value, strip: d[sc.key]?.strip ?? "" } })); }}
-                        />
-                      );
-                    })()}
-                    <input className="sheet-strip" placeholder="strip" value={draft[sc.key]?.strip ?? ""} data-testid="sheet-strip" aria-label={`strip name for ${sc.ownerName} ${sc.channel}`}
-                      onChange={(e) => { dirty.current.add(sc.key); setDraft((d) => ({ ...d, [sc.key]: { input: d[sc.key]?.input ?? "", strip: e.target.value } })); }} />
-                  </th>
-                ) : (
-                  <th key={sc.key} className="muted" data-testid="sheet-input">{sc.input}</th>
-                ),
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {model.rows.map((r, i) => {
-              const fullSpan = 1 + model.subcols.length + 2;
-              if (r.kind === "intermission") {
-                return (
-                  <tr key={`int-${i}`} data-testid="sheet-intermission">
-                    <td colSpan={fullSpan} className="sheet-intermission">— {r.label || "Intermission"} —</td>
-                  </tr>
-                );
-              }
-              const firstOnCall = r.section === "oncall" && (i === 0 || model.rows[i - 1].section !== "oncall");
-              return (
-                <Fragment key={r.songId || `row-${i}`}>
-                  {firstOnCall && (
-                    <tr key={`oncall-${i}`} data-testid="sheet-oncall-head">
-                      <td colSpan={fullSpan} className="sheet-oncall-head">On call</td>
+        <LineupScroll>
+          <table className="lineup-grid sheet-grid" data-testid="sheet-grid">
+            <thead>
+              <tr>
+                <th rowSpan={3} className="lineup-corner">Song</th>
+                {model.ownerSpans.map((s, i) => <th key={i} colSpan={s.span} data-testid="sheet-owner">{s.ownerName}</th>)}
+                <th rowSpan={3}>Changes</th>
+                <th rowSpan={3}>Sound note</th>
+              </tr>
+              <tr>
+                {model.subcols.map((sc) => <th key={sc.key} data-testid="sheet-channel">{sc.channel}</th>)}
+              </tr>
+              <tr>
+                {model.subcols.map((sc) =>
+                  isAdmin && sc.amplified ? (
+                    <th key={sc.key} className="sheet-patch-cell">
+                      {(() => {
+                        const n = parseInt(draft[sc.key]?.input ?? "", 10);
+                        const isDup = !Number.isNaN(n) && n > 0 && dupInputs.has(n);
+                        return (
+                          <input
+                            className={"sheet-in" + (isDup ? " dup" : "")}
+                            type="number"
+                            min={0}
+                            value={draft[sc.key]?.input ?? ""}
+                            data-testid="sheet-in"
+                            data-dup={isDup ? "1" : undefined}
+                            aria-invalid={isDup || undefined}
+                            aria-label={`input number for ${sc.ownerName} ${sc.channel}`}
+                            onChange={(e) => { dirty.current.add(sc.key); setDraft((d) => ({ ...d, [sc.key]: { input: e.target.value, strip: d[sc.key]?.strip ?? "" } })); }}
+                          />
+                        );
+                      })()}
+                      <input className="sheet-strip" placeholder="strip" value={draft[sc.key]?.strip ?? ""} data-testid="sheet-strip" aria-label={`strip name for ${sc.ownerName} ${sc.channel}`}
+                        onChange={(e) => { dirty.current.add(sc.key); setDraft((d) => ({ ...d, [sc.key]: { input: d[sc.key]?.input ?? "", strip: e.target.value } })); }} />
+                    </th>
+                  ) : (
+                    <th key={sc.key} className="muted" data-testid="sheet-input">{sc.input}</th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {model.rows.map((r, i) => {
+                const fullSpan = 1 + model.subcols.length + 2;
+                if (r.kind === "intermission") {
+                  return (
+                    <tr key={`int-${i}`} data-testid="sheet-intermission">
+                      <td colSpan={fullSpan} className="sheet-intermission">— {r.label || "Intermission"} —</td>
                     </tr>
-                  )}
-                  <tr key={r.songId} data-testid="sheet-row" data-section={r.section}>
-                    <td className="lineup-songcell">{r.number ? `${r.number} · ` : ""}{r.title}</td>
-                    {model.subcols.map((sc) => {
-                      const c = r.cells?.[sc.key];
-                      const txt = c?.optional && c.text ? `(${c.text})` : c?.text ?? "";
-                      return <td key={sc.key} className="sheet-body-cell">{txt}</td>;
-                    })}
-                    <td className="muted" data-testid="sheet-changes">{(r.changes ?? []).join("; ")}</td>
-                    <td className="muted">{r.soundNote}</td>
-                  </tr>
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                  );
+                }
+                const firstOnCall = r.section === "oncall" && (i === 0 || model.rows[i - 1].section !== "oncall");
+                return (
+                  <Fragment key={r.songId || `row-${i}`}>
+                    {firstOnCall && (
+                      <tr key={`oncall-${i}`} data-testid="sheet-oncall-head">
+                        <td colSpan={fullSpan} className="sheet-oncall-head">On call</td>
+                      </tr>
+                    )}
+                    <tr key={r.songId} data-testid="sheet-row" data-section={r.section}>
+                      <td className="lineup-songcell">{r.number ? `${r.number} · ` : ""}{r.title}</td>
+                      {model.subcols.map((sc) => {
+                        const c = r.cells?.[sc.key];
+                        const txt = c?.optional && c.text ? `(${c.text})` : c?.text ?? "";
+                        return <td key={sc.key} className="sheet-body-cell">{txt}</td>;
+                      })}
+                      <td className="muted" data-testid="sheet-changes">{(r.changes ?? []).join("; ")}</td>
+                      <td className="muted">{r.soundNote}</td>
+                    </tr>
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </LineupScroll>
       )}
 
       {model && model.inputList.length > 0 && (

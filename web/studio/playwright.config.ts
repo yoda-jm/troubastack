@@ -41,7 +41,17 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // T210: "mobile" is a touch tablet (isMobile + hasTouch, 800×1280 at DPR 2), for what only a touch engine shows:
+  // its layout viewport widens to a wide page, so a finger pans instead of scrolling. It runs *.mobile.spec.ts
+  // alone, and the desktop project skips them.
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /\.mobile\.spec\.ts$/ },
+    {
+      name: "mobile",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 800, height: 1280 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+      testMatch: /\.mobile\.spec\.ts$/,
+    },
+  ],
   webServer: [
     {
       // Fresh in-memory backend per run → deterministic tests. NO_MDNS so it can't clash with a

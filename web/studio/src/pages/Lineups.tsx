@@ -5,11 +5,12 @@
  * Click a Voice cell to cycle its part; click an instrument cell to toggle it; a shared cell picks the player.
  * A "by part" toggle re-projects the same data. The chips filter the rows (tags + line-up chips, AND).
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError, api, type Song, type MusicianView, type Part, type LineupEntry, type Channel, type MergeNote } from "../api";
 import { useBand } from "./BandLayout";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useDialogs } from "../components/Dialog";
+import { LineupScroll, revealInLineupScroll } from "../components/LineupScroll";
 import { queryWords } from "./song-search";
 import {
   buildGrid,
@@ -121,6 +122,29 @@ export function Lineups() {
       document.removeEventListener("pointerdown", onDown);
     };
   }, [assignFor, closeAssign]);
+  // T210: the grid scrolls inside its box, and the box would clip an absolute popup. So the popup is
+  // position:fixed (still in its header cell, so the tab order is unchanged) and placed here from the trigger's
+  // rect: below it, kept on screen at the right-hand column, and placed again whenever anything scrolls.
+  useLayoutEffect(() => {
+    if (!assignFor) return;
+    const place = () => {
+      const pop = assignPopupRef.current;
+      const trig = assignTriggerRef.current;
+      if (!pop || !trig) return;
+      const t = trig.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth;
+      pop.style.left = `${Math.max(4, Math.min(t.left, vw - pop.offsetWidth - 4))}px`;
+      pop.style.top = `${t.bottom}px`;
+      pop.style.maxHeight = `${Math.max(120, window.innerHeight - t.bottom - 4)}px`;
+    };
+    place();
+    window.addEventListener("scroll", place, true); // capture: the box's own scroll doesn't bubble
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [assignFor]);
 
   const words = queryWords(query);
   const shown = filterLineupSongs(songs as LineupSong[], chips, words);
@@ -473,6 +497,7 @@ export function Lineups() {
     if (el) {
       setFocusRC([r, c]);
       el.focus();
+      revealInLineupScroll(el); // T210: not left under the stuck header or song column
     }
   }
   function onGridKey(e: React.KeyboardEvent) {
@@ -718,132 +743,136 @@ export function Lineups() {
       )}
 
       {byPart ? (
-        <table className="lineup-grid" data-testid="lineup-grid-bypart">
-          <thead>
-            <tr>
-              <th className="lineup-corner">Song</th>
-              {byPartGrid.columns.map((c) => <th key={c.partId}>{c.label}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {byPartGrid.rows.map((r) => (
-              <tr key={r.songId} data-testid="lineup-row">
-                <td className="lineup-songcell">{r.title}</td>
-                {byPartGrid.columns.map((c) => <td key={c.partId}>{r.cells[c.partId]}</td>)}
+        <LineupScroll>
+          <table className="lineup-grid" data-testid="lineup-grid-bypart">
+            <thead>
+              <tr>
+                <th className="lineup-corner">Song</th>
+                {byPartGrid.columns.map((c) => <th key={c.partId}>{c.label}</th>)}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <table className="lineup-grid" data-testid="lineup-grid" ref={gridRef} onKeyDown={onGridKey}>
-          <thead>
-            <tr>
-              <th rowSpan={2} className="lineup-corner">Song</th>
-              {grid.columns.map((col) => (
-                <th
-                  key={col.id}
-                  colSpan={Math.max(1, col.subs.length)}
-                  data-testid="lineup-col-owner"
-                  draggable={isAdmin && col.kind === "musician"}
-                  onDragStart={(e) => { if (isAdmin && col.kind === "musician") e.dataTransfer.setData("text/musician", col.id); }}
-                  onDragOver={(e) => { if (isAdmin && col.kind === "musician") e.preventDefault(); }}
-                  onDrop={(e) => { const id = e.dataTransfer.getData("text/musician"); if (id && col.kind === "musician") { e.preventDefault(); moveMusicianTo(id, col.id); } }}
-                >
-                  {col.label}
-                  {isAdmin && col.kind === "musician" && (
-                    <span className="lineup-col-move">
-                      <button type="button" className="linklike" data-testid="lineup-musician-left" title="Move left" aria-label={`Move ${col.label} left`} onClick={() => moveMusician(col.id, -1)}>◀</button>
-                      <button type="button" className="linklike" data-testid="lineup-musician-right" title="Move right" aria-label={`Move ${col.label} right`} onClick={() => moveMusician(col.id, 1)}>▶</button>
-                    </span>
-                  )}
-                  {col.kind === "musician" && (
-                    <span className="lineup-addpart-wrap">
-                      <button type="button" className="linklike lineup-addpart" data-testid="lineup-add-part" title="Manage this musician's instruments" onClick={(e) => { assignTriggerRef.current = e.currentTarget; setAssignFor(assignFor === col.id ? null : col.id); setNewInstName(""); }}>+ part</button>
-                      {assignFor === col.id && (
-                        <div className="lineup-assign" data-testid="lineup-assign" ref={assignPopupRef}>
-                          <button type="button" className="linklike lineup-assign-close" data-testid="lineup-assign-close" aria-label="Close" onClick={closeAssign}>✕</button>
-                          {/* Create a new instrument inline (members may) */}
-                          <form
-                            className="lineup-assign-new"
-                            onSubmit={(e) => { e.preventDefault(); void createAndAddInstrument(col.id, newInstName); }}
-                          >
-                            <input list="common-part-names" placeholder="new part…" value={newInstName} onChange={(e) => setNewInstName(e.target.value)} data-testid="lineup-newinst" aria-label="New part" />
-                            <button type="submit" className="linklike" data-testid="lineup-newinst-add">add</button>
-                            {newInstName.trim() !== "" && (
-                              <span className="muted lineup-infer-kind" data-testid="lineup-infer-kind"> as {inferPartKind(newInstName)}</span>
-                            )}
-                          </form>
-                          {/* Add an existing personal instrument */}
-                          {addableInstruments(col.id).map((p) => (
-                            <button key={p.id} type="button" className="linklike" data-testid="lineup-assign-opt" onClick={() => void addInstrumentToMusician(col.id, p.id)}>+ {p.name}</button>
-                          ))}
-                          {/* Remove one the musician already has (refused while used; offers clear-N) */}
-                          {musicianInstruments(col.id).map((p) => (
-                            <button key={`rm-${p.id}`} type="button" className="linklike lineup-remove-inst" data-testid="lineup-remove-inst" title={`Remove ${p.name}`} onClick={() => void removeInstrument(col.id, p.id, p.name)}>✕ {p.name}</button>
-                          ))}
-                        </div>
-                      )}
-                    </span>
-                  )}
-                </th>
+            </thead>
+            <tbody>
+              {byPartGrid.rows.map((r) => (
+                <tr key={r.songId} data-testid="lineup-row">
+                  <td className="lineup-songcell">{r.title}</td>
+                  {byPartGrid.columns.map((c) => <td key={c.partId}>{r.cells[c.partId]}</td>)}
+                </tr>
               ))}
-            </tr>
-            <tr>
-              {grid.columns.flatMap((col) =>
-                col.subs.length === 0
-                  ? [<th key={`empty:${col.id}`} className="muted" data-testid="lineup-subcol">—</th>]
-                  : col.subs.map((sub) => <th key={sub.key} data-testid="lineup-subcol">{sub.header}</th>),
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {grid.rows.map((r, ri) => (
-              <tr key={r.songId} data-testid="lineup-row">
-                <td className="lineup-songcell">
-                  {r.title}
-                  {r.key ? <span className="muted"> · {r.key}</span> : null}
-                </td>
+            </tbody>
+          </table>
+        </LineupScroll>
+      ) : (
+        <LineupScroll>
+          <table className="lineup-grid" data-testid="lineup-grid" ref={gridRef} onKeyDown={onGridKey}>
+            <thead>
+              <tr>
+                <th rowSpan={2} className="lineup-corner">Song</th>
+                {grid.columns.map((col) => (
+                  <th
+                    key={col.id}
+                    colSpan={Math.max(1, col.subs.length)}
+                    data-testid="lineup-col-owner"
+                    draggable={isAdmin && col.kind === "musician"}
+                    onDragStart={(e) => { if (isAdmin && col.kind === "musician") e.dataTransfer.setData("text/musician", col.id); }}
+                    onDragOver={(e) => { if (isAdmin && col.kind === "musician") e.preventDefault(); }}
+                    onDrop={(e) => { const id = e.dataTransfer.getData("text/musician"); if (id && col.kind === "musician") { e.preventDefault(); moveMusicianTo(id, col.id); } }}
+                  >
+                    {col.label}
+                    {isAdmin && col.kind === "musician" && (
+                      <span className="lineup-col-move">
+                        <button type="button" className="linklike" data-testid="lineup-musician-left" title="Move left" aria-label={`Move ${col.label} left`} onClick={() => moveMusician(col.id, -1)}>◀</button>
+                        <button type="button" className="linklike" data-testid="lineup-musician-right" title="Move right" aria-label={`Move ${col.label} right`} onClick={() => moveMusician(col.id, 1)}>▶</button>
+                      </span>
+                    )}
+                    {col.kind === "musician" && (
+                      <span className="lineup-addpart-wrap">
+                        <button type="button" className="linklike lineup-addpart" data-testid="lineup-add-part" title="Manage this musician's instruments" onClick={(e) => { assignTriggerRef.current = e.currentTarget; setAssignFor(assignFor === col.id ? null : col.id); setNewInstName(""); }}>+ part</button>
+                        {assignFor === col.id && (
+                          <div className="lineup-assign" data-testid="lineup-assign" ref={assignPopupRef}>
+                            <button type="button" className="linklike lineup-assign-close" data-testid="lineup-assign-close" aria-label="Close" onClick={closeAssign}>✕</button>
+                            {/* Create a new instrument inline (members may) */}
+                            <form
+                              className="lineup-assign-new"
+                              onSubmit={(e) => { e.preventDefault(); void createAndAddInstrument(col.id, newInstName); }}
+                            >
+                              <input list="common-part-names" placeholder="new part…" value={newInstName} onChange={(e) => setNewInstName(e.target.value)} data-testid="lineup-newinst" aria-label="New part" />
+                              <button type="submit" className="linklike" data-testid="lineup-newinst-add">add</button>
+                              {newInstName.trim() !== "" && (
+                                <span className="muted lineup-infer-kind" data-testid="lineup-infer-kind"> as {inferPartKind(newInstName)}</span>
+                              )}
+                            </form>
+                            {/* Add an existing personal instrument */}
+                            {addableInstruments(col.id).map((p) => (
+                              <button key={p.id} type="button" className="linklike" data-testid="lineup-assign-opt" onClick={() => void addInstrumentToMusician(col.id, p.id)}>+ {p.name}</button>
+                            ))}
+                            {/* Remove one the musician already has (refused while used; offers clear-N) */}
+                            {musicianInstruments(col.id).map((p) => (
+                              <button key={`rm-${p.id}`} type="button" className="linklike lineup-remove-inst" data-testid="lineup-remove-inst" title={`Remove ${p.name}`} onClick={() => void removeInstrument(col.id, p.id, p.name)}>✕ {p.name}</button>
+                            ))}
+                          </div>
+                        )}
+                      </span>
+                    )}
+                  </th>
+                ))}
+              </tr>
+              <tr>
                 {grid.columns.flatMap((col) =>
                   col.subs.length === 0
-                    ? [<td key={`empty:${col.id}`} className="muted">·</td>]
-                    : col.subs.map((sub) => {
-                    const cell = r.cells[sub.key];
-                    const txt = cell.optional && cell.text ? `(${cell.text})` : cell.text;
-                    const ci = subColIndex.get(sub.key)!;
-                    if (sub.kind === "channel") {
-                      // One cell per channel: click cycles its parts, a letter picks by short. The testid keeps
-                      // the voice/inst split so the M4 + line-up e2e selectors still resolve on a default band.
-                      return (
-                        <td key={sub.key}>
-                          <button
-                            type="button"
-                            className={"lineup-cell" + (cell.text ? " on" : "")}
-                            data-testid={sub.channelKey === "voice" ? "lineup-cell-voice" : "lineup-cell-inst"}
-                            {...rc(ri, ci)}
-                            onKeyDown={(e) => channelKeyDown(e, r.songId, sub.musicianId, sub.partIds)}
-                            onClick={() => cycleChannel(r.songId, sub.musicianId, sub.partIds)}
-                          >
-                            {txt || "·"}
-                          </button>
-                        </td>
-                      );
-                    }
-                    // shared: a select of who plays it
-                    const playerId = musicians.find((m) => cell.text && m.displayName.startsWith(cell.text))?.id ?? "";
-                    return (
-                      <td key={sub.key}>
-                        <select className="lineup-cell" data-testid="lineup-cell-shared" {...rc(ri, ci)} value={playerId} onChange={(e) => setShared(r.songId, sub.partId, e.target.value)}>
-                          <option value="">·</option>
-                          {musicians.map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
-                        </select>
-                      </td>
-                    );
-                  }),
+                    ? [<th key={`empty:${col.id}`} className="muted" data-testid="lineup-subcol">—</th>]
+                    : col.subs.map((sub) => <th key={sub.key} data-testid="lineup-subcol">{sub.header}</th>),
                 )}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {grid.rows.map((r, ri) => (
+                <tr key={r.songId} data-testid="lineup-row">
+                  <td className="lineup-songcell">
+                    {r.title}
+                    {r.key ? <span className="muted"> · {r.key}</span> : null}
+                  </td>
+                  {grid.columns.flatMap((col) =>
+                    col.subs.length === 0
+                      ? [<td key={`empty:${col.id}`} className="muted">·</td>]
+                      : col.subs.map((sub) => {
+                      const cell = r.cells[sub.key];
+                      const txt = cell.optional && cell.text ? `(${cell.text})` : cell.text;
+                      const ci = subColIndex.get(sub.key)!;
+                      if (sub.kind === "channel") {
+                        // One cell per channel: click cycles its parts, a letter picks by short. The testid keeps
+                        // the voice/inst split so the M4 + line-up e2e selectors still resolve on a default band.
+                        return (
+                          <td key={sub.key}>
+                            <button
+                              type="button"
+                              className={"lineup-cell" + (cell.text ? " on" : "")}
+                              data-testid={sub.channelKey === "voice" ? "lineup-cell-voice" : "lineup-cell-inst"}
+                              {...rc(ri, ci)}
+                              onKeyDown={(e) => channelKeyDown(e, r.songId, sub.musicianId, sub.partIds)}
+                              onClick={() => cycleChannel(r.songId, sub.musicianId, sub.partIds)}
+                            >
+                              {txt || "·"}
+                            </button>
+                          </td>
+                        );
+                      }
+                      // shared: a select of who plays it
+                      const playerId = musicians.find((m) => cell.text && m.displayName.startsWith(cell.text))?.id ?? "";
+                      return (
+                        <td key={sub.key}>
+                          <select className="lineup-cell" data-testid="lineup-cell-shared" {...rc(ri, ci)} value={playerId} onChange={(e) => setShared(r.songId, sub.partId, e.target.value)}>
+                            <option value="">·</option>
+                            {musicians.map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
+                          </select>
+                        </td>
+                      );
+                    }),
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </LineupScroll>
       )}
       {shown.length === 0 && <p className="muted" data-testid="lineups-empty">No songs match.</p>}
     </>
