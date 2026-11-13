@@ -35,13 +35,14 @@ func (a *WebAPI) addMusician(w http.ResponseWriter, r *http.Request, u app.User)
 
 func (a *WebAPI) updateMusician(w http.ResponseWriter, r *http.Request, u app.User) {
 	var in struct {
-		Name  *string `json:"name"`
-		Order *int    `json:"order"`
+		Name   *string `json:"name"`
+		Order  *int    `json:"order"`
+		Hidden *bool   `json:"hidden"` // T210: band-wide hide/show (admin-only, via UpdateMusician's role gate)
 	}
 	if !decode(w, r, &in) {
 		return
 	}
-	m, err := a.svc.UpdateMusician(u, r.PathValue("bandId"), r.PathValue("musicianId"), app.MusicianPatch{Name: in.Name, Order: in.Order})
+	m, err := a.svc.UpdateMusician(u, r.PathValue("bandId"), r.PathValue("musicianId"), app.MusicianPatch{Name: in.Name, Order: in.Order, Hidden: in.Hidden})
 	if err != nil {
 		writeErr(w, err)
 		return

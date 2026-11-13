@@ -8,9 +8,55 @@ import (
 
 // projMusician is the minimal musician shape the pure projection needs: id, resolved display name, stage order.
 type projMusician struct {
-	ID    string
-	Name  string
-	Order int
+	ID     string
+	Name   string
+	Order  int
+	Hidden bool // T210: band-hidden — filterHidden drops it (and its line-up entries) before projecting.
+}
+
+// filterHidden removes the excluded musicians AND their line-up entries from the inputs, so the WHOLE sheet
+// projection — columns, shared-part players, cells, the changes column, the input list and auto-number —
+// treats them as absent, "as if they don't exist" (T210). excluded is the union of band-hidden musicians
+// (Musician.Hidden) and a concert's AbsentMusicianIDs. This is the ONE filter: it lives inside the shared
+// projection (projectColumns here, buildGrid in the TS editor), never in a caller, so none of the four sheet
+// outputs can drift. Pure — it returns fresh copies and never mutates the inputs; an excluded id that is not a
+// musician simply matches no one. No exclusions ⇒ the inputs are returned unchanged (byte-identical pre-T210).
+func filterHidden(mus []projMusician, songs []Song, excluded map[string]bool) ([]projMusician, []Song) {
+	if len(excluded) == 0 {
+		return mus, songs
+	}
+	fmus := make([]projMusician, 0, len(mus))
+	for _, m := range mus {
+		if !excluded[m.ID] {
+			fmus = append(fmus, m)
+		}
+	}
+	fsongs := make([]Song, len(songs))
+	for i, sg := range songs {
+		fsongs[i] = sg
+		le := make([]LineupEntry, 0, len(sg.Lineup))
+		for _, e := range sg.Lineup {
+			if !excluded[e.MusicianID] {
+				le = append(le, e)
+			}
+		}
+		fsongs[i].Lineup = le
+	}
+	return fmus, fsongs
+}
+
+// projExcluded is the exclusion set for a projection: the band-hidden musicians plus the concert-absent ids.
+func projExcluded(mus []projMusician, absent []string) map[string]bool {
+	ex := map[string]bool{}
+	for _, m := range mus {
+		if m.Hidden {
+			ex[m.ID] = true
+		}
+	}
+	for _, id := range absent {
+		ex[id] = true
+	}
+	return ex
 }
 
 // projectColumns is the PURE person-major column projection, in stage order, shared with the TS editor's
@@ -18,7 +64,10 @@ type projMusician struct {
 // one Voice column per singing musician, one per personal instrument they play (amplified before unamplified),
 // and a shared instrument its OWN column after the people. Input text + shared-header players are filled by the
 // caller (they need the concert's patch); here OwnerName is the bare musician / part name.
-func projectColumns(songs []Song, mus []projMusician, parts []Part, channels []Channel) []SheetSubcol {
+func projectColumns(songs []Song, mus []projMusician, parts []Part, channels []Channel, absent []string) []SheetSubcol {
+	// T210: drop band-hidden and concert-absent musicians (and their line-up entries) at the source, so the
+	// column set, a shared part left with nobody, the unused-column dropping and the changes column all follow.
+	mus, songs = filterHidden(mus, songs, projExcluded(mus, absent))
 	// T204: columns are per-musician CHANNELS (tracks). A channel groups the parts that share its key
 	// (PartChannelKey): the default is "voice" for voice parts and "p:<id>" per instrument (so a band with no
 	// custom groups is byte-identical to T203); a group is "g:<channelId>". Shared parts keep their own column.

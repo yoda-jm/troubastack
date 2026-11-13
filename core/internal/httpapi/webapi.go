@@ -1181,21 +1181,23 @@ func (a *WebAPI) exportSetlist(w http.ResponseWriter, r *http.Request, u app.Use
 
 func (a *WebAPI) updateSetlist(w http.ResponseWriter, r *http.Request, u app.User) {
 	var in struct {
-		Name      *string `json:"name"`
-		EventDate *string `json:"eventDate"`
-		Venue     *string `json:"venue"`
-		Notes     *string `json:"notes"`
-		Archived  *bool   `json:"archived"` // T200: admin-only; archiving also turns live mode off
+		Name            *string   `json:"name"`
+		EventDate       *string   `json:"eventDate"`
+		Venue           *string   `json:"venue"`
+		Notes           *string   `json:"notes"`
+		Archived        *bool     `json:"archived"`        // T200: admin-only; archiving also turns live mode off
+		AbsentMusicians *[]string `json:"absentMusicians"` // T210: admin-only "Not at this concert" set
 	}
 	if !decode(w, r, &in) {
 		return
 	}
 	sl, err := a.svc.UpdateSetlist(u, r.PathValue("bandId"), r.PathValue("setlistId"), app.SetlistInput{
-		Name:      in.Name,
-		EventDate: in.EventDate,
-		Venue:     in.Venue,
-		Notes:     in.Notes,
-		Archived:  in.Archived,
+		Name:            in.Name,
+		EventDate:       in.EventDate,
+		Venue:           in.Venue,
+		Notes:           in.Notes,
+		Archived:        in.Archived,
+		AbsentMusicians: in.AbsentMusicians,
 	})
 	if err != nil {
 		writeErr(w, err)

@@ -530,6 +530,161 @@
           }
         }
       }
+    },
+    {
+      "name": "T210: a band-hidden player drops from the columns, as if they do not exist",
+      "musicians": [
+        { "id": "A", "name": "Ann", "order": 1 },
+        { "id": "B", "name": "Bo", "order": 2, "hidden": true }
+      ],
+      "parts": [
+        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" },
+        { "id": "gtr", "name": "Guitar", "kind": "instrument", "short": "Gtr" }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            { "musicianId": "A", "partIds": ["lead"] },
+            { "musicianId": "B", "partIds": ["gtr"] }
+          ]
+        }
+      ],
+      "expect": {
+        "subcols": ["ch:A:voice"],
+        "cells": { "s1": { "ch:A:voice": "L" } }
+      }
+    },
+    {
+      "name": "T210: a concert-absent player drops from the columns",
+      "musicians": [
+        { "id": "A", "name": "Ann", "order": 1 },
+        { "id": "B", "name": "Bo", "order": 2 }
+      ],
+      "absentMusicians": ["B"],
+      "parts": [
+        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" },
+        { "id": "gtr", "name": "Guitar", "kind": "instrument", "short": "Gtr" }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            { "musicianId": "A", "partIds": ["lead"] },
+            { "musicianId": "B", "partIds": ["gtr"] }
+          ]
+        }
+      ],
+      "expect": {
+        "subcols": ["ch:A:voice"],
+        "cells": { "s1": { "ch:A:voice": "L" } }
+      }
+    },
+    {
+      "name": "T210: band-hidden AND concert-absent at once both drop",
+      "musicians": [
+        { "id": "A", "name": "Ann", "order": 1 },
+        { "id": "B", "name": "Bo", "order": 2, "hidden": true },
+        { "id": "C", "name": "Cy", "order": 3 }
+      ],
+      "absentMusicians": ["C"],
+      "parts": [
+        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" },
+        { "id": "gtr", "name": "Guitar", "kind": "instrument", "short": "Gtr" },
+        { "id": "keys", "name": "Keys", "kind": "instrument", "short": "Kbd" }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            { "musicianId": "A", "partIds": ["lead"] },
+            { "musicianId": "B", "partIds": ["gtr"] },
+            { "musicianId": "C", "partIds": ["keys"] }
+          ]
+        }
+      ],
+      "expect": {
+        "subcols": ["ch:A:voice"],
+        "cells": { "s1": { "ch:A:voice": "L" } }
+      }
+    },
+    {
+      "name": "T210: a shared part whose only player is hidden loses its column entirely",
+      "musicians": [
+        { "id": "A", "name": "Ann", "order": 1 },
+        { "id": "B", "name": "Bo", "order": 2, "hidden": true }
+      ],
+      "parts": [
+        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" },
+        { "id": "bass", "name": "Bass", "kind": "instrument", "short": "Bs", "shared": true }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            { "musicianId": "A", "partIds": ["lead"] },
+            { "musicianId": "B", "partIds": ["bass"] }
+          ]
+        },
+        {
+          "id": "s2",
+          "lineup": [
+            { "musicianId": "A", "partIds": ["lead"] }
+          ]
+        }
+      ],
+      "expect": {
+        "subcols": ["ch:A:voice"],
+        "cells": {
+          "s1": { "ch:A:voice": "L" },
+          "s2": { "ch:A:voice": "L" }
+        }
+      }
+    },
+    {
+      "name": "T210: a shared part kept by a visible player shows only the visible player, not the hidden one",
+      "musicians": [
+        { "id": "A", "name": "Ann", "order": 1 },
+        { "id": "B", "name": "Bo", "order": 2, "hidden": true }
+      ],
+      "parts": [
+        { "id": "bass", "name": "Bass", "kind": "instrument", "short": "Bs", "shared": true }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            { "musicianId": "A", "partIds": ["bass"] },
+            { "musicianId": "B", "partIds": ["bass"] }
+          ]
+        }
+      ],
+      "expect": {
+        "subcols": ["shared:bass"],
+        "cells": { "s1": { "shared:bass": "Ann" } }
+      }
+    },
+    {
+      "name": "T210: an absent id that is not a musician is ignored, never an error",
+      "musicians": [
+        { "id": "A", "name": "Ann", "order": 1 }
+      ],
+      "absentMusicians": ["ghost"],
+      "parts": [
+        { "id": "lead", "name": "Lead vocal", "kind": "voice", "short": "L" }
+      ],
+      "songs": [
+        {
+          "id": "s1",
+          "lineup": [
+            { "musicianId": "A", "partIds": ["lead"] }
+          ]
+        }
+      ],
+      "expect": {
+        "subcols": ["ch:A:voice"],
+        "cells": { "s1": { "ch:A:voice": "L" } }
+      }
     }
   ]
 }

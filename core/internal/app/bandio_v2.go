@@ -93,6 +93,7 @@ type v2Musician struct {
 	Name        string   `json:"name,omitempty"`
 	Order       int      `json:"order,omitempty"`
 	Instruments []string `json:"instruments,omitempty"` // the musician's personal-instrument part ids (by id)
+	Hidden      bool     `json:"hidden,omitempty"`      // T210: band-hidden; a pre-T210 folder has none → reads as not hidden
 }
 
 type v2Member struct {
@@ -158,9 +159,12 @@ type v2Setlist struct {
 	Notes     string `json:"notes,omitempty"`
 	// Archived (T200): the archive flag travels with the folder. omitempty — a pre-T200
 	// folder has none and reads as not archived. The timestamp is not carried.
-	Archived bool            `json:"archived,omitempty"`
-	Patch    []ChannelPatch  `json:"patch,omitempty"` // T203: reserved per-concert channel patch
-	Items    []v2SetlistItem `json:"items"`
+	Archived bool           `json:"archived,omitempty"`
+	Patch    []ChannelPatch `json:"patch,omitempty"` // T203: reserved per-concert channel patch
+	// AbsentMusicians (T210): the "Not at this concert" musician ids travel with the folder. omitempty — a
+	// pre-T210 folder has none and reads as nobody absent.
+	AbsentMusicians []string        `json:"absentMusicians,omitempty"`
+	Items           []v2SetlistItem `json:"items"`
 }
 
 type v2SetlistItem struct {
@@ -426,7 +430,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 	// Setlists.
 	sls := v2SetlistsFile{}
 	for _, msl := range man.Setlists {
-		vsl := v2Setlist{ID: msl.ID, Name: msl.Name, EventDate: msl.EventDate, Venue: msl.Venue, Notes: msl.Notes, Archived: msl.Archived, Patch: msl.Patch}
+		vsl := v2Setlist{ID: msl.ID, Name: msl.Name, EventDate: msl.EventDate, Venue: msl.Venue, Notes: msl.Notes, Archived: msl.Archived, Patch: msl.Patch, AbsentMusicians: msl.AbsentMusicians}
 		for _, it := range msl.Items {
 			// T153: an intermission has no song, so it has no slug to resolve. Export it by kind+label;
 			// the unknown-song guard below still protects every entry that CLAIMS to be a song.
@@ -682,7 +686,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 		}
 	}
 	for _, vsl := range sls.Setlists {
-		msl := manifestSetlist{ID: vsl.ID, Name: vsl.Name, EventDate: vsl.EventDate, Venue: vsl.Venue, Notes: vsl.Notes, Archived: vsl.Archived, Patch: vsl.Patch}
+		msl := manifestSetlist{ID: vsl.ID, Name: vsl.Name, EventDate: vsl.EventDate, Venue: vsl.Venue, Notes: vsl.Notes, Archived: vsl.Archived, Patch: vsl.Patch, AbsentMusicians: vsl.AbsentMusicians}
 		for idx, it := range vsl.Items {
 			// T153: an intermission occupies a position like any entry but references no song. Everything
 			// else in the loop (Position from array order, T140) applies to it unchanged.

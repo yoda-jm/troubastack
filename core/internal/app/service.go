@@ -1982,6 +1982,9 @@ type SetlistInput struct {
 	Venue     *string
 	Notes     *string
 	Archived  *bool // T200: admin-only; archiving also turns live mode off
+	// AbsentMusicians (T210): the "Not at this concert" set, admin-only. nil = leave unchanged; a supplied
+	// (possibly empty) list REPLACES the stored set. Ids not on the current roster are dropped on write.
+	AbsentMusicians *[]string
 }
 
 // validEventDate reports whether d is empty or a well-formed ISO yyyy-mm-dd date.
@@ -2107,21 +2110,52 @@ func (s *Service) Setlist(caller User, bandID, setlistID string) (SetlistDetail,
 	return SetlistDetail{Setlist: sl, Items: views}, nil
 }
 
+// sanitizeAbsent keeps only ids that are current roster musicians, de-duplicated and in input order, so a
+// musician later removed from the band is dropped from a concert's absence on the next write (T210). A stale
+// id is never an error — the sheet projection already ignores one it cannot resolve.
+func (s *Service) sanitizeAbsent(caller User, bandID string, ids []string) ([]string, error) {
+	views, err := s.Musicians(caller, bandID)
+	if err != nil {
+		return nil, err
+	}
+	roster := make(map[string]bool, len(views))
+	for _, v := range views {
+		roster[v.ID] = true
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if roster[id] && !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out, nil
+}
+
 // UpdateSetlist patches a setlist's metadata. The metadata fields (name, eventDate,
-// venue, notes) are any-member; the T200 `archived` flag is ADMIN-only — a member
-// PATCH that includes it is 403'd. Only supplied fields change; Name (if supplied) must
-// be non-empty; eventDate (if supplied) must be ISO. Archiving also turns live mode OFF
-// (zeroed in the same write).
+// venue, notes) are any-member; the T200 `archived` flag and the T210 `absentMusicians`
+// set are ADMIN-only — a member PATCH that includes either is 403'd. Only supplied fields
+// change; Name (if supplied) must be non-empty; eventDate (if supplied) must be ISO.
+// Archiving also turns live mode OFF (zeroed in the same write).
 func (s *Service) UpdateSetlist(caller User, bandID, setlistID string, in SetlistInput) (Setlist, error) {
 	sl, err := s.getSetlistForMember(caller, bandID, setlistID)
 	if err != nil {
 		return Setlist{}, err
 	}
-	if in.Archived != nil {
-		// Archive / unarchive is an admin action (same bar as live / delete).
+	if in.Archived != nil || in.AbsentMusicians != nil {
+		// Archive/unarchive (T200) and the T210 "Not at this concert" set are admin actions (same bar as
+		// live / delete): a member PATCH that includes either is 403'd before any field changes.
 		if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
 			return Setlist{}, err
 		}
+	}
+	if in.AbsentMusicians != nil {
+		clean, err := s.sanitizeAbsent(caller, bandID, *in.AbsentMusicians)
+		if err != nil {
+			return Setlist{}, err
+		}
+		sl.AbsentMusicianIDs = clean
 	}
 	if in.Name != nil {
 		name := strings.TrimSpace(*in.Name)

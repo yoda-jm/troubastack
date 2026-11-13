@@ -221,9 +221,10 @@ describe("shared projection vectors (guards TS editor ↔ Go sheet)", () => {
   type Vec = {
     cases: {
       name: string;
-      musicians: { id: string; name: string; order?: number }[];
+      musicians: { id: string; name: string; order?: number; hidden?: boolean }[];
       parts: { id: string; name: string; kind: string; short?: string; shared?: boolean; order?: number; channelId?: string }[];
       channels?: { id: string; name: string; order?: number }[];
+      absentMusicians?: string[];
       songs: { id: string; lineup: { musicianId: string; partIds: string[] }[] }[];
       expect: { subcols: string[]; cells: Record<string, Record<string, string>> };
     }[];
@@ -232,10 +233,10 @@ describe("shared projection vectors (guards TS editor ↔ Go sheet)", () => {
 
   for (const c of vec.cases) {
     it(c.name, () => {
-      const musicians: GridMusician[] = c.musicians.map((m) => ({ id: m.id, displayName: m.name, order: m.order }));
+      const musicians: GridMusician[] = c.musicians.map((m) => ({ id: m.id, displayName: m.name, order: m.order, hidden: m.hidden }));
       const parts: GridPart[] = c.parts.map((p) => ({ id: p.id, name: p.name, kind: p.kind as GridPart["kind"], short: p.short, shared: p.shared, order: p.order, channelId: p.channelId }));
       const songs: GridSong[] = c.songs.map((s) => ({ id: s.id, title: s.id, lineup: s.lineup }));
-      const g = buildGrid(songs, musicians, parts, { channels: c.channels }); // SHEET mode (used-only), to match the Go projection
+      const g = buildGrid(songs, musicians, parts, { channels: c.channels, absent: c.absentMusicians }); // SHEET mode (used-only), to match the Go projection
       const keys = g.columns.flatMap((col) => col.subs.map((s) => s.key));
       expect(keys).toEqual(c.expect.subcols);
       for (const row of g.rows) {
@@ -247,4 +248,46 @@ describe("shared projection vectors (guards TS editor ↔ Go sheet)", () => {
       }
     });
   }
+});
+
+describe("T210 — hiding a player (band + concert scope)", () => {
+  const songsAB: GridSong[] = [
+    { id: "s1", title: "s1", lineup: [
+      { musicianId: "A", partIds: ["lead"] },
+      { musicianId: "B", partIds: ["gtr"] },
+    ] },
+  ];
+
+  it("editor mode gives a band-hidden musician NO column — the relaxation does not resurrect them", () => {
+    const hiddenB: GridMusician = { ...B, hidden: true };
+    const g = buildGrid(songsAB, [A, hiddenB, C], parts, { editor: true });
+    expect(g.columns.map((c) => c.id)).not.toContain("B");
+    expect(g.columns.map((c) => c.id)).toContain("A");
+  });
+
+  it("the concert-absent option drops a musician for that sheet only", () => {
+    const shown = buildGrid(songsAB, [A, B], parts);
+    const absent = buildGrid(songsAB, [A, B], parts, { absent: ["B"] });
+    expect(shown.columns.map((c) => c.id)).toEqual(["A", "B"]);
+    expect(absent.columns.map((c) => c.id)).toEqual(["A"]);
+  });
+
+  it("a shared cell shows only the visible player when the other is hidden", () => {
+    const hiddenB: GridMusician = { ...B, hidden: true };
+    const songs: GridSong[] = [
+      { id: "s1", title: "s1", lineup: [
+        { musicianId: "A", partIds: ["bass"] },
+        { musicianId: "B", partIds: ["bass"] },
+      ] },
+    ];
+    const g = buildGrid(songs, [A, hiddenB], parts);
+    expect(g.rows[0].cells[sharedKey("bass")].text).toBe("Ann"); // not "Ann+Bo"
+  });
+
+  it("the by-part view hides a band-hidden player too (a part only they played drops)", () => {
+    const hiddenB: GridMusician = { ...B, hidden: true };
+    const g = buildGridByPart(songsAB, [A, hiddenB], parts);
+    expect(g.columns.map((c) => c.partId)).toContain("lead");
+    expect(g.columns.map((c) => c.partId)).not.toContain("gtr");
+  });
 });

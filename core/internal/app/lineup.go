@@ -143,10 +143,12 @@ func (s *Service) AddMusician(caller User, bandID, name string) (Musician, error
 	return m, nil
 }
 
-// MusicianPatch edits a roster entry (admin): a stage-name/guest Name and the stage Order.
+// MusicianPatch edits a roster entry (admin): a stage-name/guest Name, the stage Order, and the T210 Hidden
+// flag (hide the musician band-wide from every line-up output; one click clears it to bring them back).
 type MusicianPatch struct {
-	Name  *string
-	Order *int
+	Name   *string
+	Order  *int
+	Hidden *bool
 }
 
 // UpdateMusician edits a roster entry — admin only. Editing a member who was only auto-appearing materializes
@@ -175,6 +177,9 @@ func (s *Service) UpdateMusician(caller User, bandID, musicianID string, p Music
 	}
 	if p.Order != nil {
 		band.Musicians[idx].Order = *p.Order
+	}
+	if p.Hidden != nil {
+		band.Musicians[idx].Hidden = *p.Hidden // T210: band-wide hide/show
 	}
 	if err := s.repo.UpdateBand(band); err != nil {
 		return Musician{}, err
@@ -409,7 +414,7 @@ func (s *Service) materializeMemberMusicians(caller User, bandID string, l []Lin
 func (s *Service) exportMusicians(ms []Musician) []v2Musician {
 	out := make([]v2Musician, 0, len(ms))
 	for _, m := range ms {
-		v := v2Musician{ID: m.ID, UserID: m.UserID, Name: m.Name, Order: m.Order, Instruments: m.Instruments}
+		v := v2Musician{ID: m.ID, UserID: m.UserID, Name: m.Name, Order: m.Order, Instruments: m.Instruments, Hidden: m.Hidden}
 		if m.UserID != "" {
 			if u, err := s.repo.GetUser(m.UserID); err == nil {
 				v.Username = u.Username
@@ -425,7 +430,7 @@ func (s *Service) exportMusicians(ms []Musician) []v2Musician {
 func importMusicians(vs []v2Musician) []Musician {
 	out := make([]Musician, 0, len(vs))
 	for _, v := range vs {
-		out = append(out, Musician{ID: v.ID, UserID: v.UserID, Name: v.Name, Order: v.Order, Instruments: v.Instruments})
+		out = append(out, Musician{ID: v.ID, UserID: v.UserID, Name: v.Name, Order: v.Order, Instruments: v.Instruments, Hidden: v.Hidden})
 	}
 	return out
 }

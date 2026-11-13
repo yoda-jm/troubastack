@@ -283,6 +283,12 @@ type Musician struct {
 	// instruments actually used), so a column never vanishes when its last usage is toggled off (T203 stage 2,
 	// Fable ruling 1). Carried by .tband. Voice/shared parts are NOT listed here (they route differently).
 	Instruments []string `json:"instruments,omitempty"`
+	// Hidden (T210) removes this musician from the band's line-up projection EVERYWHERE, for every member, as
+	// if they did not exist: the Line-ups grid, the by-part view, and every concert's sound sheet, CSV, PDF and
+	// auto-number. Nothing is deleted — the song line-ups keep their entries, so clearing the flag restores
+	// everything. Band scope (an admin toggles it; the one-click ↺ bar brings them back). The sheet projection
+	// drops them and their line-up entries at the source (filterHidden), so every downstream output follows.
+	Hidden bool `json:"hidden,omitempty"`
 }
 
 // Part is a band-level vocabulary entry. Kind routes the sound-sheet grid (voice parts share one channel per
@@ -492,6 +498,13 @@ type Setlist struct {
 	// Patch (T203, RESERVED in stage 1) is this concert's console channel list — per-setlist because the
 	// console changes with the venue. Additive; the patch editor + sound sheet come in a later stage.
 	Patch []ChannelPatch `json:"patch,omitempty"`
+
+	// AbsentMusicianIDs (T210) are the musicians not at THIS concert ("Not at this concert"): the concert-scope
+	// counterpart to Musician.Hidden. They drop from this setlist's sound sheet, CSV, PDF and auto-number only,
+	// for every member — nothing is deleted, so clearing the list restores them. Admin-only to change, and NOT
+	// copied when a concert is duplicated or a patch is copied (a new date is a new attendance). An id that is no
+	// longer a musician is ignored by the projection and dropped on the next write.
+	AbsentMusicianIDs []string `json:"absentMusicians,omitempty"`
 }
 
 // LiveModeWindow is how long a setlist stays in rehearsal live mode after an admin
