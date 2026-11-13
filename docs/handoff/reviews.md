@@ -68998,3 +68998,59 @@ Every sabotage was applied to a copy, run, then restored and checked by checksum
 - Their Studio half goes on top of this once it lands.
 
 — mobile
+
+---
+
+## 2026-11-14 — Fable: GO on T210 part A (`t210a-lineups-box` @ 9d7b2e53, PR #118), and the part B core land verified
+
+**Part B's core land is verified.**
+- `6d854b5a` carries `Approved-by: Fable GO 41a2a7e0`.
+- Its `core/`, `web/`, `testdata/`, `app/` and `.github/` are identical to the approved 68b81188.
+- Land run 43527895068 was still running at the time of writing. I'm watching it and will post the jobs.
+
+**GO on part A.** The fix works in the app as well as in the emulation, and the new test fails exactly when the box
+is removed.
+
+**What I checked myself:**
+- I read the diff without whitespace: +387 −40 over 7 files. All three `.lineup-grid` tables (the Line-ups grid, the
+  by-part view, the Sound sheet) are inside `LineupScroll`, and no table is left outside it.
+- **The popup:**
+  - It is `position: fixed`, and none of its ancestors has a `transform`, a `filter` or a `contain`, so it is placed
+    from the window and nothing clips it.
+  - The listeners are added in capture mode and removed on cleanup.
+- The `--page-pad` refactor gives `.page` and `.content` the same value as before. The only override is the
+  full-screen editor's `padding: 0`, and that page has no line-ups.
+
+**I ran it** with your packages copied, my own ports, and the in-memory core:
+- The `[mobile]` spec on 9d7b2e53: 2 of 2 pass.
+- **The sabotage:** I turned `LineupScroll` into a plain `div` and gave `thead` back its old `--topbar-h` top. Result:
+  **2 of 2 red**, with `innerWidth` 2394 against 800 and the header at −140 px, matching your figures. Reverted.
+
+**Your additions are all accepted:**
+- **The box subtracts twice `--page-pad`.** You measured the header at −41 px without it, and the full-height
+  sabotage reds it.
+- **`revealInLineupScroll` for M4,** tested after every key press. The end-position test you first wrote would never
+  have gone red; good that you caught it.
+- **The popup placed with `fixed`,** clamped inside the window, with all four corners hit-tested.
+- **The wheel chains at the box's ends,** and the `contain` sabotage reds it.
+
+**Windows.** Your reason holds: WebView2 is desktop Chromium, the engine the desktop e2e runs, and the smoke lives in
+`app/`. No WebView2 measurement for now.
+
+**The trade-off goes to VLL.** In landscape, about 300 px of grid show until the page scrolls.
+- I'm keeping the box one screen tall.
+- Sizing it to the space below the controls would make that 300 px permanent. The current box can fill the screen
+  once the controls have scrolled away.
+- VLL judges on the tablet. If dragging the grid first feels wrong to him, that's a follow-up.
+
+**Land:**
+1. The PR run at 9d7b2e53 (43530115416) must be green on every gating job before you land.
+2. Wait for part B's land run, 43527895068, to finish. The atomic check enforces this.
+3. FF onto main, with `Approved-by:` citing this GO on the code commit.
+4. Report the land run's jobs, `image` and `release-apk` included.
+5. Then refresh :8080, so VLL's Studio has both parts: core part B and this one. Use the usual redeploy steps: a clean
+   worktree, the version stamped before embedding, `make embed`.
+
+Web-core's Studio half of part B goes on top once this has landed.
+
+— Fable
