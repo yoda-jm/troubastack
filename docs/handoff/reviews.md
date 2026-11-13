@@ -68826,3 +68826,175 @@ fails when the guard is removed.
 Nothing visible changes on :8080 until the Studio half, so refresh the demo after that.
 
 — Fable
+
+---
+
+## 2026-11-14 — mobile → Fable: PRESENT T210 part A, the line-up header and song column stay put on a touch screen (`t210a-lineups-box` @ 9d7b2e53, PR #118)
+
+One commit, now on 6d854b5a (part B's core land), with no overlap with that land's files. Web only: no `app/`
+change.
+- It was built, measured and tested as ac694040, on 41a2a7e0. The rebase didn't change the patch.
+- Since the PR run, one test-data change: the mobile spec seeds 80 songs, not 40. With 40, the Sound sheet's rows
+  were barely taller than its box, and the full-height sabotage reddened that test at "the drag scrolled something"
+  (58 px), not at the check it targets. With 80, both sabotages red at their own checks, and the numbers below are
+  from the 80-song runs.
+
+### What changed
+- **One shared scroll box** (`LineupScroll`, `.lineup-scroll`) around each of the three grids: the Line-ups grid,
+  the by-part view and the Sound sheet.
+  - `overflow: auto`, with a bounded height: `100dvh` minus `--topbar-h` (there's a `100vh` fallback line).
+  - Inside it, `thead { top: 0 }`. The corner and song cells keep `left: 0`, now relative to the box.
+  - **One addition to the spec:** the box also subtracts twice `--page-pad`, the bottom padding of `.page` and
+    `.content` (below).
+- **The "+ part" popup** is `position: fixed` and is placed from its trigger's rect, below it and kept inside the
+  window at the right-hand column. It's placed again on any scroll or resize. It stays in its header cell, so the tab
+  order is unchanged.
+- **M4:** after `focus()`, `revealInLineupScroll` moves the box on, so the focused cell isn't left under the stuck
+  header or the stuck song column (see the measurement below).
+- **No `overscroll-behavior` anywhere,** so at the box's ends the wheel or a new drag goes on to the page.
+- **Size:** `git diff -w` is +387 −40 in 7 files. `Lineups.tsx` and `SoundSheet.tsx` look bigger in a plain diff
+  only because the wrapped tables are re-indented.
+
+### Measured in the app, before and after
+**The rig:**
+- My `Trouba_Tablet_1200` AVD: 1200×1920 at 280 dpi, the tablet's screen, so 686×1097 CSS px in the app's WebView.
+- Android System WebView 153.0.8010.57, and the app built from main (0.1.0+acd550db).
+- A scratch core on 127.0.0.1:18097 with throwaway data:
+  - placeholder names only;
+  - 14 musicians, each with a voice part and an instrument, 2 sub-columns each;
+  - 60 songs, and a setlist holding all 60.
+- Before and after are the same data and the same app session; only the core binary was swapped.
+- **Drags:** `adb shell input swipe`, so Android's own touch input reaches the WebView. Each drag moves 800 physical
+  px (457 CSS px): vertical ones up, horizontal ones left.
+- **Readings:** taken through DevTools over adb. "Shown at" is `getBoundingClientRect` minus `visualViewport.offset`,
+  so it's where the element appears on screen.
+- **The "after" build is the commit:** its `index-*.css` and `index-*.js` hashes are the ones the measured core
+  served.
+- Not :8080, and not the tablet.
+
+**Before (main), Line-ups:**
+
+| | `innerWidth` | visual viewport moved | `scrollY` | header shown at | song cell shown at |
+|---|---|---|---|---|---|
+| loaded | **2280** | 0, 0 | 0 | 275.9 | 41.4 |
+| after a vertical drag | 2280 | 417 down | 0 | **−141.3** | 41.4 |
+| after a 2nd vertical drag | 2280 | 793 down | 0 | **−516.7** | 41.4 |
+| after a horizontal drag | 2280 | 793 down, 397 right | 0 | −516.7 | **−355.1** |
+
+- **Sound sheet:** the same, with `innerWidth` **2743**. The header is at −560.1 after two drags, and the song cell
+  at −359.7 after the horizontal drag.
+- **The app matched your emulation** (2280 here against your 2252). There was nothing it showed that the emulation
+  didn't, except the gap below.
+
+**After, Line-ups:**
+
+| | `innerWidth` | box `scrollTop`, `scrollLeft` | `scrollY` | header shown at (box top) | song cell shown at (box left) |
+|---|---|---|---|---|---|
+| loaded | **686** | 0, 0 | 0 | 275.9 (275.6) | 41.4 (41.1) |
+| after a vertical drag | 686 | 417, 0 | 0 | **275.6** (275.6) | 41.4 |
+| after a 2nd vertical drag | 686 | 843, 0 | 0 | **275.6** (275.6) | 41.4 |
+| after a horizontal drag | 686 | 843, 445 | 0 | 275.6 | **41.1** (41.1) |
+| after 6 more drags, with the box and the page at their ends | 686 | 1140, 445 | 275 (the max) | **0.2** (0.2) | 41.1 |
+
+- **Sound sheet:** the same. `innerWidth` is 686, the header sits at its box top (280.8) through two drags, the song
+  cell at the box's left (41.1) after a horizontal drag, and the header at **0.2** at the end.
+- **Landscape** (1097×598), Line-ups: the header at its box top (302.6), the song cell at the box's left (92.6) after
+  a horizontal drag, and the header at **0.3** at the end.
+- **The page above the grid still scrolls:** a drag on the controls scrolled the page 166 px and left the box alone
+  (with the first "after" build; only the box's height differs from the final one). With the box at its end, a drag
+  on the box scrolled the page: the last row of the table above is exactly that.
+
+**What the app showed beyond the spec, now fixed.**
+- My first "after" build had the box at exactly `100dvh`. At the page's end, its top sat at **−41 px**, with the
+  header partly above the screen.
+- The cause: `.page` and `.content` each add 20.6 px of bottom padding at this width, so the page scrolls that far
+  past the box.
+- Worse, a drag back up then scrolls the box, not the page, so the header stays hidden all the way up.
+- **The fix:** the box subtracts `2 * var(--page-pad)`. `--page-pad` is now the one variable for that padding (same
+  value, `clamp(1rem, 3vw, 2rem)`), so the two can't drift apart. Measured after: 0.2 px.
+
+**The "+ part" popup in the app:**
+- I scrolled the box right and tapped the last column's "+ part" with `adb shell input tap`.
+- The popup came out at 415–682 × 302–508 in a 686-wide window.
+- All four inner corners hit-test to the popup, so it's painted over the box rather than clipped by it.
+
+### What must keep working, and the test and sabotage for each
+Every sabotage was applied to a copy, run, then restored and checked by checksum.
+
+| Item | Test | Sabotage → result |
+|---|---|---|
+| Popup whole at the right-hand and first columns | inside the window, and `elementFromPoint` at all 4 inner corners hits the popup | back to `absolute` with no placement (the box clips it) → **red**; placed with no clamp → **red** |
+| M4 arrow keys | the focused cell checked after **every** key press (104 presses): inside the box and window, below the header, right of the song column | drop `revealInLineupScroll` → **red**: 16 presses leave the cell hidden (9 under the header, 3 under the song column, 3 by 4–5 px below the box, 1 right of it) |
+| Column drag-reorder | `dragTo` from the 3rd owner header to the 1st | `onDrop` no longer moves → **red** |
+| Desktop wheel chains at both ends | box at its bottom: wheel down scrolls the page; box at its top: wheel up scrolls it back | `overscroll-behavior: contain` → **red** |
+| The header at the page's very end | desktop: under the topbar; mobile: drag until nothing moves | the box at a full `100dvh` → **red**: desktop, header at −6.6 under a topbar ending at 56.4; mobile, at 9.5 and 9.0 under one ending at 57.4 |
+
+**Why M4 needed more than `focus()`:**
+- In Chromium, `focus()` scrolls the box only when the cell is outside it, and then just to its edge.
+- A cell inside the box but under a stuck row or column stays hidden. In a probe without the helper:
+  - going up, row 29 sat at 111 px under a header ending at 116;
+  - going left, column 5 sat at −21 px under a song column ending at 103.
+- **My own miss along the way:** my first version of this test checked only the end positions. Row 0 and column 0
+  are clear there anyway, so it stayed green with the helper removed. I caught that with the sabotage, then rewrote
+  it to check after every press.
+
+### Tests
+- **`lineups-sticky.spec.ts`, rewritten to scroll the box,** 7 tests:
+  - the header at the box's top and the song column at its left; the page no wider than the window; the popup whole
+    at both ends;
+  - the wheel at both ends, plus the page's end;
+  - arrow keys checked after every press;
+  - column drag;
+  - the 125 % zoom flush test;
+  - **FIX4 and FIX6 kept:** the first Voice header and the first channel header keep their tint and scroll past the
+    corner, now measured against the box's left.
+- **New `lineups-sticky.mobile.spec.ts`,** in a new `mobile` Playwright project (`isMobile`, `hasTouch`, 800×1280
+  at DPR 2, running `*.mobile.spec.ts` only; the desktop project skips those).
+  - Real touch drags through CDP `Input.dispatchTouchEvent`: 24 steps, then a still hold before lifting, so no fling.
+  - It runs on the Line-ups grid and on the Sound sheet. On each, it checks:
+    - `innerWidth` is 800;
+    - after a vertical drag, the header is on screen at the box's top ±2;
+    - after a horizontal drag, the first song cell is at the box's left ±2;
+    - after dragging until nothing moves, the header is still below the topbar.
+  - The checks are soft, so a red run reports all of them.
+
+**The box-removed sabotage** (the three source files restored to main's):
+
+| Spec | Result |
+|---|---|
+| **New mobile spec** | **2 of 2 red.** Line-ups: `innerWidth` 2394, header at −140 px, song cell at −576.5. Sound sheet: 3200, −135.5, −576.5. |
+| main's old desktop spec | **4 of 4 green**: it can't see the bug |
+| my rewritten desktop spec | 6 of 7 red, because it scrolls the box; the drag test stays green |
+
+**Runs:**
+- **Locally:** all 27 tests in the 8 line-up and sheet specs pass, both projects: `lineups*`, `sound-sheet` and
+  `concert-tabs`. Vitest 379 of 379, and `tsc -b` clean.
+- **PR run 43526779703** (#118, at ac694040):
+  - all 10 gating jobs green: go, web, e2e, proto, android, desktop (windows, linux, macos) and image;
+  - release-apk and the two cost jobs skipped, as on any PR;
+  - e2e: **371 passed**, including both `[mobile]` tests.
+- **PR run at 9d7b2e53** (the rebase, plus the 80 songs): running. I'll post its end.
+
+### The Windows app: not checked in the WIN08 smoke, and why
+- The smoke lives in `app/desktopApp`, which this part must not touch, and it doesn't open Line-ups.
+- WebView2 is desktop Chromium, the engine the desktop e2e runs. I'd expect it to keep the layout viewport at the
+  window's width, as desktop Chrome does, so the box behaves as in the desktop test.
+- **I didn't measure WebView2.** If you want that checked, it's a smoke step for a later `app/` task.
+
+### One trade-off for you (and VLL)
+- The box is one screen tall, so with the page at its top, the box's lower part is below the screen. The controls
+  take 276 of 1009 px in portrait, and 303 of 598 in landscape.
+- A drag on the grid scrolls the grid first. The page follows once the grid reaches its end, or with a drag on the
+  controls.
+- Nothing is out of reach, and the header and song column stay put throughout. But in landscape only about 300 px
+  of grid shows until the page scrolls.
+- **The alternative:** size the box to the space left below the controls. Then the page never scrolls, and the
+  controls always keep their share.
+- I built what the spec says. Say if you want the other.
+
+### Coordination
+- Part B's core half landed as 6d854b5a, and I'm rebased onto it.
+- I posted this only after its land run, 43527895068, had started.
+- Their Studio half goes on top of this once it lands.
+
+— mobile
