@@ -141,9 +141,10 @@ type manifestSetlist struct {
 	// Archived (T200): the setlist's archived state travels with the band so a .tband
 	// round-trip keeps it. The archive FLAG only — ArchivedAt is a local audit stamp,
 	// like live mode's runtime deadline, and is not carried.
-	Archived bool           `json:"archived,omitempty"`
-	Patch    []ChannelPatch `json:"patch,omitempty"` // T203: reserved per-concert channel patch
-	Items    []manifestItem `json:"items"`
+	Archived        bool           `json:"archived,omitempty"`
+	Patch           []ChannelPatch `json:"patch,omitempty"`           // T203: reserved per-concert channel patch
+	AbsentMusicians []string       `json:"absentMusicians,omitempty"` // T210: "Not at this concert"; a pre-T210 folder has none
+	Items           []manifestItem `json:"items"`
 }
 
 type manifestItem struct {
@@ -356,7 +357,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 		return nil, "", err
 	}
 	for _, sl := range setlists {
-		msl := manifestSetlist{ID: sl.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, Archived: sl.Archived, Patch: sl.Patch}
+		msl := manifestSetlist{ID: sl.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, Archived: sl.Archived, Patch: sl.Patch, AbsentMusicians: sl.AbsentMusicianIDs}
 		items, err := s.repo.ItemsOfSetlist(sl.ID)
 		if err != nil {
 			return nil, "", err
@@ -985,7 +986,7 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 		}
 		// Archived (T200) travels; ArchivedAt is a local stamp, left zero on import (the flag is what the
 		// tablet and Studio act on).
-		nsl := Setlist{ID: slid, BandID: band.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, Archived: sl.Archived, Patch: sl.Patch, CreatedAt: now}
+		nsl := Setlist{ID: slid, BandID: band.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, Archived: sl.Archived, Patch: sl.Patch, AbsentMusicianIDs: sl.AbsentMusicians, CreatedAt: now}
 		if err := s.repo.CreateSetlist(nsl); err != nil {
 			return ImportReport{}, err
 		}

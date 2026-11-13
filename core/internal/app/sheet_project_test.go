@@ -11,12 +11,13 @@ import (
 // sheet (Go) and the editor (TS) can never disagree on the channel layout (Fable, 2026-10-24).
 type sheetVectors struct {
 	Cases []struct {
-		Name      string        `json:"name"`
-		Musicians []projMusJSON `json:"musicians"`
-		Parts     []Part        `json:"parts"`
-		Songs     []Song        `json:"songs"`
-		Channels  []Channel     `json:"channels"`
-		Expect    struct {
+		Name            string        `json:"name"`
+		Musicians       []projMusJSON `json:"musicians"`
+		Parts           []Part        `json:"parts"`
+		Songs           []Song        `json:"songs"`
+		Channels        []Channel     `json:"channels"`
+		AbsentMusicians []string      `json:"absentMusicians"` // T210: concert-absent ids (band-hidden rides each musician)
+		Expect          struct {
 			Subcols []string                     `json:"subcols"`
 			Cells   map[string]map[string]string `json:"cells"`
 		} `json:"expect"`
@@ -24,9 +25,10 @@ type sheetVectors struct {
 }
 
 type projMusJSON struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Order int    `json:"order"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Order  int    `json:"order"`
+	Hidden bool   `json:"hidden"` // T210: band-hidden
 }
 
 func TestSheetProjection_SharedVectors(t *testing.T) {
@@ -51,10 +53,10 @@ func TestSheetProjection_SharedVectors(t *testing.T) {
 			mus := make([]projMusician, 0, len(c.Musicians))
 			name := map[string]string{}
 			for _, m := range c.Musicians {
-				mus = append(mus, projMusician{ID: m.ID, Name: m.Name, Order: m.Order})
+				mus = append(mus, projMusician{ID: m.ID, Name: m.Name, Order: m.Order, Hidden: m.Hidden})
 				name[m.ID] = m.Name
 			}
-			subcols := projectColumns(c.Songs, mus, c.Parts, c.Channels)
+			subcols := projectColumns(c.Songs, mus, c.Parts, c.Channels, c.AbsentMusicians)
 			rank := joinRank(c.Parts)
 			gotKeys := make([]string, len(subcols))
 			for i, sc := range subcols {
@@ -67,7 +69,10 @@ func TestSheetProjection_SharedVectors(t *testing.T) {
 			for _, sc := range subcols {
 				byKey[sc.Key] = sc
 			}
-			for _, sg := range c.Songs {
+			// T210: the cells read the SAME filtered line-ups the sheet does, so a shared column kept by a
+			// visible player shows only the visible players (the hidden/absent ones are gone from byMus).
+			_, fsongs := filterHidden(mus, c.Songs, projExcluded(mus, c.AbsentMusicians))
+			for _, sg := range fsongs {
 				want, ok := c.Expect.Cells[sg.ID]
 				if !ok {
 					continue

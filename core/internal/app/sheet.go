@@ -163,9 +163,20 @@ func (s *Service) BuildSheet(caller User, bandID, setlistID string, order SheetO
 	// Project the person-major column structure (pure, shared with the TS editor via test vectors).
 	projMus := make([]projMusician, 0, len(views))
 	for _, v := range views {
-		projMus = append(projMus, projMusician{ID: v.ID, Name: v.DisplayName, Order: v.Order})
+		projMus = append(projMus, projMusician{ID: v.ID, Name: v.DisplayName, Order: v.Order, Hidden: v.Hidden})
 	}
-	subcols := projectColumns(songs, projMus, band.Parts, band.Channels)
+	// T210: drop band-hidden + concert-absent musicians (and their line-up entries) ONCE, at the source, so
+	// every output below — columns, cells, shared-part players, the changes column, the input list and
+	// auto-number — treats them as absent. projectColumns filters too (it guards the shared vectors on its
+	// own); here it receives already-filtered data, so the cells/changes/input list below read the SAME
+	// reduced line-ups and no output can drift.
+	projMus, songs = filterHidden(projMus, songs, projExcluded(projMus, detail.Setlist.AbsentMusicianIDs))
+	// The row loop below reads each song's line-up through byID; keep it in sync with the filtered songs so the
+	// cells, the shared-part players and the changes column all see the SAME reduced line-ups (T210).
+	for _, sg := range songs {
+		byID[sg.ID] = sg
+	}
+	subcols := projectColumns(songs, projMus, band.Parts, band.Channels, nil)
 	rank := joinRank(band.Parts) // canonical channel-member order for cell joins and the changes column (T207)
 	// Fill the console-input row (row 3) from the concert's patch; set shared headers' players.
 	for i := range subcols {

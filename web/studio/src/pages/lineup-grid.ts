@@ -24,7 +24,7 @@ export type GridPart = {
   channelId?: string; // T204: a custom console-track group this part belongs to (overrides voice/per-part keying)
 };
 export type GridChannel = { id: string; name: string; order?: number };
-export type GridMusician = { id: string; displayName: string; order?: number; instruments?: string[] };
+export type GridMusician = { id: string; displayName: string; order?: number; instruments?: string[]; hidden?: boolean };
 export type GridLineupEntry = { musicianId: string; partIds: string[]; optional?: boolean; note?: string };
 export type GridSong = { id: string; title: string; key?: string; tempo?: number; lineup?: GridLineupEntry[] };
 
@@ -110,12 +110,41 @@ function channelHeader(ck: string, channelParts: Map<string, GridPart[]>, chanBy
  *  to anyone), each gains a Voice sub-column while the band has any voice part, and every shared part in the
  *  vocabulary shows its column. The sound sheet (default, no options) omits all of that — it shows only what
  *  is actually used. */
-export type GridOptions = { editor?: boolean; channels?: GridChannel[] };
+export type GridOptions = { editor?: boolean; channels?: GridChannel[]; absent?: string[] };
+
+/** filterHidden removes the excluded musicians AND their line-up entries, so the whole grid — columns, cells
+ *  and shared players — treats them as absent, "as if they don't exist" (T210). `excluded` is the union of
+ *  band-hidden musicians (GridMusician.hidden) and a concert's absent ids. This is the ONE filter on the TS
+ *  side: it lives inside buildGrid / buildGridByPart, never in a caller, so the editor and the Go sheet can't
+ *  drift (the shared vectors guard both). Pure — returns fresh arrays; no exclusions ⇒ the inputs unchanged. */
+function filterHidden(
+  musicians: GridMusician[],
+  songs: GridSong[],
+  excluded: Set<string>,
+): { musicians: GridMusician[]; songs: GridSong[] } {
+  if (excluded.size === 0) return { musicians, songs };
+  return {
+    musicians: musicians.filter((m) => !excluded.has(m.id)),
+    songs: songs.map((s) => ({ ...s, lineup: (s.lineup ?? []).filter((e) => !excluded.has(e.musicianId)) })),
+  };
+}
+
+/** gridExcluded is a grid projection's exclusion set: band-hidden musicians plus the concert-absent ids. */
+function gridExcluded(musicians: GridMusician[], absent?: string[]): Set<string> {
+  const ex = new Set<string>();
+  for (const m of musicians) if (m.hidden) ex.add(m.id);
+  for (const id of absent ?? []) ex.add(id);
+  return ex;
+}
 
 /** buildGrid projects the person-major channel grid. musicians/parts are the band vocabulary; by default only
  *  columns USED across the given songs appear (an unused sub-column is omitted) — `editor` relaxes that. */
 export function buildGrid(songs: GridSong[], musicians: GridMusician[], parts: GridPart[], opts: GridOptions = {}): Grid {
   const editor = !!opts.editor;
+  // T210: drop band-hidden + concert-absent musicians (and their line-up entries) at the source, so columns,
+  // cells and shared players all follow — including in editor mode, where a hidden player gets no column and
+  // the ↺ bar (Studio half) is the only way back. Mirrors Go filterHidden; the shared vectors guard both.
+  ({ musicians, songs } = filterHidden(musicians, songs, gridExcluded(musicians, opts.absent)));
   const bandHasVoice = parts.some((p) => p.kind === "voice");
   const partById = new Map(parts.map((p) => [p.id, p]));
   const musById = new Map(musicians.map((m) => [m.id, m]));
@@ -301,6 +330,8 @@ export type ByPartColumn = { partId: string; label: string };
 export type ByPartGrid = { columns: ByPartColumn[]; rows: { songId: string; title: string; cells: Record<string, string> }[] };
 
 export function buildGridByPart(songs: GridSong[], musicians: GridMusician[], parts: GridPart[]): ByPartGrid {
+  // T210: the by-part view is band scope, so it hides band-hidden players (and their entries) — same filter.
+  ({ musicians, songs } = filterHidden(musicians, songs, gridExcluded(musicians)));
   const musById = new Map(musicians.map((m) => [m.id, m]));
   const used = new Map<string, GridPart>();
   songs.forEach((s) => {
