@@ -68752,3 +68752,77 @@ If you want a `pull_request` CI run before GO, VLL or 1d can open the PR for `t2
 this session). Requesting review — not self-approving.
 
 — web-core
+
+---
+
+## 2026-11-14 — Fable: GO on T210 part B, the core half (`t210b-hide-player` @ 68b81188), with two bindings for the Studio half
+
+**GO.** The filter really is one piece of code, every server output goes through it, and each guard has a test that
+fails when the guard is removed.
+
+**What I checked myself:**
+- I read the whole diff (14 files).
+- All four server outputs are built by `BuildSheet`: the sheet API, the CSV, the PDF, and `AutoNumber` (in
+  `sheet_patch.go`). Nothing else calls `projectColumns`.
+- `BuildSheet` filters the songs once. Its `byID` copy is updated from the filtered songs, so the cells, the
+  shared-part players, the changes column and the input list all read the same reduced line-ups.
+- `MusicianView` embeds `Musician`, so `hidden` reaches Studio through the musician list.
+- **Admin checks, and what they cover:**
+  - `UpdateMusician` checks the admin role before it touches anything.
+  - `UpdateSetlist` requires an admin only when the request includes `absentMusicians` (or `archived`). Name, date,
+    venue and notes stay open to every member.
+- The `.tband` export and import carry the musician IDs, the line-ups and the absences unchanged, so the three stay
+  consistent with each other.
+
+**Run locally on 68b81188:**
+- Go: `./internal/app` and `./internal/httpapi` pass; gofmt clean.
+- Studio: vitest `lineup-grid`, 58 of 58 pass.
+- I could not run `tsc`, because no TypeScript is installed locally. Web-core reports it clean, and the land run's
+  `web` job checks it.
+
+**My sabotages, each reverted** (all failed as they should):
+
+| What I removed | Result |
+|---|---|
+| The filter in `BuildSheet` | 3 red: the changes column says "Bo out \| repatch: Gtr Bo→—"; the absent player's column comes back; Auto-number gives him input 2 |
+| Only the `byID` update | red: the changes column names the hidden player |
+| The admin check on `absentMusicians` | red: a non-admin's change goes through |
+| The filter inside `projectColumns` | 4 shared vectors red |
+| The TS filter in `buildGrid` | 8 tests red |
+| The TS filter in `buildGridByPart` | the by-part test red |
+
+**Your two judgment calls: both accepted.**
+1. **The filter in `BuildSheet` as well as in `projectColumns`.** That fits the spec. "Never in a caller" meant no
+   filter written for one output alone, and `BuildSheet` is the one producer every server output shares. Running the
+   filter twice gives the same result as once.
+2. **The changes-line case as a Go test, not a shared vector.** Right. The TS side has no changes column, and your
+   `BuildSheet` test is the one that failed when I removed the `byID` update.
+
+**A known effect, which I'm accepting and telling VLL about:**
+- "Save patch" and Auto-number rebuild a concert's patch from the visible columns only. So an absent player loses his
+  input numbers and any strip names typed for him in that concert.
+- A channel unused in a set is already treated this way. Keeping his entries would also clash: his old input numbers
+  get reused, and `SetPatch` rejects a duplicate input.
+- When he comes back, press Auto-number again.
+- Nothing in the song line-ups is lost.
+
+**Bindings for the Studio half** (present it after part A lands):
+1. **An edit made while a player is hidden must leave his line-up entries untouched.** Every edit in `Lineups.tsx`
+   already starts from the stored line-up (`songLineup`). But `setShared` removes the part from every entry before
+   giving it to the chosen player, and that includes a hidden player's entry.
+   - Remove it only from visible players' entries.
+   - **Test:** hide H, who plays a shared bass in song X. Give the bass to V. Bring H back: H's entry is unchanged and
+     the cell shows both.
+   - **Sabotage:** go back to removing it from everyone → red.
+2. **Line-up search suggestions skip hidden players; a typed chip still matches the stored data** (as in the spec).
+3. The "Hidden: ‹name› ↺" and "Not at this concert: ‹name› ↺" bars, plus the e2e test from the spec.
+
+**Landing the core half now:**
+1. Rebase onto main, which has only docs commits since acd550db.
+2. Put `Approved-by:` citing this GO's SHA on the code commit.
+3. Push through the atomic check.
+4. Report the land run's jobs.
+
+Nothing visible changes on :8080 until the Studio half, so refresh the demo after that.
+
+— Fable
