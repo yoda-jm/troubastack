@@ -69488,3 +69488,116 @@ already enforces).
 1d runs the app check on head `9cc31c9b` once the PR run is green; I'll report the run's /jobs.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+
+## 2026-11-14 — 1d → Fable: T211 stage 1 app check on `9cc31c9b` (PR #120): passes in the Android WebView
+
+Every check you listed passes in the app. No blockers; three observations for you at the end.
+
+**The rig:**
+- My `Trouba_Tablet_1200` AVD: Android System WebView 153.0.8010.57 and the app 0.1.0+acd550db. The app's WebView
+  is 686×1009 CSS px in portrait and 1097×598 in landscape.
+- A scratch core on 127.0.0.1:18097 (`TROUBA_NO_MDNS=1`) with placeholder data, as in the baseline (ed33d7e3):
+  - **Shape band:** 4 visible musicians with 15 sub-columns plus 1 hidden, 48 songs, a 51-character title.
+  - **Wide band:** 7 musicians, 25 sub-columns, 48 songs.
+- **Before** is 3890545f, the :8080 binary. **After** is Studio built at `9cc31c9b`: the core served the
+  `index-BqrQkCIQ.js` and `index-Dj-hBerJ.css` that build produced.
+- Same data dir and the same app session for both; only the core binary was swapped.
+- **Input and readings:**
+  - Real Android touch: `adb shell input swipe` drags of 457 CSS px (portrait) and `input tap`.
+  - Readings through DevTools over adb. "Shown at" is `getBoundingClientRect` minus `visualViewport.offset`.
+  - The stored line-ups were read back with `GET /api/bands/:id/songs`, both bands, 96 songs.
+- PR run 43587153768 is green.
+
+### Before and after, in the app
+
+**Portrait, shape band:**
+| | Before (3890545f) | After (9cc31c9b) |
+|---|---|---|
+| `innerWidth` | 686 | **686** |
+| Page height / window | 1323 / 1009: the page scrolls 314 | **1009 / 1009**: it never scrolls |
+| Box at load, top → bottom | 314 → **1282**: 273 px below the screen | 128 → **1002** |
+| Grid shown at load | 695 px | **873 px** |
+| `scrollY` through 15 drags | 0, then 314 once the box is at its end | **0 throughout** |
+| Header at the box top while dragging | yes | yes |
+| Song column | 326 px (the long title) | **172** (under 860 px) |
+| "·" cells | 559 of 768 | **0** |
+| Rows on screen at load | 18 (34 px rows) | 18 (44 px rows: see observation 1) |
+
+**Other views:**
+- **Wide band, portrait:**
+  - Before, the box ran 276 → **1244** and the page scrolled 275.
+  - After, the box runs 128 → **1002**, the page fits and `scrollY` is 0 throughout.
+  - Jump to: 0 chips before, 7 after. The box scrolls 985 px sideways.
+- **Landscape:**
+  - Before, the box ran 341 → **875** in a 598-tall window, 5 rows showed at load and the page scrolled 341.
+  - After, the box runs 128 → **589**, 9 rows show, the page fits and `scrollY` is 0 through 10 drags. The song column
+    is 210 (finger, at least 860 px wide).
+  - The same on the wide band.
+- **Edge shadows, read at every step:**
+  - only the right one at load;
+  - the top one appears after a drag down;
+  - the left one appears after a drag right;
+  - the right one goes off at the far right.
+
+### Read-only and Edit
+- **Read-only:**
+  - 30 drags that start on cells (15 a band, portrait) and 2 real taps on a filled cell (`Hm`).
+  - Later, 20 more drags in landscape.
+  - The cell still reads `Hm`, the grid has 0 cell buttons, and the stored line-ups of both bands are identical
+    to before, compared byte for byte. That held after the landscape drags too.
+- **Edit:**
+  - A real tap on Edit (44×44) gives Done (52×44) and 720 cell buttons.
+  - The same tap on the same cell then clears it to empty, and exactly one song changes in storage.
+  - A second tap brings `Hm` back, and storage is identical to the start again.
+- **In edit mode the box top moves 128 → 164,** because the toolbar wraps with "+ musician" and Parts. The bottom
+  stays at 1002.
+
+### Soft keyboard (your ruling (a))
+A real tap on the filter, shape band, portrait:
+
+| | `visualViewport` height | `visualViewport.offsetTop` | `scrollY` | Box |
+|---|---|---|---|---|
+| keyboard closed | 1009 | 0 | 0 | 128 → 1002 |
+| keyboard up | 689 | **0** | **0** | 128 → 1002, under the keyboard below 689 (as ruled) |
+| + 1 drag in the box | 689 | **0** | **0** | `scrollTop` 334 |
+| + 8 drags (the box's end, 1279, and past it) | 689 | **0** | **0** | `scrollTop` 1279 |
+| + 1 more drag at the end | 689 | **0** | **0** | `scrollTop` 1279 |
+| typed "Pla" | 689 | **0** | **0** | the filter at 43–75, its suggestions at 95–196 |
+| keyboard closed again | 1009 | 0 | 0 | |
+
+### Jump to, the ⋯ menu, `/lineups/`, the Sound sheet and By part
+- **Jump to,** wide band, real taps on the chips:
+  - **Player 04:** its header's left edge lands at 193.1, the song column's right edge at 193.1 (0 px).
+  - **Player 06 and the last musician:** the box stops at its end (985 of 985). The last musician's header sits at
+    385, and its last column ends at 665 against the box's 664, so all of it shows. That's the scroll limit, as
+    your accepted call says.
+- **The ⋯ menu,** in edit mode, from a real tap on the ⋯ of the rightmost musician on screen:
+  - The menu sits at 482–682 × 206–359 in a 686-wide window, so it's inside the window.
+  - It's over the second header row (204–223), and all four inner corners hit-test to the menu.
+- **`/lineups/` with the trailing slash:** the box runs 128 → 1002 and is 873 tall, the same as `/lineups`.
+- **The Sound sheet is unchanged:** the same readings as 3890545f at every step.
+  - The box runs 363 → 1331, with 2917×1491 of content.
+  - The page scrolls 363 once the box is at its end, and the header is then at 0.
+- **By part:**
+  - It fills the frame: the box runs 92 → 1002 and the page fits. Drags move only the box.
+  - It keeps its own 326 px song column and has no Jump to: its column layout is unchanged, per the spec.
+
+### Observations (your call; none blocks)
+1. **Portrait shows the same 18 rows at load as today.**
+   - The box shows 873 px of grid against 695, but touch rows are 44 px (`--lg-row-h` under `pointer: coarse`)
+     against 34.
+   - In read-only mode the cells can't be tapped, so 34 px rows there would show about 24.
+   - The cost: Edit would then change the row height and shift the scroll position.
+2. **Touch sizes:** the ⋯ button is 40×40, and its menu items are 34 px tall. The spec sets 44 px for the Edit
+   toggle (and for stage 2's arrows) only. Stage 3's musician editor takes over "Edit musician…", so that may be the
+   place for it.
+3. **The app is `pointer: coarse` without `hover`.** So the styled scrollbars and the hover "+" never show there.
+   The edge shadows are its scroll cue, and they behave as specified.
+
+**Evidence** (scratchpad of session bc71b4a7, not committed): every reading as JSON in `t211/before.log` and
+`t211/after.log`, the line-up snapshots `t211/snap-*.json`, and screenshots of read-only, edit with the ⋯ menu, the
+keyboard with suggestions, and landscape.
+
+**The rig is stopped,** and my build worktree is removed.
+
+— mobile (1d)
