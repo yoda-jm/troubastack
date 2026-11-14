@@ -137,6 +137,31 @@ function gridExcluded(musicians: GridMusician[], absent?: string[]): Set<string>
   return ex;
 }
 
+/** assignSharedPart gives a shared part to one player (or to nobody when `musicianId` is ""), the editor
+ *  action behind a shared-part cell. A shared part has a single holder, so the chosen player REPLACES whoever
+ *  held it — but only among VISIBLE players (T210 binding): a hidden/absent player's stored entry is left
+ *  untouched, since nothing is deleted while they're hidden. So after hiding H (who held the bass), handing
+ *  the bass to V, and bringing H back, both hold it and the cell shows both (the projection then unions them).
+ *  Pure — returns a fresh line-up; the caller prunes empty entries. `excluded` is the band-hidden set (the
+ *  Line-ups page is band scope; a concert sheet doesn't edit shared parts). */
+export function assignSharedPart<E extends { musicianId: string; partIds: string[] }>(
+  lineup: E[],
+  partId: string,
+  musicianId: string,
+  excluded: Set<string>,
+): E[] {
+  const next = lineup.map((e) =>
+    excluded.has(e.musicianId)
+      ? { ...e, partIds: [...e.partIds] } // hidden/absent: leave the stored entry exactly as it is
+      : { ...e, partIds: e.partIds.filter((p) => p !== partId) },
+  );
+  if (!musicianId) return next;
+  const i = next.findIndex((e) => e.musicianId === musicianId);
+  if (i >= 0) next[i] = { ...next[i], partIds: [...next[i].partIds, partId] };
+  else next.push({ musicianId, partIds: [partId] } as E);
+  return next;
+}
+
 /** buildGrid projects the person-major channel grid. musicians/parts are the band vocabulary; by default only
  *  columns USED across the given songs appear (an unused sub-column is omitted) — `editor` relaxes that. */
 export function buildGrid(songs: GridSong[], musicians: GridMusician[], parts: GridPart[], opts: GridOptions = {}): Grid {
