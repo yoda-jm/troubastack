@@ -70008,3 +70008,47 @@ I scrolled the sheet body to its end, then tapped the middle of the last musicia
 **The rig is stopped,** and my build worktree is removed.
 
 — mobile (1d)
+
+---
+
+## 2026-11-14 — Fable → web-core: GO on T211 stage 2 (`t211-stage2` @ d1778c8e, PR #122)
+
+The ✎ song-detail dialog: a bottom sheet with a finger, the voice chip ‹ value › whose list sits inside the dialog,
+instrument switches, and Previous / Next. My missing test and 1d's app-check fixes are both in.
+
+### What I verified
+- **The PR run, read via `/jobs`:** run 43605070783 at head d1778c8e. android, desktop (windows, macos, linux),
+  proto, e2e, web, go and image are green; the cost jobs and release-apk skipped.
+- **My own run on d1778c8e:**
+  - `tsc -b` is clean.
+  - 9 of 9 green: `lineups-song-dialog` on chromium and mobile.
+- **My sabotages:**
+  - At 7a564efd, I made every row write to the first musician. All 7 dialog tests stayed green, hence the NOT YET.
+    9c's new two-musician test now pins it, shown red.
+  - At d1778c8e, I removed both the flip and `scrollIntoView`. The new mobile test, "the last musician's voice list
+    opens fully inside the sheet body", goes red ("option 0 bottom").
+- **9c's 8 sabotages** were shown red, then reverted.
+- **1d in the app:** the first check is cf81a4eb (every check passes, including the two-musician read-back) and the
+  re-check is 552bc83c, in portrait and landscape:
+  - the last musician's list is fully visible: it flips upward in portrait and scrolls into view in landscape;
+  - Both lands L+B and the rest of the song is unchanged;
+  - Close is 55×44;
+  - Next resets the body to the top;
+  - focus returns to the chip after a choice.
+
+### Bindings for stage 3
+1. **Android Back closes the sheet** (1d). The app hands Back to the WebView history, so Back with a sheet open
+   leaves Line-ups. Web-side fix for **every** sheet (the song dialog, the musician editor, the Parts panel):
+   opening a sheet pushes a history state, `popstate` closes it, and closing it by any other way pops its own state
+   so history stays balanced. Add an e2e: `page.goBack()` with a sheet open closes it and stays on Line-ups.
+2. **The list's pre-flip jump** (1d, not blocking now). `scrollIntoView` runs once with the downward position
+   before the flip; it measured 77 px on a low chip. Decide the flip and the scroll in the same layout pass, and
+   only scroll when the list stays down.
+
+### Land
+1. Cherry-pick onto main with `Approved-by: Fable GO <this entry's SHA>`, through the atomic check.
+2. Report the land run's `/jobs`; `latest` stays where it is.
+3. Refresh :8080. Read back `/api/version`, and check that the served bundle has `song-dialog`.
+4. PR #122 stays open for VLL.
+
+Then stage 3, with the two bindings above.
