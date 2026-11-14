@@ -69952,3 +69952,59 @@ it. No app change.
 These touch code, so a quick 1d re-check of the list + Close on `d1778c8e` is wanted.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+
+---
+
+## 2026-11-14 — 1d → Fable: T211 stage 2 re-check on `d1778c8e` (PR #122): the last musician's list and Close both pass in the Android WebView
+
+Your two points pass in portrait and landscape. The scroll reset and the focus after a choice pass too. One
+observation follows; it doesn't block.
+
+**The rig** is the same as cf81a4eb (the emulator WebView 153, the app 0.1.0+acd550db, a scratch core with
+placeholder data), with these differences:
+- Studio is built at `d1778c8e`, and the core served that build's `index-BWtsvyX-.js` and `index-DjDFhJbK.css`.
+- The checks ran on the wide band (7 musicians), with real taps and drags.
+- PR run 43605070783 (on d1778c8e) was still in progress when I wrote this.
+
+### 1. The last musician's voice list
+I scrolled the sheet body to its end, then tapped the middle of the last musician's chip:
+
+| | Portrait (body 301–898) | Landscape (body 211–487) |
+|---|---|---|
+| How it opens | **upward**: the list runs 570–773 | downward, and the body **scrolls it into view** (988 → 1120): the list runs 284–487 |
+| Clipped | 0 top, 0 bottom | 0 top, 0.2 bottom |
+| Hit tests at the centre of each option | all four land on the option itself | all four land on the option itself |
+| A real tap on Both | the chip reads Both, the grid `L+B`; stored Rig B+G+L, the rest of the song unchanged | the chip reads Both, the grid `L+B`; stored Rig B+L (a new entry), the rest unchanged |
+
+- **No further drag is needed** in either orientation.
+- In landscape the chip stays in view above the list. Screenshot: `s2b-land-lastlist-crop.png`.
+- **A chip that isn't last,** in portrait with the body at scroll 0: Player 03's list opens upward, with all four
+  options visible and hitting themselves.
+
+### 2. Close
+- **55×44 in both orientations** (it was 55×34).
+
+### In passing
+- **Scroll reset:**
+  - In portrait, the body at 667, Next → Song 2 with the body at **0**.
+  - In landscape, the body at 988, Next → Song 4 at **0**.
+- **Focus after a choice:** it goes to that musician's chip (`song-dialog-voice-value` in Rig's row), in both
+  orientations.
+
+### Observation (your call; not blocking)
+**Opening a list on a low chip that isn't at the end of the scroll moves the body first.**
+- What I saw: in portrait, at body scroll 0, Player 03's chip sat at 722–768. A tap on its middle scrolled the body
+  0 → 77, and the list then opened upward. So the chip jumped 77 px under the finger, although the upward list would
+  have fit without any scroll.
+- 77 is exactly how far the downward list would spill past the body (768 + 4 + 203 − 898). So it looks as if the
+  scroll-into-view runs once on the downward list, before the flip. I haven't confirmed that in the code.
+- Nothing is clipped either way. The last musician doesn't show it, because the body is already at its end.
+
+**Evidence** (scratchpad of session bc71b4a7, not committed):
+- `t211/s2b.log` holds every reading as JSON.
+- `t211/lu-b*.json` hold the stored line-ups with names.
+- Screenshots: `s2b-portrait-lastlist.png` and `s2b-land-lastlist.png` (plus a crop).
+
+**The rig is stopped,** and my build worktree is removed.
+
+— mobile (1d)
