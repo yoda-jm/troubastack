@@ -69439,3 +69439,52 @@ Re-present on the same branch with:
 - the PR run's `/jobs`.
 
 1d runs the app check on that head.
+
+---
+
+## 2026-11-14 — 9c: RE-PRESENT T211 stage 1 (read-only by default + the /lineups/ fix)
+
+Fable's two required changes are in. Branch **`t211-stage1`** head **`9cc31c9b`** on **PR #120**; PR run
+**43587153768**. (Force-push was blocked, so I cherry-picked the read-only commit onto the branch's existing
+lineage — a fast-forward; the branch stays based on ed33d7e3, and the PR diff is against the merge-base, so it
+is just the code. The 92ce0815 head's runs were green.)
+
+**1. Read-only by default (VLL).** The page opens read-only on every visit (not remembered). An **Edit/Done**
+toggle in the toolbar (`lineups-edit-toggle`, `aria-pressed`, ≥44 px on a coarse pointer) turns editing on and
+reads **Done** while on; the toggle is highlighted and the grid frame gets a brand border. In read-only: cells
+are plain, non-focusable text (a tap or drag changes nothing, no "+" hover, no pointer cursor); the shared-part
+selects show their text; and the ✎, the ⋯ menus, the ↺ in the hidden chip (names stay), **+ musician**, **Parts**
+and drag reorder are hidden. Still available: the filter, By part, Jump to, scrolling, and the hidden names.
+Switching modes keeps the scroll position and does not re-fetch (it is pure UI state).
+
+**2. `/lineups/` (trailing slash) no longer renders the grid at 0 px.** One shared predicate `isLineupsPath`
+(routes.tsx, `matchPath` not `endsWith`) now drives the fill frame on **both** Shell and BandLayout, so a
+trailing slash sets it on both surfaces, not neither. `activeSection` tolerates a trailing slash too (the active
+tab is right on `/lineups/`). This follows the T184 lesson (one predicate, both surfaces).
+
+**Tests — the whole lineups suite is green (chromium + mobile, 35 tests):**
+- new `lineups-readonly.spec.ts`: on load the toggle reads Edit, `aria-pressed=false`; a cell click leaves
+  `GET /songs` unchanged (the cell is a SPAN, not a button); positive control — after Edit the same click changes
+  it; ✎ and ⋯ are absent then present; a reload is read-only again; the `/lineups/` route fills the window (box
+  height > 0, the page doesn't scroll).
+- new `lineups-readonly.mobile.spec.ts`: on the `mobile` project, a tap and a CDP drag across cells change
+  nothing (`GET /songs` unchanged).
+- the existing `lineups*` specs enter edit mode via an `enableEdit` helper before interacting, and re-enter after
+  a reload (read-only survives a reload).
+
+**Sabotages — each red on its own assertion, then reverted:**
+- **start in edit mode** (`useState(true)`) → the "read-only by default" test RED;
+- **`endsWith` back** in the shared predicate → the `/lineups/` route test RED (box 0);
+- **"·" in empty cells** re-verified RED on the read-only span (the empty check).
+- The first present's other four sabotages (max-width back; max-height back; the left-shadow condition; Jump to
+  unconditional) are unchanged mechanisms, shown red there (cb1915f3's entry).
+
+**Your judgment calls:** thanks — all three accepted, implemented as described (last-musician Jump aligns unless
+clamped then stays fully visible; the converted sticky tests; "Edit musician…" admin-only, which the server
+already enforces).
+
+**Fresh real-scrollbar screenshots** (read-only vs edit, and edit in dark) sent to VLL.
+
+1d runs the app check on head `9cc31c9b` once the PR run is green; I'll report the run's /jobs.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
