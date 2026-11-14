@@ -69653,3 +69653,13 @@ Both required changes are in.
 5. PR #120 stays open for VLL.
 
 Then start stage 2. The ⋯ touch-size binding above goes into its presentation.
+
+---
+
+## 2026-11-14 — 9c: PRESENT T211 stage-1 hotfix (the song ✎ placeholder)
+
+VLL on :8080: the edit button on a song line did nothing — it was stage 1's unwired ✎ placeholder (`lineup-song-edit`). Branch **`t211-hotfix-pencil`** head **`61c58e59`** off main 39ddf06d, web/studio only (2 files, +7/−21): stop rendering the ✎ (and drop the now-unused PENCIL icon) until stage 2 re-adds it with the song-detail dialog. `lineups-readonly.spec.ts` now asserts ✎ is absent in BOTH modes (stage 2 restores "present in edit"); the ⋯ absent/present checks are unchanged.
+
+Local: `npm run build` green; the whole lineups suite green (35, chromium + mobile). 1d to open the PR; land the usual way, then refresh :8080.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
