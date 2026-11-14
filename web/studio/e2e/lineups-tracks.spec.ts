@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { register, createBandAndOpen, stamp } from "./setup-helpers";
+import { register, createBandAndOpen, stamp, enableEdit } from "./setup-helpers";
 
 // T204 slice 2 — the Parts-manager "Track" UI: create a track, assign parts, the grid shows the track name, a
 // mixed-input warning, delete-with-confirm reverts, and a merge report is never silent.
@@ -26,6 +26,7 @@ test("create a track, assign two parts → one named grid column that cycles; mi
   await mkSong("Two", ah.id);
 
   await page.getByTestId("nav-lineups").click();
+  await enableEdit(page);
   await page.getByTestId("lineups-parts-toggle").click();
 
   // Create the "DI" track inline on Guitar, no prompt().
@@ -69,6 +70,7 @@ test("assigning two already-patched parts to one track merges patches, surfaces 
   });
 
   await page.getByTestId("nav-lineups").click();
+  await enableEdit(page);
   await page.getByTestId("lineups-parts-toggle").click();
   await page.getByLabel("Track for Guitar").selectOption("__new__");
   await page.getByTestId("newtrack-name").fill("DI");

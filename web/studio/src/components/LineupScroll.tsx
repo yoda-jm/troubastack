@@ -19,12 +19,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, type ReactNode, type R
 export function LineupScroll({
   children,
   fill = false,
+  editing = false,
   scrollRef,
   onOverflowX,
 }: {
   children: ReactNode;
   /** T211: fill the remaining height of the flex column (Line-ups page) instead of a bounded box (the sheet). */
   fill?: boolean;
+  /** T211: highlight the grid's frame while the page is in edit mode. */
+  editing?: boolean;
   /** The scroll element, exposed so the page can scroll it (Jump to) and read it. */
   scrollRef?: RefObject<HTMLDivElement>;
   /** Called after each measure with whether the grid is wider than its box (drives "Jump to"). */
@@ -98,7 +101,7 @@ export function LineupScroll({
     );
   }
   return (
-    <div className="lineup-grid-wrap" ref={wrapRef}>
+    <div className={"lineup-grid-wrap" + (editing ? " editing" : "")} ref={wrapRef}>
       <div className="lineup-scroll lineup-scroll-fill" data-testid="lineup-scroll" ref={boxRef}>
         {children}
       </div>

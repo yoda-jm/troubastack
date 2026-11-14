@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { register, createBandAndOpen, stamp, lineupMusicianAction } from "./setup-helpers";
+import { register, createBandAndOpen, stamp, lineupMusicianAction, enableEdit } from "./setup-helpers";
 
 // A band with two songs + the common parts seeded, open on the Line-ups tab.
 async function seededBand(page: Page, u: string): Promise<string> {
@@ -11,6 +11,7 @@ async function seededBand(page: Page, u: string): Promise<string> {
   await page.getByTestId("nav-lineups").click();
   await page.getByTestId("lineups-add-common").click();
   await expect(page.getByTestId("lineup-cell-voice").first()).toBeVisible();
+  await enableEdit(page);
   return id;
 }
 
@@ -30,6 +31,7 @@ test("line-up grid: arrow-key cell nav + musician reorder persists", async ({ pa
   await expect(page.getByTestId("lineups-title")).toBeVisible();
   await page.getByTestId("lineups-add-common").click();
   await expect(page.getByTestId("lineup-cell-voice").first()).toBeVisible();
+  await enableEdit(page);
 
   // --- Keyboard navigation: focus the first voice cell, ArrowRight moves the roving tabstop to the next cell. ---
   const first = page.getByTestId("lineup-cell-voice").first();
@@ -86,6 +88,7 @@ test("voice cell: click cycles none → lead → backing → both → none, both
   await expect(vc()).toHaveText("LV+BV"); // the state a mouse user could never reach before T207
   // It reached the server: after a reload the L+B cell is still there.
   await page.reload();
+  await enableEdit(page); // a reload resets to read-only (T211) — re-enter edit for the fourth click
   await expect(vc()).toHaveText("LV+BV");
   // A fourth click closes the cycle back to none.
   await vc().click();

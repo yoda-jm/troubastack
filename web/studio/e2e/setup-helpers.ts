@@ -126,3 +126,11 @@ export async function lineupMusicianAction(
   const item = { edit: "lineup-musician-edit", left: "lineup-musician-left", right: "lineup-musician-right", hide: "lineup-hide" }[action];
   await page.getByTestId(item).click();
 }
+
+/** T211: the Line-ups page opens read-only. This flips it to edit mode (idempotent) so a spec can interact with
+ *  cells / the ⋯ menu / Parts, which are inert or hidden in read-only. */
+export async function enableEdit(page: Page) {
+  const toggle = page.getByTestId("lineups-edit-toggle");
+  if ((await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+}

@@ -2811,9 +2811,19 @@ a.btn-sm { display: inline-flex; align-items: center; text-decoration: none; }
 .lineup-grid-wrap .lineup-grid-main .lineup-cell { display: block; width: calc(100% - 6px); height: calc(var(--lg-row-h) - 6px); min-width: 0; margin: 3px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: .82rem; font-weight: 650; text-align: center; }
 .lineup-grid-wrap .lineup-grid-main .lineup-cell:hover { background: transparent; }
 .lineup-grid-wrap .lineup-grid-main .lineup-cell.on { background: var(--mbg); color: var(--mfg); }
-@media (hover: hover) { .lineup-grid-wrap .lineup-grid-main .lineup-cell:not(.on):hover::after { content: "+"; color: var(--muted); font-weight: 500; } }
+/* The faint "+" on an empty cell is an EDIT affordance — only on a hoverable button (never the read-only span). */
+@media (hover: hover) { .lineup-grid-wrap .lineup-grid-main button.lineup-cell:not(.on):hover::after { content: "+"; color: var(--muted); font-weight: 500; } }
 .lineup-grid-wrap .lineup-grid-main .lineup-cell:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
 .lineup-grid-wrap .lineup-grid-main select.lineup-cell-shared-select { -webkit-appearance: none; appearance: none; cursor: pointer; }
+/* T211 read-only: cells are plain, non-interactive text (a tap/drag changes nothing; no pointer cursor). */
+.lineup-grid-wrap .lineup-grid-main .lineup-cell-ro { cursor: default; }
+.lineup-grid-wrap .lineup-grid-main .lineup-cell-shared-ro { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+
+/* T211 — Edit/Done toggle + the editing highlight. The page is read-only by default; editing is shown by a
+   highlighted toggle and a brand-coloured grid frame. The toggle is a 44px touch target on a coarse pointer. */
+.lineups-edit-toggle.editing, .lineups-edit-toggle[aria-pressed="true"] { background: var(--brand-tint); border-color: var(--brand); color: var(--brand-ink); }
+@media (pointer: coarse) { .lineups-edit-toggle { min-height: 44px; } }
+.lineup-grid-wrap.editing { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
 
 /* The ⋯ menu — fixed, placed by JS from its trigger (the scroll box would clip an absolute child). */
 .lineup-menu { position: fixed; z-index: 30; min-width: 200px; padding: 6px; display: grid; gap: 2px; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--lg-menu-shadow); }

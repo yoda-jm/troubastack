@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useOutletContext, useParams } from "react-ro
 import { ApiError, api, type Band, type Role } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { SectionTabs, type BandSection } from "../components/SectionTabs";
+import { isLineupsPath } from "../routes";
 
 /**
  * T130 — Overview, Setlists and Settings are TABS OF ONE BAND, so they share one layout route:
@@ -24,9 +25,10 @@ export function useBand(): BandContext {
 }
 
 function activeSection(pathname: string): BandSection {
-  if (pathname.endsWith("/settings")) return "settings";
-  if (pathname.endsWith("/setlists")) return "setlists";
-  if (pathname.endsWith("/lineups")) return "lineups";
+  const p = pathname.replace(/\/+$/, ""); // tolerate a trailing slash so the active tab is right on /lineups/
+  if (p.endsWith("/settings")) return "settings";
+  if (p.endsWith("/setlists")) return "setlists";
+  if (p.endsWith("/lineups")) return "lineups";
   return "overview";
 }
 
@@ -59,7 +61,7 @@ export function BandLayout() {
   // T211: the Line-ups route fills the window — the page becomes a full-height flex column (.page-fill) and
   // the crumb shares ONE compact row with the section tabs (the visible "Line-ups" h1 goes; Lineups keeps a
   // screen-reader one). Every other tab keeps today's layout: crumb on its own line, then the tab strip.
-  const isLineups = section === "lineups";
+  const isLineups = isLineupsPath(pathname);
   const loaded = band && bandId && myRole !== null;
   const crumb = (
     <Link className="crumb" to="/bands">

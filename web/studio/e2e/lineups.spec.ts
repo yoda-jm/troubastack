@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { register, createBandAndOpen, stamp, lineupMusicianAction } from "./setup-helpers";
+import { register, createBandAndOpen, stamp, lineupMusicianAction, enableEdit } from "./setup-helpers";
 
 // T203 stage 2 — the band-level Line-ups grid. Seed the vocabulary, add a PERSISTED instrument, edit cells,
 // prove the column survives toggling off its last usage (ruling 1), persist across reload, filter, by-part.
@@ -15,6 +15,7 @@ test("line-up grid: common parts, persisted instrument, edit + persist, filter, 
 
   await page.getByTestId("nav-lineups").click();
   await expect(page.getByTestId("lineups-title")).toBeVisible();
+  await enableEdit(page);
   // Empty band: the creator shows as a musician column; the empty-state seed offer is present.
   await expect(page.getByTestId("lineup-col-owner").filter({ hasText: `Display ${u}` })).toBeVisible();
   await expect(page.getByTestId("lineup-row")).toHaveCount(2);
@@ -41,6 +42,7 @@ test("line-up grid: common parts, persisted instrument, edit + persist, filter, 
   await guitarCell.click();
   await expect(page.getByTestId("lineup-cell-inst").first()).toHaveText("Gui");
   await page.reload();
+  await enableEdit(page); // a reload resets to read-only (T211) — re-enter edit to toggle the cell below
   await expect(page.getByTestId("lineup-cell-inst").first()).toHaveText("Gui");
 
   // RULING 1: toggle off the ONLY usage — the cell empties but the column DOES NOT vanish (persisted).
@@ -68,6 +70,7 @@ test("inline part 'Voix' is inferred as voice and the Voice cell cycles it", asy
   await page.request.post(`/api/bands/${id}/songs`, { data: { title: "Alpha" } });
   await page.getByTestId("nav-lineups").click();
   await expect(page.getByTestId("lineups-title")).toBeVisible();
+  await enableEdit(page);
 
   // Create "Voix" inline via ⋯ → Edit musician… — it should be inferred as voice.
   await lineupMusicianAction(page, "edit");
@@ -92,6 +95,7 @@ test("the + part popup closes via Escape, outside click, and ✕", async ({ page
   await page.request.post(`/api/bands/${id}/songs`, { data: { title: "Alpha" } });
   await page.getByTestId("nav-lineups").click();
   await expect(page.getByTestId("lineups-title")).toBeVisible();
+  await enableEdit(page);
   // The popup opens from ⋯ → Edit musician…; closing returns focus to the ⋯ (the trigger of record).
   const trigger = page.getByTestId("lineup-musician-menu").first();
   const openAssign = async () => {

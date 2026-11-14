@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { register, createBandAndOpen, stamp } from "./setup-helpers";
+import { register, createBandAndOpen, stamp, enableEdit } from "./setup-helpers";
 
 // Read an element's x through a poll. Right after setViewportSize / a scroll the grid re-renders and
 // boundingBox() can momentarily return null (the node detaches); a bare `(await boundingBox())!.x` then throws
@@ -59,6 +59,7 @@ async function seedWide(page: Page, songs: number) {
   await expect(page.getByTestId("lineups-title")).toBeVisible();
   await page.getByTestId("lineups-add-common").click(); // seeds voice parts → every musician gets a Voice column
   await expect(page.getByTestId("lineup-col-owner").first()).toBeVisible();
+  await enableEdit(page); // T211: these tests edit (⋯ popup, drag reorder, arrow-key cell nav); page opens read-only
 }
 
 const GRID = '[data-testid="lineup-grid"]';
