@@ -903,8 +903,12 @@ export function Lineups() {
                           </td>
                         );
                       }
-                      // shared: a select of who plays it
-                      const playerId = musicians.find((m) => cell.text && m.displayName.startsWith(cell.text))?.id ?? "";
+                      // shared: a select of who plays it. T210: read the holder from the STORED line-up among
+                      // visible players, not by matching the projected name over every musician — a hidden name
+                      // sharing the holder's first word used to shadow the cell (and the old prefix match was
+                      // fragile anyway).
+                      const songLu = songs.find((s) => s.id === r.songId)?.lineup ?? [];
+                      const playerId = songLu.find((e) => !bandHiddenIds.has(e.musicianId) && e.partIds.includes(sub.partId))?.musicianId ?? "";
                       return (
                         <td key={sub.key}>
                           <select className="lineup-cell" data-testid="lineup-cell-shared" {...rc(ri, ci)} value={playerId} onChange={(e) => setShared(r.songId, sub.partId, e.target.value)}>

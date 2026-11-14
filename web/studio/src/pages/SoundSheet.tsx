@@ -164,13 +164,18 @@ export function SoundSheet() {
   // clear it, and falls back to the id rather than a blank.
   const nameOf = (id: string) => musicians.find((m) => m.id === id)?.displayName ?? id;
   const bandHidden = musicians.filter((m) => m.hidden);
-  // Each owner span's musician id, read from the subcols it spans (ownerSpans carries only the name). Lets the
-  // "not at this concert" control on an owner header know which id to add.
-  const ownerIdForSpan: string[] = [];
+  // Visible musicians not yet absent — the "Not at this concert…" select, which is the only way to mark a
+  // player who has no personal column of their own (someone who plays only a SHARED part). Hidden ⇒ not offered.
+  const absentable = musicians.filter((m) => !m.hidden && !absent.includes(m.id));
+  // Each owner span's id + subcol kind, read from the subcols it spans (ownerSpans carries only the name). The
+  // header "not here" shortcut is only valid on a CHANNEL span, where ownerId is the MUSICIAN id; a shared span's
+  // ownerId is the PART id (sanitizeAbsent would drop it), so no button there — the select handles those.
+  const ownerForSpan: { id: string; kind: string }[] = [];
   if (model) {
     let off = 0;
     for (const s of model.ownerSpans) {
-      ownerIdForSpan.push(model.subcols[off]?.ownerId ?? "");
+      const sc = model.subcols[off];
+      ownerForSpan.push({ id: sc?.ownerId ?? "", kind: sc?.kind ?? "" });
       off += s.span;
     }
   }
@@ -198,6 +203,26 @@ export function SoundSheet() {
           </>
         )}
       </div>
+
+      {/* T210: the admin "Not at this concert…" select — the general way to mark someone absent, and the ONLY
+          way for a player with no personal column (they play only a shared part, so the header shortcut can't
+          reach them). Lists visible musicians not already absent. */}
+      {isAdmin && absentable.length > 0 && (
+        <div className="sheet-absent-add" data-testid="sheet-absent-add-wrap">
+          <label>
+            Not at this concert:{" "}
+            <select
+              className="btn-sm"
+              data-testid="sheet-absent-add"
+              value=""
+              onChange={(e) => { const v = e.target.value; if (v) void setConcertAbsent([...absent, v]); }}
+            >
+              <option value="">add a player…</option>
+              {absentable.map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
 
       {/* T210: restore bars. They show for EVERY member whenever anyone is dropped from this sheet, so a missing
           column is never silent; only an admin gets the ↺. Two scopes: "not at this concert" (this setlist) and
@@ -241,16 +266,17 @@ export function SoundSheet() {
                 {model.ownerSpans.map((s, i) => (
                   <th key={i} colSpan={s.span} data-testid="sheet-owner">
                     {s.ownerName}
-                    {/* T210: drop this owner from THIS concert's sheet only. The column vanishes; the
-                        "Not at this concert" bar is the way back. */}
-                    {isAdmin && ownerIdForSpan[i] && (
+                    {/* T210: drop this owner from THIS concert's sheet only. Only a CHANNEL span is a single
+                        musician (ownerId = musician id); a shared span's ownerId is a part id, so no button there
+                        — the "Not at this concert…" select above reaches those players. The bar is the way back. */}
+                    {isAdmin && ownerForSpan[i]?.kind === "channel" && ownerForSpan[i].id && (
                       <button
                         type="button"
                         className="linklike lineup-hide"
                         data-testid="sheet-owner-absent"
                         title={`${s.ownerName} is not at this concert`}
                         aria-label={`${s.ownerName} is not at this concert`}
-                        onClick={() => void setConcertAbsent([...absent, ownerIdForSpan[i]])}
+                        onClick={() => void setConcertAbsent([...absent, ownerForSpan[i].id])}
                       >
                         not here
                       </button>
