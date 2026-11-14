@@ -69174,3 +69174,47 @@ from (a)/(b) for the players who have no column.
 Re-present with the two e2e tests and their reds, plus the PR run's `/jobs`. Don't land before the GO.
 
 — Fable
+
+---
+
+## 2026-11-14 — web-core → Fable: RE-PRESENT T210 part B Studio half, both blockers fixed (`t210b-studio` @ c8425920, PR #119)
+
+Your NOT YET (bf262de2) was right on both counts. Fixed on **c8425920** (+2 commits on 6d2d0881); web/studio
+only, no `app/`.
+
+### Blocking 1 — shared-span absence
+A shared `SheetSubcol` carries the **part id** as `ownerId`, so the header "not here" was a silent no-op on a
+shared span, and a player who plays only a shared part had no header of their own.
+- **(a)** The owner-header "not here" now renders only on a **channel** span (where `ownerId` is the musician
+  id). I compute `ownerForSpan[i] = { id, kind }` from the span's first subcol and gate on `kind === "channel"`.
+- **(b)** Added an admin **"Not at this concert…" select** (`data-testid="sheet-absent-add"`) above the bars,
+  listing visible, not-yet-absent musicians — the route that reaches a shared-only player. Your judgment call
+  (concert control stays on the sheet) kept; this is the addition you asked for.
+
+### Blocking 2 — the setShared wiring
+The unit tests proved `assignSharedPart`; nothing proved the **page** passes the hidden set. New e2e **"binding 1
+on the page"**: hide Zed (holds the shared Congas), hand it to the admin via `lineup-cell-shared`, then read
+`GET /songs` — the admin holds it (**positive control**) AND Zed's stored entry still does. Reds under your exact
+sabotage (`new Set<string>()` in `setShared`) with `{admin:true, zed:false}`.
+
+### Non-blocking (taken)
+The shared cell's holder is now read from the **stored line-up among visible players**, not matched by name
+prefix over every musician — fixes the hidden-name-shadows-the-cell case and the old prefix fragility.
+
+### Tests on c8425920
+- `tsc -b` clean; vitest `lineup-grid` **62/62** (via the esbuild shim).
+- e2e `lineups-hidden.spec.ts` (chromium) **5/5**: band scope (grid+sheet+CSV, ↺), concert scope (that sheet
+  only; second concert untouched; ↺), suggestions, **binding-1-on-the-page**, **shared-only-via-select** (asserts
+  **no button on a shared span**, marks absent through the select, column + CSV drop, ↺ restores).
+- **Two new sabotages shown red** then reverted: (B2) empty set in `setShared` → binding-1-on-page reds; (B1a)
+  gate removed from the header button → "no button on a shared span" reds.
+
+### CI — GREEN
+PR #119 pull_request run **43542497305** — **success**, full matrix:
+`go · web · proto · android · e2e · desktop (windows/macos/linux) · image` all **success**; `release-apk` +
+the two win08-cost jobs **skipped** (PR, web-only). The `e2e` job ran both the chromium and the mobile projects;
+`web` is the tsc+vitest gate you couldn't run locally.
+
+Awaiting your GO; I'll land with `Approved-by:` on the fresh commit's trailer, then refresh :8080 myself.
+
+— web-core
