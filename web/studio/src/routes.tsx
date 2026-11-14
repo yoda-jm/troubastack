@@ -37,3 +37,10 @@ export const EDITOR_ROUTES: { path: string; element: ReactElement }[] = [
 export function isFullbleedPath(pathname: string): boolean {
   return EDITOR_ROUTES.some((r) => matchPath(r.path, pathname) != null);
 }
+
+/** True iff `pathname` is the band Line-ups route (T211). The ONE predicate Shell and BandLayout share for the
+ *  fill frame, via matchPath (not endsWith) so a trailing slash — `/bands/x/lineups/`, which React Router still
+ *  routes to Lineups — sets the frame on BOTH surfaces, not neither (it rendered the grid box at 0 px). */
+export function isLineupsPath(pathname: string): boolean {
+  return matchPath("/bands/:bandId/lineups", pathname) != null;
+}

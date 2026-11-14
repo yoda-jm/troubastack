@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { register, createBandAndOpen, stamp } from "./setup-helpers";
+import { register, createBandAndOpen, stamp, lineupMusicianAction, enableEdit } from "./setup-helpers";
 
 // A band with two songs + the common parts seeded, open on the Line-ups tab.
 async function seededBand(page: Page, u: string): Promise<string> {
@@ -11,6 +11,7 @@ async function seededBand(page: Page, u: string): Promise<string> {
   await page.getByTestId("nav-lineups").click();
   await page.getByTestId("lineups-add-common").click();
   await expect(page.getByTestId("lineup-cell-voice").first()).toBeVisible();
+  await enableEdit(page);
   return id;
 }
 
@@ -30,6 +31,7 @@ test("line-up grid: arrow-key cell nav + musician reorder persists", async ({ pa
   await expect(page.getByTestId("lineups-title")).toBeVisible();
   await page.getByTestId("lineups-add-common").click();
   await expect(page.getByTestId("lineup-cell-voice").first()).toBeVisible();
+  await enableEdit(page);
 
   // --- Keyboard navigation: focus the first voice cell, ArrowRight moves the roving tabstop to the next cell. ---
   const first = page.getByTestId("lineup-cell-voice").first();
@@ -47,7 +49,8 @@ test("line-up grid: arrow-key cell nav + musician reorder persists", async ({ pa
   // --- Reorder: the creator is first; move them right; after reload the order has swapped (persisted). ---
   const firstOwner0 = await page.getByTestId("lineup-col-owner").first().textContent();
   expect(firstOwner0).toContain(`Display ${u}`);
-  await page.getByTestId("lineup-musician-right").first().click();
+  // T211: Move right moved behind the first musician's ⋯ menu.
+  await lineupMusicianAction(page, "right");
   await page.reload();
   await expect(page.getByTestId("lineup-col-owner").first()).toContainText("Zoe Guest");
 });
@@ -61,7 +64,7 @@ test("voice cell: L / B keys set and clear, Shift adds", async ({ page }) => {
   await expect(vc()).toHaveText("LV");
   await vc().focus();
   await page.keyboard.press("l"); // same key clears
-  await expect(vc()).toHaveText("·");
+  await expect(vc()).toHaveText("");
   await vc().focus();
   await page.keyboard.press("b"); // backing
   await expect(vc()).toHaveText("BV");
@@ -76,7 +79,7 @@ test("voice cell: L / B keys set and clear, Shift adds", async ({ page }) => {
 test("voice cell: click cycles none → lead → backing → both → none, both persists", async ({ page }) => {
   await seededBand(page, `m4lb${stamp()}`);
   const vc = () => page.getByTestId("lineup-cell-voice").first();
-  await expect(vc()).toHaveText("·");
+  await expect(vc()).toHaveText("");
   await vc().click();
   await expect(vc()).toHaveText("LV");
   await vc().click();
@@ -85,10 +88,11 @@ test("voice cell: click cycles none → lead → backing → both → none, both
   await expect(vc()).toHaveText("LV+BV"); // the state a mouse user could never reach before T207
   // It reached the server: after a reload the L+B cell is still there.
   await page.reload();
+  await enableEdit(page); // a reload resets to read-only (T211) — re-enter edit for the fourth click
   await expect(vc()).toHaveText("LV+BV");
   // A fourth click closes the cycle back to none.
   await vc().click();
-  await expect(vc()).toHaveText("·");
+  await expect(vc()).toHaveText("");
 });
 
 // Binding 1: a chip filter that shrinks the rows must not orphan the roving tabstop.

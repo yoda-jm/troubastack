@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { register, createBandAndOpen, stamp } from "./setup-helpers";
+import { register, createBandAndOpen, stamp, enableEdit } from "./setup-helpers";
 
 // Read an element's x through a poll. Right after setViewportSize / a scroll the grid re-renders and
 // boundingBox() can momentarily return null (the node detaches); a bare `(await boundingBox())!.x` then throws
@@ -59,6 +59,7 @@ async function seedWide(page: Page, songs: number) {
   await expect(page.getByTestId("lineups-title")).toBeVisible();
   await page.getByTestId("lineups-add-common").click(); // seeds voice parts → every musician gets a Voice column
   await expect(page.getByTestId("lineup-col-owner").first()).toBeVisible();
+  await enableEdit(page); // T211: these tests edit (⋯ popup, drag reorder, arrow-key cell nav); page opens read-only
 }
 
 const GRID = '[data-testid="lineup-grid"]';
@@ -88,11 +89,13 @@ test("sticky header + song column inside the box, the popup whole at either end"
   // ...and the page itself is no wider than the window.
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
-  // 3. The "+ part" popup opens below its trigger, whole: at the right-hand column (the box still scrolled right)...
+  // 3. The instruments popup opens below its ⋯ trigger, whole: at the right-hand column (box still scrolled
+  //    right). T211: it opens from ⋯ → Edit musician…, placed from the ⋯'s rect (still fixed, never clipped).
   await scrollBox(page, GRID, "top");
-  const last = page.getByTestId("lineup-add-part").last();
-  await last.click();
-  const trig = (await last.boundingBox())!;
+  const lastMenu = page.getByTestId("lineup-musician-menu").last();
+  await lastMenu.click();
+  await page.getByTestId("lineup-musician-edit").click();
+  const trig = (await lastMenu.boundingBox())!;
   const pop = (await page.getByTestId("lineup-assign").boundingBox())!;
   expect(pop.y).toBeGreaterThanOrEqual(trig.y - 1); // below (or level with) the trigger
   await expectWholePopup(page);
@@ -101,37 +104,34 @@ test("sticky header + song column inside the box, the popup whole at either end"
 
   // ...and at the first column (the box scrolled back left).
   await scrollBox(page, GRID, "left");
-  await page.getByTestId("lineup-add-part").first().click();
+  await page.getByTestId("lineup-musician-menu").first().click();
+  await page.getByTestId("lineup-musician-edit").click();
   await expectWholePopup(page);
 });
 
-// T210 — on desktop the box is no trap: at either end of the box, the wheel goes on to the page.
-test("T210: the wheel goes on to the page at the box's ends", async ({ page }) => {
+// T211 — the Line-ups page fills the window and the PAGE itself never scrolls (this replaces T210's "the box is
+// no trap, the wheel goes on to the page": the page no longer scrolls past the box, by design). The box ends on
+// screen, so both its scrollbars are reachable, and the wheel scrolls inside the box, never the page.
+test("T211: the page never scrolls; the box fills the window and the wheel scrolls inside it", async ({ page }) => {
   await seedWide(page, 45);
   await page.setViewportSize({ width: 1280, height: 720 });
-  await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight + 100)).toBe(true);
+  await expect(page.getByTestId("lineup-col-owner").first()).toBeVisible();
+
+  // The page itself never scrolls, vertically or horizontally, even with 45 tall rows and 9 columns.
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  // The box ends on screen (its horizontal scrollbar is reachable), at load.
   const b = (await page.getByTestId("lineup-scroll").boundingBox())!;
+  expect(b.y + b.height).toBeLessThanOrEqual(720 + 1);
 
-  // The box at its bottom end: a wheel down over it scrolls the page.
-  await scrollBox(page, GRID, "bottom");
-  await page.mouse.move(b.x + b.width / 2, Math.min(b.y + 100, 700));
-  const y0 = await page.evaluate(() => window.scrollY);
-  await page.mouse.wheel(0, 400);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(y0 + 50);
-  // The page at ITS end too: the header is still in view under the topbar (the box leaves room for the page's
-  // bottom padding, which the page can scroll past the box).
-  await page.mouse.wheel(0, 2000);
-  await expect.poll(() => page.evaluate(() => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 1)).toBe(true);
-  const topbar = (await page.locator("header.topbar").boundingBox())!;
-  const owner = (await page.getByTestId("lineup-col-owner").first().boundingBox())!;
-  expect(owner.y).toBeGreaterThanOrEqual(topbar.y + topbar.height - 1);
-
-  // The box at its top end: a wheel up over it scrolls the page back.
+  // A wheel over the box scrolls the BOX, not the page.
   await scrollBox(page, GRID, "top");
-  await page.mouse.move(b.x + b.width / 2, 400);
-  const y1 = await page.evaluate(() => window.scrollY);
-  await page.mouse.wheel(0, -400);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(y1 - 50);
+  const boxTop = () => page.locator(GRID).evaluate((g) => (g.closest(".lineup-scroll") as HTMLElement).scrollTop);
+  const y0 = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(b.x + b.width / 2, b.y + 120);
+  await page.mouse.wheel(0, 400);
+  await expect.poll(boxTop).toBeGreaterThan(50); // the box scrolled
+  expect(await page.evaluate(() => window.scrollY)).toBe(y0); // the page did not move
 });
 
 // T210 + M4 — an arrow key onto a cell outside the box's view scrolls the box to it, and never leaves it under the
@@ -179,7 +179,7 @@ test("T210: arrow keys keep the focused cell in the box, clear of the header and
 test("T210: a musician column drags to a new place inside the box", async ({ page }) => {
   await seedWide(page, 3);
   const owners = page.getByTestId("lineup-col-owner");
-  const names = async () => (await owners.allTextContents()).map((t) => t.split(/[◀+]/)[0].trim());
+  const names = async () => (await owners.allTextContents()).map((t) => t.split(/[◀+⋯]/)[0].trim());
   const before = await names();
   await owners.nth(2).dragTo(owners.nth(0));
   await expect.poll(names).not.toEqual(before);
@@ -240,15 +240,17 @@ test("T203-FIX4: first Voice header keeps the tint and scrolls away while the co
 
   const grid = GRID;
   const firstSub = `${grid} thead tr:nth-child(2) th`;
-  // 1. the first Voice sub-header carries the header tint — the SAME paint as the owner header above it (both
-  //    thead cells), and not the body's transparent/surface white (the regression made this cell white). Polled:
-  //    add-common seeds the parts asynchronously, so the grid re-renders and a node read too early reads "".
+  // 1. the first Voice sub-header carries a HEADER paint — not the body's transparent/surface white (the
+  //    regression made this cell white). T211: the owner header is now the musician's colour while the sub
+  //    header is the neutral header ground, so compare the sub header against a BODY cell (it must differ, and
+  //    never be transparent) rather than against the owner. Polled: add-common seeds the parts asynchronously.
+  const bodyCell = `${grid} tbody tr:first-child td`;
   await expect.poll(async () => {
     const a = await page.locator(firstSub).first().evaluate((el) => getComputedStyle(el).backgroundColor).catch(() => "");
-    const o = await page.getByTestId("lineup-col-owner").first().evaluate((el) => getComputedStyle(el).backgroundColor).catch(() => "");
-    if (!a || !o) return "pending";
+    const body = await page.locator(bodyCell).last().evaluate((el) => getComputedStyle(el).backgroundColor).catch(() => "");
+    if (!a || !body) return "pending";
     if (a === "rgba(0, 0, 0, 0)") return "transparent";
-    return a === o ? "ok" : `mismatch a=${a} o=${o}`;
+    return a !== body ? "ok" : "same-as-body";
   }).toBe("ok");
 
   // 2. scrolled right, the Voice header scrolls away (not pinned) while the corner stays at the box's left.

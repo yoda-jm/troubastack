@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
-import { isFullbleedPath } from "../routes";
+import { isFullbleedPath, isLineupsPath } from "../routes";
 import { useAuth } from "../auth";
 import { AccountMenu } from "./AccountMenu";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -109,9 +109,13 @@ export function Shell() {
   const fullbleed = isFullbleedPath(location.pathname);
   // Embedded (in the app's WebView): drop the app-duplicating chrome entirely. (T46)
   const embedded = studioEmbedded();
+  // T211: the Line-ups route owns the window — the shell becomes a fixed-height flex column so the grid box
+  // fills to the bottom edge and the page itself never scrolls (on a tablet this is also what keeps the frozen
+  // header from riding away). In the app's WebView there is no topbar, so the box fills the whole WebView.
+  const fill = isLineupsPath(location.pathname);
 
   return (
-    <div className={`shell${fullbleed ? " shell-fullbleed" : ""}${embedded ? " shell-embedded" : ""}`}>
+    <div className={`shell${fullbleed ? " shell-fullbleed" : ""}${embedded ? " shell-embedded" : ""}${fill ? " shell-fill" : ""}`}>
       {/* Global backstop: any uncaught error / rejection anywhere becomes visible (T32). */}
       <GlobalError />
       {!fullbleed && !embedded && (

@@ -112,3 +112,25 @@ export async function revealedInviteUrl(page: import("@playwright/test").Page): 
   }
   return url;
 }
+
+/** T211: the per-musician header controls (Edit musician…, Move left/right, Hide everywhere) moved behind a
+ *  ⋯ menu. This opens that menu for a musician column — `owner` scopes it (e.g. a gridOwner locator), else the
+ *  first column — then clicks the named item. For "edit" the instruments popup (lineup-assign) is left open. */
+export async function lineupMusicianAction(
+  page: Page,
+  action: "edit" | "left" | "right" | "hide",
+  owner?: import("@playwright/test").Locator,
+) {
+  const menu = (owner ?? page).getByTestId("lineup-musician-menu").first();
+  await menu.click();
+  const item = { edit: "lineup-musician-edit", left: "lineup-musician-left", right: "lineup-musician-right", hide: "lineup-hide" }[action];
+  await page.getByTestId(item).click();
+}
+
+/** T211: the Line-ups page opens read-only. This flips it to edit mode (idempotent) so a spec can interact with
+ *  cells / the ⋯ menu / Parts, which are inert or hidden in read-only. */
+export async function enableEdit(page: Page) {
+  const toggle = page.getByTestId("lineups-edit-toggle");
+  if ((await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+}

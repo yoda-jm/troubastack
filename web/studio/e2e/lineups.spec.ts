@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { register, createBandAndOpen, stamp } from "./setup-helpers";
+import { register, createBandAndOpen, stamp, lineupMusicianAction, enableEdit } from "./setup-helpers";
 
 // T203 stage 2 — the band-level Line-ups grid. Seed the vocabulary, add a PERSISTED instrument, edit cells,
 // prove the column survives toggling off its last usage (ruling 1), persist across reload, filter, by-part.
@@ -15,6 +15,7 @@ test("line-up grid: common parts, persisted instrument, edit + persist, filter, 
 
   await page.getByTestId("nav-lineups").click();
   await expect(page.getByTestId("lineups-title")).toBeVisible();
+  await enableEdit(page);
   // Empty band: the creator shows as a musician column; the empty-state seed offer is present.
   await expect(page.getByTestId("lineup-col-owner").filter({ hasText: `Display ${u}` })).toBeVisible();
   await expect(page.getByTestId("lineup-row")).toHaveCount(2);
@@ -25,26 +26,28 @@ test("line-up grid: common parts, persisted instrument, edit + persist, filter, 
 
   // Cycle the Voice channel on the first row (empty → a voice part, server-derived short).
   const voiceCell = page.getByTestId("lineup-cell-voice").first();
-  await expect(voiceCell).toHaveText("·");
+  await expect(voiceCell).toHaveText("");
   await voiceCell.click();
-  await expect(page.getByTestId("lineup-cell-voice").first()).not.toHaveText("·");
+  await expect(page.getByTestId("lineup-cell-voice").first()).not.toHaveText("");
 
-  // Give the musician a PERSISTED guitar via "+ part" → "+ Guitar". The Gtr channel appears; its cell is empty.
-  await page.getByTestId("lineup-add-part").first().click();
+  // Give the musician a PERSISTED guitar via ⋯ → Edit musician… → "+ Guitar". The Gtr channel appears; its cell
+  // is empty. (T211: the per-musician controls moved behind the ⋯ menu.)
+  await lineupMusicianAction(page, "edit");
   await page.getByTestId("lineup-assign-opt").filter({ hasText: "Guitar" }).click();
   const guitarCell = page.getByTestId("lineup-cell-inst").first();
-  await expect(guitarCell).toHaveText("·"); // persisted column, no usage yet
+  await expect(guitarCell).toHaveText(""); // persisted column, no usage yet
   await expect(page.getByTestId("lineup-subcol").filter({ hasText: "Gui" })).toBeVisible();
 
   // Toggle the guitar ON on the first row, reload → it persists.
   await guitarCell.click();
   await expect(page.getByTestId("lineup-cell-inst").first()).toHaveText("Gui");
   await page.reload();
+  await enableEdit(page); // a reload resets to read-only (T211) — re-enter edit to toggle the cell below
   await expect(page.getByTestId("lineup-cell-inst").first()).toHaveText("Gui");
 
   // RULING 1: toggle off the ONLY usage — the cell empties but the column DOES NOT vanish (persisted).
   await page.getByTestId("lineup-cell-inst").first().click();
-  await expect(page.getByTestId("lineup-cell-inst").first()).toHaveText("·");
+  await expect(page.getByTestId("lineup-cell-inst").first()).toHaveText("");
   await expect(page.getByTestId("lineup-subcol").filter({ hasText: "Gui" })).toBeVisible();
 
   // Filter by the musician (they sing on row 1 only) → a suggestion chip → one row.
@@ -67,9 +70,10 @@ test("inline part 'Voix' is inferred as voice and the Voice cell cycles it", asy
   await page.request.post(`/api/bands/${id}/songs`, { data: { title: "Alpha" } });
   await page.getByTestId("nav-lineups").click();
   await expect(page.getByTestId("lineups-title")).toBeVisible();
+  await enableEdit(page);
 
-  // Create "Voix" inline on the musician's "+ part" — it should be inferred as voice.
-  await page.getByTestId("lineup-add-part").first().click();
+  // Create "Voix" inline via ⋯ → Edit musician… — it should be inferred as voice.
+  await lineupMusicianAction(page, "edit");
   await page.getByTestId("lineup-newinst").fill("Voix");
   await expect(page.getByTestId("lineup-infer-kind")).toContainText("voice");
   await page.getByTestId("lineup-newinst-add").click();
@@ -77,12 +81,13 @@ test("inline part 'Voix' is inferred as voice and the Voice cell cycles it", asy
   // A Voice channel now exists; cycling the cell sets the voice part (no longer "·").
   const voice = page.getByTestId("lineup-cell-voice").first();
   await expect(voice).toBeVisible();
-  await expect(voice).toHaveText("·");
+  await expect(voice).toHaveText("");
   await voice.click();
-  await expect(page.getByTestId("lineup-cell-voice").first()).not.toHaveText("·");
+  await expect(page.getByTestId("lineup-cell-voice").first()).not.toHaveText("");
 });
 
-// T203-FIX2: the "+ part" popup must be closeable — ✕, Escape (focus back to the trigger), and outside click.
+// T203-FIX2 (via the T211 ⋯ menu): the instruments popup must be closeable — ✕, Escape (focus back to the ⋯
+// that opened it), and outside click.
 test("the + part popup closes via Escape, outside click, and ✕", async ({ page }) => {
   const u = `pop${stamp()}`;
   await register(page, u);
@@ -90,23 +95,29 @@ test("the + part popup closes via Escape, outside click, and ✕", async ({ page
   await page.request.post(`/api/bands/${id}/songs`, { data: { title: "Alpha" } });
   await page.getByTestId("nav-lineups").click();
   await expect(page.getByTestId("lineups-title")).toBeVisible();
-  const trigger = page.getByTestId("lineup-add-part").first();
+  await enableEdit(page);
+  // The popup opens from ⋯ → Edit musician…; closing returns focus to the ⋯ (the trigger of record).
+  const trigger = page.getByTestId("lineup-musician-menu").first();
+  const openAssign = async () => {
+    await trigger.click();
+    await page.getByTestId("lineup-musician-edit").click();
+  };
 
   // Escape closes and returns focus to the trigger.
-  await trigger.click();
+  await openAssign();
   await expect(page.getByTestId("lineup-assign")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("lineup-assign")).toHaveCount(0);
   await expect(trigger).toBeFocused();
 
   // An outside click closes it.
-  await trigger.click();
+  await openAssign();
   await expect(page.getByTestId("lineup-assign")).toBeVisible();
-  await page.getByTestId("lineups-title").click();
+  await page.getByTestId("lineups-filter").click();
   await expect(page.getByTestId("lineup-assign")).toHaveCount(0);
 
   // The ✕ closes it.
-  await trigger.click();
+  await openAssign();
   await expect(page.getByTestId("lineup-assign")).toBeVisible();
   await page.getByTestId("lineup-assign-close").click();
   await expect(page.getByTestId("lineup-assign")).toHaveCount(0);

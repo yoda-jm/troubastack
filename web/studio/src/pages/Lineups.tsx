@@ -42,12 +42,31 @@ const COMMON_PARTS: [string, "voice" | "instrument" | "other", boolean][] = [
 ];
 const COMMON_PART_NAMES = COMMON_PARTS.map(([n]) => n);
 
+// T211: the ✎ before each song title. Stage 1 shows it; stage 2 wires it to the song-detail dialog.
+const PENCIL = (
+  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
+    <path
+      d="M12.8 3.6l3.6 3.6L7.2 16.4H3.6v-3.6z M10.8 5.6l3.6 3.6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinejoin="round"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 export function Lineups() {
   const { band, myRole } = useBand();
   const bandId = band.id;
   const isAdmin = myRole === "admin";
   const { confirm } = useDialogs();
 
+  // T211: the page opens READ-ONLY on every visit (VLL: "ro by default … to avoid modification while
+  // scrolling"); the mode is not remembered. The Edit/Done toggle turns editing on — pure UI state, so flipping
+  // it keeps the scroll position and never re-fetches. In read-only the cells are plain text, and the editing
+  // affordances (✎, ⋯, the ↺, + musician, Parts, drag reorder) are hidden.
+  const [editing, setEditing] = useState(false);
   const [songs, setSongs] = useState<Song[]>([]);
   const [musicians, setMusicians] = useState<MusicianView[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
@@ -72,6 +91,13 @@ export function Lineups() {
   const assignTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [focusRC, setFocusRC] = useState<[number, number]>([0, 0]); // the grid cell holding the roving tabstop (M4)
   const gridRef = useRef<HTMLTableElement>(null);
+  // T211: the grid box (exposed so Jump to can scroll it), whether it overflows sideways (Jump to shows only
+  // then), and the per-musician ⋯ menu (fixed-positioned, placed from its trigger so the box never clips it).
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [overflowX, setOverflowX] = useState(false);
+  const [menuFor, setMenuFor] = useState<string | null>(null); // musician id whose ⋯ menu is open
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     if (!bandId) return;
@@ -147,6 +173,53 @@ export function Lineups() {
     };
   }, [assignFor]);
 
+  // T211 — the per-musician ⋯ menu. Like the "+ part" popup it is position:fixed and placed from its trigger's
+  // rect (the scroll box would clip an absolute child), and closes on Escape (focus back to the ⋯), on an
+  // outside click, and after an action.
+  const closeMenu = useCallback(() => {
+    setMenuFor(null);
+    menuTriggerRef.current?.focus();
+  }, []);
+  useEffect(() => {
+    if (!menuFor) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeMenu();
+      }
+    };
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (menuRef.current?.contains(t) || menuTriggerRef.current?.contains(t)) return;
+      setMenuFor(null); // outside click: close without stealing focus
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [menuFor, closeMenu]);
+  useLayoutEffect(() => {
+    if (!menuFor) return;
+    const place = () => {
+      const pop = menuRef.current;
+      const trig = menuTriggerRef.current;
+      if (!pop || !trig) return;
+      const t = trig.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth;
+      pop.style.left = `${Math.max(4, Math.min(t.left, vw - pop.offsetWidth - 4))}px`;
+      pop.style.top = `${t.bottom + 2}px`;
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [menuFor]);
+
   const words = queryWords(query);
   const shown = filterLineupSongs(songs as LineupSong[], chips, words);
   const gridMus: GridMusician[] = musicians.map((m) => ({ id: m.id, displayName: m.displayName, order: m.order, instruments: m.instruments, hidden: m.hidden }));
@@ -161,6 +234,27 @@ export function Lineups() {
   {
     let i = 0;
     for (const col of grid.columns) for (const sub of col.subs) subColIndex.set(sub.key, i++);
+  }
+  // T211: a musician's colour. Stage 1 derives it client-side — musicians in display order take the palette of
+  // 8 in order, modulo 8 (no data change; stage 3 makes it a saved, swappable choice). The header cell, the
+  // tags in that column, the Jump-to chip and the menu all read it.
+  const musColorIndex = new Map<string, number>();
+  {
+    let i = 0;
+    for (const col of grid.columns) if (col.kind === "musician") musColorIndex.set(col.id, i++ % 8);
+  }
+  const colorOf = (musicianId: string) => musColorIndex.get(musicianId) ?? 0;
+  const musicianColumns = grid.columns.filter((c) => c.kind === "musician");
+
+  // Jump to a musician: scroll the box so that musician's header sits just right of the frozen song column.
+  function jumpTo(musicianId: string) {
+    const box = scrollRef.current;
+    if (!box) return;
+    const th = box.querySelector<HTMLElement>(`[data-mus-id="${musicianId}"]`);
+    const corner = box.querySelector<HTMLElement>(".lineup-corner");
+    if (!th || !corner) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    box.scrollTo({ left: Math.max(0, th.offsetLeft - corner.offsetWidth), behavior: reduce ? "auto" : "smooth" });
   }
   // CLAMP the roving tabstop to the current grid shape (M4 binding 1): a chip filter that shrinks the rows must
   // not orphan it, or no cell has tabIndex 0 and the grid becomes unreachable by Tab. The clamp is applied at
@@ -543,10 +637,14 @@ export function Lineups() {
 
   return (
     <>
-      <h1 data-testid="lineups-title">Line-ups</h1>
+      {/* T211: the active tab names the page, so the visible <h1> goes; a screen-reader one stays (and the
+          existing specs still find lineups-title). */}
+      <h1 data-testid="lineups-title" className="sr-only">Line-ups</h1>
       <ErrorBanner message={error} />
 
-      <div className="lineups-controls">
+      {/* T211: one toolbar row — the filter takes the free width, then the buttons and the hidden chip. It
+          wraps on a narrow screen. */}
+      <div className="lineups-toolbar" data-testid="lineups-toolbar">
         <input
           className="song-filter"
           placeholder="Filter: a name, a part, or “without …”"
@@ -558,15 +656,49 @@ export function Lineups() {
         <button type="button" className="btn-sm" data-testid="lineups-bypart" aria-pressed={byPart} onClick={() => setByPart((v) => !v)}>
           {byPart ? "By musician" : "By part"}
         </button>
-        {isAdmin && (
+        {/* T211: Edit/Done. The page is read-only by default; this turns editing on (it reads Done while on, and
+            is highlighted). Any band member can edit cells today, so everyone sees it; each control keeps its own
+            permission inside edit mode. */}
+        <button type="button" className={"btn-sm lineups-edit-toggle" + (editing ? " editing" : "")} data-testid="lineups-edit-toggle" aria-pressed={editing} onClick={() => { setShowParts(false); setAssignFor(null); setMenuFor(null); setEditing((v) => !v); }}>
+          {editing ? "Done" : "Edit"}
+        </button>
+        {editing && isAdmin && (
           <button type="button" className="btn-sm" data-testid="lineups-add-musician" onClick={() => void addMusician()}>
             + musician
           </button>
         )}
-        {/* Any member may manage the part vocabulary (ruling 2). */}
-        <button type="button" className="btn-sm" data-testid="lineups-parts-toggle" aria-pressed={showParts} onClick={() => setShowParts((v) => !v)}>
-          Parts
-        </button>
+        {/* Any member may manage the part vocabulary (ruling 2) — but only in edit mode (T211). */}
+        {editing && (
+          <button type="button" className="btn-sm" data-testid="lineups-parts-toggle" aria-pressed={showParts} onClick={() => setShowParts((v) => !v)}>
+            Parts
+          </button>
+        )}
+        {/* T210 (moved into the toolbar as a chip, T211): the "Hidden" restore bar. Shown for EVERY member
+            whenever anyone is band-hidden, so a missing column is never silent; only an admin gets the ↺. */}
+        {hiddenMus.length > 0 && (
+          <div className="lineup-hidden-bar" data-testid="lineups-hidden-bar">
+            <span className="lineup-hidden-label">Hidden:</span>{" "}
+            {hiddenMus.map((m, i) => (
+              <span key={m.id} className="lineup-hidden-name" data-testid="lineups-hidden-name">
+                {i > 0 ? " · " : ""}
+                {m.displayName}
+                {/* T211: the ↺ shows only in edit mode (the names stay in read-only). */}
+                {editing && isAdmin && (
+                  <button
+                    type="button"
+                    className="linklike lineup-unhide"
+                    data-testid="lineups-unhide"
+                    title={`Bring ${m.displayName} back`}
+                    aria-label={`Bring ${m.displayName} back`}
+                    onClick={() => void setMusicianHidden(m.id, false)}
+                  >
+                    ↺
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {parts.length === 0 && (
@@ -758,35 +890,21 @@ export function Lineups() {
         </ul>
       )}
 
-      {/* T210: the "Hidden" restore bar. It shows for EVERY member whenever anyone is band-hidden, so a missing
-          column is never silent; only an admin gets the ↺ to bring them back. It sits OUTSIDE the scroll box so
-          it scrolls with the page. */}
-      {hiddenMus.length > 0 && (
-        <div className="lineup-hidden-bar" data-testid="lineups-hidden-bar">
-          <span className="lineup-hidden-label">Hidden:</span>{" "}
-          {hiddenMus.map((m, i) => (
-            <span key={m.id} className="lineup-hidden-name" data-testid="lineups-hidden-name">
-              {i > 0 ? " · " : ""}
-              {m.displayName}
-              {isAdmin && (
-                <button
-                  type="button"
-                  className="linklike lineup-unhide"
-                  data-testid="lineups-unhide"
-                  title={`Bring ${m.displayName} back`}
-                  aria-label={`Bring ${m.displayName} back`}
-                  onClick={() => void setMusicianHidden(m.id, false)}
-                >
-                  ↺
-                </button>
-              )}
-            </span>
+      {/* T211: Jump to — one chip per visible musician, in the musician's colour, only when the grid is wider
+          than its box. A click scrolls the box so that musician's header sits just right of the song column. */}
+      {!byPart && overflowX && musicianColumns.length > 0 && (
+        <nav className="lineup-jump" data-testid="lineups-jump" aria-label="Jump to a musician">
+          <span className="jump-label">Jump to</span>
+          {musicianColumns.map((c) => (
+            <button key={c.id} type="button" className={"lg-m" + colorOf(c.id)} data-testid="lineups-jump-item" onClick={() => jumpTo(c.id)}>
+              {c.label}
+            </button>
           ))}
-        </div>
+        </nav>
       )}
 
       {byPart ? (
-        <LineupScroll>
+        <LineupScroll fill editing={editing} scrollRef={scrollRef} onOverflowX={setOverflowX}>
           <table className="lineup-grid" data-testid="lineup-grid-bypart">
             <thead>
               <tr>
@@ -805,69 +923,97 @@ export function Lineups() {
           </table>
         </LineupScroll>
       ) : (
-        <LineupScroll>
-          <table className="lineup-grid" data-testid="lineup-grid" ref={gridRef} onKeyDown={onGridKey}>
+        <LineupScroll fill editing={editing} scrollRef={scrollRef} onOverflowX={setOverflowX}>
+          <table className="lineup-grid lineup-grid-main" data-testid="lineup-grid" ref={gridRef} onKeyDown={onGridKey}>
+            {/* T211: explicit column widths via a colgroup, so table-layout:fixed sizes the columns past the
+                colSpan owner headers (the song column and each cell keep their width, and the table grows wide
+                enough to overflow). A trailing flexible "fill" column soaks up any slack when the grid is
+                narrower than its box, so the real columns never stretch. */}
+            <colgroup>
+              <col className="lineup-col-song" />
+              {grid.columns.flatMap((col) =>
+                col.subs.length === 0
+                  ? [<col key={`c-empty:${col.id}`} />]
+                  : col.subs.map((sub) => <col key={`c:${sub.key}`} />),
+              )}
+              <col className="lineup-col-fill" />
+            </colgroup>
             <thead>
               <tr>
-                <th rowSpan={2} className="lineup-corner">Song</th>
-                {grid.columns.map((col) => (
-                  <th
-                    key={col.id}
-                    colSpan={Math.max(1, col.subs.length)}
-                    data-testid="lineup-col-owner"
-                    draggable={isAdmin && col.kind === "musician"}
-                    onDragStart={(e) => { if (isAdmin && col.kind === "musician") e.dataTransfer.setData("text/musician", col.id); }}
-                    onDragOver={(e) => { if (isAdmin && col.kind === "musician") e.preventDefault(); }}
-                    onDrop={(e) => { const id = e.dataTransfer.getData("text/musician"); if (id && col.kind === "musician") { e.preventDefault(); moveMusicianTo(id, col.id); } }}
-                  >
-                    {col.label}
-                    {isAdmin && col.kind === "musician" && (
-                      <span className="lineup-col-move">
-                        <button type="button" className="linklike" data-testid="lineup-musician-left" title="Move left" aria-label={`Move ${col.label} left`} onClick={() => moveMusician(col.id, -1)}>◀</button>
-                        <button type="button" className="linklike" data-testid="lineup-musician-right" title="Move right" aria-label={`Move ${col.label} right`} onClick={() => moveMusician(col.id, 1)}>▶</button>
-                      </span>
-                    )}
-                    {/* T210: hide this musician band-wide. The column vanishes; the "Hidden" bar is the way back. */}
-                    {isAdmin && col.kind === "musician" && (
-                      <button type="button" className="linklike lineup-hide" data-testid="lineup-hide" title={`Hide ${col.label} everywhere`} aria-label={`Hide ${col.label} everywhere`} onClick={() => void setMusicianHidden(col.id, true)}>hide</button>
-                    )}
-                    {col.kind === "musician" && (
-                      <span className="lineup-addpart-wrap">
-                        <button type="button" className="linklike lineup-addpart" data-testid="lineup-add-part" title="Manage this musician's instruments" onClick={(e) => { assignTriggerRef.current = e.currentTarget; setAssignFor(assignFor === col.id ? null : col.id); setNewInstName(""); }}>+ part</button>
-                        {assignFor === col.id && (
-                          <div className="lineup-assign" data-testid="lineup-assign" ref={assignPopupRef}>
-                            <button type="button" className="linklike lineup-assign-close" data-testid="lineup-assign-close" aria-label="Close" onClick={closeAssign}>✕</button>
-                            {/* Create a new instrument inline (members may) */}
-                            <form
-                              className="lineup-assign-new"
-                              onSubmit={(e) => { e.preventDefault(); void createAndAddInstrument(col.id, newInstName); }}
+                <th rowSpan={2} className="lineup-corner" scope="col">Song <span className="lineup-count">{grid.rows.length}</span></th>
+                {grid.columns.map((col) => {
+                  const mus = col.kind === "musician";
+                  return (
+                    <th
+                      key={col.id}
+                      colSpan={Math.max(1, col.subs.length)}
+                      className={"lineup-col-owner lg-g0" + (mus ? " lg-m" + colorOf(col.id) : "")}
+                      data-testid="lineup-col-owner"
+                      data-mus-id={mus ? col.id : undefined}
+                      scope="colgroup"
+                      draggable={editing && isAdmin && mus}
+                      onDragStart={(e) => { if (editing && isAdmin && mus) e.dataTransfer.setData("text/musician", col.id); }}
+                      onDragOver={(e) => { if (editing && isAdmin && mus) e.preventDefault(); }}
+                      onDrop={(e) => { if (!editing) return; const id = e.dataTransfer.getData("text/musician"); if (id && mus) { e.preventDefault(); moveMusicianTo(id, col.id); } }}
+                    >
+                      {mus ? (
+                        <div className="lineup-mus-in">
+                          <span className="lineup-mus-name" title={col.label}>{col.label}</span>
+                          {/* T211: a single ⋯ menu per musician (edit mode, admin only), holding Edit musician…,
+                              Move left/right and Hide — the controls that used to crowd the header. */}
+                          {editing && isAdmin && (
+                            <button
+                              type="button"
+                              className="lineup-more"
+                              data-testid="lineup-musician-menu"
+                              aria-haspopup="menu"
+                              aria-expanded={menuFor === col.id}
+                              aria-label={`More for ${col.label}`}
+                              onClick={(e) => { menuTriggerRef.current = e.currentTarget; setAssignFor(null); setMenuFor(menuFor === col.id ? null : col.id); }}
                             >
-                              <input list="common-part-names" placeholder="new part…" value={newInstName} onChange={(e) => setNewInstName(e.target.value)} data-testid="lineup-newinst" aria-label="New part" />
-                              <button type="submit" className="linklike" data-testid="lineup-newinst-add">add</button>
-                              {newInstName.trim() !== "" && (
-                                <span className="muted lineup-infer-kind" data-testid="lineup-infer-kind"> as {inferPartKind(newInstName)}</span>
-                              )}
-                            </form>
-                            {/* Add an existing personal instrument */}
-                            {addableInstruments(col.id).map((p) => (
-                              <button key={p.id} type="button" className="linklike" data-testid="lineup-assign-opt" onClick={() => void addInstrumentToMusician(col.id, p.id)}>+ {p.name}</button>
-                            ))}
-                            {/* Remove one the musician already has (refused while used; offers clear-N) */}
-                            {musicianInstruments(col.id).map((p) => (
-                              <button key={`rm-${p.id}`} type="button" className="linklike lineup-remove-inst" data-testid="lineup-remove-inst" title={`Remove ${p.name}`} onClick={() => void removeInstrument(col.id, p.id, p.name)}>✕ {p.name}</button>
-                            ))}
-                          </div>
-                        )}
-                      </span>
-                    )}
-                  </th>
-                ))}
+                              ⋯
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        col.label
+                      )}
+                      {/* The "+ part" / Edit-musician popup still lives in the header cell (so the tab order is
+                          unchanged); it is fixed-positioned and placed from its trigger, opened from the ⋯ menu. */}
+                      {mus && assignFor === col.id && (
+                        <div className="lineup-assign" data-testid="lineup-assign" ref={assignPopupRef}>
+                          <button type="button" className="linklike lineup-assign-close" data-testid="lineup-assign-close" aria-label="Close" onClick={closeAssign}>✕</button>
+                          {/* Create a new instrument inline */}
+                          <form
+                            className="lineup-assign-new"
+                            onSubmit={(e) => { e.preventDefault(); void createAndAddInstrument(col.id, newInstName); }}
+                          >
+                            <input list="common-part-names" placeholder="new part…" value={newInstName} onChange={(e) => setNewInstName(e.target.value)} data-testid="lineup-newinst" aria-label="New part" />
+                            <button type="submit" className="linklike" data-testid="lineup-newinst-add">add</button>
+                            {newInstName.trim() !== "" && (
+                              <span className="muted lineup-infer-kind" data-testid="lineup-infer-kind"> as {inferPartKind(newInstName)}</span>
+                            )}
+                          </form>
+                          {/* Add an existing personal instrument */}
+                          {addableInstruments(col.id).map((p) => (
+                            <button key={p.id} type="button" className="linklike" data-testid="lineup-assign-opt" onClick={() => void addInstrumentToMusician(col.id, p.id)}>+ {p.name}</button>
+                          ))}
+                          {/* Remove one the musician already has (refused while used; offers clear-N) */}
+                          {musicianInstruments(col.id).map((p) => (
+                            <button key={`rm-${p.id}`} type="button" className="linklike lineup-remove-inst" data-testid="lineup-remove-inst" title={`Remove ${p.name}`} onClick={() => void removeInstrument(col.id, p.id, p.name)}>✕ {p.name}</button>
+                          ))}
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
+                <th className="lineup-fill" rowSpan={2} aria-hidden="true" />
               </tr>
               <tr>
                 {grid.columns.flatMap((col) =>
                   col.subs.length === 0
-                    ? [<th key={`empty:${col.id}`} className="muted" data-testid="lineup-subcol">—</th>]
-                    : col.subs.map((sub) => <th key={sub.key} data-testid="lineup-subcol">{sub.header}</th>),
+                    ? [<th key={`empty:${col.id}`} className="muted lg-g0" data-testid="lineup-subcol">—</th>]
+                    : col.subs.map((sub, si) => <th key={sub.key} className={"lineup-sub" + (si === 0 ? " lg-g0" : "")} data-testid="lineup-subcol" title={sub.header}>{sub.header}</th>),
                 )}
               </tr>
             </thead>
@@ -875,59 +1021,95 @@ export function Lineups() {
               {grid.rows.map((r, ri) => (
                 <tr key={r.songId} data-testid="lineup-row">
                   <td className="lineup-songcell">
-                    {r.title}
-                    {r.key ? <span className="muted"> · {r.key}</span> : null}
+                    <div className="lineup-song-in">
+                      {/* T211: ✎ opens the song in detail (edit mode only; stage 2 wires the dialog). */}
+                      {editing && (
+                        <button type="button" className="lineup-edit" data-testid="lineup-song-edit" title="Edit this song" aria-label={`Edit the line-up of ${r.title}`}>{PENCIL}</button>
+                      )}
+                      <span className="lineup-song-title" title={r.title}>
+                        {r.title}
+                        {r.key ? <span className="muted"> · {r.key}</span> : null}
+                      </span>
+                    </div>
                   </td>
                   {grid.columns.flatMap((col) =>
                     col.subs.length === 0
-                      ? [<td key={`empty:${col.id}`} className="muted">·</td>]
-                      : col.subs.map((sub) => {
+                      ? [<td key={`empty:${col.id}`} className="lg-g0" />]
+                      : col.subs.map((sub, si) => {
                       const cell = r.cells[sub.key];
                       const txt = cell.optional && cell.text ? `(${cell.text})` : cell.text;
-                      const ci = subColIndex.get(sub.key)!;
+                      const cidx = subColIndex.get(sub.key)!;
+                      const g0 = si === 0 ? " lg-g0" : "";
+                      const testid = sub.kind === "channel" ? (sub.channelKey === "voice" ? "lineup-cell-voice" : "lineup-cell-inst") : "lineup-cell-shared";
                       if (sub.kind === "channel") {
                         // One cell per channel: click cycles its parts, a letter picks by short. The testid keeps
                         // the voice/inst split so the M4 + line-up e2e selectors still resolve on a default band.
+                        // T211: a played cell is a tag in the musician's colour (the td carries lg-m<i>); an empty
+                        // cell is blank — no "·". In READ-ONLY the cell is a plain, non-focusable span (no button,
+                        // no click, no "+" hover): a tap or drag changes nothing.
                         return (
-                          <td key={sub.key}>
-                            <button
-                              type="button"
-                              className={"lineup-cell" + (cell.text ? " on" : "")}
-                              data-testid={sub.channelKey === "voice" ? "lineup-cell-voice" : "lineup-cell-inst"}
-                              {...rc(ri, ci)}
-                              onKeyDown={(e) => channelKeyDown(e, r.songId, sub.musicianId, sub.partIds)}
-                              onClick={() => cycleChannel(r.songId, sub.musicianId, sub.partIds)}
-                            >
-                              {txt || "·"}
-                            </button>
+                          <td key={sub.key} className={"lineup-cell-td lg-m" + colorOf(sub.musicianId) + g0}>
+                            {editing ? (
+                              <button
+                                type="button"
+                                className={"lineup-cell" + (cell.text ? " on" : "")}
+                                data-testid={testid}
+                                {...rc(ri, cidx)}
+                                onKeyDown={(e) => channelKeyDown(e, r.songId, sub.musicianId, sub.partIds)}
+                                onClick={() => cycleChannel(r.songId, sub.musicianId, sub.partIds)}
+                              >
+                                {txt}
+                              </button>
+                            ) : (
+                              <span className={"lineup-cell lineup-cell-ro" + (cell.text ? " on" : "")} data-testid={testid}>{txt}</span>
+                            )}
                           </td>
                         );
                       }
                       // shared: a select of who plays it. T210: read the holder from the STORED line-up among
                       // visible players, not by matching the projected name over every musician — a hidden name
                       // sharing the holder's first word used to shadow the cell (and the old prefix match was
-                      // fragile anyway).
+                      // fragile anyway). T211: read-only shows the holder's name as plain text, not a select.
                       const songLu = songs.find((s) => s.id === r.songId)?.lineup ?? [];
                       const playerId = songLu.find((e) => !bandHiddenIds.has(e.musicianId) && e.partIds.includes(sub.partId))?.musicianId ?? "";
+                      const playerName = musicians.find((m) => m.id === playerId)?.displayName ?? "";
                       return (
-                        <td key={sub.key}>
-                          <select className="lineup-cell" data-testid="lineup-cell-shared" {...rc(ri, ci)} value={playerId} onChange={(e) => setShared(r.songId, sub.partId, e.target.value)}>
-                            <option value="">·</option>
-                            {/* T210: a band-hidden player isn't offered ("as if they don't exist"); their stored
-                                entry is untouched and reappears when they're brought back. */}
-                            {musicians.filter((m) => !m.hidden).map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
-                          </select>
+                        <td key={sub.key} className={"lineup-cell-td" + g0}>
+                          {editing ? (
+                            <select className="lineup-cell lineup-cell-shared-select" data-testid={testid} aria-label={`Who plays ${sub.partId}`} {...rc(ri, cidx)} value={playerId} onChange={(e) => setShared(r.songId, sub.partId, e.target.value)}>
+                              <option value="">—</option>
+                              {/* T210: a band-hidden player isn't offered ("as if they don't exist"); their stored
+                                  entry is untouched and reappears when they're brought back. */}
+                              {musicians.filter((m) => !m.hidden).map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
+                            </select>
+                          ) : (
+                            <span className="lineup-cell lineup-cell-ro lineup-cell-shared-ro" data-testid={testid}>{playerName}</span>
+                          )}
                         </td>
                       );
                     }),
                   )}
+                  <td className="lineup-fill" aria-hidden="true" />
                 </tr>
               ))}
             </tbody>
           </table>
         </LineupScroll>
       )}
-      {shown.length === 0 && <p className="muted" data-testid="lineups-empty">No songs match.</p>}
+
+      {/* T211: the ⋯ menu — fixed, placed by JS from its trigger, so the scroll box never clips it. */}
+      {menuFor && musColorIndex.has(menuFor) && (
+        <div className="lineup-menu" role="menu" ref={menuRef} data-testid="lineup-musician-menu-pop">
+          <button type="button" role="menuitem" data-testid="lineup-musician-edit" onClick={() => { assignTriggerRef.current = menuTriggerRef.current; const id = menuFor; setMenuFor(null); setAssignFor(id); setNewInstName(""); }}>Edit musician…</button>
+          <button type="button" role="menuitem" data-testid="lineup-musician-left" onClick={() => { const id = menuFor; closeMenu(); moveMusician(id, -1); }}>◀ Move left</button>
+          <button type="button" role="menuitem" data-testid="lineup-musician-right" onClick={() => { const id = menuFor; closeMenu(); moveMusician(id, 1); }}>Move right ▶</button>
+          <button type="button" role="menuitem" className="warn lineup-menu-hide" data-testid="lineup-hide" onClick={() => { const id = menuFor; setMenuFor(null); void setMusicianHidden(id, true); }}>Hide everywhere</button>
+        </div>
+      )}
+
+      {/* The thin status line the prototype shows is optional (T211); it is dropped here so the grid keeps that
+          row of height (the "more rows" target). Only the empty-state note remains. */}
+      {shown.length === 0 && <p className="muted lineup-status" data-testid="lineups-empty">No songs match.</p>}
     </>
   );
 }
