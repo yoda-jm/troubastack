@@ -92,8 +92,10 @@ async function dragAndCheck(page: Page, gridSel: string) {
   expect.soft(h.innerWidth).toBe(W);
   expect.soft(Math.abs(h.songLeft - h.boxLeft), `song cell at ${h.songLeft}, box left at ${h.boxLeft}`).toBeLessThanOrEqual(2);
 
-  // Drag on until nothing moves: the box reaches its end, then the drags go on to the page, to ITS end. The header
-  // is still on screen, under the topbar: the box leaves room for the page's bottom padding.
+  // Drag on until nothing moves: the box reaches its end. T211 — the Line-ups page itself never scrolls or pans,
+  // so there is nothing past the box; the header stays at the box's top, which is below the topbar (and the
+  // toolbar). The sound sheet keeps T210's bounded box, where the page can still scroll its bottom padding past.
+  // Either way the header stays on screen, under the topbar.
   let last = -1;
   for (let i = 0; i < 12; i++) {
     await drag(page, W / 2, 1100, W / 2, 400);

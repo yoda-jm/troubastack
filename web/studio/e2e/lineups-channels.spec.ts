@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { register, createBandAndOpen, stamp } from "./setup-helpers";
+import { register, createBandAndOpen, stamp, enableEdit } from "./setup-helpers";
 
 // T204 slice 1b — two parts assigned to ONE channel render as ONE cycling column in the line-up editor (not two
 // per-part columns), and the cell carries whichever of the channel's parts the musician plays that song.
@@ -28,6 +28,7 @@ test("a channel groups its parts into one cycling column", async ({ page }) => {
 
   await page.getByTestId("nav-lineups").click();
   await expect(page.getByTestId("lineups-title")).toBeVisible();
+  await enableEdit(page);
 
   // Grouping: the two instruments are ONE sub-column, not two (no voice parts, one musician → exactly one).
   await expect(page.getByTestId("lineup-subcol")).toHaveCount(1);
