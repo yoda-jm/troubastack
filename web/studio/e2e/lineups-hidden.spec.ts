@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { register, createBandAndOpen, stamp } from "./setup-helpers";
+import { register, createBandAndOpen, stamp, lineupMusicianAction } from "./setup-helpers";
 
 // T210 part B, Studio half — hiding a player, "for everybody, one click to bring them back", in two scopes:
 // band-wide (the Line-ups header "hide") and per-concert ("not here" on a sound-sheet owner). The filter itself
@@ -43,7 +43,7 @@ test("T210 band scope: hide from Line-ups — gone on the grid, the sheet and th
   await expect(page.getByTestId("lineups-hidden-bar")).toHaveCount(0); // nobody hidden yet
 
   // Hide the guest from his own column header.
-  await gridOwner(page, "Zed").getByTestId("lineup-hide").click();
+  await lineupMusicianAction(page, "hide", gridOwner(page, "Zed")); // T211: hide moved into the ⋯ menu
   await expect(gridOwner(page, "Zed")).toHaveCount(0); // column gone on the grid
   await expect(page.getByTestId("lineups-hidden-bar")).toContainText("Zed"); // the bar names him
 
@@ -116,7 +116,7 @@ test("T210 binding 2: a hidden player drops out of search suggestions, but a chi
   await expect(page.getByTestId("lineup-row")).toHaveCount(1); // the one song he plays
 
   // Hide him (his column is still here because the chip filters rows, not columns).
-  await gridOwner(page, "Zed").getByTestId("lineup-hide").click();
+  await lineupMusicianAction(page, "hide", gridOwner(page, "Zed")); // T211: hide moved into the ⋯ menu
   await expect(gridOwner(page, "Zed")).toHaveCount(0);
 
   // The chip still matches the stored data — the row stays.
@@ -164,7 +164,7 @@ test("T210 binding 1 on the page: taking a shared part while its holder is hidde
   await expect(page.getByTestId("lineups-title")).toBeVisible();
 
   // Hide Zed; the shared Congas cell now shows nobody (he's filtered out of the view).
-  await gridOwner(page, "Zed").getByTestId("lineup-hide").click();
+  await lineupMusicianAction(page, "hide", gridOwner(page, "Zed")); // T211: hide moved into the ⋯ menu
   await expect(gridOwner(page, "Zed")).toHaveCount(0);
 
   // The admin takes the Congas through the shared-cell select (Zed isn't offered — he's hidden).

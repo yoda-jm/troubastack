@@ -55,12 +55,28 @@ export function BandLayout() {
 
   // The crumb is defined ONCE, here. Since the three sections are tabs of one band, "up" from any of
   // them is the bands list — one label, one destination, and no per-page copy to diverge (T130).
+  const section = activeSection(pathname);
+  // T211: the Line-ups route fills the window — the page becomes a full-height flex column (.page-fill) and
+  // the crumb shares ONE compact row with the section tabs (the visible "Line-ups" h1 goes; Lineups keeps a
+  // screen-reader one). Every other tab keeps today's layout: crumb on its own line, then the tab strip.
+  const isLineups = section === "lineups";
+  const loaded = band && bandId && myRole !== null;
+  const crumb = (
+    <Link className="crumb" to="/bands">
+      &larr; Bands
+    </Link>
+  );
   return (
-    <div className="page">
-      <Link className="crumb" to="/bands">
-        &larr; Bands
-      </Link>
-      {!band || !bandId || myRole === null ? (
+    <div className={"page" + (isLineups ? " page-fill" : "")}>
+      {isLineups ? (
+        <div className="band-toprow">
+          {crumb}
+          {loaded && <SectionTabs bandId={bandId} active="lineups" showSettings={myRole === "admin"} />}
+        </div>
+      ) : (
+        crumb
+      )}
+      {!loaded ? (
         // Loading/error live BELOW the crumb — the crumb never blanks. The tab strip only appears once
         // the band (and myRole, which gates Settings) is known, so it never flickers on first load.
         error ? (
@@ -72,7 +88,7 @@ export function BandLayout() {
         )
       ) : (
         <>
-          <SectionTabs bandId={bandId} active={activeSection(pathname)} showSettings={myRole === "admin"} />
+          {!isLineups && <SectionTabs bandId={bandId} active={section} showSettings={myRole === "admin"} />}
           <Outlet context={{ band, myRole, reload, setBand } satisfies BandContext} />
         </>
       )}

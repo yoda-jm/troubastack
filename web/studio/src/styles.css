@@ -59,6 +59,24 @@
 
   --maxw: 1040px;
   --page-pad: clamp(1rem, 3vw, 2rem); /* .content and .page padding; the line-up box subtracts it (T210) */
+
+  /* T211 — Line-ups grid. A fixed palette of 8 musician identity colours (each a bg/ink pair; every pair
+     clears 4.5:1 for the tag text in both themes — see the task's contrast table), plus the grid's own
+     lines, stripes, scrollbar and edge-shadow colours, and the box's sizing. The lg- prefix keeps these
+     clear of Studio's own tokens. */
+  --m0-bg: hsl(220 75% 93%); --m0-fg: hsl(220 62% 30%);
+  --m1-bg: hsl(26 85% 91%);  --m1-fg: hsl(24 90% 26%);
+  --m2-bg: hsl(150 45% 90%); --m2-fg: hsl(152 70% 21%);
+  --m3-bg: hsl(270 70% 94%); --m3-fg: hsl(272 55% 34%);
+  --m4-bg: hsl(340 70% 93%); --m4-fg: hsl(338 70% 31%);
+  --m5-bg: hsl(188 55% 89%); --m5-fg: hsl(190 80% 22%);
+  --m6-bg: hsl(46 85% 87%);  --m6-fg: hsl(36 90% 23%);
+  --m7-bg: hsl(96 40% 88%);  --m7-fg: hsl(100 60% 22%);
+  --lg-stripe: #f8f4ec; --lg-head: #faf6f0; --lg-row-hover: #f3ece2;
+  --lg-grid-line: #efe9df; --lg-grid-group: #ddd5c8;
+  --lg-edge: rgba(40, 34, 24, .24); --lg-menu-shadow: 0 10px 30px rgba(40, 34, 24, .16);
+  --lg-scroll-track: #f1ece4; --lg-scroll-thumb: #c4baab; --lg-scroll-thumb-hover: #9f9587;
+  --lg-row-h: 32px; --lg-cell-w: 60px; --lg-song-w: 248px; --lg-edit: 26px; --lg-head1: 32px; --lg-head2: 26px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -83,6 +101,20 @@
     --chip-bg: #262232; --chip-fg: #c8c2d6;
     --staff: color-mix(in srgb, var(--muted) 55%, transparent);
     --shadow: 0 1px 2px rgba(0,0,0,.35), 0 12px 34px rgba(0,0,0,.5);
+    /* T211 dark — the musician palette lightened until each pair clears 4.5:1 on its dark ground, and the
+       grid's lines/stripes/scrollbar/edge on dark. Sizing vars inherit from :root. */
+    --m0-bg: hsl(220 35% 25%); --m0-fg: hsl(220 90% 86%);
+    --m1-bg: hsl(26 35% 23%);  --m1-fg: hsl(28 90% 80%);
+    --m2-bg: hsl(150 30% 20%); --m2-fg: hsl(150 60% 76%);
+    --m3-bg: hsl(270 30% 26%); --m3-fg: hsl(270 90% 87%);
+    --m4-bg: hsl(340 30% 25%); --m4-fg: hsl(340 85% 85%);
+    --m5-bg: hsl(188 35% 20%); --m5-fg: hsl(188 70% 76%);
+    --m6-bg: hsl(42 35% 21%);  --m6-fg: hsl(44 90% 74%);
+    --m7-bg: hsl(96 25% 20%);  --m7-fg: hsl(96 55% 74%);
+    --lg-stripe: #1d1a27; --lg-head: #221f2d; --lg-row-hover: #262232;
+    --lg-grid-line: #262331; --lg-grid-group: #3d3950;
+    --lg-edge: rgba(0, 0, 0, .55); --lg-menu-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+    --lg-scroll-track: #1d1a27; --lg-scroll-thumb: #4b4661; --lg-scroll-thumb-hover: #67607e;
   }
 }
 
@@ -2642,3 +2674,167 @@ a.btn-sm { display: inline-flex; align-items: center; text-decoration: none; }
 .merge-notice ul { margin: .25rem 0 0; padding-left: 1.1rem; }
 .merge-notice .notice-dismiss { position: absolute; top: .3rem; right: .4rem; }
 .confirm-inline { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; border: 1px solid var(--border); border-radius: .4rem; padding: .4rem .6rem; margin-bottom: .6rem; }
+
+/* ===== T211 — Line-ups that fill the screen (stage 1) =====================================================
+   The Line-ups route owns the window: a compact top row (crumb + tabs), a toolbar row, then a grid box that
+   ends at the window's bottom edge — so BOTH its scrollbars (right + bottom) are always on screen and the PAGE
+   itself never scrolls. The new look is scoped under .lineup-grid-wrap / .lineup-grid-main, so the Sound sheet
+   (a plain, bounded .lineup-scroll) is untouched. */
+
+/* The shell/content/page become a fixed-height flex column on the Line-ups route only (Shell adds .shell-fill
+   from the pathname; BandLayout adds .page-fill). Other routes and the editor are unchanged. */
+.shell-fill { height: 100vh; height: 100dvh; overflow: hidden; }
+.shell-fill .content { max-width: none; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.page-fill { max-width: none; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* Everything in the Line-ups column is fixed-height except the grid box, which takes the rest. */
+.page-fill > * { flex: 0 0 auto; }
+.page-fill > .lineup-grid-wrap { flex: 1 1 auto; min-height: 0; }
+
+/* A screen-reader-only utility (the visible "Line-ups" h1 is now the active tab). */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* One compact row: ← Bands + the section tabs. Tight paddings so the grid keeps the height (the "more rows"
+   target): the tabs lose their bottom margin and border and sit flush beside the crumb. */
+.band-toprow { display: flex; align-items: center; gap: .75rem 1.25rem; flex-wrap: wrap; padding: .2rem clamp(12px, 3vw, 24px); }
+.band-toprow .crumb { margin: 0; }
+.band-toprow .section-tabs { margin: 0; border-bottom: 0; }
+.band-toprow .section-tab { padding-block: .25rem; }
+
+/* The toolbar: the filter takes the free width, the rest sit to its right; wraps on a narrow screen. Compact
+   control heights keep the toolbar one short row. */
+.lineups-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .25rem clamp(12px, 3vw, 24px); }
+.lineups-toolbar .song-filter { flex: 1 1 240px; min-width: 0; }
+.lineups-toolbar .song-filter, .lineups-toolbar .btn-sm { height: 32px; padding-top: 0; padding-bottom: 0; }
+/* The T210 hidden bar, now a chip in the toolbar. */
+.lineups-toolbar .lineup-hidden-bar { margin: 0; padding-block: .2rem; }
+
+/* Jump to: one chip per visible musician, in the musician's colour. Only shown when the grid overflows. */
+.lineup-jump { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; padding: 0 clamp(12px, 3vw, 24px) .4rem; }
+.lineup-jump .jump-label { color: var(--muted); font-size: .8rem; font-weight: 600; }
+.lineup-jump button { height: 1.9rem; padding: 0 .75rem; border: 0; border-radius: 999px; background: var(--mbg, var(--brand-tint)); color: var(--mfg, var(--fg)); font-size: .82rem; font-weight: 650; }
+.lineup-jump button:hover { filter: brightness(.97); }
+
+/* The grid box: a bordered card filling the rest, the scroll inside it, three edge shadows over it. */
+.lineup-grid-wrap { position: relative; margin: 0 clamp(12px, 3vw, 24px) clamp(4px, 1vw, 8px); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); overflow: hidden; }
+/* Fill mode (vs the bounded .lineup-scroll the sheet keeps): no max-height, fills the card. */
+.lineup-scroll-fill { position: absolute; inset: 0; max-height: none; margin: 0; overflow: auto; overscroll-behavior: contain; }
+
+/* Scrollbars: inside the box, right + bottom only, and only beside what scrolls. pointer:fine only — a touch
+   screen keeps its own thin fading bars (the edge shadows stand in for them). The track margins come from JS
+   (the frozen header's height, the song column's width) as --head-px / --song-px on the wrap. Do NOT set
+   scrollbar-width or scrollbar-color: either makes Chromium ignore ::-webkit-scrollbar. Firefox keeps a full
+   bar, which is fine. */
+@media (pointer: fine) {
+  .lineup-scroll-fill::-webkit-scrollbar { width: 13px; height: 13px; }
+  .lineup-scroll-fill::-webkit-scrollbar-track { background: var(--lg-scroll-track); }
+  .lineup-scroll-fill::-webkit-scrollbar-track:vertical { margin-top: var(--head-px, 58px); }
+  .lineup-scroll-fill::-webkit-scrollbar-track:horizontal { margin-left: var(--song-px, 248px); }
+  .lineup-scroll-fill::-webkit-scrollbar-thumb { background-color: var(--lg-scroll-thumb); background-clip: padding-box; border: 3px solid transparent; border-radius: 7px; }
+  .lineup-scroll-fill::-webkit-scrollbar-thumb:hover { background-color: var(--lg-scroll-thumb-hover); }
+  .lineup-scroll-fill::-webkit-scrollbar-corner { background: var(--lg-scroll-track); }
+}
+
+/* Three edge shadows (shown on desktop too; they stand in for a touch screen's fading bars). JS toggles .on,
+   and they sit clear of the scrollbars (--sbw/--sbh). pointer-events:none so they never catch a click. */
+.lineup-edge { position: absolute; pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 6; }
+.lineup-edge.on { opacity: 1; }
+.lineup-edge-l { top: 0; bottom: var(--sbh, 0px); left: var(--song-px, 248px); width: 14px; background: linear-gradient(to right, var(--lg-edge), transparent); }
+.lineup-edge-r { top: 0; bottom: var(--sbh, 0px); right: var(--sbw, 0px); width: 22px; background: linear-gradient(to left, var(--lg-edge), transparent); }
+.lineup-edge-t { left: 0; right: var(--sbw, 0px); top: var(--head-px, 58px); height: 10px; background: linear-gradient(to bottom, var(--lg-edge), transparent); }
+@media (prefers-reduced-motion: reduce) { .lineup-edge { transition: none; } }
+/* T211 (1d's app baseline): a coarse pointer has no hover, so the edge shadows are the ONLY cue that the grid
+   scrolls — make them wider and stronger there (the app is pointer:coarse). */
+@media (pointer: coarse) {
+  .lineup-grid-wrap { --lg-edge: rgba(40, 34, 24, .42); }
+  .lineup-edge-l { width: 20px; }
+  .lineup-edge-r { width: 32px; }
+  .lineup-edge-t { height: 16px; }
+}
+@media (pointer: coarse) and (prefers-color-scheme: dark) { .lineup-grid-wrap { --lg-edge: rgba(0, 0, 0, .78); } }
+
+/* The musician palette classes — each sets the local --mbg/--mfg pair the header, tags and chip read. */
+.lg-m0 { --mbg: var(--m0-bg); --mfg: var(--m0-fg); } .lg-m1 { --mbg: var(--m1-bg); --mfg: var(--m1-fg); }
+.lg-m2 { --mbg: var(--m2-bg); --mfg: var(--m2-fg); } .lg-m3 { --mbg: var(--m3-bg); --mfg: var(--m3-fg); }
+.lg-m4 { --mbg: var(--m4-bg); --mfg: var(--m4-fg); } .lg-m5 { --mbg: var(--m5-bg); --mfg: var(--m5-fg); }
+.lg-m6 { --mbg: var(--m6-bg); --mfg: var(--m6-fg); } .lg-m7 { --mbg: var(--m7-bg); --mfg: var(--m7-fg); }
+
+/* The box's sizing adapts to the pointer and the width (prototype values). */
+.lineup-grid-wrap { --lg-row-h: 32px; --lg-cell-w: 60px; --lg-song-w: 248px; --lg-edit: 24px; }
+@media (pointer: coarse) { .lineup-grid-wrap { --lg-row-h: 44px; --lg-cell-w: 56px; --lg-song-w: 210px; --lg-edit: 40px; } }
+@media (max-width: 860px) { .lineup-grid-wrap { --lg-song-w: 172px; } }
+
+/* The grid header background follows the new look, for the main grid AND the by-part view (both share the
+   frame). The corner and song column get the frozen look; the body keeps the base sticky rules (the whole
+   thead is one sticky block — the T203-FIX3 binding — so we do not re-stick per row). */
+.lineup-grid-wrap .lineup-grid thead th { background: var(--lg-head); border-bottom: 1px solid var(--lg-grid-group); }
+.lineup-grid-wrap .lineup-grid .lineup-corner { background: var(--lg-head); border-right: 1px solid var(--lg-grid-group); vertical-align: bottom; }
+.lineup-grid-wrap .lineup-grid .lineup-corner .lineup-count { color: var(--muted); font-weight: 500; font-size: .8em; }
+.lineup-grid-wrap .lineup-grid .lineup-songcell { background: var(--surface); border-right: 1px solid var(--lg-grid-group); }
+
+/* The MAIN (by-musician) grid: fixed layout, the fixed song column, colour tags, stripes, group separators. */
+.lineup-grid-wrap table.lineup-grid-main { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: max-content; min-width: 100%; }
+.lineup-grid-wrap .lineup-grid-main th, .lineup-grid-wrap .lineup-grid-main td { border: 0; padding: 0; white-space: nowrap; }
+.lineup-grid-wrap .lineup-grid-main .lineup-corner,
+.lineup-grid-wrap .lineup-grid-main .lineup-songcell { width: var(--lg-song-w); min-width: var(--lg-song-w); max-width: var(--lg-song-w); text-align: left; }
+.lineup-grid-wrap .lineup-grid-main .lineup-corner { padding: 0 12px 6px; font-weight: 700; }
+.lineup-grid-wrap .lineup-grid-main thead th:not(.lineup-corner) { width: var(--lg-cell-w); }
+.lineup-grid-wrap .lineup-grid-main .lineup-sub { font-size: .72rem; font-weight: 650; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.lineup-grid-wrap .lineup-grid-main tbody td { width: var(--lg-cell-w); height: var(--lg-row-h); border-left: 1px solid var(--lg-grid-line); }
+/* A 2px line opens each musician/shared group (the owner header, the sub header, and every body cell). */
+.lineup-grid-wrap .lineup-grid-main .lg-g0 { border-left: 2px solid var(--lg-grid-group); }
+/* Stripes (and the frozen song column stripes with its row), then a row highlight under the pointer. */
+.lineup-grid-wrap .lineup-grid-main tbody tr > * { background: var(--surface); }
+.lineup-grid-wrap .lineup-grid-main tbody tr:nth-child(even) > * { background: var(--lg-stripe); }
+@media (hover: hover) { .lineup-grid-wrap .lineup-grid-main tbody tr:hover > * { background: var(--lg-row-hover); } }
+
+/* The owner header is the musician's colour (a shared-part header stays neutral). */
+.lineup-grid-wrap .lineup-grid-main thead th.lineup-col-owner.lg-m0,
+.lineup-grid-wrap .lineup-grid-main thead th.lineup-col-owner.lg-m1,
+.lineup-grid-wrap .lineup-grid-main thead th.lineup-col-owner.lg-m2,
+.lineup-grid-wrap .lineup-grid-main thead th.lineup-col-owner.lg-m3,
+.lineup-grid-wrap .lineup-grid-main thead th.lineup-col-owner.lg-m4,
+.lineup-grid-wrap .lineup-grid-main thead th.lineup-col-owner.lg-m5,
+.lineup-grid-wrap .lineup-grid-main thead th.lineup-col-owner.lg-m6,
+.lineup-grid-wrap .lineup-grid-main thead th.lineup-col-owner.lg-m7 { background: var(--mbg); color: var(--mfg); }
+.lineup-mus-in { display: flex; align-items: center; justify-content: center; gap: 2px; padding: 0 4px; height: 100%; overflow: hidden; }
+.lineup-mus-name { overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.lineup-more { flex: none; width: var(--lg-edit); height: var(--lg-edit); min-width: 0; border: 0; background: transparent; color: inherit; font-weight: 700; font-size: 1rem; line-height: 1; padding: 0; border-radius: 6px; }
+.lineup-more:hover, .lineup-more[aria-expanded="true"] { background: color-mix(in srgb, currentColor 16%, transparent); }
+
+/* The song column: ✎ + the title, truncated with a tooltip (a single long title never sets the width). */
+.lineup-song-in { display: flex; align-items: center; gap: 4px; padding: 0 8px 0 4px; min-width: 0; height: 100%; }
+.lineup-edit { flex: none; width: var(--lg-edit); height: var(--lg-edit); min-width: 0; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); padding: 0; border-radius: 6px; }
+.lineup-edit:hover { background: var(--brand-tint); color: var(--brand); }
+.lineup-song-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+
+/* Cells: a played cell is a rounded tag in the musician's colour; an empty cell is blank (no "·"). */
+.lineup-grid-wrap .lineup-grid-main .lineup-cell { display: block; width: calc(100% - 6px); height: calc(var(--lg-row-h) - 6px); min-width: 0; margin: 3px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: .82rem; font-weight: 650; text-align: center; }
+.lineup-grid-wrap .lineup-grid-main .lineup-cell:hover { background: transparent; }
+.lineup-grid-wrap .lineup-grid-main .lineup-cell.on { background: var(--mbg); color: var(--mfg); }
+@media (hover: hover) { .lineup-grid-wrap .lineup-grid-main .lineup-cell:not(.on):hover::after { content: "+"; color: var(--muted); font-weight: 500; } }
+.lineup-grid-wrap .lineup-grid-main .lineup-cell:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.lineup-grid-wrap .lineup-grid-main select.lineup-cell-shared-select { -webkit-appearance: none; appearance: none; cursor: pointer; }
+
+/* The ⋯ menu — fixed, placed by JS from its trigger (the scroll box would clip an absolute child). */
+.lineup-menu { position: fixed; z-index: 30; min-width: 200px; padding: 6px; display: grid; gap: 2px; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--lg-menu-shadow); }
+.lineup-menu button { height: 2.1rem; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; text-align: left; font-weight: 500; }
+.lineup-menu button:hover, .lineup-menu button:focus-visible { background: var(--brand-tint); }
+.lineup-menu .lineup-menu-hide { color: var(--warn-fg); }
+
+/* A thin status line at the bottom of the frame. */
+.lineup-status { color: var(--muted); font-size: .78rem; padding: .2rem clamp(12px, 3vw, 24px); min-height: 1.4rem; margin: 0; }
+
+/* T211: explicit column widths via the colgroup — table-layout:fixed reads these, not the colSpan owner row,
+   so the song column and each cell keep their width and the table grows wide enough to overflow. The trailing
+   flexible column absorbs any slack when the grid is narrower than its box (the real columns never stretch). */
+.lineup-grid-wrap .lineup-grid-main col { width: var(--lg-cell-w); }
+.lineup-grid-wrap .lineup-grid-main col.lineup-col-song { width: var(--lg-song-w); }
+.lineup-grid-wrap .lineup-grid-main col.lineup-col-fill { width: auto; }
+.lineup-grid-wrap .lineup-grid-main .lineup-fill { border: 0; }
+.lineup-grid-wrap .lineup-grid-main thead .lineup-fill { background: var(--lg-head); border-bottom: 1px solid var(--lg-grid-group); }
+
+/* T211: on the Line-ups route the app topbar is a touch shorter, so the grid keeps more rows (the compact
+   header the design calls for). Scoped to .shell-fill — every other route keeps the standard topbar. */
+.shell-fill .topbar { padding-top: .4rem; padding-bottom: .4rem; }
+
+
