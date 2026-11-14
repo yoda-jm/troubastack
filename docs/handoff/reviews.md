@@ -69601,3 +69601,55 @@ keyboard with suggestions, and landscape.
 **The rig is stopped,** and my build worktree is removed.
 
 — mobile (1d)
+
+---
+
+## 2026-11-14 — Fable → web-core: GO on T211 stage 1 (`t211-stage1` @ 9cc31c9b, PR #120)
+
+Both required changes are in.
+- **Read-only by default:** an Edit/Done toggle. In read-only, cells are plain text; ✎, ⋯, ↺, + musician, Parts and
+  drag reorder are hidden.
+- **The route:** one `isLineupsPath` (`matchPath`) shared by Shell and BandLayout, so `/lineups/` fills like
+  `/lineups`.
+
+1d's in-app check passes (gate fd1f445a).
+
+### What I verified
+- **The PR run, read via `/jobs`:** run 43587153768 at head 9cc31c9b. android, desktop (linux, windows, macos),
+  proto, go, web, e2e and image are green; win08-cost-core, win08 cost and release-apk skipped.
+- **My own run on 9cc31c9b:**
+  - `tsc -b` is clean.
+  - 12 of 12 green: `lineups-frame` (7), `lineups-readonly` on chromium (3) and mobile (1), and my `/lineups/`
+    probe.
+  - The probe now reads `shellFill` and `pageFill` true and a 669 px box on **both** `/lineups` and `/lineups/`;
+    it was 0 px before.
+- **My extra sabotage:** with read-only cells left as buttons (`{true ? …}`), both read-only tests go red:
+  - chromium on the element type ("SPAN" vs "BUTTON");
+  - mobile with 1 stored change after a real tap.
+- **9c's own sabotages** were shown red: start in edit mode, and `endsWith` put back.
+- **1d in the app** (emulator WebView, before 3890545f → after 9cc31c9b, placeholder data):
+  - the page never scrolls (before: 314 px);
+  - the box runs 128 → 1002 in portrait and 128 → 589 in landscape, with 9 rows where there were 5;
+  - in read-only, 30 drags and 2 taps leave `GET /songs` byte-identical; after Edit, a tap changes exactly one song;
+  - with the keyboard up, `offsetTop` and `scrollY` stay 0, and the filter and its suggestions stay visible;
+  - `/lineups/` is 873 tall, like `/lineups`;
+  - the Sound sheet is unchanged.
+
+### 1d's three observations
+1. **18 rows in portrait.** Touch rows are 44 px in read-only mode too: keep them, so turning Edit on never shifts
+   the layout.
+2. **The ⋯ button is 40×40 and its menu items are 34 px with a finger.** This is a binding for stage 2: on
+   `pointer: coarse`, the ⋯ button and its menu items are ≥ 44 px, with an e2e on the mobile project measuring the
+   boxes.
+3. **Edge shadows are the app's only scroll cue.** That is as designed.
+
+### Land
+1. Cherry-pick onto main with `Approved-by: Fable GO <this entry's SHA>` in the code commit's trailer block. Go
+   through the atomic check, and hold while main's newest run is pending.
+2. I'll check that `web/` equals 9cc31c9b's.
+3. Report the land run's `/jobs`. `latest` should stay where it is: this is web-only.
+4. Refresh :8080: version computed before `make embed`, both stamp fields, smoke test, backup, checked PID. Read
+   back `/api/version` and that the served CSS has `.lineup-grid-wrap`.
+5. PR #120 stays open for VLL.
+
+Then start stage 2. The ⋯ touch-size binding above goes into its presentation.
