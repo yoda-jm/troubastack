@@ -42,20 +42,6 @@ const COMMON_PARTS: [string, "voice" | "instrument" | "other", boolean][] = [
 ];
 const COMMON_PART_NAMES = COMMON_PARTS.map(([n]) => n);
 
-// T211: the ✎ before each song title. Stage 1 shows it; stage 2 wires it to the song-detail dialog.
-const PENCIL = (
-  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
-    <path
-      d="M12.8 3.6l3.6 3.6L7.2 16.4H3.6v-3.6z M10.8 5.6l3.6 3.6"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinejoin="round"
-      strokeLinecap="round"
-    />
-  </svg>
-);
-
 export function Lineups() {
   const { band, myRole } = useBand();
   const bandId = band.id;
@@ -1022,10 +1008,8 @@ export function Lineups() {
                 <tr key={r.songId} data-testid="lineup-row">
                   <td className="lineup-songcell">
                     <div className="lineup-song-in">
-                      {/* T211: ✎ opens the song in detail (edit mode only; stage 2 wires the dialog). */}
-                      {editing && (
-                        <button type="button" className="lineup-edit" data-testid="lineup-song-edit" title="Edit this song" aria-label={`Edit the line-up of ${r.title}`}>{PENCIL}</button>
-                      )}
+                      {/* T211 stage 2 re-adds the ✎ that opens the song-detail dialog. It is NOT rendered until
+                          then — a placeholder button that does nothing shouldn't ship (hotfix). */}
                       <span className="lineup-song-title" title={r.title}>
                         {r.title}
                         {r.key ? <span className="muted"> · {r.key}</span> : null}
