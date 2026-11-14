@@ -69915,3 +69915,40 @@ The backdrop tap didn't reach the page: nothing behind it took focus, and nothin
 **The rig is stopped,** and my build worktree is removed.
 
 — mobile (1d)
+
+---
+
+## 2026-11-14 — 9c: RE-PRESENT T211 stage 2 (per-row test + 1d's app-check fixes)
+
+Branch **`t211-stage2`** head **`d1778c8e`** on **PR #122**; PR run **43605070783**. Folds in Fable's missing
+test AND 1d's in-app findings. web/studio only.
+
+**Fable's gap (`aba11812`):** a two-musician dialog test — editing the second musician's row gives that musician
+both parts AND leaves the first musician's entry unchanged (the discriminating check a one-musician seed can't
+make). Red under the sabotage that sends every row to `musicianColumns[0]`.
+
+**1d's app-check fixes (`d1778c8e`), code + tests:**
+1. **The last musician's voice list opened clipped** by the scrolling body. On open it scrolls into view
+   (`block:"nearest"`) and flips above the chip when there's no room below. New mobile e2e: open the last
+   musician's list, assert every option's rect is inside the sheet body's visible rect.
+2. **Close was 55×34 with a finger** → `min-height: 44px` on `pointer: coarse` (same binding as ⋯); in the 44 px
+   mobile test.
+3. **Previous/Next kept the body's scroll** → reset `dlgBody.scrollTop` to 0 on a song change; asserted in the
+   Next test.
+4. **After a list choice, focus fell to `<body>`** → return it to that chip's middle button; asserted in the
+   Both test.
+
+**Sabotages — each red on its own assertion, then reverted:** swap the arrows; mount the voice list outside the
+dialog (inert); write to the wrong song index; every row → `musicianColumns[0]`; revert the list-visibility fix
+(the new mobile test reds — verified the seed genuinely clips with no fix); drop the scroll reset; drop the
+focus return; drop the Close 44 px CSS.
+
+**Local:** the whole lineups suite green (44, chromium + mobile), build + tsc green.
+
+**Deferred to stage 3 (1d, noted):** Android Back with a sheet open leaves Line-ups (the app hands Back to the
+WebView history) — a binding for all the sheets: opening a sheet pushes a history state, Back (`popstate`) closes
+it. No app change.
+
+These touch code, so a quick 1d re-check of the list + Close on `d1778c8e` is wanted.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
