@@ -42,6 +42,16 @@ const COMMON_PARTS: [string, "voice" | "instrument" | "other", boolean][] = [
 ];
 const COMMON_PART_NAMES = COMMON_PARTS.map(([n]) => n);
 
+// T211 stage 2: the ✎ before each song title opens the song-detail dialog (edit mode only).
+const PENCIL = (
+  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
+    <path d="M12.8 3.6l3.6 3.6L7.2 16.4H3.6v-3.6z M10.8 5.6l3.6 3.6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+  </svg>
+);
+// T211 stage 2: the voice part's label for the chip — "Lead vocal" → "Lead", else the short or the name.
+const voiceLabel = (p: Part): string => p.name.replace(/\s*(voices?|vocals?)$/i, "").trim() || (p.short?.trim() || p.name);
+const sameSet = (a: string[], b: string[]): boolean => a.length === b.length && a.every((x) => b.includes(x));
+
 export function Lineups() {
   const { band, myRole } = useBand();
   const bandId = band.id;
@@ -84,6 +94,17 @@ export function Lineups() {
   const [menuFor, setMenuFor] = useState<string | null>(null); // musician id whose ⋯ menu is open
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // T211 stage 2: the ✎ song-detail dialog. dialogSong is the open song's id (null = closed); the ref drives
+  // showModal/close; the trigger ref returns focus to the ✎ on close; voiceMenuFor is the musician whose voice
+  // list is open inside the dialog.
+  const [dialogSong, setDialogSong] = useState<string | null>(null);
+  const [voiceMenuFor, setVoiceMenuFor] = useState<string | null>(null);
+  const [voiceListUp, setVoiceListUp] = useState(false); // open the voice list above the chip when there's no room below
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const songEditTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const dlgBodyRef = useRef<HTMLDivElement | null>(null); // the scrolling sheet body (reset on song change)
+  const choiceRef = useRef<HTMLDivElement | null>(null); // the open voice list (scrolled into view so it isn't clipped)
+  const voiceRefocusRef = useRef<string | null>(null); // after a list choice, refocus this musician's voice chip
 
   const load = useCallback(async () => {
     if (!bandId) return;
@@ -206,6 +227,46 @@ export function Lineups() {
     };
   }, [menuFor]);
 
+  // T211 stage 2: open/close the native <dialog> as dialogSong changes. showModal gives the modal + backdrop +
+  // Escape for free; the native close event (Escape, .close(), backdrop) clears the state and returns focus.
+  // On a song change (Previous/Next) the body scrolls back to the top so a new song isn't shown mid-scroll (1d).
+  useEffect(() => {
+    const d = dialogRef.current;
+    if (!d) return;
+    if (dialogSong && !d.open) d.showModal();
+    else if (!dialogSong && d.open) d.close();
+    if (dialogSong && dlgBodyRef.current) dlgBodyRef.current.scrollTop = 0;
+  }, [dialogSong]);
+
+  // T211 stage 2 (1d): the voice list must open fully visible — for the LAST musician, opening below the chip
+  // spills past the scrolling body (and the list is absolute, so the body can't scroll to reveal it). Measure
+  // the down position and flip it ABOVE the chip when it would spill; then nudge it into view. useLayoutEffect
+  // so the flip happens before paint (no flash).
+  useLayoutEffect(() => {
+    if (!voiceMenuFor) { setVoiceListUp(false); return; }
+    const list = choiceRef.current, body = dlgBodyRef.current, chip = choiceRef.current?.parentElement;
+    if (!list || !body || !chip) return;
+    const br = body.getBoundingClientRect(), cr = chip.getBoundingClientRect(), h = list.getBoundingClientRect().height;
+    // Flip up only when there isn't room below AND there IS room above (so the last musician flips up, but a
+    // short dialog whose chip is near the top stays down rather than overlapping the head).
+    setVoiceListUp(h > br.bottom - cr.bottom - 4 && cr.top - br.top - 4 >= h);
+  }, [voiceMenuFor]);
+  useEffect(() => {
+    if (voiceMenuFor) choiceRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [voiceMenuFor, voiceListUp]);
+
+  // T211 stage 2 (1d): after choosing from the list the chosen button unmounts and focus falls to <body>; return
+  // it to that musician's voice chip. Runs after the re-render that re-adds the value button.
+  useEffect(() => {
+    const mid = voiceRefocusRef.current;
+    if (!mid) return;
+    const btn = dialogRef.current?.querySelector<HTMLElement>(`[data-mus-id="${mid}"] [data-testid="song-dialog-voice-value"]`);
+    if (btn) {
+      btn.focus();
+      voiceRefocusRef.current = null;
+    }
+  });
+
   const words = queryWords(query);
   const shown = filterLineupSongs(songs as LineupSong[], chips, words);
   const gridMus: GridMusician[] = musicians.map((m) => ({ id: m.id, displayName: m.displayName, order: m.order, instruments: m.instruments, hidden: m.hidden }));
@@ -319,6 +380,15 @@ export function Lineups() {
     const e = lineup[i];
     const other = e.partIds.filter((pid) => !member.has(pid));
     e.partIds = [...other, ...picked];
+    void patchLineup(songId, prune(lineup));
+  }
+
+  // T211 stage 2: toggle one instrument part on/off for a musician in a song (the dialog's instrument switches).
+  function toggleInstrument(songId: string, musicianId: string, partId: string) {
+    const lineup = songLineup(songId);
+    const { i } = withEntry(lineup, musicianId);
+    const e = lineup[i];
+    e.partIds = e.partIds.includes(partId) ? e.partIds.filter((p) => p !== partId) : [...e.partIds, partId];
     void patchLineup(songId, prune(lineup));
   }
 
@@ -1008,8 +1078,10 @@ export function Lineups() {
                 <tr key={r.songId} data-testid="lineup-row">
                   <td className="lineup-songcell">
                     <div className="lineup-song-in">
-                      {/* T211 stage 2 re-adds the ✎ that opens the song-detail dialog. It is NOT rendered until
-                          then — a placeholder button that does nothing shouldn't ship (hotfix). */}
+                      {/* T211 stage 2: ✎ opens the song-detail dialog (edit mode only). */}
+                      {editing && (
+                        <button type="button" className="lineup-edit" data-testid="lineup-song-edit" title="Edit this song" aria-label={`Edit the line-up of ${r.title}`} onClick={(e) => { songEditTriggerRef.current = e.currentTarget; setVoiceMenuFor(null); setDialogSong(r.songId); }}>{PENCIL}</button>
+                      )}
                       <span className="lineup-song-title" title={r.title}>
                         {r.title}
                         {r.key ? <span className="muted"> · {r.key}</span> : null}
@@ -1090,6 +1162,93 @@ export function Lineups() {
           <button type="button" role="menuitem" className="warn lineup-menu-hide" data-testid="lineup-hide" onClick={() => { const id = menuFor; setMenuFor(null); void setMusicianHidden(id, true); }}>Hide everywhere</button>
         </div>
       )}
+
+      {/* T211 stage 2: the ✎ song-detail dialog — a native <dialog> (modal + backdrop + Escape for free), a
+          bottom sheet on a finger. One row per visible musician: a voice chip ‹ value › (arrows step; the middle
+          opens a list that is a CHILD of the dialog, or it is inert); each instrument an on/off switch. Every
+          change writes through patchLineup, so the grid behind updates at once. */}
+      <dialog
+        className="lineup-sheet"
+        ref={dialogRef}
+        data-testid="song-dialog"
+        aria-label="Song line-up"
+        onClose={() => { setDialogSong(null); setVoiceMenuFor(null); songEditTriggerRef.current?.focus(); }}
+        onClick={(e) => { if (e.target === dialogRef.current) dialogRef.current?.close(); }}
+      >
+        {dialogSong && ((sid: string) => {
+          const pos = grid.rows.findIndex((r) => r.songId === sid);
+          if (pos < 0) return null;
+          const total = grid.rows.length;
+          const vparts = parts.filter((p) => p.kind === "voice" && !p.shared);
+          const vids = vparts.map((p) => p.id);
+          const vopts = [
+            { label: "None", ids: [] as string[] },
+            ...vparts.map((p) => ({ label: voiceLabel(p), ids: [p.id] })),
+            ...(vparts.length >= 2 ? [{ label: vparts.length === 2 ? "Both" : "All", ids: vids }] : []),
+          ];
+          const partsOf = (mid: string) => new Set((songs.find((s) => s.id === sid)?.lineup ?? []).find((e) => e.musicianId === mid)?.partIds ?? []);
+          const curVoice = (have: Set<string>) => vparts.filter((p) => have.has(p.id)).map((p) => p.id);
+          const stepVoice = (mid: string, dir: number) => {
+            const cur = curVoice(partsOf(mid));
+            const k = Math.max(0, vopts.findIndex((o) => sameSet(o.ids, cur)));
+            setChannel(sid, mid, vids, vopts[(k + dir + vopts.length) % vopts.length].ids);
+          };
+          return (
+            <>
+              <div className="lineup-dlg-head">
+                <div>
+                  <p className="lineup-dlg-pos" data-testid="song-dialog-pos">Song {pos + 1} of {total}</p>
+                  <h2 data-testid="song-dialog-title">{grid.rows[pos].title}</h2>
+                </div>
+                <button type="button" className="btn-sm" data-testid="song-dialog-close" onClick={() => dialogRef.current?.close()}>Close</button>
+              </div>
+              <div className="lineup-dlg-body" ref={dlgBodyRef}>
+                {musicianColumns.map((col) => {
+                  const mid = col.id;
+                  const have = partsOf(mid);
+                  const cur = curVoice(have);
+                  const vk = Math.max(0, vopts.findIndex((o) => sameSet(o.ids, cur)));
+                  return (
+                    <div key={mid} className={"lineup-dlg-row lg-m" + colorOf(mid)} data-testid="song-dialog-musician" data-mus-id={mid}>
+                      <div className="lineup-dlg-name"><i aria-hidden="true" />{col.label}</div>
+                      <div className="lineup-dlg-togs">
+                        {vparts.length > 0 && (
+                          <>
+                            <span className="lineup-seg-label">Voice</span>
+                            <div className={"lineup-vstep" + (cur.length ? " on" : "")} data-testid="song-dialog-voice">
+                              <button type="button" className="lineup-vstep-arr" data-testid="song-dialog-voice-prev" aria-label={`Previous voice for ${col.label}`} onClick={() => stepVoice(mid, -1)}>‹</button>
+                              <button type="button" className="lineup-vstep-val" data-testid="song-dialog-voice-value" aria-haspopup="menu" aria-label={`${col.label}'s voice: ${vopts[vk].label}. Choose`} onClick={() => setVoiceMenuFor(voiceMenuFor === mid ? null : mid)}>{vopts[vk].label}</button>
+                              <button type="button" className="lineup-vstep-arr" data-testid="song-dialog-voice-next" aria-label={`Next voice for ${col.label}`} onClick={() => stepVoice(mid, 1)}>›</button>
+                              {voiceMenuFor === mid && (
+                                <div className={"lineup-choice" + (voiceListUp ? " up" : "")} role="menu" data-testid="song-dialog-voice-list" ref={choiceRef}>
+                                  {vopts.map((o, oi) => (
+                                    <button key={oi} type="button" role="menuitemradio" aria-checked={sameSet(o.ids, cur)} data-testid="song-dialog-voice-option" onClick={() => { setChannel(sid, mid, vids, o.ids); voiceRefocusRef.current = mid; setVoiceMenuFor(null); }}>{o.label}</button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <span className="lineup-togs-break" />
+                          </>
+                        )}
+                        {musicianInstruments(mid).filter((p) => p.kind === "instrument" && !p.shared).map((p) => (
+                          <button key={p.id} type="button" className="lineup-tog" data-testid="song-dialog-instrument" aria-pressed={have.has(p.id)} onClick={() => toggleInstrument(sid, mid, p.id)}>{p.name} <small>{p.short?.trim() || p.name}</small></button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                {hiddenMus.length > 0 && (
+                  <p className="lineup-dlg-note" data-testid="song-dialog-hidden-note">{hiddenMus.map((m) => m.displayName).join(", ")} {hiddenMus.length === 1 ? "is" : "are"} hidden from the band. Their parts on this song stay saved and come back with them.</p>
+                )}
+              </div>
+              <div className="lineup-dlg-foot">
+                <button type="button" className="btn-sm" data-testid="song-dialog-prev" disabled={pos <= 0} onClick={() => { if (pos > 0) { setVoiceMenuFor(null); setDialogSong(grid.rows[pos - 1].songId); } }}>← Previous</button>
+                <button type="button" className="btn-sm btn-primary" data-testid="song-dialog-next" disabled={pos >= total - 1} onClick={() => { if (pos < total - 1) { setVoiceMenuFor(null); setDialogSong(grid.rows[pos + 1].songId); } }}>Next →</button>
+              </div>
+            </>
+          );
+        })(dialogSong)}
+      </dialog>
 
       {/* The thin status line the prototype shows is optional (T211); it is dropped here so the grid keeps that
           row of height (the "more rows" target). Only the empty-state note remains. */}
