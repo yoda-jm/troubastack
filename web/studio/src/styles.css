@@ -2600,6 +2600,19 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .lineups-partlist li[draggable="true"] { cursor: grab; }
 .lineup-cell:focus { outline: 2px solid var(--brand-mark); outline-offset: -2px; }
 
+/* T210 — hide a player. The "hide"/"not here" header control, and the restore bar above the grid/sheet. */
+.lineup-hide { font-size: .72rem; margin-left: .3rem; opacity: .7; }
+.lineup-hide:hover { opacity: 1; }
+.lineup-hidden-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .25rem;
+  margin: .4rem 0; padding: .3rem .55rem;
+  background: var(--warn-bg); color: var(--warn-fg);
+  border-radius: 6px; font-size: .85rem;
+}
+.lineup-hidden-label { font-weight: 600; }
+.lineup-hidden-name { white-space: nowrap; }
+.lineup-unhide { margin-left: .2rem; font-size: 1rem; line-height: 1; padding: 0 .15rem; color: inherit; }
+
 /* T203 stage 4b — the sound-sheet view */
 .sheet-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .5rem 0; }
 .sheet-grid { font-size: .82rem; }

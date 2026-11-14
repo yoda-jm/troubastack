@@ -4,7 +4,7 @@
  * toggle, "Copy patch from…", "Auto-number", and PDF/CSV download.
  */
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, api, type SheetModel, type SheetOrder, type ChannelPatch, type Setlist } from "../api";
+import { ApiError, api, type SheetModel, type SheetOrder, type ChannelPatch, type Setlist, type MusicianView } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useDialogs } from "../components/Dialog";
 import { LineupScroll } from "../components/LineupScroll";
@@ -23,17 +23,26 @@ export function SoundSheet() {
   const [setlists, setSetlists] = useState<Setlist[]>([]);
   const [draft, setDraft] = useState<Draft>({});
   const [error, setError] = useState<string | null>(null);
+  // T210: the band roster (names + the band-hidden flag) and this concert's "not at this concert" ids, for the
+  // two restore bars and the "not at this concert" control. Fetched here rather than read from the concert
+  // context, so they refresh when THIS page changes them.
+  const [musicians, setMusicians] = useState<MusicianView[]>([]);
+  const [absent, setAbsent] = useState<string[]>([]);
   const dirty = useRef<Set<string>>(new Set()); // channel keys with unsaved edits — survive an order toggle
 
   const load = useCallback(async () => {
     if (!bandId || !setlistId) return;
     try {
-      const [m, sls] = await Promise.all([
+      const [m, sls, mus, sl] = await Promise.all([
         api.getSheet(bandId, setlistId, order),
         api.listSetlists(bandId),
+        api.listMusicians(bandId),
+        api.getSetlist(bandId, setlistId),
       ]);
       setModel(m);
       setSetlists(sls.filter((s) => s.id !== setlistId));
+      setMusicians(mus);
+      setAbsent(sl.setlist.absentMusicians ?? []);
       // Rebuild the draft from the server, but KEEP any key the user has edited but not saved (so an order
       // toggle — which re-fetches — never discards unsaved patch edits).
       setDraft((prev) => {
@@ -129,6 +138,43 @@ export function SoundSheet() {
     }
   }
 
+  // T210: concert scope — "not at this concert" marks/clears a musician for THIS setlist only (admin-only; the
+  // server gates it and drops any id that's no longer a musician).
+  async function setConcertAbsent(next: string[]) {
+    if (!bandId || !setlistId) return;
+    try {
+      await api.updateSetlist(bandId, setlistId, { absentMusicians: next });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't change who's at this concert.");
+    }
+  }
+  // T210: band scope — clear a musician's band-wide hidden flag from here (the bar's label says it's band-wide,
+  // so un-hiding the whole band from a concert page isn't a surprise). Admin-only.
+  async function setBandHidden(id: string, hidden: boolean) {
+    try {
+      await api.updateMusician(bandId, id, { hidden });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't change who's hidden.");
+    }
+  }
+
+  // The display name for a musician id (for the restore bars); a stale absent id still shows, so an admin can
+  // clear it, and falls back to the id rather than a blank.
+  const nameOf = (id: string) => musicians.find((m) => m.id === id)?.displayName ?? id;
+  const bandHidden = musicians.filter((m) => m.hidden);
+  // Each owner span's musician id, read from the subcols it spans (ownerSpans carries only the name). Lets the
+  // "not at this concert" control on an owner header know which id to add.
+  const ownerIdForSpan: string[] = [];
+  if (model) {
+    let off = 0;
+    for (const s of model.ownerSpans) {
+      ownerIdForSpan.push(model.subcols[off]?.ownerId ?? "");
+      off += s.span;
+    }
+  }
+
   return (
     <>
       <ErrorBanner message={error} />
@@ -153,13 +199,64 @@ export function SoundSheet() {
         )}
       </div>
 
+      {/* T210: restore bars. They show for EVERY member whenever anyone is dropped from this sheet, so a missing
+          column is never silent; only an admin gets the ↺. Two scopes: "not at this concert" (this setlist) and
+          "hidden from the band" (band-wide — the label says so). Outside the scroll box, so they scroll with the
+          page. */}
+      {absent.length > 0 && (
+        <div className="lineup-hidden-bar" data-testid="sheet-absent-bar">
+          <span className="lineup-hidden-label">Not at this concert:</span>{" "}
+          {absent.map((id, i) => (
+            <span key={id} className="lineup-hidden-name" data-testid="sheet-absent-name">
+              {i > 0 ? " · " : ""}
+              {nameOf(id)}
+              {isAdmin && (
+                <button type="button" className="linklike lineup-unhide" data-testid="sheet-absent-restore" title={`Bring ${nameOf(id)} back to this concert`} aria-label={`Bring ${nameOf(id)} back to this concert`} onClick={() => void setConcertAbsent(absent.filter((x) => x !== id))}>↺</button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+      {bandHidden.length > 0 && (
+        <div className="lineup-hidden-bar" data-testid="sheet-bandhidden-bar">
+          <span className="lineup-hidden-label">Hidden from the band:</span>{" "}
+          {bandHidden.map((m, i) => (
+            <span key={m.id} className="lineup-hidden-name" data-testid="sheet-bandhidden-name">
+              {i > 0 ? " · " : ""}
+              {m.displayName}
+              {isAdmin && (
+                <button type="button" className="linklike lineup-unhide" data-testid="sheet-bandhidden-restore" title={`Bring ${m.displayName} back to the whole band`} aria-label={`Bring ${m.displayName} back to the whole band`} onClick={() => void setBandHidden(m.id, false)}>↺</button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
       {model && (
         <LineupScroll>
           <table className="lineup-grid sheet-grid" data-testid="sheet-grid">
             <thead>
               <tr>
                 <th rowSpan={3} className="lineup-corner">Song</th>
-                {model.ownerSpans.map((s, i) => <th key={i} colSpan={s.span} data-testid="sheet-owner">{s.ownerName}</th>)}
+                {model.ownerSpans.map((s, i) => (
+                  <th key={i} colSpan={s.span} data-testid="sheet-owner">
+                    {s.ownerName}
+                    {/* T210: drop this owner from THIS concert's sheet only. The column vanishes; the
+                        "Not at this concert" bar is the way back. */}
+                    {isAdmin && ownerIdForSpan[i] && (
+                      <button
+                        type="button"
+                        className="linklike lineup-hide"
+                        data-testid="sheet-owner-absent"
+                        title={`${s.ownerName} is not at this concert`}
+                        aria-label={`${s.ownerName} is not at this concert`}
+                        onClick={() => void setConcertAbsent([...absent, ownerIdForSpan[i]])}
+                      >
+                        not here
+                      </button>
+                    )}
+                  </th>
+                ))}
                 <th rowSpan={3}>Changes</th>
                 <th rowSpan={3}>Sound note</th>
               </tr>

@@ -135,7 +135,10 @@ export type Song = {
 };
 
 // T203 line-up vocabulary (mirrors the Go app types).
-export type Musician = { id: string; userId?: string; name?: string; order?: number; instruments?: string[] };
+// T210: `hidden` hides this musician band-wide — the Line-ups grid, the by-part view and every concert's
+// sound sheet/CSV/PDF/Auto-number drop them, "as if they don't exist". Nothing is deleted; clearing it restores
+// everything. Absent/false ⇒ shown. Admin-only to change.
+export type Musician = { id: string; userId?: string; name?: string; order?: number; instruments?: string[]; hidden?: boolean };
 export type MusicianView = Musician & { displayName: string; isMember: boolean; former?: boolean };
 export type PartKind = "voice" | "instrument" | "other";
 export type Part = { id: string; name: string; kind: PartKind; short?: string; input?: string; shared?: boolean; order?: number; channelId?: string };
@@ -278,6 +281,10 @@ export type Setlist = {
   songCount?: number;
   lastBakedAt?: number;
   downloadUrl?: string;
+  // T210: musicians "not at this concert" — dropped from this concert's sound sheet/CSV/PDF/Auto-number only.
+  // An id that's no longer a musician is ignored and dropped on the next write. Admin-only to change. A
+  // duplicated concert does NOT copy these (a new date is a new attendance).
+  absentMusicians?: string[];
 };
 
 export type SetlistPatch = {
@@ -286,6 +293,7 @@ export type SetlistPatch = {
   venue?: string;
   notes?: string;
   archived?: boolean; // T200: admin-only; archiving also turns live mode off (server-side)
+  absentMusicians?: string[]; // T210: admin-only; the concert-scope "not at this concert" set
 };
 
 export type SetlistItem = {
@@ -667,7 +675,7 @@ export const api = {
     request<{ musicians: MusicianView[] }>("GET", `/api/bands/${bandId}/musicians`).then((r) => r.musicians ?? []),
   addMusician: (bandId: string, name: string) =>
     request<{ musician: Musician }>("POST", `/api/bands/${bandId}/musicians`, { name }).then((r) => r.musician),
-  updateMusician: (bandId: string, id: string, patch: { name?: string; order?: number }) =>
+  updateMusician: (bandId: string, id: string, patch: { name?: string; order?: number; hidden?: boolean }) =>
     request<{ musician: Musician }>("PATCH", `/api/bands/${bandId}/musicians/${id}`, patch).then((r) => r.musician),
   linkMusician: (bandId: string, id: string, userId: string) =>
     request<{ musician: Musician }>("POST", `/api/bands/${bandId}/musicians/${id}/link`, { userId }).then((r) => r.musician),

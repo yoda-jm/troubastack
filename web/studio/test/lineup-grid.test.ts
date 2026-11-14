@@ -4,6 +4,7 @@ import {
   buildGrid,
   buildGridByPart,
   inferPartKind,
+  assignSharedPart,
   voiceKey,
   instKey,
   sharedKey,
@@ -289,5 +290,43 @@ describe("T210 — hiding a player (band + concert scope)", () => {
     const g = buildGridByPart(songsAB, [A, hiddenB], parts);
     expect(g.columns.map((c) => c.partId)).toContain("lead");
     expect(g.columns.map((c) => c.partId)).not.toContain("gtr");
+  });
+});
+
+// T210 binding 1 (Fable): setShared → assignSharedPart. Assigning a shared part replaces the holder among
+// VISIBLE players only; a hidden player's stored entry is left untouched, so bringing them back restores it and
+// the cell then shows both. The sabotage is removing the "excluded" guard (strip from everyone) — this test
+// goes red because B's entry would lose the bass.
+describe("T210 — assignSharedPart leaves a hidden player's stored entry intact", () => {
+  type E = { musicianId: string; partIds: string[]; optional?: boolean; note?: string };
+  // B is hidden and holds the shared bass in this song; the admin (who sees nobody on bass) hands it to A.
+  const lineup: E[] = [{ musicianId: "B", partIds: ["bass"] }];
+
+  it("hands the part to the visible player but keeps the hidden player's entry (cell shows both)", () => {
+    const next = assignSharedPart(lineup, "bass", "A", new Set(["B"]));
+    const byId = Object.fromEntries(next.map((e) => [e.musicianId, e.partIds]));
+    expect(byId["B"]).toEqual(["bass"]); // untouched — this is the binding
+    expect(byId["A"]).toEqual(["bass"]); // the chosen visible player now holds it too
+    expect(lineup[0].partIds).toEqual(["bass"]); // pure: the input is not mutated
+  });
+
+  it("sabotage: stripping from EVERYONE (excluded empty) drops the hidden player's bass — the red", () => {
+    const next = assignSharedPart(lineup, "bass", "A", new Set());
+    const byId = Object.fromEntries(next.map((e) => [e.musicianId, e.partIds]));
+    expect(byId["B"]).toEqual([]); // the very loss the binding forbids — proves the guard is load-bearing
+    expect(byId["A"]).toEqual(["bass"]);
+  });
+
+  it("among visible players it still REPLACES the prior holder (no excluded set)", () => {
+    const shared: E[] = [{ musicianId: "A", partIds: ["bass", "gtr"] }];
+    const next = assignSharedPart(shared, "bass", "C", new Set());
+    const byId = Object.fromEntries(next.map((e) => [e.musicianId, e.partIds]));
+    expect(byId["A"]).toEqual(["gtr"]); // bass taken away from the visible prior holder
+    expect(byId["C"]).toEqual(["bass"]);
+  });
+
+  it('assigning to "" (nobody) clears it from visible players only', () => {
+    const next = assignSharedPart(lineup, "bass", "", new Set(["B"]));
+    expect(next.find((e) => e.musicianId === "B")?.partIds).toEqual(["bass"]); // hidden holder kept
   });
 });

@@ -16,6 +16,7 @@ import {
   buildGrid,
   buildGridByPart,
   inferPartKind,
+  assignSharedPart,
   type GridSong,
   type GridMusician,
 } from "./lineup-grid";
@@ -148,7 +149,11 @@ export function Lineups() {
 
   const words = queryWords(query);
   const shown = filterLineupSongs(songs as LineupSong[], chips, words);
-  const gridMus: GridMusician[] = musicians.map((m) => ({ id: m.id, displayName: m.displayName, order: m.order, instruments: m.instruments }));
+  const gridMus: GridMusician[] = musicians.map((m) => ({ id: m.id, displayName: m.displayName, order: m.order, instruments: m.instruments, hidden: m.hidden }));
+  // T210: band-hidden musicians, for the "Hidden: …" restore bar and for setShared (which must leave their
+  // stored entries untouched). The Line-ups page is band scope, so the only exclusion here is `hidden`.
+  const hiddenMus = musicians.filter((m) => m.hidden);
+  const bandHiddenIds = new Set(hiddenMus.map((m) => m.id));
   const grid = buildGrid(shown as GridSong[], gridMus, parts, { editor: true, channels });
   const byPartGrid = buildGridByPart(shown as GridSong[], gridMus, parts);
   // Flat interactive-column index (voice/inst/shared), stable per render — the x-coordinate for arrow nav (M4).
@@ -170,7 +175,9 @@ export function Lineups() {
     chips,
     [],
     query.trim(),
-    musicians.map((m) => ({ id: m.id, displayName: m.displayName })),
+    // T210: suggestions skip hidden players ("as if they don't exist"). A chip already added for someone later
+    // hidden still filters, because filterLineupSongs reads the stored line-ups, not this view.
+    musicians.filter((m) => !m.hidden).map((m) => ({ id: m.id, displayName: m.displayName })),
     parts,
   );
 
@@ -258,12 +265,21 @@ export function Lineups() {
   }
 
   function setShared(songId: string, partId: string, musicianId: string) {
-    const lineup = songLineup(songId).map((e) => ({ ...e, partIds: e.partIds.filter((p) => p !== partId) }));
-    if (musicianId) {
-      const { i } = withEntry(lineup, musicianId);
-      lineup[i].partIds = [...lineup[i].partIds, partId];
-    }
+    // T210 binding 1: assigning a shared part replaces the holder among VISIBLE players only — a band-hidden
+    // player's stored entry is left untouched, so bringing them back restores it (the cell then shows both).
+    const lineup = assignSharedPart(songLineup(songId), partId, musicianId, bandHiddenIds);
     void patchLineup(songId, prune(lineup));
+  }
+
+  // T210: hide/un-hide a musician band-wide (admin-only; the server also gates it). Clearing restores them
+  // everywhere with nothing lost.
+  async function setMusicianHidden(id: string, hidden: boolean) {
+    try {
+      await api.updateMusician(bandId, id, { hidden });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't change who's hidden.");
+    }
   }
 
   // T204 slice 2 — tracks (channels). Assign/create/rename/delete a track; every track change that merges
@@ -742,6 +758,33 @@ export function Lineups() {
         </ul>
       )}
 
+      {/* T210: the "Hidden" restore bar. It shows for EVERY member whenever anyone is band-hidden, so a missing
+          column is never silent; only an admin gets the ↺ to bring them back. It sits OUTSIDE the scroll box so
+          it scrolls with the page. */}
+      {hiddenMus.length > 0 && (
+        <div className="lineup-hidden-bar" data-testid="lineups-hidden-bar">
+          <span className="lineup-hidden-label">Hidden:</span>{" "}
+          {hiddenMus.map((m, i) => (
+            <span key={m.id} className="lineup-hidden-name" data-testid="lineups-hidden-name">
+              {i > 0 ? " · " : ""}
+              {m.displayName}
+              {isAdmin && (
+                <button
+                  type="button"
+                  className="linklike lineup-unhide"
+                  data-testid="lineups-unhide"
+                  title={`Bring ${m.displayName} back`}
+                  aria-label={`Bring ${m.displayName} back`}
+                  onClick={() => void setMusicianHidden(m.id, false)}
+                >
+                  ↺
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
       {byPart ? (
         <LineupScroll>
           <table className="lineup-grid" data-testid="lineup-grid-bypart">
@@ -783,6 +826,10 @@ export function Lineups() {
                         <button type="button" className="linklike" data-testid="lineup-musician-left" title="Move left" aria-label={`Move ${col.label} left`} onClick={() => moveMusician(col.id, -1)}>◀</button>
                         <button type="button" className="linklike" data-testid="lineup-musician-right" title="Move right" aria-label={`Move ${col.label} right`} onClick={() => moveMusician(col.id, 1)}>▶</button>
                       </span>
+                    )}
+                    {/* T210: hide this musician band-wide. The column vanishes; the "Hidden" bar is the way back. */}
+                    {isAdmin && col.kind === "musician" && (
+                      <button type="button" className="linklike lineup-hide" data-testid="lineup-hide" title={`Hide ${col.label} everywhere`} aria-label={`Hide ${col.label} everywhere`} onClick={() => void setMusicianHidden(col.id, true)}>hide</button>
                     )}
                     {col.kind === "musician" && (
                       <span className="lineup-addpart-wrap">
@@ -862,7 +909,9 @@ export function Lineups() {
                         <td key={sub.key}>
                           <select className="lineup-cell" data-testid="lineup-cell-shared" {...rc(ri, ci)} value={playerId} onChange={(e) => setShared(r.songId, sub.partId, e.target.value)}>
                             <option value="">·</option>
-                            {musicians.map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
+                            {/* T210: a band-hidden player isn't offered ("as if they don't exist"); their stored
+                                entry is untouched and reappears when they're brought back. */}
+                            {musicians.filter((m) => !m.hidden).map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
                           </select>
                         </td>
                       );
