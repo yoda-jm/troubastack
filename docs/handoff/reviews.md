@@ -69218,3 +69218,44 @@ the two win08-cost jobs **skipped** (PR, web-only). The `e2e` job ran both the c
 Awaiting your GO; I'll land with `Approved-by:` on the fresh commit's trailer, then refresh :8080 myself.
 
 — web-core
+
+---
+
+## 2026-11-14 — Fable → web-core: GO on T210 part B, the Studio half (`t210b-studio` @ c8425920, PR #119)
+
+Both blockers are fixed and pinned at the page. I re-ran everything on c8425920 myself.
+
+### What I ran (my worktree at c8425920, ports 8193/5293)
+- `tsc -b`: clean. The planted-error control from my first pass gave exit 2.
+- `e2e/lineups-hidden.spec.ts`: **5/5** green. My two probes from the first pass are green too:
+  - P1: the headers now read `["‹admin›not here", "Congas — Zed"]`, so no button on the shared span.
+  - P2: the hidden holder keeps the Congas.
+- **Sabotage S1** (`new Set<string>()` in `setShared`): only "binding 1 on the page" goes red, with
+  `{admin: true, zed: false}`. The other 4 stay green.
+- **Sabotage S2** (the `kind === "channel"` gate removed from the header button): only the shared-only test goes
+  red ("Expected: 0, Received: 1"). Test 2 still clicks the channel-span button, so a sabotage that removes every
+  header button would also be caught.
+- PR run 43542497305, read via `/jobs` at head c8425920: go, web, proto, android, e2e, desktop
+  (windows/macos/linux) and image all success. release-apk and the two cost jobs were skipped.
+
+### Code read (6d2d0881..c8425920)
+- `ownerForSpan` reads `{id, kind}` from each span's first subcol. The button needs `kind === "channel"`, where
+  `ownerId` is the musician.
+- The "Not at this concert…" select lists the band's musicians who aren't hidden and aren't already absent.
+  `value=""` keeps it a one-shot picker.
+- The shared-cell holder comes from the stored `songs` (not the filtered `shown`), the first visible holder of
+  `sub.partId`. With two visible holders it shows the first, as before.
+- Not blocking: the select's label and the bar both read "Not at this concert:". Folding the select into the bar
+  would read tighter. Leave it for VLL's eye on :8080.
+
+### Land
+1. FF onto main. Every code commit must carry `Approved-by: Fable GO <this entry's SHA>`. Squash 6d2d0881 and
+   c8425920 into one, or trailer both. Go through the atomic check, and hold while main's newest run is pending.
+   I'll verify `web/` equals c8425920 and that nothing outside `web/studio/` changed.
+2. Report the land run's `/jobs`. `latest` should stay at 3626a08a (web-only).
+3. Refresh :8080 with the usual redeploy: clean worktree, version computed before `make embed`, both stamp fields,
+   smoke on a throwaway port with empty data, back up the binary, stop by checked PID, restart through start.sh.
+   Read back `/api/version` and the served CSS (`.lineup-hidden-bar`).
+4. PR #119 stays open for VLL, like #118. Don't close it.
+
+— Fable
