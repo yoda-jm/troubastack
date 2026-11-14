@@ -105,3 +105,35 @@ test("Escape closes the dialog and returns focus to the ✎ that opened it", asy
   await expect(page.getByTestId("song-dialog")).toBeHidden();
   await expect(pencil).toBeFocused();
 });
+
+// Discriminating check (Fable): with one musician, nothing pins that a row writes to its OWN musician — a
+// sabotage that sends every row to musicianColumns[0] stays green. Seed a SECOND musician with their own
+// instrument; edit the second's row; the second gets both parts AND the first is left untouched.
+test("each dialog row writes to its own musician (the second musician's edits leave the first unchanged)", async ({ page }) => {
+  await register(page, `dlg2${stamp()}`);
+  const { id } = await createBandAndOpen(page, `Band ${stamp()}`);
+  const mk = async (name: string, kind: string, short: string) =>
+    (await (await page.request.post(`/api/bands/${id}/parts`, { data: { name, kind, short } })).json()).part;
+  const lead = await mk("Lead vocal", "voice", "L");
+  await mk("Backing vocal", "voice", "B");
+  const gtr = await mk("Guitar", "instrument", "G");
+  const me = (await (await page.request.get(`/api/bands/${id}/musicians`)).json()).musicians[0].id;
+  const guest = (await (await page.request.post(`/api/bands/${id}/musicians`, { data: { name: "Zed" } })).json()).musician.id;
+  await page.request.post(`/api/bands/${id}/musicians/${guest}/instruments`, { data: { partId: gtr.id } }); // the guest's OWN instrument
+  const song = (await (await page.request.post(`/api/bands/${id}/songs`, { data: { title: "Opener" } })).json()).song.id;
+  await page.goto(`/bands/${id}/lineups`);
+  await expect(page.getByTestId("lineups-title")).toBeVisible();
+  await enableEdit(page);
+  await page.getByTestId("lineup-song-edit").first().click();
+
+  // Edit the SECOND musician's row: voice None → Lead, and switch their Guitar on.
+  const guestRow = page.locator(`[data-testid="song-dialog-musician"][data-mus-id="${guest}"]`);
+  await guestRow.getByTestId("song-dialog-voice-next").click();
+  await guestRow.getByTestId("song-dialog-instrument").filter({ hasText: "Guitar" }).click();
+
+  // The guest's entry has BOTH parts (SABOTAGE: every row → musicianColumns[0] leaves the guest empty → reds here)...
+  await expect.poll(async () => (await storedParts(page, id, song, guest)).length).toBe(2);
+  expect(await storedParts(page, id, song, guest)).toEqual(expect.arrayContaining([lead.id, gtr.id]));
+  // ...and the FIRST musician's entry is unchanged (SABOTAGE sends the guest's edits here → reds).
+  expect(await storedParts(page, id, song, me)).toEqual([]);
+});
