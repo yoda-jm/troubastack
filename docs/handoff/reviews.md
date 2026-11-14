@@ -69316,3 +69316,70 @@ Each stage presents with its targets table, its sabotages red, and real-scrollba
 - **Stage 3:** a focused input in a bottom sheet must end up above the keyboard. 1d checks it in the emulator.
 
 The spec is updated in place: the "What is wrong today" section, the stage 1 frame, the targets table, and stage 3.
+
+---
+
+## 2026-11-14 — 9c: PRESENT T211 stage 1 (the frame and the grid)
+
+Branch **`t211-stage1`** (pushed; tip rebased onto ed33d7e3). web/studio only — 12 files, +877/−167, no
+`app/`/`proto/`/`core/`, so no Windows or go job; the gating jobs are **web** (tsc + build + vitest) and **e2e**.
+
+**What shipped** (see the branch): the Line-ups route owns the window — `.shell-fill` (Shell) + `.page-fill`
+(BandLayout) make it a fixed-height flex column, `LineupScroll` gains a fill mode that owns the three edge
+shadows and measures the frozen header height + song-column width into CSS vars (so the `::-webkit-scrollbar`
+tracks start beside what scrolls, `pointer: fine` only; a coarse pointer keeps wider, stronger shadows as its
+only scroll cue). The grid: a fixed song column (248/210/172) with a ✎ before each title; empty cells blank (no
+"·"); a played cell is a tag in the musician's colour (a fixed palette of 8, derived client-side in order mod 8);
+striped rows; a 2 px line between musicians; a ⋯ menu per musician (Edit musician… → today's instruments popup,
+Move left/right, Hide everywhere); Jump-to chips when the grid overflows. Clicking a cell switches it exactly as
+before; the keyboard is unchanged. The frame is sized from `100dvh`, never `visualViewport.height`, so the soft
+keyboard can't shrink it, and the page has no scroll to pan (filter + suggestions sit at the top and stay
+visible) — per the amendment.
+
+**Stage-1 targets, verified locally (chromium; new `e2e/lineups-frame.spec.ts`, 7 tests green):**
+- page never scrolls + box ends on screen at 1280×720, 1440×900, 1920×1080;
+- measured shape (4 visible + 1 hidden, 15 sub-columns, 48 songs) fits with no sideways scroll at 1440 & 1920;
+- more rows: **≥ 15 at 1280×720** (measured 15, was 7) and **≥ 20 at 1440×900** (measured ≥ 20, was 12);
+- the song column width is unchanged by a 46- vs a 10-char longest title;
+- no cell shows "·" (positive control: some cells are filled);
+- wide band (7 visible, 25 sub-columns): box overflows, right shadow on, Jump to visible;
+- edge shadows track the scroll (left off at the left; on after scrolling right; right off at the far right; top
+  on after scrolling down);
+- soft-keyboard proxy: the page's `scrollY` stays 0 while the filter is focused + typed and its suggestions show.
+
+**Contrast (both themes, tag ink on tag bg — all 16 pairs clear 4.5:1):**
+light m0..m7 = 8.57 / 7.15 / 6.87 / 8.35 / 7.63 / 6.84 / 7.06 / 6.65 ; dark = 7.54 / 7.22 / 7.65 / 7.39 / 7.13 /
+7.60 / 7.71 / 7.55.
+
+**Sabotages — each shown red on its own assertion, then reverted:**
+1. `max-width: var(--maxw)` back on the route → the 1440 no-sideways check RED;
+2. T210's `max-height` back instead of the fill → the rows check RED;
+3. "·" in empty cells → the empty check RED;
+4. drop the `scrollLeft > 0` condition on the left shadow → the shadows check RED;
+5. show Jump to unconditionally → the measured-shape "Jump to hidden" check RED.
+
+**Existing specs** all green (chromium + mobile, 31 tests): they reach the moved controls through ⋯
+(`lineupMusicianAction` helper), the "·" assertions became blank, the drag-name split strips ⋯. The `web` job's
+vitest is unchanged (lineup-grid.ts untouched).
+
+**Three judgment calls flagged for Fable:**
+1. **The "Jump to the LAST musician ±2 at 1440" target isn't geometrically reachable** for a small trailing
+   musician: to put its left edge at the song column, the box would scroll past its own end, so it clamps at max
+   scroll and the musician sits flush-right. `jumpTo` aligns left-to-song-column, clamped (correct browser
+   behaviour). The e2e proves the ±2 alignment on a NON-trailing musician (the 2nd), and for the last asserts the
+   box reaches max scroll with that musician fully in view. Flagging the target wording.
+2. **Two sticky tests that asserted the page scrolling past the box** ("T210: the wheel goes on to the page at the
+   box's ends"; the mobile drag-to-page-end tail) are converted to the new **"page never scrolls"** invariant —
+   the design removes that behaviour by intent (the amendment confirms it). The FIX4 grid test's owner-vs-sub
+   background equality became sub-vs-body **in**equality, because the owner header is now the musician's colour.
+3. **"Edit musician…" (the instruments popup) is now admin-only** (inside the admin-only ⋯ menu), where the old
+   "+ part" button was open to every member. The spec puts it in the admin-only ⋯; flagging the narrowing. (The
+   band-vocabulary "Parts" drawer stays open to all.) Also: the optional status line is dropped to keep the rows.
+
+**Screenshots** (real scrollbars via `ignoreDefaultArgs: ['--hide-scrollbars']`, fictional names) sent to VLL:
+measured 1440×900 + 1920×1080, wide band at load + scrolled, dark measured, tablet 800×1280 (coarse).
+
+**PR run:** this session has no `gh` CLI or token, so I could not open the PR. The branch is pushed and rebased;
+**please open the PR for `t211-stage1`** so CI runs and 1d can check the WebView — I'll report the run to Fable.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
