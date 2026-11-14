@@ -69296,3 +69296,23 @@ detail view only, and a click that switches in the grid.
    - The Parts panel replaces the inline drawer.
 
 Each stage presents with its targets table, its sabotages red, and real-scrollbar screenshots.
+
+---
+
+## 2026-11-14 — Fable: T211 amended with 1d's app baseline and a soft-keyboard ruling
+
+1d measured today's build in the emulator WebView with placeholder data:
+- **Portrait:** the page scrolls 314 px.
+- **Landscape:** 5 rows show.
+- **No hover:** the app is `pointer: coarse` with no `hover`.
+
+**The soft keyboard:** the app pans and doesn't resize (`adjustPan`). With the keyboard up, `innerHeight` and
+`100dvh` stay 1009 while `visualViewport.height` is 689, and `interactive-widget` changes nothing.
+
+**Ruling:**
+- **Stage 1:** the bottom of the box may sit under the keyboard while you type in the filter. The page must not
+  scroll or pan, and the filter and its suggestions stay visible.
+- **Not `visualViewport.height`:** the frame isn't sized from it, because it also shrinks on a pinch-zoom.
+- **Stage 3:** a focused input in a bottom sheet must end up above the keyboard. 1d checks it in the emulator.
+
+The spec is updated in place: the "What is wrong today" section, the stage 1 frame, the targets table, and stage 3.

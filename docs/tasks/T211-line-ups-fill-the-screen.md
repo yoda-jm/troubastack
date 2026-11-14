@@ -51,6 +51,15 @@ measured with the deployed build (3890545f) in Chromium.
 6. **83% of the cells are "·"** (599 of 720). With 2.3 musicians a song across 15 columns, who plays what is lost
    in the dots.
 
+**In the app (1d, 2026-11-14):** the Android emulator WebView, 686×1009 CSS px in portrait and 1097×598 in landscape,
+build 3890545f, placeholder data of the same shape.
+- **Portrait:** the box runs 314 → 1282 against a 1009 px screen, so the page scrolls 314 px. 18 rows show at load.
+  The song column is 326 px.
+- **Landscape:** **5 rows** show at load, and the box ends at 875 against 598.
+- **What already holds:** `innerWidth` stays the screen width, and T210's touch fix holds.
+- **No hover in the app.** It matches `pointer: coarse` and not `hover: hover`, so the edge shadows are its only cue
+  that the grid scrolls.
+
 ## Stage 1 — the frame and the grid (web/studio only)
 
 ### The frame: the grid owns the window
@@ -76,6 +85,16 @@ measured with the deployed build (3890545f) in Chromium.
   - `LineupScroll` gains a fill mode.
   - The Sound sheet keeps T210's bounded box: it is out of scope here.
   - T210's touch fix must survive: the page stays as wide as the screen, and the box is what scrolls.
+- **The soft keyboard (measured by 1d, my ruling).**
+  - **What happens:** the app's window pans and doesn't resize (`adjustPan`). With the keyboard up, `innerHeight`
+    and `100dvh` stay 1009 while `visualViewport.height` drops to 689, and `interactive-widget` changes nothing.
+    So a `100dvh` frame does **not** shrink for the keyboard.
+  - **The ruling:** that's accepted. While you type in the filter, the bottom of the box may sit under the keyboard,
+    and it shows again when the keyboard closes. The filter, its suggestions and the first filtered rows are at the
+    top, and stay visible.
+  - **Don't size the frame from `visualViewport.height`:** it also shrinks on a pinch-zoom, and this page stays
+    zoomable.
+  - **What must hold:** the page itself must not scroll or pan while the keyboard is up.
 - **The Parts drawer**, until stage 3 replaces it, may sit between the toolbar and the grid. Cap it (`max-height:
   40vh; overflow: auto`) so the grid keeps room.
 - A thin status line at the bottom says what the grid holds and how to use it (see the prototype). It is optional;
@@ -158,6 +177,7 @@ Then a wide band: 7 visible musicians, 25 sub-columns.
 | Wide band at 1440×900 | box `scrollWidth > clientWidth`, right shadow on, Jump to visible; Jump to the last musician puts its header's left edge at the song column's right edge (±2 px) |
 | Shadows | after scrolling right: left shadow on; at the far right: right shadow off; after scrolling down: top shadow on |
 | Tablet 800×1280 (`mobile` project, real CDP touch drag as in T210) | `innerWidth` stays 800; a drag inside the box moves `scrollTop`, `scrollY` stays 0, and the header stays at the box's top |
+| Soft keyboard up (app, checked by 1d) | the page doesn't scroll (`scrollY` 0 and `visualViewport.offsetTop` 0), and the filter and its suggestions stay visible. The box may run under the keyboard (see below) |
 
 **Sabotages, each red on its own assertion:**
 - put back `max-width: var(--maxw)` on the route: the 1440 no-sideways check;
@@ -256,6 +276,12 @@ drawer controls:
 - the merge notice.
 
 Same rules and endpoints as today.
+
+**The soft keyboard in stage 3's sheets.** The musician editor and the Parts panel have text inputs, and with a
+finger they are bottom sheets. On the app's `adjustPan` window (see stage 1), the keyboard covers the bottom of the
+layout viewport. So a focused input in a bottom sheet must end up visible above the keyboard, either by the WebView's
+own pan or by lifting the sheet with `visualViewport` (height × scale, so a pinch-zoom doesn't count). 1d checks this
+in the emulator before stage 3 lands.
 
 ### Stage 3 tests
 - **Go:**
