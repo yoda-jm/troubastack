@@ -69259,3 +69259,40 @@ Both blockers are fixed and pinned at the page. I re-ran everything on c8425920 
 4. PR #119 stays open for VLL, like #118. Don't close it.
 
 — Fable
+
+---
+
+## 2026-11-14 — Fable: T211 filed (Line-ups that fill the screen) → web-core, three stages; 1d checks stage 1 in the app
+
+`docs/tasks/T211-line-ups-fill-the-screen.md`, with the reference prototype in `docs/design/lineups-a-prototype.html`
+(fictional names; open it in a browser and resize).
+
+VLL's request (2026-11-14): the Line-ups page "no well rendered on desktop, not easy to browse; should make sense in
+both tablets and desktop … with or without touch". He chose option A on a working prototype and settled the details
+in review: a ✎ song editor, a musician editor (colours he can swap, instruments), voice as a ‹ value › chip in the
+detail view only, and a click that switches in the grid.
+
+**Before (measured on a copy of the :8080 data, build 3890545f):**
+- the grid is 912 px wide at every desktop size, against a 1132 px table;
+- 401 px of chrome sits above the first song, so 7 rows are visible at 1280×720 and 12 at 1440×900;
+- the box's horizontal scrollbar is off screen at load, at every size;
+- the song column is 315 px wide;
+- 83% of the cells are "·".
+
+**The stages:**
+1. **The frame and the grid (web/studio only).**
+   - The route fills the window under the top bar, and the page never scrolls.
+   - The grid's own scrollbars sit right and bottom, and only beside what scrolls.
+   - Edge shadows show where more columns or rows are, and Jump to appears when the grid overflows.
+   - Empty cells are empty and played cells are colour tags; each musician header has a ⋯ menu.
+   - Click behaviour is unchanged.
+   - 1d checks this stage in the emulator WebView before it lands.
+2. **✎ the song in detail.** A dialog (a bottom sheet with a finger) with the voice chip ‹ value ›, instrument
+   toggles, and Previous / Next.
+3. **Editing musicians and parts (core + studio).**
+   - `Musician.Color`: palette keys; a swap is one server write; Go and TS mirror one rule with shared vectors;
+     `.tband` carries it.
+   - The musician editor replaces the "+ part" popup.
+   - The Parts panel replaces the inline drawer.
+
+Each stage presents with its targets table, its sabotages red, and real-scrollbar screenshots.

@@ -1,0 +1,925 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>Line-ups prototype A</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Studio's own tokens (web/studio/src/styles.css): warm paper ground, one brand pink, musician tints for identity.
+   Layout: the grid owns the screen. One toolbar row, then a scroll box that ends at the window's bottom edge,
+   so both of its scrollbars (right and bottom) are always on screen. The page itself never scrolls. */
+:root {
+  --bg: #f7f4ee; --surface: #fffdfa; --stripe: #f8f4ec; --head: #faf6f0; --row-hover: #f3ece2;
+  --fg: #201d29; --muted: #6d6979; --border: #e7e1d8; --border-strong: #d8d1c5;
+  --grid-line: #efe9df; --grid-group: #ddd5c8;
+  --brand: #d11e87; --brand-strong: #a9186d; --brand-ink: #9b1664; --brand-tint: #fbe9f3; --on-brand: #ffffff;
+  --warn-bg: #fbf0dd; --warn-fg: #8f5207;
+  --edge: rgba(40, 34, 24, .24); --menu-shadow: 0 10px 30px rgba(40, 34, 24, .16);
+  --scroll-track: #f1ece4; --scroll-thumb: #c4baab; --scroll-thumb-hover: #9f9587;
+  --m0-bg: hsl(220 75% 93%); --m0-fg: hsl(220 62% 30%);
+  --m1-bg: hsl(26 85% 91%);  --m1-fg: hsl(24 90% 26%);
+  --m2-bg: hsl(150 45% 90%); --m2-fg: hsl(152 70% 21%);
+  --m3-bg: hsl(270 70% 94%); --m3-fg: hsl(272 55% 34%);
+  --m4-bg: hsl(340 70% 93%); --m4-fg: hsl(338 70% 31%);
+  --m5-bg: hsl(188 55% 89%); --m5-fg: hsl(190 80% 22%);
+  --m6-bg: hsl(46 85% 87%);  --m6-fg: hsl(36 90% 23%);
+  --m7-bg: hsl(96 40% 88%);  --m7-fg: hsl(100 60% 22%);
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --row-h: 32px; --cell-w: 60px; --song-w: 248px; --ctl-h: 36px; --edit-btn: 26px; --head1: 32px; --head2: 26px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #100e16; --surface: #191722; --stripe: #1d1a27; --head: #221f2d; --row-hover: #262232;
+    --fg: #efeaf6; --muted: #a49eb3; --border: #2b2836; --border-strong: #3a3648;
+    --grid-line: #262331; --grid-group: #3d3950;
+    --brand: #e23b9d; --brand-strong: #e54da6; --brand-ink: #ef7cc0; --brand-tint: #2c1a28; --on-brand: #100e16;
+    --warn-bg: #2b2111; --warn-fg: #f0b45a;
+    --edge: rgba(0, 0, 0, .55); --menu-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+    --scroll-track: #1d1a27; --scroll-thumb: #4b4661; --scroll-thumb-hover: #67607e;
+    --m0-bg: hsl(220 35% 25%); --m0-fg: hsl(220 90% 86%);
+    --m1-bg: hsl(26 35% 23%);  --m1-fg: hsl(28 90% 80%);
+    --m2-bg: hsl(150 30% 20%); --m2-fg: hsl(150 60% 76%);
+    --m3-bg: hsl(270 30% 26%); --m3-fg: hsl(270 90% 87%);
+    --m4-bg: hsl(340 30% 25%); --m4-fg: hsl(340 85% 85%);
+    --m5-bg: hsl(188 35% 20%); --m5-fg: hsl(188 70% 76%);
+    --m6-bg: hsl(42 35% 21%);  --m6-fg: hsl(44 90% 74%);
+    --m7-bg: hsl(96 25% 20%);  --m7-fg: hsl(96 55% 74%);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #100e16; --surface: #191722; --stripe: #1d1a27; --head: #221f2d; --row-hover: #262232;
+  --fg: #efeaf6; --muted: #a49eb3; --border: #2b2836; --border-strong: #3a3648;
+  --grid-line: #262331; --grid-group: #3d3950;
+  --brand: #e23b9d; --brand-strong: #e54da6; --brand-ink: #ef7cc0; --brand-tint: #2c1a28; --on-brand: #100e16;
+  --warn-bg: #2b2111; --warn-fg: #f0b45a;
+  --edge: rgba(0, 0, 0, .55); --menu-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+    --scroll-track: #1d1a27; --scroll-thumb: #4b4661; --scroll-thumb-hover: #67607e;
+  --m0-bg: hsl(220 35% 25%); --m0-fg: hsl(220 90% 86%);
+  --m1-bg: hsl(26 35% 23%);  --m1-fg: hsl(28 90% 80%);
+  --m2-bg: hsl(150 30% 20%); --m2-fg: hsl(150 60% 76%);
+  --m3-bg: hsl(270 30% 26%); --m3-fg: hsl(270 90% 87%);
+  --m4-bg: hsl(340 30% 25%); --m4-fg: hsl(340 85% 85%);
+  --m5-bg: hsl(188 35% 20%); --m5-fg: hsl(188 70% 76%);
+  --m6-bg: hsl(42 35% 21%);  --m6-fg: hsl(44 90% 74%);
+  --m7-bg: hsl(96 25% 20%);  --m7-fg: hsl(96 55% 74%);
+  color-scheme: dark;
+}
+@media (pointer: coarse) {
+  :root { --row-h: 44px; --cell-w: 56px; --song-w: 210px; --ctl-h: 44px; --edit-btn: 40px; --head1: 44px; --head2: 30px; }
+}
+@media (max-width: 860px) { :root { --song-w: 172px; } }
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.35 var(--font-body); overflow: hidden; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.app { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+.topbar { flex: none; height: 48px; display: flex; align-items: center; gap: 18px; background: var(--surface); border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; }
+.brand { font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+.brand b { color: var(--brand); font-weight: 700; }
+.back { color: var(--brand-ink); font-weight: 600; text-decoration: none; }
+.tabs { display: flex; align-self: stretch; }
+.tabs a { display: flex; align-items: center; padding: 0 10px; color: var(--muted); font-weight: 600; text-decoration: none; }
+.tabs a[aria-current="page"] { color: var(--brand-strong); box-shadow: inset 0 -2px 0 var(--brand); }
+.me { margin-left: auto; border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-weight: 600; font-size: 13px; }
+
+.toolbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-block: 10px; }
+.filter { flex: 1 1 240px; min-width: 0; height: var(--ctl-h); padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); }
+.btn { height: var(--ctl-h); padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn:hover { border-color: var(--muted); }
+.btn-primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); font-weight: 700; }
+.hidden-chip { display: flex; align-items: center; gap: 2px; height: var(--ctl-h); padding: 0 4px 0 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; }
+.hidden-chip button { min-width: 32px; height: 32px; border: 0; background: transparent; font-size: 16px; cursor: pointer; border-radius: 6px; }
+.proto { display: flex; align-items: center; gap: 6px; margin-left: auto; padding: 3px 8px; border: 1px dashed var(--border-strong); border-radius: 8px; color: var(--muted); font-size: 12px; }
+.proto legend { float: left; padding: 0 4px 0 0; font-weight: 700; }
+.proto label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+.jump { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 8px; }
+.jump span { color: var(--muted); font-size: 12px; font-weight: 600; margin-right: 2px; }
+.jump button { height: calc(var(--ctl-h) - 6px); padding: 0 12px; border: 0; border-radius: 999px; background: var(--mbg); color: var(--mfg); font-weight: 650; font-size: 13px; cursor: pointer; }
+
+.grid-wrap { flex: 1; min-height: 0; position: relative; margin-left: max(16px, env(safe-area-inset-left, 0px)); margin-right: max(16px, env(safe-area-inset-right, 0px)); border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.grid-scroll { position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; }
+/* Scrollbars only along what scrolls: the vertical track starts under the frozen header, the horizontal one after
+   the frozen song column. Chromium (Edge, the Windows and Android apps) and Safari honour track margins; Firefox
+   keeps its own full-length bar. Mouse screens only: a touch screen keeps its thin fading bars and the edge shadows. */
+@media (pointer: fine) {
+  .grid-scroll::-webkit-scrollbar { width: 14px; height: 14px; background: var(--head); }
+  .grid-scroll::-webkit-scrollbar-track { background: var(--scroll-track); }
+  .grid-scroll::-webkit-scrollbar-track:vertical { margin-top: var(--head-px, 58px); }
+  .grid-scroll::-webkit-scrollbar-track:horizontal { margin-left: var(--song-px, 248px); }
+  .grid-scroll::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); background-clip: padding-box; border: 3px solid transparent; border-radius: 7px; }
+  .grid-scroll::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
+  .grid-scroll::-webkit-scrollbar-corner { background: var(--head); }
+}
+.edge { position: absolute; pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 6; }
+.edge.on { opacity: 1; }
+.edge-l { top: 0; bottom: var(--sbh, 0px); left: var(--song-px, 248px); width: 14px; background: linear-gradient(to right, var(--edge), transparent); }
+.edge-r { top: 0; bottom: var(--sbh, 0px); right: var(--sbw, 0px); width: 24px; background: linear-gradient(to left, var(--edge), transparent); }
+.edge-t { left: 0; right: var(--sbw, 0px); top: var(--head-px, 58px); height: 10px; background: linear-gradient(to bottom, var(--edge), transparent); }
+@media (prefers-reduced-motion: reduce) { .edge { transition: none; } }
+
+table.grid { border-collapse: separate; border-spacing: 0; table-layout: fixed; min-width: 100%; }
+.grid .fill { border-left: 2px solid var(--grid-group); }
+.grid th, .grid td { padding: 0; }
+.grid thead th { position: sticky; background: var(--head); z-index: 3; }
+.grid tr.h1 th { top: 0; height: var(--head1); }
+.grid tr.h2 th { top: var(--head1); height: var(--head2); border-bottom: 1px solid var(--grid-group); }
+.grid th.corner { left: 0; z-index: 5; width: var(--song-w); min-width: var(--song-w); max-width: var(--song-w); text-align: left; vertical-align: bottom; padding: 0 12px 7px; border-right: 1px solid var(--grid-group); border-bottom: 1px solid var(--grid-group); }
+.grid th.corner .count { color: var(--muted); font-weight: 500; font-size: 12px; }
+.grid th.mus { z-index: 4; background: var(--mbg); color: var(--mfg); border-left: 2px solid var(--grid-group); white-space: nowrap; }
+.mus-in { display: flex; align-items: center; justify-content: center; gap: 2px; padding: 0 4px; overflow: hidden; }
+.mus-in .mname { overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.more { flex: none; width: var(--edit-btn); height: var(--edit-btn); border: 0; border-radius: 6px; background: transparent; font-weight: 700; font-size: 16px; line-height: 1; cursor: pointer; }
+.more:hover, .more[aria-expanded="true"] { background: color-mix(in srgb, currentColor 14%, transparent); }
+.menu { position: absolute; top: calc(var(--head1) - 2px); left: 4px; z-index: 20; width: 200px; padding: 6px; display: grid; gap: 2px; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--menu-shadow); text-align: left; font-weight: 500; }
+.menu button { height: var(--ctl-h); padding: 0 10px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
+.menu button:hover, .menu button:focus-visible { background: var(--brand-tint); }
+.menu .warn { color: var(--warn-fg); }
+.grid th.sub { width: var(--cell-w); min-width: var(--cell-w); max-width: var(--cell-w); font-size: 12px; font-weight: 650; color: var(--muted); border-left: 1px solid var(--grid-line); }
+.grid th.sub.g0, .grid td.g0 { border-left: 2px solid var(--grid-group); }
+
+.grid tbody th.song { position: sticky; left: 0; z-index: 2; width: var(--song-w); min-width: var(--song-w); max-width: var(--song-w); height: var(--row-h); text-align: left; font-weight: 500; border-right: 1px solid var(--grid-group); }
+.song-in { display: flex; align-items: center; gap: 4px; padding: 0 8px 0 4px; min-width: 0; }
+.edit { flex: none; width: var(--edit-btn); height: var(--edit-btn); display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+.edit:hover { background: var(--brand-tint); color: var(--brand-strong); }
+.title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grid tbody td { width: var(--cell-w); height: var(--row-h); border-left: 1px solid var(--grid-line); }
+.grid tbody tr > * { background: var(--surface); }
+.grid tbody tr:nth-child(even) > * { background: var(--stripe); }
+@media (hover: hover) { .grid tbody tr:hover > * { background: var(--row-hover); } }
+.cell { display: block; width: calc(100% - 6px); height: calc(var(--row-h) - 6px); margin: 3px; padding: 0; border: 0; border-radius: 6px; background: transparent; font-size: 13px; font-weight: 650; cursor: pointer; }
+.cell.on { background: var(--mbg); color: var(--mfg); }
+@media (hover: hover) { .cell:not(.on):hover::after { content: "+"; color: var(--muted); font-weight: 500; } }
+.cell:focus-visible { outline-offset: -2px; }
+.m0 { --mbg: var(--m0-bg); --mfg: var(--m0-fg); } .m1 { --mbg: var(--m1-bg); --mfg: var(--m1-fg); }
+.m2 { --mbg: var(--m2-bg); --mfg: var(--m2-fg); } .m3 { --mbg: var(--m3-bg); --mfg: var(--m3-fg); }
+.m4 { --mbg: var(--m4-bg); --mfg: var(--m4-fg); } .m5 { --mbg: var(--m5-bg); --mfg: var(--m5-fg); }
+.m6 { --mbg: var(--m6-bg); --mfg: var(--m6-fg); } .m7 { --mbg: var(--m7-bg); --mfg: var(--m7-fg); }
+
+.status { flex: none; min-height: 30px; display: flex; align-items: center; color: var(--muted); font-size: 12px; padding-block: 4px; }
+
+dialog.sheet { width: min(720px, calc(100vw - 32px)); max-height: min(760px, calc(100dvh - 48px)); padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--fg); box-shadow: var(--menu-shadow); }
+dialog.sheet::backdrop { background: rgba(16, 14, 22, .45); }
+dialog.sheet[open] { display: flex; flex-direction: column; }
+.dlg-head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px 10px; }
+.dlg-head > div { flex: 1; min-width: 0; }
+.dlg-pos { margin: 0; color: var(--muted); font-size: 13px; }
+.dlg-head h2 { margin: 2px 0 0; font-family: var(--font-display); font-size: 26px; line-height: 1.15; font-weight: 600; text-wrap: balance; }
+.dlg-body { flex: 1; min-height: 0; overflow: auto; padding: 0 22px; }
+.dlg-row { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px 0; border-top: 1px solid var(--grid-line); }
+.dlg-name { display: flex; align-items: center; gap: 8px; min-height: 40px; font-weight: 700; }
+.dlg-name i { width: 10px; height: 10px; border-radius: 50%; background: var(--mfg); }
+.togs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tog { min-height: 40px; padding: 0 14px; display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--border-strong); border-radius: 20px; background: var(--surface); font-size: 14px; font-weight: 600; cursor: pointer; }
+.tog small { opacity: .7; font-size: 12px; }
+.tog[aria-pressed="true"] { background: var(--mbg); color: var(--mfg); border-color: var(--mfg); }
+.tog[aria-pressed="true"]::before { content: "✓"; }
+.dlg-note { margin: 10px 0 14px; padding: 8px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; }
+.dlg-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 12px 22px 18px; border-top: 1px solid var(--grid-line); }
+@media (pointer: coarse), (max-width: 640px) {
+  dialog.sheet { width: 100%; max-width: none; margin: auto 0 0; border-radius: 20px 20px 0 0; max-height: 78dvh; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .dlg-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .dlg-foot .btn { flex: 1; height: 50px; font-size: 15px; }
+  .tog { min-height: 46px; }
+}
+@media (max-width: 640px) { .tabs, .proto legend { display: none; } }
+
+/* Editing the band: the musician editor (a sheet like the song editor) and the parts panel (a side panel). */
+.btn[aria-pressed="true"] { background: var(--brand-tint); border-color: var(--brand); color: var(--brand-ink); }
+.mname-btn { min-width: 0; padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.mname-btn:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.fsec { padding: 12px 0; border-top: 1px solid var(--grid-line); display: grid; gap: 8px; }
+.fsec:first-child { border-top: 0; }
+.flabel { margin: 0; font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.fhint { margin: 0; color: var(--muted); font-size: 13px; }
+.finput { height: 40px; max-width: 360px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw { width: 64px; height: 52px; display: grid; place-items: center; border: 2px solid transparent; border-radius: 12px; background: var(--mbg); color: var(--mfg); font-size: 12px; font-weight: 700; cursor: pointer; }
+.sw[aria-pressed="true"] { border-color: var(--mfg); box-shadow: 0 0 0 2px var(--surface) inset; }
+.sw span { max-width: 58px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-ed { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 4px 0 14px; border-radius: 20px; background: var(--mbg); color: var(--mfg); font-weight: 600; }
+.chip-ed small { opacity: .7; font-size: 12px; }
+.chip-ed button { width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+.chip-ed button:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+.add-chip { min-height: 40px; padding: 0 14px; border: 1.5px dashed var(--border-strong); border-radius: 20px; background: transparent; font-weight: 600; cursor: pointer; }
+.add-chip:hover { border-color: var(--muted); }
+.inline-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inline-form input, .inline-form select { height: 40px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); }
+.inline-form input.grow { flex: 1 1 200px; min-width: 0; }
+.inline-form input.short { width: 72px; }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; }
+.confirm .btn { height: 34px; }
+.foot-left { margin-right: auto; color: var(--warn-fg); }
+
+.panel { position: fixed; z-index: 40; top: 48px; right: 0; bottom: 0; width: min(460px, 100vw); display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--menu-shadow); padding-right: env(safe-area-inset-right, 0px); }
+.panel-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px 10px; }
+.panel-head h2 { flex: 1; margin: 0; font-family: var(--font-display); font-size: 22px; font-weight: 600; }
+.panel-body { flex: 1; min-height: 0; overflow: auto; padding: 0 18px 18px; display: grid; align-content: start; gap: 6px; }
+.panel h3 { margin: 14px 0 4px; font-size: 13px; color: var(--muted); letter-spacing: .02em; }
+.plist, .tlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.plist li, .tlist li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-height: 44px; padding: 4px 6px; border-radius: 8px; }
+.plist li:nth-child(odd), .tlist li:nth-child(odd) { background: var(--stripe); }
+.pname { font-weight: 600; }
+.tag { color: var(--muted); font-size: 12px; }
+.plist select { height: 34px; margin-left: auto; max-width: 150px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); }
+.icon-btn { width: 34px; height: 34px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+.icon-btn:hover { background: var(--brand-tint); color: var(--brand-strong); }
+.warn-text { color: var(--warn-fg); font-size: 12px; }
+.linkish { border: 0; background: transparent; color: var(--brand-ink); font-weight: 600; cursor: pointer; padding: 4px; }
+@media (pointer: coarse), (max-width: 640px) {
+  .panel { top: auto; left: 0; width: auto; height: 82dvh; border-left: 0; border-radius: 20px 20px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .plist select, .icon-btn { height: 44px; }
+  .icon-btn { width: 44px; }
+}
+
+/* The list opened from the middle of a voice chip, in the song's detailed view. */
+.choice { position: fixed; z-index: 30; min-width: 220px; padding: 6px; display: grid; gap: 2px; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--menu-shadow); }
+.choice-title { margin: 2px 8px 6px; color: var(--muted); font-size: 12px; }
+.choice button { display: flex; align-items: center; gap: 10px; height: var(--ctl-h); padding: 0 10px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
+.choice button:hover { background: var(--row-hover); }
+.choice button[aria-checked="true"] { background: var(--mbg); color: var(--mfg); font-weight: 650; }
+.choice .code { min-width: 40px; padding: 2px 6px; border-radius: 6px; background: var(--mbg); color: var(--mfg); font-size: 12px; font-weight: 700; text-align: center; }
+.choice .code.none { background: transparent; color: var(--muted); }
+.choice kbd { margin-left: auto; color: var(--muted); font: 12px var(--font-body); }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1.5px solid var(--border-strong); border-radius: 21px; overflow: hidden; }
+.seg button { min-height: 40px; padding: 0 14px; border: 0; border-left: 1px solid var(--border-strong); background: var(--surface); font-size: 14px; font-weight: 600; cursor: pointer; }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-checked="true"] { background: var(--mbg); color: var(--mfg); }
+.seg-label { align-self: center; color: var(--muted); font-size: 12px; font-weight: 700; margin-right: 2px; }
+.togs-break { flex-basis: 100%; height: 0; }
+@media (pointer: coarse), (max-width: 640px) { .seg button { min-height: 46px; } .choice button { height: 46px; } }
+
+/* Voice in the song's detailed view: a round chip ‹ value ›. The arrows step None → Lead → Backing → Both; the middle
+   opens the list. (In the grid a click just steps to the next value.) */
+.vstep { display: inline-flex; align-items: stretch; height: 40px; border: 1.5px solid var(--border-strong); border-radius: 20px; background: var(--surface); overflow: hidden; }
+.vstep.on { background: var(--mbg); color: var(--mfg); border-color: var(--mfg); }
+.vstep button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+.vstep .arr { width: 32px; font-size: 16px; line-height: 1; color: var(--muted); }
+.vstep.on .arr { color: inherit; }
+.vstep .arr:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.vstep .val { min-width: 84px; padding: 0 4px; display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 650; font-size: 14px; }
+.vstep .val::after { content: "▾"; font-size: 10px; opacity: .6; }
+.vstep .val:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+@media (pointer: coarse), (max-width: 640px) { .vstep { height: 48px; border-radius: 24px; } .vstep .arr { width: 46px; font-size: 18px; } .vstep .val { min-width: 96px; font-size: 15px; } }
+</style>
+
+<div class="app">
+  <header class="topbar gutter">
+    <span class="brand">Trouba<b>Studio</b></span>
+    <a class="back" href="#lineups">← Demo band</a>
+    <nav class="tabs" aria-label="Band">
+      <a href="#lineups">Overview</a><a href="#lineups">Setlists</a><a href="#lineups" aria-current="page">Line-ups</a><a href="#lineups">Settings</a>
+    </nav>
+    <span class="me">You</span>
+  </header>
+
+  <div class="toolbar gutter">
+    <input id="filter" class="filter" type="search" placeholder="Filter: a name, a part, or “without …”" aria-label="Filter songs">
+    <button type="button" class="btn">By part</button>
+    <button type="button" class="btn" id="addMus">+ musician</button>
+    <button type="button" class="btn" id="partsBtn" aria-pressed="false" aria-controls="partsPanel">Parts</button>
+    <span id="hiddenChip" class="hidden-chip" hidden></span>
+    <fieldset class="proto" title="Not part of the design: switches the example band">
+      <legend>Prototype</legend>
+      <label><input type="radio" name="band" id="bandSmall" value="small"> 4 musicians</label>
+      <label><input type="radio" name="band" id="bandLarge" value="large" checked> 7 musicians</label>
+    </fieldset>
+  </div>
+
+  <nav id="jump" class="jump gutter" aria-label="Jump to a musician" hidden></nav>
+
+  <div class="grid-wrap" id="wrap">
+    <div class="grid-scroll" id="scroll">
+      <table class="grid" id="grid" aria-label="Line-ups: who plays what on each song"></table>
+    </div>
+    <div class="edge edge-l" id="edgeL"></div>
+    <div class="edge edge-r" id="edgeR"></div>
+    <div class="edge edge-t" id="edgeT"></div>
+  </div>
+
+  <footer class="status gutter" id="status"></footer>
+</div>
+
+<div id="choice" class="choice" role="menu" hidden></div>
+
+<dialog class="sheet" id="dlg" aria-labelledby="dlgTitle">
+  <div class="dlg-head">
+    <div><p class="dlg-pos" id="dlgPos"></p><h2 id="dlgTitle"></h2></div>
+    <button type="button" class="btn" id="dlgClose">Close</button>
+  </div>
+  <div class="dlg-body" id="dlgBody"></div>
+  <div class="dlg-foot">
+    <button type="button" class="btn" id="dlgPrev">← Previous</button>
+    <button type="button" class="btn btn-primary" id="dlgNext">Next →</button>
+  </div>
+</dialog>
+
+<dialog class="sheet" id="musDlg" aria-labelledby="musTitle">
+  <div class="dlg-head">
+    <div><p class="dlg-pos" id="musKicker">Musician</p><h2 id="musTitle"></h2></div>
+    <button type="button" class="btn" id="musClose">Close</button>
+  </div>
+  <div class="dlg-body" id="musBody"></div>
+  <div class="dlg-foot" id="musFoot"></div>
+</dialog>
+
+<aside class="panel" id="partsPanel" aria-labelledby="partsTitle" hidden>
+  <div class="panel-head">
+    <h2 id="partsTitle">Parts and tracks</h2>
+    <button type="button" class="btn" id="partsClose">Close</button>
+  </div>
+  <div class="panel-body" id="partsBody"></div>
+</aside>
+
+<datalist id="commonParts">
+  <option value="Guitar"></option><option value="Bass"></option><option value="Keys"></option><option value="Drums"></option>
+  <option value="Percussion"></option><option value="Banjo"></option><option value="Harmonica"></option><option value="Cello"></option>
+</datalist>
+
+<script>
+(function () {
+  "use strict";
+  // Example data only: invented names and titles, the same shape as a real band (48 songs, ~2.3 players a song).
+  var COLOURS = ["Blue", "Orange", "Green", "Purple", "Rose", "Teal", "Amber", "Olive"];
+  var parts = [
+    { id: "L", name: "Lead voice", short: "L", kind: "voice" }, { id: "B", name: "Backing voice", short: "B", kind: "voice" },
+    { id: "EG", name: "Electric guitar", short: "EG", kind: "instrument" }, { id: "AG", name: "Acoustic guitar", short: "AG", kind: "instrument" },
+    { id: "Uku", name: "Ukulele", short: "Uku", kind: "instrument" }, { id: "Bs", name: "Bass", short: "Bs", kind: "instrument" },
+    { id: "Key", name: "Keys", short: "Key", kind: "instrument" }, { id: "Acc", name: "Accordion", short: "Acc", kind: "instrument" },
+    { id: "Caj", name: "Cajón", short: "Caj", kind: "instrument" }, { id: "Dje", name: "Djembe", short: "Dje", kind: "instrument" },
+    { id: "Bgo", name: "Bongos", short: "Bgo", kind: "instrument" }, { id: "Sn", name: "Snare", short: "Sn", kind: "instrument" },
+    { id: "Hp", name: "Handpan", short: "Hp", kind: "instrument" }, { id: "Dr", name: "Drums", short: "Dr", kind: "instrument" },
+    { id: "Pc", name: "Percussion", short: "Pc", kind: "instrument" }, { id: "Vln", name: "Violin", short: "Vln", kind: "instrument" },
+    { id: "Mdl", name: "Mandolin", short: "Mdl", kind: "instrument" }, { id: "Tpt", name: "Trumpet", short: "Tpt", kind: "instrument" },
+    { id: "Sax", name: "Saxophone", short: "Sax", kind: "instrument" }, { id: "Cl", name: "Clarinet", short: "Cl", kind: "instrument" },
+    { id: "Flt", name: "Flute", short: "Flt", kind: "instrument" }
+  ];
+  var mus = [
+    { id: "a", name: "Alex", ci: 0, inst: ["EG", "AG", "Uku"] }, { id: "b", name: "Bastien", ci: 1, inst: ["Caj", "Dje", "Bgo", "Sn", "Hp"] },
+    { id: "c", name: "Chloé", ci: 2, inst: ["Acc"] }, { id: "d", name: "Dana", ci: 3, inst: ["Bs", "Key"] },
+    { id: "f", name: "Fanny", ci: 5, inst: ["Vln", "Mdl"] }, { id: "g", name: "Gaspard", ci: 6, inst: ["Tpt", "Sax", "Cl"] },
+    { id: "h", name: "Hugo", ci: 7, inst: ["Dr", "Pc"] }, { id: "e", name: "Eli", ci: 4, inst: ["Flt"] }
+  ];
+  var BANDS = { small: ["a", "b", "c", "d", "e"], large: ["a", "b", "c", "d", "f", "g", "h", "e"] };
+  var TITLES = ["À la lisière", "Alizés", "Au bout du quai", "Balade des cerfs-volants", "Banquise", "Belle étoile", "Brume de mai", "Café des marins", "Caravane", "Chanson pour Margot", "Cinq heures du matin", "Coquelicots", "Danse du fanal", "Derrière la colline", "Deux rives", "Douce pluie", "Éclaircie", "En roue libre", "Feu de camp", "Fil d'Ariane", "Grand large", "Horizon bleu", "Jardin suspendu", "Kilomètre zéro", "La complainte du gardien de phare / Retour au port", "La valse des lampions", "Le bal des mouettes", "Le vieux moulin", "Les heures claires", "Lune rousse", "Marée haute", "Midnight Ferry", "Neon River", "Nuit d'orage", "Orange sanguine", "Paper Lanterns", "Petit matin", "Quatre saisons plus une", "Rue des tilleuls", "Silver Lining Road", "Sous le pont", "Tango du grenier", "Train de nuit", "Une autre fois", "Vent d'est", "Velvet Morning", "Zéphyr", "Zinc et velours"];
+  var PENCIL = '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M12.8 3.6l3.6 3.6L7.2 16.4H3.6v-3.6z M10.8 5.6l3.6 3.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  var tracks = [], nextId = 1;
+
+  function seed() {
+    var s = 20261114, cells = {};
+    function rnd() { s = (s + 0x6D2B79F5) | 0; var t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+    TITLES.forEach(function (title, i) {
+      if (i % 12 === 5) return;
+      var n = 1 + Math.floor(rnd() * 3.6);
+      mus.map(function (m) { return { m: m, r: rnd() }; }).sort(function (x, y) { return x.r - y.r; }).slice(0, n).forEach(function (p) {
+        var m = p.m, r = rnd(), base = i + ":" + m.id + ":";
+        if (r < 0.4) { var v = rnd(); if (v < 0.6) cells[base + "L"] = true; else if (v < 0.88) cells[base + "B"] = true; else { cells[base + "L"] = true; cells[base + "B"] = true; } }
+        var k = r < 0.4 ? (rnd() < 0.3 ? 1 : 0) : (rnd() < 0.82 ? 1 : 2);
+        for (var j = 0; j < k; j++) cells[base + m.inst[Math.floor(rnd() * m.inst.length)]] = true;
+      });
+    });
+    return cells;
+  }
+
+  var st = { band: "large", hidden: ["e"], order: mus.map(function (m) { return m.id; }), cells: seed(), q: "", dlg: null, rows: [],
+    musEdit: null, musNew: false, pendingRm: null, swapNote: "", trackFor: null, renameTrack: null, delTrack: null };
+  var $ = function (id) { return document.getElementById(id); };
+  var grid = $("grid"), scroll = $("scroll"), wrap = $("wrap"), choice = $("choice");
+  var coarse = window.matchMedia("(pointer: coarse)");
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); }
+  function find(list, id) { for (var k = 0; k < list.length; k++) if (list[k].id === id) return list[k]; return null; }
+  function part(id) { return find(parts, id); }
+  function musician(id) { return find(mus, id); }
+  function plural(n, w) { return n + " " + w + (n === 1 ? "" : "s"); }
+  function voiceLabel(p) { return p.name.replace(/ voice$/i, ""); }
+
+  function visible() {
+    var inBand = BANDS[st.band];
+    return st.order.filter(function (id) { return inBand.indexOf(id) >= 0 && st.hidden.indexOf(id) < 0; }).map(musician);
+  }
+  function hiddenInBand() { return st.hidden.filter(function (id) { return BANDS[st.band].indexOf(id) >= 0; }); }
+  function voiceParts() { return parts.filter(function (p) { return p.kind === "voice" && !p.shared; }); }
+
+  // A musician's columns: Voice (a choice among the voice parts), then one column per instrument, except that
+  // parts put on the same track share one column (a choice among them), as Studio's tracks do today.
+  function columns(m) {
+    var cols = [], vp = voiceParts(), byKey = {};
+    if (vp.length) cols.push({ key: "voice", voice: true, members: vp.map(function (p) { return p.id; }), label: "Voice", full: "Voice: " + vp.map(function (p) { return p.short + " = " + p.name; }).join(", ") });
+    parts.forEach(function (p) {
+      if (p.kind === "voice" || p.shared || m.inst.indexOf(p.id) < 0) return;
+      var k = p.track ? "t:" + p.track : "p:" + p.id;
+      if (!byKey[k]) { byKey[k] = { key: k, members: [], track: p.track || null }; cols.push(byKey[k]); }
+      byKey[k].members.push(p.id);
+    });
+    cols.forEach(function (c) {
+      if (c.voice) return;
+      if (c.track) {
+        var t = find(tracks, c.track);
+        c.label = t.short; c.full = t.name + " track: " + c.members.map(function (id) { return part(id).name; }).join(", ");
+      } else { c.label = part(c.members[0]).short; c.full = part(c.members[0]).name; }
+    });
+    return cols;
+  }
+  function playing(i, mid, members) { return members.filter(function (id) { return st.cells[i + ":" + mid + ":" + id]; }); }
+  function cellText(i, mid, members) { return playing(i, mid, members).map(function (id) { return part(id).short; }).join("+"); }
+  function setPlaying(i, mid, members, on) {
+    members.forEach(function (id) { var k = i + ":" + mid + ":" + id; if (on.indexOf(id) >= 0) st.cells[k] = true; else delete st.cells[k]; });
+  }
+  function songsUsing(mid, pid) { var n = 0; TITLES.forEach(function (t, i) { if (st.cells[i + ":" + mid + ":" + pid]) n++; }); return n; }
+
+  function filteredRows(vis) {
+    var q = st.q.trim().toLowerCase(), out = [];
+    TITLES.forEach(function (t, i) {
+      if (!q || t.toLowerCase().indexOf(q) >= 0 || vis.some(function (m) {
+        return parts.some(function (p) {
+          if (!st.cells[i + ":" + m.id + ":" + p.id]) return false;
+          return m.name.toLowerCase().indexOf(q) === 0 || p.short.toLowerCase() === q || p.name.toLowerCase().indexOf(q) === 0;
+        });
+      })) out.push(i);
+    });
+    return out;
+  }
+  function cellAria(i, m, col, text) { return TITLES[i] + ", " + m.name + ", " + col.full + ": " + (text || "not playing"); }
+
+  function render() {
+    var vis = visible(), subs = [];
+    vis.forEach(function (m) { columns(m).forEach(function (c, k) { subs.push({ m: m, col: c, g0: k === 0 }); }); });
+    st.rows = filteredRows(vis);
+    var h = '<thead><tr class="h1"><th class="corner" rowspan="2" scope="col">Song <span class="count">' + st.rows.length + "</span></th>";
+    vis.forEach(function (m) {
+      var n = subs.filter(function (s) { return s.m === m; }).length;
+      h += '<th class="mus m' + m.ci + '" colspan="' + n + '" scope="colgroup" id="mus-' + m.id + '"><div class="mus-in">' +
+        '<button type="button" class="mname-btn" data-editmus="' + m.id + '" title="Edit ' + esc(m.name) + '">' + esc(m.name) + '</button>' +
+        '<button type="button" class="more" aria-label="More for ' + esc(m.name) + '" aria-haspopup="menu" aria-expanded="false" data-more="' + m.id + '">⋯</button></div>' +
+        '<div class="menu" role="menu" hidden data-menu="' + m.id + '">' +
+        '<button type="button" role="menuitem" data-act="edit" data-mid="' + m.id + '">Edit musician…</button>' +
+        '<button type="button" role="menuitem" data-act="left" data-mid="' + m.id + '">◀ Move left</button>' +
+        '<button type="button" role="menuitem" data-act="right" data-mid="' + m.id + '">Move right ▶</button>' +
+        '<button type="button" role="menuitem" class="warn" data-act="hide" data-mid="' + m.id + '">Hide everywhere</button></div></th>';
+    });
+    h += '<th class="fill" rowspan="2" aria-hidden="true"></th></tr><tr class="h2">';
+    subs.forEach(function (s) { h += '<th class="sub' + (s.g0 ? " g0" : "") + '" scope="col" title="' + esc(s.col.full) + '">' + esc(s.col.label) + "</th>"; });
+    h += "</tr></thead><tbody>";
+    st.rows.forEach(function (i, r) {
+      var t = TITLES[i];
+      h += '<tr><th class="song" scope="row"><div class="song-in"><button type="button" class="edit" data-edit="' + i + '" aria-label="Edit the line-up of ' + esc(t) + '" title="Edit this song">' + PENCIL + '</button><span class="title" title="' + esc(t) + '">' + esc(t) + "</span></div></th>";
+      subs.forEach(function (s, c) {
+        var text = cellText(i, s.m.id, s.col.members), multi = s.col.members.length > 1;
+        h += '<td class="m' + s.m.ci + (s.g0 ? " g0" : "") + '"><button type="button" class="cell' + (text ? " on" : "") + (multi ? " multi" : "") + '" data-cell="' + i + "|" + s.m.id + "|" + s.col.key + '" data-r="' + r + '" data-c="' + c + '" tabindex="' + (r === 0 && c === 0 ? 0 : -1) + '" aria-label="' + esc(cellAria(i, s.m, s.col, text)) + '">' + esc(text) + "</button></td>";
+      });
+      h += '<td class="fill" aria-hidden="true"></td></tr>';
+    });
+    grid.innerHTML = h + "</tbody>";
+
+    var hid = hiddenInBand(), chip = $("hiddenChip");
+    chip.hidden = hid.length === 0;
+    chip.innerHTML = "<b>Hidden:</b>&nbsp;" + hid.map(function (id) {
+      var nm = esc(musician(id).name);
+      return nm + '<button type="button" data-restore="' + id + '" aria-label="Bring ' + nm + ' back" title="Bring ' + nm + ' back">↺</button>';
+    }).join(" ");
+    $("jump").innerHTML = "<span>Jump to</span>" + vis.map(function (m) { return '<button type="button" class="m' + m.ci + '" data-jump="' + m.id + '">' + esc(m.name) + "</button>"; }).join("");
+    $("status").textContent = st.rows.length + " songs · " + vis.length + " musicians · " + subs.length + " columns · " +
+      (coarse.matches ? "tap a cell to switch it (Voice: none → L → B → L+B) · drag to scroll · ✎ opens the song in detail"
+        : "click a cell to switch it (Voice: none → L → B → L+B), or press L / B · arrow keys move · Shift + wheel scrolls sideways · ✎ opens the song in detail");
+    requestAnimationFrame(layout);
+  }
+
+  function layout() {
+    var corner = grid.querySelector("th.corner"), thead = grid.querySelector("thead");
+    wrap.style.setProperty("--song-px", (corner ? corner.offsetWidth : 0) + "px");
+    wrap.style.setProperty("--head-px", (thead ? thead.offsetHeight : 0) + "px");
+    wrap.style.setProperty("--sbw", (scroll.offsetWidth - scroll.clientWidth) + "px");
+    wrap.style.setProperty("--sbh", (scroll.offsetHeight - scroll.clientHeight) + "px");
+    $("jump").hidden = !(scroll.scrollWidth > scroll.clientWidth + 1);
+    edges();
+  }
+  function edges() {
+    $("edgeL").classList.toggle("on", scroll.scrollLeft > 0);
+    $("edgeR").classList.toggle("on", scroll.scrollLeft + scroll.clientWidth < scroll.scrollWidth - 1);
+    $("edgeT").classList.toggle("on", scroll.scrollTop > 0);
+  }
+
+  function cellInfo(btn) {
+    var d = btn.dataset.cell.split("|"), m = musician(d[1]), col = null;
+    columns(m).forEach(function (c) { if (c.key === d[2]) col = c; });
+    return { i: +d[0], m: m, col: col };
+  }
+  function refreshCell(btn) {
+    var x = cellInfo(btn), text = cellText(x.i, x.m.id, x.col.members);
+    btn.textContent = text; btn.classList.toggle("on", !!text);
+    btn.setAttribute("aria-label", cellAria(x.i, x.m, x.col, text));
+  }
+  function refreshSongCells(i) { grid.querySelectorAll('.cell[data-cell^="' + i + '|"]').forEach(refreshCell); }
+
+  // The choice menu for a Voice (or track) cell: every option shown, the current one ticked.
+  var choiceFor = null;
+  function choiceOpts(col) {
+    var opts = [{ label: col.voice ? "None" : "Not playing", code: "", on: [] }];
+    col.members.forEach(function (id) { var p = part(id); opts.push({ label: col.voice ? voiceLabel(p) : p.name, code: p.short, on: [id], key: p.short.length === 1 ? p.short : "" }); });
+    if (col.members.length > 1) opts.push({ label: col.members.length === 2 ? "Both" : "All of them", code: col.members.map(function (id) { return part(id).short; }).join("+"), on: col.members.slice() });
+    return opts;
+  }
+  function choiceIndex(opts, cur) {
+    for (var k = 0; k < opts.length; k++) if (opts[k].on.length === cur.length && opts[k].on.every(function (id) { return cur.indexOf(id) >= 0; })) return k;
+    return 0;
+  }
+  function stepChoice(i, m, col, d) {
+    var opts = choiceOpts(col), k = choiceIndex(opts, playing(i, m.id, col.members));
+    setPlaying(i, m.id, col.members, opts[(k + d + opts.length) % opts.length].on);
+  }
+  function openChoice(btn, ctx) {
+    var x = ctx || cellInfo(btn), cur = playing(x.i, x.m.id, x.col.members), opts = choiceOpts(x.col);
+    var host = btn.closest("dialog") || document.body;
+    if (choice.parentNode !== host) host.appendChild(choice);
+    var h = '<p class="choice-title">' + esc(x.m.name) + " · " + esc(x.col.voice ? "Voice" : x.col.full.split(":")[0]) + "</p>";
+    opts.forEach(function (o, k) {
+      var checked = o.on.length === cur.length && o.on.every(function (id) { return cur.indexOf(id) >= 0; });
+      h += '<button type="button" role="menuitemradio" aria-checked="' + checked + '" data-opt="' + k + '"><span class="code' + (o.code ? "" : " none") + '">' + (o.code ? esc(o.code) : "—") + "</span>" + esc(o.label) + (o.key && !coarse.matches ? "<kbd>" + o.key + "</kbd>" : "") + "</button>";
+    });
+    choice.innerHTML = h; choice.className = "choice m" + x.m.ci; choice.hidden = false;
+    choiceFor = { btn: btn, x: x, opts: opts, after: x.after };
+    var r = btn.getBoundingClientRect(), w = choice.offsetWidth, ch = choice.offsetHeight;
+    var left = Math.min(r.left, window.innerWidth - w - 8), top = r.bottom + 4;
+    if (top + ch > window.innerHeight - 8) top = Math.max(8, r.top - ch - 4);
+    choice.style.left = Math.max(8, left) + "px"; choice.style.top = top + "px";
+    (choice.querySelector('[aria-checked="true"]') || choice.querySelector("button")).focus();
+  }
+  function closeChoice(refocus) {
+    if (choice.hidden) return;
+    choice.hidden = true;
+    if (refocus && choiceFor) choiceFor.btn.focus({ preventScroll: true });
+    choiceFor = null;
+  }
+  choice.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-opt]");
+    if (!b || !choiceFor) return;
+    var x = choiceFor.x, o = choiceFor.opts[+b.dataset.opt];
+    setPlaying(x.i, x.m.id, x.col.members, o.on);
+    if (choiceFor.after) { var after = choiceFor.after; closeChoice(false); after(); } else { refreshCell(choiceFor.btn); closeChoice(true); }
+  });
+  choice.addEventListener("keydown", function (e) {
+    var items = Array.prototype.slice.call(choice.querySelectorAll("button")), k = items.indexOf(document.activeElement);
+    if (e.key === "Escape") { e.preventDefault(); closeChoice(true); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); items[(k + 1) % items.length].focus(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); items[(k - 1 + items.length) % items.length].focus(); }
+    else if (e.key === "Tab") closeChoice(false);
+  });
+  document.addEventListener("pointerdown", function (e) { if (!choice.hidden && !choice.contains(e.target) && !(choiceFor && choiceFor.btn === e.target)) closeChoice(false); });
+
+  function reveal(el) {
+    var b = scroll.getBoundingClientRect(), r = el.getBoundingClientRect();
+    var left = b.left + grid.querySelector("th.corner").offsetWidth, top = b.top + grid.querySelector("thead").offsetHeight;
+    var right = b.left + scroll.clientWidth, bottom = b.top + scroll.clientHeight;
+    if (r.left < left) scroll.scrollLeft -= left - r.left + 4; else if (r.right > right) scroll.scrollLeft += r.right - right + 4;
+    if (r.top < top) scroll.scrollTop -= top - r.top + 2; else if (r.bottom > bottom) scroll.scrollTop += r.bottom - bottom + 2;
+  }
+  function focusCell(r, c) {
+    var el = grid.querySelector('.cell[data-r="' + r + '"][data-c="' + c + '"]');
+    if (!el) return;
+    grid.querySelectorAll('.cell[tabindex="0"]').forEach(function (x) { x.tabIndex = -1; });
+    el.tabIndex = 0; el.focus({ preventScroll: true }); reveal(el);
+  }
+  function closeMenus(except) {
+    grid.querySelectorAll(".menu").forEach(function (mn) { if (mn !== except) mn.hidden = true; });
+    grid.querySelectorAll(".more").forEach(function (b) { if (!except || b.dataset.more !== except.dataset.menu) b.setAttribute("aria-expanded", "false"); });
+  }
+  function move(id, dir) {
+    var ids = visible().map(function (m) { return m.id; }), k = ids.indexOf(id), other = ids[k + dir];
+    if (!other) return false;
+    var a = st.order.indexOf(id), b = st.order.indexOf(other);
+    st.order[a] = other; st.order[b] = id;
+    render(); return true;
+  }
+
+  grid.addEventListener("click", function (e) {
+    var t = e.target.closest("button");
+    if (!t) return;
+    if (t.classList.contains("cell")) {
+      // In the grid a click just switches: a part on/off; Voice (or a track) steps to its next value, None → L → B → L+B.
+      var x = cellInfo(t);
+      if (x.col.members.length > 1) { stepChoice(x.i, x.m, x.col, 1); refreshCell(t); return; }
+      var on = playing(x.i, x.m.id, x.col.members).length ? [] : x.col.members.slice();
+      setPlaying(x.i, x.m.id, x.col.members, on); refreshCell(t); return;
+    }
+    if (t.dataset.edit) { openSong(+t.dataset.edit); return; }
+    if (t.dataset.editmus) { openMus(t.dataset.editmus, false); return; }
+    if (t.dataset.more) {
+      var mn = grid.querySelector('[data-menu="' + t.dataset.more + '"]'), open = mn.hidden;
+      closeMenus(open ? mn : null); mn.hidden = !open; t.setAttribute("aria-expanded", String(open));
+      if (open) mn.querySelector("button").focus();
+      return;
+    }
+    if (t.dataset.act) {
+      var id = t.dataset.mid; closeMenus();
+      if (t.dataset.act === "edit") openMus(id, false);
+      else if (t.dataset.act === "left") move(id, -1);
+      else if (t.dataset.act === "right") move(id, 1);
+      else if (t.dataset.act === "hide") { st.hidden.push(id); render(); }
+    }
+  });
+  document.addEventListener("click", function (e) { if (!e.target.closest(".mus")) closeMenus(); });
+  grid.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { closeMenus(); return; }
+    var t = e.target;
+    if (!t.classList || !t.classList.contains("cell")) return;
+    var r = +t.dataset.r, c = +t.dataset.c, x = cellInfo(t);
+    var moves = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowDown: [1, 0], ArrowUp: [-1, 0] };
+    if (moves[e.key]) { e.preventDefault(); focusCell(r + moves[e.key][0], c + moves[e.key][1]); return; }
+    if (x.col.voice && /^[a-z]$/i.test(e.key)) {
+      var p = null; x.col.members.forEach(function (id) { if (part(id).short.toLowerCase() === e.key.toLowerCase()) p = id; });
+      if (p) {
+        e.preventDefault();
+        var cur = playing(x.i, x.m.id, x.col.members), k = cur.indexOf(p);
+        if (k >= 0) cur.splice(k, 1); else cur.push(p);
+        setPlaying(x.i, x.m.id, x.col.members, cur); refreshCell(t);
+      }
+      return;
+    }
+    if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); setPlaying(x.i, x.m.id, x.col.members, []); refreshCell(t); }
+  });
+  scroll.addEventListener("scroll", function () { edges(); closeChoice(false); }, { passive: true });
+  window.addEventListener("resize", function () { layout(); closeChoice(false); });
+  coarse.addEventListener("change", render);
+
+  $("hiddenChip").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-restore]");
+    if (b) { st.hidden = st.hidden.filter(function (x) { return x !== b.dataset.restore; }); render(); }
+  });
+  $("jump").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-jump]");
+    if (!b) return;
+    var th = $("mus-" + b.dataset.jump), corner = grid.querySelector("th.corner");
+    scroll.scrollTo({ left: th.offsetLeft - corner.offsetWidth, behavior: reduced.matches ? "auto" : "smooth" });
+  });
+  $("filter").addEventListener("input", function (e) { st.q = e.target.value; render(); });
+  document.querySelectorAll('input[name="band"]').forEach(function (r) {
+    r.addEventListener("change", function () { st.band = r.value; scroll.scrollLeft = 0; render(); });
+  });
+
+  // ✎ The song editor: one song, one row per musician. Voice is a choice (one of four); instruments are switches.
+  var dlg = $("dlg");
+  function openSong(i) { st.dlg = i; fillSong(); if (!dlg.open) dlg.showModal(); }
+  function fillSong() {
+    var i = st.dlg, pos = st.rows.indexOf(i), vp = voiceParts();
+    $("dlgPos").textContent = "Song " + (pos + 1) + " of " + st.rows.length;
+    $("dlgTitle").textContent = TITLES[i];
+    var h = "";
+    visible().forEach(function (m) {
+      h += '<div class="dlg-row m' + m.ci + '"><div class="dlg-name"><i aria-hidden="true"></i>' + esc(m.name) + '</div><div class="togs">';
+      if (vp.length) {
+        var vcol = columns(m)[0], vopts = choiceOpts(vcol), vk = choiceIndex(vopts, playing(i, m.id, vcol.members)), nm = esc(m.name);
+        h += '<span class="seg-label">Voice</span><div class="vstep' + (vk ? " on" : "") + '">' +
+          '<button type="button" class="arr" data-vstep="' + m.id + '|-1" aria-label="Previous voice for ' + nm + '">‹</button>' +
+          '<button type="button" class="val" data-vmenu="' + m.id + '" aria-haspopup="menu" aria-label="' + nm + "'s voice: " + esc(vopts[vk].label) + '. Choose">' + esc(vopts[vk].label) + "</button>" +
+          '<button type="button" class="arr" data-vstep="' + m.id + '|1" aria-label="Next voice for ' + nm + '">›</button></div><span class="togs-break"></span>';
+      }
+      parts.forEach(function (p) {
+        if (p.kind === "voice" || p.shared || m.inst.indexOf(p.id) < 0) return;
+        var key = i + ":" + m.id + ":" + p.id;
+        h += '<button type="button" class="tog" data-tog="' + m.id + "|" + p.id + '" aria-pressed="' + !!st.cells[key] + '">' + esc(p.name) + " <small>" + esc(p.short) + "</small></button>";
+      });
+      h += "</div></div>";
+    });
+    var hid = hiddenInBand();
+    if (hid.length) h += '<p class="dlg-note">' + hid.map(function (id) { return esc(musician(id).name); }).join(", ") + " is hidden from the band. Their parts on this song stay saved and come back with them.</p>";
+    $("dlgBody").innerHTML = h;
+    $("dlgPrev").disabled = pos <= 0; $("dlgNext").disabled = pos >= st.rows.length - 1;
+  }
+  $("dlgBody").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-vstep],[data-vmenu],[data-tog]");
+    if (!b) return;
+    var i = st.dlg, sel;
+    if (b.dataset.vmenu) {
+      var vm = musician(b.dataset.vmenu);
+      openChoice(b, { i: i, m: vm, col: columns(vm)[0], after: function () {
+        refreshSongCells(i); fillSong(); var back = $("dlgBody").querySelector('[data-vmenu="' + vm.id + '"]'); if (back) back.focus();
+      } });
+      return;
+    }
+    if (b.dataset.vstep) {
+      var vs = b.dataset.vstep.split("|"), sm = musician(vs[0]);
+      stepChoice(i, sm, columns(sm)[0], +vs[1]);
+      sel = '[data-vstep="' + b.dataset.vstep + '"]';
+    } else {
+      var t = b.dataset.tog.split("|"), key = i + ":" + t[0] + ":" + t[1];
+      if (st.cells[key]) delete st.cells[key]; else st.cells[key] = true;
+      sel = '[data-tog="' + b.dataset.tog + '"]';
+    }
+    refreshSongCells(i); fillSong();
+    var again = $("dlgBody").querySelector(sel); if (again) again.focus();
+  });
+  function step(d) { var k = st.rows.indexOf(st.dlg) + d; if (k >= 0 && k < st.rows.length) { st.dlg = st.rows[k]; fillSong(); } }
+  $("dlgPrev").addEventListener("click", function () { step(-1); });
+  $("dlgNext").addEventListener("click", function () { step(1); });
+  $("dlgClose").addEventListener("click", function () { dlg.close(); });
+  dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+  dlg.addEventListener("close", function () { var row = grid.querySelector('[data-edit="' + st.dlg + '"]'); if (row) row.focus(); });
+
+  // The musician editor: name, colour (taking someone's colour swaps the two), instruments, place in the grid.
+  var musDlg = $("musDlg");
+  function openMus(id, isNew) {
+    st.musEdit = id; st.musNew = !!isNew; st.pendingRm = null; st.swapNote = "";
+    fillMus(); if (!musDlg.open) musDlg.showModal();
+    if (isNew) $("musName").focus();
+  }
+  function fillMus() {
+    var m = musician(st.musEdit);
+    $("musKicker").textContent = st.musNew ? "New musician" : "Musician";
+    $("musTitle").textContent = m.name || "New musician";
+    musDlg.className = "sheet m" + m.ci;
+    var h = '<section class="fsec"><label class="flabel" for="musName">Name</label><input id="musName" class="finput" autocomplete="off" value="' + esc(m.name) + '"></section>';
+    h += '<section class="fsec"><h3 class="flabel" id="colLbl">Colour</h3><div class="swatches" role="group" aria-labelledby="colLbl">';
+    COLOURS.forEach(function (cn, ci) {
+      var owner = null; mus.forEach(function (x) { if (x.ci === ci && x.id !== m.id && (st.order.indexOf(x.id) >= 0)) owner = x; });
+      h += '<button type="button" class="sw m' + ci + '" data-ci="' + ci + '" aria-pressed="' + (m.ci === ci) + '" aria-label="' + cn + (m.ci === ci ? ", current" : owner ? ", now " + esc(owner.name) + "'s" : ", free") + '" title="' + cn + '"><span>' + (m.ci === ci ? "✓" : owner ? esc(owner.name) : "") + "</span></button>";
+    });
+    h += '</div><p class="fhint" aria-live="polite">' + esc(st.swapNote || "Taking a colour another musician has swaps your two colours.") + "</p></section>";
+    h += '<section class="fsec"><h3 class="flabel">Instruments</h3><div class="togs">';
+    var mine = parts.filter(function (p) { return m.inst.indexOf(p.id) >= 0; });
+    if (!mine.length) h += '<p class="fhint">No instrument yet. Everyone already has a Voice column.</p>';
+    mine.forEach(function (p) { h += '<span class="chip-ed">' + esc(p.name) + " <small>" + esc(p.short) + '</small><button type="button" data-rm="' + p.id + '" aria-label="Remove ' + esc(p.name) + '" title="Remove">✕</button></span>'; });
+    h += "</div>";
+    if (st.pendingRm) {
+      var n = songsUsing(m.id, st.pendingRm);
+      h += '<div class="confirm" role="alert">' + esc(m.name || "This musician") + " plays " + esc(part(st.pendingRm).name) + " in " + plural(n, "song") + '. <button type="button" class="btn" data-clearrm="' + st.pendingRm + '">Clear ' + (n === 1 ? "it" : "those " + n) + ' and remove</button><button type="button" class="btn" data-keeprm>Keep it</button></div>';
+    }
+    var addable = parts.filter(function (p) { return p.kind === "instrument" && !p.shared && m.inst.indexOf(p.id) < 0; });
+    if (addable.length) {
+      h += '<p class="flabel">Add one the band already has</p><div class="togs">';
+      addable.forEach(function (p) { h += '<button type="button" class="add-chip" data-addinst="' + p.id + '">+ ' + esc(p.name) + "</button>"; });
+      h += "</div>";
+    }
+    h += '<form class="inline-form" id="newInstForm"><input class="grow" id="newInst" list="commonParts" placeholder="Or a new one (e.g. Banjo)" aria-label="New instrument"><button type="submit" class="btn">Add</button></form></section>';
+    if (!st.musNew) h += '<section class="fsec"><h3 class="flabel">Place in the grid</h3><div class="togs"><button type="button" class="btn" data-mv="-1">◀ Move left</button><button type="button" class="btn" data-mv="1">Move right ▶</button></div></section>';
+    $("musBody").innerHTML = h;
+    $("musFoot").innerHTML = st.musNew
+      ? '<button type="button" class="btn" data-muscancel>Cancel</button><button type="button" class="btn btn-primary" data-musadd>Add musician</button>'
+      : '<button type="button" class="btn foot-left" data-mushide>Hide everywhere</button><button type="button" class="btn btn-primary" data-musdone>Done</button>';
+  }
+  function abbreviate(name) {
+    var base = name.replace(/[^A-Za-zÀ-ÿ]/g, "").slice(0, 3) || "P", s = base, n = 2;
+    while (parts.some(function (p) { return p.short.toLowerCase() === s.toLowerCase(); })) s = base + n++;
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function inferKind(name) { return /voice|vocal|lead|backing|chant|chœur|choir/i.test(name) ? "voice" : "instrument"; }
+  $("musBody").addEventListener("input", function (e) {
+    if (e.target.id !== "musName") return;
+    var m = musician(st.musEdit); m.name = e.target.value; $("musTitle").textContent = m.name || "New musician";
+    if (!st.musNew) render();
+  });
+  $("musBody").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    var m = musician(st.musEdit), refocus = null;
+    if (b.dataset.ci) {
+      var ci = +b.dataset.ci, other = null;
+      mus.forEach(function (x) { if (x.ci === ci && x.id !== m.id && st.order.indexOf(x.id) >= 0) other = x; });
+      if (other) { other.ci = m.ci; st.swapNote = "Swapped: " + other.name + " now has " + COLOURS[other.ci].toLowerCase() + "."; }
+      else st.swapNote = "";
+      m.ci = ci; refocus = '[data-ci="' + ci + '"]';
+    } else if (b.dataset.rm) {
+      if (songsUsing(m.id, b.dataset.rm)) st.pendingRm = b.dataset.rm;
+      else { m.inst = m.inst.filter(function (x) { return x !== b.dataset.rm; }); st.pendingRm = null; }
+    } else if (b.dataset.clearrm) {
+      var pid = b.dataset.clearrm;
+      TITLES.forEach(function (t, i) { delete st.cells[i + ":" + m.id + ":" + pid]; });
+      m.inst = m.inst.filter(function (x) { return x !== pid; }); st.pendingRm = null;
+    } else if (b.hasAttribute("data-keeprm")) st.pendingRm = null;
+    else if (b.dataset.addinst) { m.inst.push(b.dataset.addinst); refocus = "#newInst"; }
+    else if (b.dataset.mv) { move(m.id, +b.dataset.mv); refocus = '[data-mv="' + b.dataset.mv + '"]'; }
+    else return;
+    fillMus(); if (!st.musNew) render();
+    if (refocus) { var el = $("musBody").querySelector(refocus); if (el) el.focus(); }
+  });
+  $("musBody").addEventListener("submit", function (e) {
+    if (e.target.id !== "newInstForm") return;
+    e.preventDefault();
+    var name = $("newInst").value.trim(), m = musician(st.musEdit);
+    if (!name) return;
+    var p = { id: "n" + nextId++, name: name.charAt(0).toUpperCase() + name.slice(1), short: abbreviate(name), kind: inferKind(name) };
+    parts.push(p); if (p.kind === "instrument") m.inst.push(p.id);
+    fillMus(); if (!st.musNew) render(); $("newInst").focus();
+    if (!$("partsPanel").hidden) fillParts();
+  });
+  $("musFoot").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    var m = musician(st.musEdit);
+    if (b.hasAttribute("data-musadd")) {
+      if (!m.name.trim()) { $("musName").focus(); return; }
+      BANDS.small.push(m.id); BANDS.large.push(m.id); st.order.push(m.id); st.musNew = false; musDlg.close(); render();
+      var th = $("mus-" + m.id); if (th) scroll.scrollTo({ left: th.offsetLeft, behavior: "auto" });
+    } else if (b.hasAttribute("data-muscancel")) musDlg.close();
+    else if (b.hasAttribute("data-mushide")) { st.hidden.push(m.id); musDlg.close(); render(); }
+    else if (b.hasAttribute("data-musdone")) musDlg.close();
+  });
+  $("musClose").addEventListener("click", function () { musDlg.close(); });
+  musDlg.addEventListener("close", function () {
+    if (st.musNew) { mus = mus.filter(function (x) { return x.id !== st.musEdit; }); st.musNew = false; }
+    var b = grid.querySelector('[data-editmus="' + st.musEdit + '"]'); if (b) b.focus();
+  });
+  $("addMus").addEventListener("click", function () {
+    var used = mus.filter(function (x) { return st.order.indexOf(x.id) >= 0; }).map(function (x) { return x.ci; });
+    var ci = 0; for (var k = 0; k < COLOURS.length; k++) if (used.indexOf(k) < 0) { ci = k; break; }
+    var m = { id: "m" + nextId++, name: "", ci: ci, inst: [] };
+    mus.push(m); openMus(m.id, true);
+  });
+
+  // The parts panel: the band's vocabulary and its tracks. It sits beside the grid, which stays usable.
+  var panel = $("partsPanel");
+  function fillParts() {
+    var h = '<form class="inline-form" id="newPartForm"><input class="grow" id="npName" list="commonParts" placeholder="New part (e.g. Guitar)" aria-label="New part name"><input class="short" id="npShort" placeholder="short" aria-label="Short label">' +
+      '<select id="npKind" aria-label="Kind"><option value="instrument">instrument</option><option value="voice">voice</option><option value="other">other</option></select>' +
+      '<label class="tag"><input type="checkbox" id="npShared"> shared</label><button type="submit" class="btn btn-primary">Add part</button></form>';
+    h += '<h3>Parts</h3><ul class="plist">';
+    parts.forEach(function (p, k) {
+      h += '<li><span class="pname">' + esc(p.name) + '</span><span class="tag">' + esc(p.short) + " · " + p.kind + (p.shared ? " · shared" : "") + "</span>";
+      if (p.kind === "voice") h += '<span class="tag" style="margin-left:auto">in each Voice column</span>';
+      else if (p.shared) h += '<span class="tag" style="margin-left:auto">its own who-plays column</span>';
+      else if (st.trackFor === p.id) h += '<form class="inline-form" data-newtrack="' + p.id + '" style="margin-left:auto"><input id="ntName" class="short" style="width:130px" placeholder="Track name" aria-label="New track name"><button class="btn" type="submit">Create</button><button type="button" class="linkish" data-canceltrack>cancel</button></form>';
+      else {
+        h += '<select data-track="' + p.id + '" aria-label="Track for ' + esc(p.name) + '"><option value="">Own track</option>';
+        tracks.forEach(function (t) { h += '<option value="' + t.id + '"' + (p.track === t.id ? " selected" : "") + ">" + esc(t.name) + "</option>"; });
+        h += '<option value="__new">+ New track…</option></select>';
+      }
+      h += '<button type="button" class="icon-btn" data-pmv="' + p.id + '|-1" aria-label="Move ' + esc(p.name) + ' up"' + (k === 0 ? " disabled" : "") + ">▲</button>" +
+        '<button type="button" class="icon-btn" data-pmv="' + p.id + '|1" aria-label="Move ' + esc(p.name) + ' down"' + (k === parts.length - 1 ? " disabled" : "") + ">▼</button></li>";
+    });
+    h += '</ul><h3>Tracks</h3><p class="fhint">A track puts several parts on one mixer channel. Each musician then has one column for them, and a click there chooses which part plays.</p>';
+    if (!tracks.length) h += '<p class="fhint">No track yet: choose “+ New track…” next to a part.</p>';
+    else {
+      h += '<ul class="tlist">';
+      tracks.forEach(function (t) {
+        var members = parts.filter(function (p) { return p.track === t.id; });
+        h += "<li>" + (st.renameTrack === t.id
+          ? '<form class="inline-form" data-renametrack="' + t.id + '"><input id="rtName" value="' + esc(t.name) + '" aria-label="Rename ' + esc(t.name) + '"><button class="btn" type="submit">Save</button></form>'
+          : '<button type="button" class="linkish" data-rename="' + t.id + '" title="Rename">' + esc(t.name) + "</button>") +
+          '<span class="tag">' + (members.length ? members.map(function (p) { return p.short; }).join(" + ") : "no part") + "</span>";
+        if (st.delTrack === t.id) h += '<span class="confirm" style="margin-left:auto">Put ' + (members.length === 1 ? "its part" : "its " + members.length + " parts") + ' back on their own track? <button type="button" class="btn" data-deltrackyes="' + t.id + '">Revert</button><button type="button" class="linkish" data-deltrackno>cancel</button></span>';
+        else h += '<button type="button" class="linkish" style="margin-left:auto" data-deltrack="' + t.id + '">Delete</button>';
+        h += "</li>";
+      });
+      h += "</ul>";
+    }
+    $("partsBody").innerHTML = h;
+  }
+  function togglePanel(open) {
+    panel.hidden = !open; $("partsBtn").setAttribute("aria-pressed", String(open));
+    if (open) { fillParts(); $("npName").focus(); } else $("partsBtn").focus();
+  }
+  $("partsBtn").addEventListener("click", function () { togglePanel(panel.hidden); });
+  $("partsClose").addEventListener("click", function () { togglePanel(false); });
+  panel.addEventListener("keydown", function (e) { if (e.key === "Escape") togglePanel(false); });
+  $("partsBody").addEventListener("change", function (e) {
+    var s = e.target.closest("select[data-track]");
+    if (!s) return;
+    var p = part(s.dataset.track);
+    if (s.value === "__new") { st.trackFor = p.id; fillParts(); $("ntName").focus(); return; }
+    p.track = s.value || undefined; fillParts(); render();
+  });
+  $("partsBody").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = e.target;
+    if (f.id === "newPartForm") {
+      var name = $("npName").value.trim();
+      if (!name) { $("npName").focus(); return; }
+      parts.push({ id: "n" + nextId++, name: name, short: $("npShort").value.trim() || abbreviate(name), kind: $("npKind").value, shared: $("npShared").checked });
+      fillParts(); render(); $("npName").focus();
+    } else if (f.dataset.newtrack) {
+      var tn = $("ntName").value.trim();
+      if (!tn) { $("ntName").focus(); return; }
+      var t = { id: "t" + nextId++, name: tn, short: tn.length <= 5 ? tn : tn.slice(0, 4) };
+      tracks.push(t); part(f.dataset.newtrack).track = t.id; st.trackFor = null; fillParts(); render();
+    } else if (f.dataset.renametrack) {
+      var tr = find(tracks, f.dataset.renametrack), nn = $("rtName").value.trim();
+      if (nn) { tr.name = nn; tr.short = nn.length <= 5 ? nn : nn.slice(0, 4); }
+      st.renameTrack = null; fillParts(); render();
+    }
+  });
+  $("partsBody").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.pmv) {
+      var d = b.dataset.pmv.split("|"), k = parts.indexOf(part(d[0])), j = k + +d[1];
+      if (j < 0 || j >= parts.length) return;
+      var tmp = parts[k]; parts[k] = parts[j]; parts[j] = tmp;
+      fillParts(); render();
+      var again = $("partsBody").querySelector('[data-pmv="' + b.dataset.pmv + '"]'); if (again && !again.disabled) again.focus();
+    } else if (b.hasAttribute("data-canceltrack")) { st.trackFor = null; fillParts(); }
+    else if (b.dataset.rename) { st.renameTrack = b.dataset.rename; fillParts(); $("rtName").focus(); }
+    else if (b.dataset.deltrack) { st.delTrack = b.dataset.deltrack; fillParts(); }
+    else if (b.hasAttribute("data-deltrackno")) { st.delTrack = null; fillParts(); }
+    else if (b.dataset.deltrackyes) {
+      var id = b.dataset.deltrackyes;
+      parts.forEach(function (p) { if (p.track === id) p.track = undefined; });
+      tracks = tracks.filter(function (t) { return t.id !== id; }); st.delTrack = null; fillParts(); render();
+    }
+  });
+
+  render();
+})();
+</script>
+</body></html>
