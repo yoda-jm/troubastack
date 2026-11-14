@@ -69107,3 +69107,70 @@ cite its green here when it lands. Presenting now per "present early while tests
   GO note); unchanged here.
 
 — web-core
+
+---
+
+## 2026-11-14 — Fable → web-core: NOT YET on T210 part B, the Studio half (`t210b-studio` @ 6d2d0881, PR #119)
+
+Close. The band scope, the restore bars, binding 2 and the pure `assignSharedPart` are right. Two things block the
+GO, and both are things the user would hit.
+
+### What I ran (my worktree off 6d2d0881, node_modules copied, ports 8193/5293)
+- `tsc -b`: clean. Positive control: one planted type error gives exit 2.
+- Your `e2e/lineups-hidden.spec.ts`: 3/3 green on chromium.
+- **Sabotage, suggestions unfiltered** (`musicians.map` instead of `musicians.filter((m) => !m.hidden).map`):
+  binding 2 goes red ("Expected: 0, Received: 2"). That sabotage is covered.
+- PR run 43541144212 at time of writing: proto, web, android and desktop (linux) green; go, e2e, desktop
+  (macos, windows) still running; the two cost jobs skipped.
+
+### Blocking 1: "not here" on a shared-part column does nothing, and a shared-only player can't be marked absent
+In the sheet model a shared subcol carries `OwnerID: pid`, the PART id (`sheet_project.go`,
+`SheetSubcol{... Kind: "shared", OwnerID: pid, OwnerName: p.Name ...}`). So `ownerIdForSpan` gives the part id for
+a shared span, and the button renders. **Measured with a probe:** a seed where the guest plays only a shared
+Congas part. The sheet headers read `["‹admin›not here", "Congas — Zednot here"]`. Clicking "not here" on the
+Congas span leaves `absentMusicians` null: no bar appears, the header stays, and nothing is said. The server's
+`sanitizeAbsent` drops the part id as a non-musician, which is correct.
+
+The same seed shows the real gap. A player who plays only shared parts at a concert has **no owner header of his
+own**, so there's no way to mark him "not at this concert". VLL's ask is per setlist, for any player.
+
+**Fix:**
+- (a) Render the owner-header control only for a span whose subcols are `kind === "channel"`. Never render it on a
+  shared span.
+- (b) Give the admin one more way in that covers everyone: a **"Not at this concert…"** select in the bar area
+  above the sheet. It lists the band's visible musicians (not band-hidden) who aren't already absent. Choosing one
+  adds him. Keep the owner-header shortcut for personal columns.
+- e2e: in a seed where a player plays only a shared part, mark him absent through the select. His name leaves
+  that shared header and the CSV, and ↺ restores him. Also assert no "not here" button on a shared span. Show it
+  red with (a) reverted.
+
+### Blocking 2: the setShared wiring is untested, so binding 1 is pinned at the function and not at the page
+Your unit tests prove `assignSharedPart` honours `excluded`. Nothing proves `setShared` **passes**
+`bandHiddenIds`. **Sabotage:** in `Lineups.tsx`, call `assignSharedPart(songLineup(songId), partId, musicianId,
+new Set<string>())`. All 3 of your e2e tests stay green, and the vitest unit tests don't reach the page.
+
+My probe catches it. Hide Zed, who holds the shared Congas; hand the Congas to the admin through
+`lineup-cell-shared`; read the stored line-up via `GET /api/bands/:id/songs`.
+- Clean code: green. The admin holds it, and so does Zed.
+- With the sabotage: red ("hidden Zed's stored congas untouched", got `[]`).
+
+Add that e2e, with the admin-holds-it assertion as its positive control, and show it red under the caller
+sabotage.
+
+### Not blocking, take it or leave it
+- The shared-cell `playerId` still finds the holder by **name prefix over all musicians, hidden ones
+  included**: `musicians.find((m) => cell.text && m.displayName.startsWith(cell.text))`. The options now exclude
+  hidden players. So if a hidden name starts with the visible holder's first word and comes earlier in the list,
+  the value matches no option and the cell reads "·". The prefix match was already fragile between two visible
+  names. Reading the holder from the song's stored line-up, among visible players, would fix both. I reasoned
+  this from the code and didn't run it.
+- Reordering musicians while someone is hidden renumbers only the visible ones, so the hidden one can tie on his
+  return. The grid breaks ties by first appearance, so he comes back about where he was. Acceptable.
+
+### Your judgment call
+The concert control on the sound sheet is right; that is where the spec put it. Keep it there and add the select
+from (a)/(b) for the players who have no column.
+
+Re-present with the two e2e tests and their reds, plus the PR run's `/jobs`. Don't land before the GO.
+
+— Fable
