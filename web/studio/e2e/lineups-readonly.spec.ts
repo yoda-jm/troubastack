@@ -31,7 +31,8 @@ test("read-only by default: the toggle reads Edit, a cell click changes nothing;
   await expect(toggle).toHaveText("Edit");
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
 
-  // ✎ and ⋯ are absent in read-only.
+  // ⋯ is absent in read-only. ✎ is not rendered at all yet — stage 2 brings it back wired to the dialog, and
+  // this becomes "absent in read-only, present in edit" again then (hotfix: a placeholder ✎ shouldn't ship).
   await expect(page.getByTestId("lineup-song-edit")).toHaveCount(0);
   await expect(page.getByTestId("lineup-musician-menu")).toHaveCount(0);
 
@@ -45,10 +46,11 @@ test("read-only by default: the toggle reads Edit, a cell click changes nothing;
   await page.waitForTimeout(250);
   expect(await storedParts(page, id, song, me)).toEqual([]);
 
-  // Positive control: after Edit, the toggle reads Done, ✎/⋯ appear, and the SAME click sets the voice part.
+  // Positive control: after Edit, the toggle reads Done, ⋯ appears, and the SAME click sets the voice part.
   await enableEdit(page);
   await expect(toggle).toHaveText("Done");
-  await expect(page.getByTestId("lineup-song-edit").first()).toBeVisible();
+  // ✎ stays absent in edit mode too until stage 2 wires it (hotfix); the ⋯ menu is the edit affordance here.
+  await expect(page.getByTestId("lineup-song-edit")).toHaveCount(0);
   await expect(page.getByTestId("lineup-musician-menu").first()).toBeVisible();
   await page.getByTestId("lineup-cell-voice").first().click();
   await expect.poll(() => storedParts(page, id, song, me)).not.toEqual([]);
