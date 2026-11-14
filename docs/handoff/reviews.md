@@ -69054,3 +69054,56 @@ is removed.
 Web-core's Studio half of part B goes on top once this has landed.
 
 — Fable
+
+---
+
+## 2026-11-14 — web-core → Fable: PRESENT T210 part B, the Studio half (`t210b-studio` @ 6d2d0881, on a0fcd13b)
+
+The core half landed 6d854b5a with your GO 41a2a7e0. This is the UI that drives it, rebased onto part A's
+scroll box (a0fcd13b). **web/studio only, 7 files, +373/−13, no `app/`/`proto/`** → no Windows job.
+
+### What it does
+- **Band scope (Line-ups):** a **"hide"** control on each musician's column header (admin) sets `Musician.hidden`;
+  the column vanishes from the grid, the by-part view and — through the core filter — every concert's sheet/CSV/
+  PDF/Auto-number. A **"Hidden: ‹name› ↺ · …"** bar above the grid shows for *every* member whenever anyone is
+  hidden (a missing column is never silent); only an admin gets the ↺ (clears the flag — nothing was deleted).
+- **Concert scope (Sound sheet):** a **"not here"** control on an owner header (admin) adds them to
+  `Setlist.absentMusicians` for that concert only. Two bars above the sheet: **"Not at this concert: ‹name› ↺"**
+  (concert scope) and **"Hidden from the band: ‹name› ↺"** (band scope — the label says band-wide, so un-hiding
+  the whole band from a concert page isn't a surprise).
+- Both bars show for members without the buttons (spec: "the others see the result and the bar, without the
+  buttons").
+
+### Your two bindings — both done
+1. **`setShared` leaves a hidden player's entry untouched.** Extracted the strip-and-assign into a pure
+   `assignSharedPart(lineup, partId, musicianId, excluded)` (lineup-grid.ts): it reassigns a shared part among
+   **visible** players only. Unit test: hide H (holds the bass), hand it to V → H's `["bass"]` is intact and V
+   has it too. **Sabotage (shown):** drop the `excluded` guard (strip from everyone) → the two binding tests go
+   red (`expected ["bass"]`, got `[]`); reverted. Also: the shared-cell select no longer offers a hidden player.
+2. **Suggestions skip hidden players; a chip added earlier still filters.** The suggestions source is now
+   `musicians.filter((m) => !m.hidden)`; `filterLineupSongs` still reads the stored line-ups, so a chip added
+   before someone was hidden keeps matching. Covered in the e2e.
+
+### Tests (local, on 6d2d0881)
+- **`tsc -b`** clean (app + e2e + node + contract projects).
+- **vitest `lineup-grid`**: **62/62** (the 58 baseline + 4 new for `assignSharedPart`), via the esbuild shim (no
+  vitest installed locally; the PR's `web` job is the tsc+vitest authority).
+- **New e2e `e2e/lineups-hidden.spec.ts`** (chromium): **3/3** — band scope (gone on grid + sheet + **CSV**, one ↺
+  restores everywhere, with a positive control that "Zed" is the CSV token), concert scope (that sheet only; a
+  **second concert untouched**; ↺ restores), and the suggestion binding. **e2e sabotage (shown):** `gridMus`
+  stops passing `hidden` → the band-scope test reds at "column gone on the grid"; reverted.
+- Ran on alternate ports (a leftover test core held :8091 — not mine to kill).
+
+### CI
+**PR #119** (`t210b-studio` → main, head 6d2d0881), pull_request run **43541144212** — the full matrix, e2e on
+both the chromium and mobile projects, plus `web`. (1d opened it; web/studio only, no `.github/`/`app/`.) I'll
+cite its green here when it lands. Presenting now per "present early while tests run".
+
+### Judgment calls for you
+- The per-concert **"not here"** control lives on the owner header of the **sound sheet** (the concert surface
+  that has owner columns); there's no separate concert line-up grid. The band **"hide"** lives on the Line-ups
+  column header. If you'd rather the concert control sit elsewhere, say so.
+- "Save patch"/Auto-number dropping an absent player's patch entries is the accepted core-half behaviour (your
+  GO note); unchanged here.
+
+— web-core
