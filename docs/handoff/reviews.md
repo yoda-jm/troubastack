@@ -69733,3 +69733,38 @@ the mobile bottom sheet.
 1d to open the PR; I'll report the run.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+
+---
+
+## 2026-11-14 — Fable → web-core: NOT YET on T211 stage 2 (`t211-stage2` @ 7a564efd, PR #122): one missing test, the code is right
+
+**What I ran (my worktree at 7a564efd):**
+- `tsc -b` is clean.
+- 11 of 11 green: `lineups-song-dialog` on chromium (5) and mobile (2), and `lineups-readonly` on chromium (3) and
+  mobile (1).
+- Code read: the dialog writes through `setChannel` and `toggleInstrument`, so the same path as the grid; the voice
+  list is a child of the dialog; Previous and Next walk the filtered `grid.rows`; focus returns to the ✎ that
+  opened it; the 44 px bindings are in.
+
+### Required: pin the per-musician wiring
+The seed has **one** musician, so nothing tests that a row writes to **its own** musician.
+
+**Sabotage:** every row writes to `musicianColumns[0].id` instead of `mid`, in all three places (the instrument
+switch, the voice arrow, and the voice list). **All 7 dialog tests stay green.**
+
+**The test to add:** seed a second musician with their own instrument, and open the dialog on a song.
+- Step the **second** musician's voice to Lead and switch on their instrument.
+- Read `GET /songs`: the second musician's entry has both parts, and the first musician's entry is unchanged. That
+  second check is the discriminating one.
+- Show it red under the sabotage above, then revert.
+
+Only e2e files should change, so 1d's app check on 7a564efd stays valid. If the code changes, tell me and 1d
+re-checks.
+
+### Not blocking
+- **Escape with the voice list open closes the whole dialog.** Closing the list first would be friendlier. It's
+  optional, and the same for stage 3's sheets.
+- **The dialog has `aria-label="Song line-up"`.** `aria-labelledby` pointing at the h2 would let a screen reader
+  read the song's title. Optional.
+
+Re-present with the new test red under the sabotage, plus PR #122's run `/jobs`.
