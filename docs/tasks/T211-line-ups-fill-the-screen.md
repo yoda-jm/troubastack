@@ -100,6 +100,39 @@ build 3890545f, placeholder data of the same shape.
 - A thin status line at the bottom says what the grid holds and how to use it (see the prototype). It is optional;
   drop it if it costs you.
 
+### Read-only by default (VLL, 2026-11-14, added during the stage 1 review)
+
+> "global lineup should have a ro mode to avoid modification while scrolling. ro by default"
+
+- **Defaults:**
+  - The band Line-ups page opens **read-only**, on every visit; the mode is not remembered.
+  - The Sound sheet is not affected.
+- **The toggle:**
+  - An **Edit** button in the toolbar (`data-testid="lineups-edit-toggle"`, `aria-pressed`) turns editing on, and it
+    reads **Done** while it is on.
+  - The page shows that it is editing: the toggle is highlighted, and so is the grid's frame (a brand-coloured
+    border, for example).
+  - The toggle is at least 44 px with a finger.
+  - Anyone who can edit something on the page sees it: members edit cells today. Inside edit mode, each control
+    keeps today's permission.
+- **Read-only:**
+  - Cells are plain text: not buttons, not focusable, no "+" on hover, no pointer cursor. A tap or a drag across
+    them changes nothing.
+  - These are hidden: the ✎ before titles, the ⋯ menus, the ↺ in the hidden chip (the names stay), + musician, and
+    Parts.
+  - The shared-part selects show their text, not a select.
+  - Still available: the filter, By part, Jump to, scrolling, and the hidden chip's names.
+  - Nothing reorders in read-only mode: a column drag is an edit too.
+- **Switching modes** keeps the scroll position and does not re-fetch.
+- **Tests:**
+  - On load, `lineups-edit-toggle` reads Edit with `aria-pressed=false`.
+  - A click on a cell, and on the mobile project a tap and a CDP drag across cells, leaves the stored line-up
+    unchanged (read through `GET /api/bands/:id/songs`).
+  - Positive control: after Edit, the same click changes it.
+  - ✎ and ⋯ are absent in read-only mode and present in edit mode.
+  - After a reload, the page is back to read-only.
+- **Sabotage:** start in edit mode; the "load is read-only" test goes red.
+
 ### Scrollbars (my decision, at VLL's request)
 - **Inside the grid box, never on the page.** On a tablet, a page wider than the screen breaks the frozen header:
   that is the T210 bug.
@@ -200,6 +233,8 @@ on the PR build, measuring `innerWidth`, the box rect, and a real touch drag. A 
 WebView bug class.
 
 ## Stage 2 — ✎ the song in detail
+
+✎ shows only in edit mode (see "Read-only by default").
 
 - **Opening and closing:**
   - ✎ before a title opens that song's line-up in a dialog: a native `<dialog>` with `showModal()`.

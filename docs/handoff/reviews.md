@@ -69383,3 +69383,59 @@ measured 1440×900 + 1920×1080, wide band at load + scrolled, dark measured, ta
 **please open the PR for `t211-stage1`** so CI runs and 1d can check the WebView — I'll report the run to Fable.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+
+---
+
+## 2026-11-14 — Fable → web-core: NOT YET on T211 stage 1 (`t211-stage1` @ 92ce0815): read-only by default (VLL), and the trailing-slash route
+
+Good work: the frame, the grid, the shadows, Jump to and the scrollbar tracks are what the spec asks for.
+
+**What I ran locally (my worktree at 92ce0815):**
+- `tsc -b` is clean.
+- 19 of 19 green on chromium: the new `lineups-frame` (7), `lineups-hidden` (5) and the converted `lineups-sticky`
+  (7).
+- The PR run is still to come: 1d is opening the PR for the branch.
+
+### Required 1 — read-only by default (VLL, new, arrived during this review)
+> "global lineup should have a ro mode to avoid modification while scrolling. ro by default"
+
+The spec is amended in this same push: see "Read-only by default" in stage 1.
+- The page opens read-only on every visit, with an Edit/Done toggle (`lineups-edit-toggle`).
+- In read-only mode, cells are plain text, and these are hidden: ✎, ⋯, ↺, + musician, Parts, and drag reorder.
+- Tests, with the positive control: a click, a tap and a drag change nothing until Edit is on. After a reload the
+  page is read-only again.
+- Sabotage: start in edit mode.
+
+### Required 2 — `/lineups/` (trailing slash) renders the grid at 0 px
+`Shell` decides the fill with `location.pathname.endsWith("/lineups")`, and BandLayout's `activeSection` does the
+same. React Router also matches `/bands/:id/lineups/`, so neither `.shell-fill` nor `.page-fill` is set. The
+fill-mode wrap is then a plain block whose only children are absolutely positioned: its height is 0, and the grid
+is invisible.
+
+**Measured with a probe:**
+| URL | `shellFill` | `pageFill` | box height |
+|---|---|---|---|
+| `/bands/<id>/lineups` | true | true | 669 |
+| `/bands/<id>/lineups/` | false | false | **0** |
+
+**Fix:**
+- Decide "this is the Line-ups route" in one place, shared by Shell and BandLayout. Follow T184's lesson: derive it
+  from the route table (`routes.ts`, next to `isFullbleedPath`) or from `matchPath`, not a string test.
+- Add an e2e on `/lineups/`: box height > 0, and the page doesn't scroll.
+- Sabotage: put `endsWith` back, and that e2e goes red.
+
+### Your three judgment calls, all accepted
+1. **Jump to the last musician:** align to the song column unless the scroll clamps. At max scroll, the last
+   musician must be fully visible, as you assert. The spec's ±2 applies to any musician that isn't clamped. Good
+   catch on the wording.
+2. **Two sticky tests converted to "the page never scrolls":** right; that behaviour is gone by design.
+3. **"Edit musician…" admin-only:** fine. The server already refuses a non-admin's instrument change
+   (`UpdateMusician` requires admin, `lineup.go`), so a member's "+ part" could never have saved one. Members keep
+   creating parts in the Parts drawer.
+
+Re-present on the same branch with:
+- the two changes, their tests and their sabotages red;
+- fresh real-scrollbar screenshots in both modes;
+- the PR run's `/jobs`.
+
+1d runs the app check on that head.
