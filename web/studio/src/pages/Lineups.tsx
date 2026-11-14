@@ -99,8 +99,12 @@ export function Lineups() {
   // list is open inside the dialog.
   const [dialogSong, setDialogSong] = useState<string | null>(null);
   const [voiceMenuFor, setVoiceMenuFor] = useState<string | null>(null);
+  const [voiceListUp, setVoiceListUp] = useState(false); // open the voice list above the chip when there's no room below
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const songEditTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const dlgBodyRef = useRef<HTMLDivElement | null>(null); // the scrolling sheet body (reset on song change)
+  const choiceRef = useRef<HTMLDivElement | null>(null); // the open voice list (scrolled into view so it isn't clipped)
+  const voiceRefocusRef = useRef<string | null>(null); // after a list choice, refocus this musician's voice chip
 
   const load = useCallback(async () => {
     if (!bandId) return;
@@ -225,12 +229,43 @@ export function Lineups() {
 
   // T211 stage 2: open/close the native <dialog> as dialogSong changes. showModal gives the modal + backdrop +
   // Escape for free; the native close event (Escape, .close(), backdrop) clears the state and returns focus.
+  // On a song change (Previous/Next) the body scrolls back to the top so a new song isn't shown mid-scroll (1d).
   useEffect(() => {
     const d = dialogRef.current;
     if (!d) return;
     if (dialogSong && !d.open) d.showModal();
     else if (!dialogSong && d.open) d.close();
+    if (dialogSong && dlgBodyRef.current) dlgBodyRef.current.scrollTop = 0;
   }, [dialogSong]);
+
+  // T211 stage 2 (1d): the voice list must open fully visible — for the LAST musician, opening below the chip
+  // spills past the scrolling body (and the list is absolute, so the body can't scroll to reveal it). Measure
+  // the down position and flip it ABOVE the chip when it would spill; then nudge it into view. useLayoutEffect
+  // so the flip happens before paint (no flash).
+  useLayoutEffect(() => {
+    if (!voiceMenuFor) { setVoiceListUp(false); return; }
+    const list = choiceRef.current, body = dlgBodyRef.current, chip = choiceRef.current?.parentElement;
+    if (!list || !body || !chip) return;
+    const br = body.getBoundingClientRect(), cr = chip.getBoundingClientRect(), h = list.getBoundingClientRect().height;
+    // Flip up only when there isn't room below AND there IS room above (so the last musician flips up, but a
+    // short dialog whose chip is near the top stays down rather than overlapping the head).
+    setVoiceListUp(h > br.bottom - cr.bottom - 4 && cr.top - br.top - 4 >= h);
+  }, [voiceMenuFor]);
+  useEffect(() => {
+    if (voiceMenuFor) choiceRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [voiceMenuFor, voiceListUp]);
+
+  // T211 stage 2 (1d): after choosing from the list the chosen button unmounts and focus falls to <body>; return
+  // it to that musician's voice chip. Runs after the re-render that re-adds the value button.
+  useEffect(() => {
+    const mid = voiceRefocusRef.current;
+    if (!mid) return;
+    const btn = dialogRef.current?.querySelector<HTMLElement>(`[data-mus-id="${mid}"] [data-testid="song-dialog-voice-value"]`);
+    if (btn) {
+      btn.focus();
+      voiceRefocusRef.current = null;
+    }
+  });
 
   const words = queryWords(query);
   const shown = filterLineupSongs(songs as LineupSong[], chips, words);
@@ -1167,7 +1202,7 @@ export function Lineups() {
                 </div>
                 <button type="button" className="btn-sm" data-testid="song-dialog-close" onClick={() => dialogRef.current?.close()}>Close</button>
               </div>
-              <div className="lineup-dlg-body">
+              <div className="lineup-dlg-body" ref={dlgBodyRef}>
                 {musicianColumns.map((col) => {
                   const mid = col.id;
                   const have = partsOf(mid);
@@ -1185,9 +1220,9 @@ export function Lineups() {
                               <button type="button" className="lineup-vstep-val" data-testid="song-dialog-voice-value" aria-haspopup="menu" aria-label={`${col.label}'s voice: ${vopts[vk].label}. Choose`} onClick={() => setVoiceMenuFor(voiceMenuFor === mid ? null : mid)}>{vopts[vk].label}</button>
                               <button type="button" className="lineup-vstep-arr" data-testid="song-dialog-voice-next" aria-label={`Next voice for ${col.label}`} onClick={() => stepVoice(mid, 1)}>›</button>
                               {voiceMenuFor === mid && (
-                                <div className="lineup-choice" role="menu" data-testid="song-dialog-voice-list">
+                                <div className={"lineup-choice" + (voiceListUp ? " up" : "")} role="menu" data-testid="song-dialog-voice-list" ref={choiceRef}>
                                   {vopts.map((o, oi) => (
-                                    <button key={oi} type="button" role="menuitemradio" aria-checked={sameSet(o.ids, cur)} data-testid="song-dialog-voice-option" onClick={() => { setChannel(sid, mid, vids, o.ids); setVoiceMenuFor(null); }}>{o.label}</button>
+                                    <button key={oi} type="button" role="menuitemradio" aria-checked={sameSet(o.ids, cur)} data-testid="song-dialog-voice-option" onClick={() => { setChannel(sid, mid, vids, o.ids); voiceRefocusRef.current = mid; setVoiceMenuFor(null); }}>{o.label}</button>
                                   ))}
                                 </div>
                               )}
@@ -1207,8 +1242,8 @@ export function Lineups() {
                 )}
               </div>
               <div className="lineup-dlg-foot">
-                <button type="button" className="btn-sm" data-testid="song-dialog-prev" disabled={pos <= 0} onClick={() => pos > 0 && setDialogSong(grid.rows[pos - 1].songId)}>← Previous</button>
-                <button type="button" className="btn-sm btn-primary" data-testid="song-dialog-next" disabled={pos >= total - 1} onClick={() => pos < total - 1 && setDialogSong(grid.rows[pos + 1].songId)}>Next →</button>
+                <button type="button" className="btn-sm" data-testid="song-dialog-prev" disabled={pos <= 0} onClick={() => { if (pos > 0) { setVoiceMenuFor(null); setDialogSong(grid.rows[pos - 1].songId); } }}>← Previous</button>
+                <button type="button" className="btn-sm btn-primary" data-testid="song-dialog-next" disabled={pos >= total - 1} onClick={() => { if (pos < total - 1) { setVoiceMenuFor(null); setDialogSong(grid.rows[pos + 1].songId); } }}>Next →</button>
               </div>
             </>
           );

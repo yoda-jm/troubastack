@@ -65,6 +65,8 @@ test("the middle opens the list; choosing Both makes the grid cell L+B", async (
   await expect(page.getByTestId("song-dialog-voice-list")).toBeVisible();
   await page.getByTestId("song-dialog-voice-option").filter({ hasText: "Both" }).click();
   await expect(page.getByTestId("song-dialog-voice-value")).toHaveText("Both");
+  // 1d: after choosing, focus returns to that chip's middle button (it falls to <body> without the fix).
+  await expect(page.getByTestId("song-dialog-voice-value")).toBeFocused();
   await page.getByTestId("song-dialog-close").click();
   await expect(page.getByTestId("lineup-cell-voice").first()).toHaveText("L+B");
 });
@@ -83,16 +85,27 @@ test("an instrument switch round-trips through GET /songs", async ({ page }) => 
   await expect.poll(() => storedParts(page, id, songs[0], me)).not.toContain(gtr);
 });
 
-test("Next lands on the next filtered song", async ({ page }) => {
+test("Next lands on the next filtered song and resets the body's scroll", async ({ page }) => {
   await register(page, `dlgn${stamp()}`);
-  await open(page);
+  // Many musicians so the dialog body scrolls — then Next must reset it to the top (1d).
+  const { id } = await createBandAndOpen(page, `Band ${stamp()}`);
+  await page.request.post(`/api/bands/${id}/parts`, { data: { name: "Lead vocal", kind: "voice", short: "L" } });
+  for (let i = 0; i < 8; i++) await page.request.post(`/api/bands/${id}/musicians`, { data: { name: `Player ${i}` } });
+  for (const t of ["Song A", "Song B"]) await page.request.post(`/api/bands/${id}/songs`, { data: { title: t } });
+  await page.goto(`/bands/${id}/lineups`);
+  await expect(page.getByTestId("lineups-title")).toBeVisible();
+  await enableEdit(page);
   await page.getByTestId("lineup-song-edit").first().click();
-  await expect(page.getByTestId("song-dialog-pos")).toHaveText("Song 1 of 3");
+  await expect(page.getByTestId("song-dialog-pos")).toHaveText("Song 1 of 2");
+
+  // Scroll the body down, confirm it moved, then Next resets it to 0.
+  const bodyScroll = () => page.locator(".lineup-dlg-body").evaluate((el) => el.scrollTop);
+  await page.locator(".lineup-dlg-body").evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  expect(await bodyScroll()).toBeGreaterThan(0);
   await page.getByTestId("song-dialog-next").click();
-  // SABOTAGE (write to the wrong song index) would still move here, but the voice edits would hit the wrong song;
-  // this check pins the navigation itself.
-  await expect(page.getByTestId("song-dialog-pos")).toHaveText("Song 2 of 3");
+  await expect(page.getByTestId("song-dialog-pos")).toHaveText("Song 2 of 2");
   await expect(page.getByTestId("song-dialog-title")).toHaveText("Song B");
+  expect(await bodyScroll(), "body scroll reset on song change").toBe(0); // SABOTAGE (drop the reset) reds this
 });
 
 test("Escape closes the dialog and returns focus to the ✎ that opened it", async ({ page }) => {

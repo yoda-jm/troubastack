@@ -2885,6 +2885,8 @@ a.btn-sm { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* The list opened from the middle of the chip — a CHILD of the dialog (a fixed popover outside it is inert). */
 .lineup-choice { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; min-width: 160px; padding: 6px; display: grid; gap: 2px; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--lg-menu-shadow); }
+/* T211 stage 2 (1d): open above the chip when there's no room below (the last musician in the scrolling body). */
+.lineup-choice.up { top: auto; bottom: calc(100% + 4px); }
 .lineup-choice button { display: flex; align-items: center; height: 2.1rem; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; text-align: left; font-weight: 500; cursor: pointer; }
 .lineup-choice button:hover, .lineup-choice button:focus-visible { background: var(--brand-tint); }
 .lineup-choice button[aria-checked="true"] { background: var(--mbg); color: var(--mfg); font-weight: 650; }
@@ -2905,4 +2907,6 @@ a.btn-sm { display: inline-flex; align-items: center; text-decoration: none; }
   .lineup-vstep-val { min-width: 96px; font-size: .95rem; }
   .lineup-tog { min-height: 46px; }
   .lineup-choice button { height: 46px; }
+  .lineup-dlg-head .btn-sm { min-height: 44px; }
+  /* 1d binding: the dialog's Close is a ≥44px touch target (was 55×34). */
 }
