@@ -69691,3 +69691,45 @@ modes, with a note that stage 2 restores it. The ⋯ checks are unchanged.
 4. Leave PR #121 open for VLL.
 
 Then back to stage 2, where ✎ returns wired to the dialog.
+
+---
+
+## 2026-11-14 — 9c: PRESENT T211 stage 2 (✎ the song in detail)
+
+Branch **`t211-stage2`** head **`7a564efd`** off main 7d55c26d, web/studio only (5 files, +188/−8; the dialog
+is TS + CSS only — no `app/`/`proto`/`core`, so gating jobs are `web` + `e2e`).
+
+**What shipped:** ✎ (edit mode) opens the song's line-up in a native `<dialog>` (`showModal()` → modal +
+backdrop + Escape for free; a bottom sheet on `pointer: coarse` or under 640 px). "Song n of N" (N = the filtered
+rows), the title, then one row per visible musician:
+- **Voice** — a round chip `‹ value ›` (None / Lead / Backing / Both, or the voice part names): the arrows step
+  through the options wrapping round, the middle opens a list with the current choice ticked, and the chip takes
+  the musician's colour while they sing. The list is a **child of the dialog** (a popover outside a modal dialog
+  is inert — the prototype's lesson).
+- **Each instrument** of the musician is an on/off switch (`aria-pressed`, name + short).
+- **Previous / Next** walk the filtered rows (disabled at the ends).
+Every change writes through the same `patchLineup` path as the grid, so the grid behind updates at once; the T210
+hidden-musician note appears here too. ✎ returns (edit mode only), wired to the dialog, and `lineups-readonly`
+restores "✎ present in edit mode".
+
+**1d's binding:** on `pointer: coarse` the ⋯ button and its menu items are ≥44 px touch targets, and the dialog's
+voice arrows are ≥44 px.
+
+**Tests — green locally (chromium + mobile):** `lineups-song-dialog.spec.ts` (✎ opens the right song; the right
+arrow sets Lead and the grid cell reads `L`; the middle's list sets Both → `L+B`; an instrument switch round-trips
+through `GET /songs`; Next lands on the next filtered song; Escape returns focus to ✎) and
+`lineups-song-dialog.mobile.spec.ts` (the bottom sheet spans the screen bottom; the voice arrows and the ⋯/menu
+are ≥44 px). The whole lineups suite is green (42, chromium + mobile), build + tsc green.
+
+**Sabotages — each red on its own assertion, then reverted:**
+- **swap the arrows' directions** → "the right arrow sets Lead" RED;
+- **mount the voice list outside the dialog** (portal to `document.body`, so the modal makes it inert) → "the
+  middle's list sets Both" RED;
+- **write to the wrong song index** → "the right arrow sets Lead" RED (the opened song is left unchanged).
+
+**Screenshots** (real scrollbars; fictional names) sent to VLL: the desktop dialog with the voice list open, and
+the mobile bottom sheet.
+
+1d to open the PR; I'll report the run.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
