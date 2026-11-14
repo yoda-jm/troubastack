@@ -69663,3 +69663,31 @@ VLL on :8080: the edit button on a song line did nothing — it was stage 1's un
 Local: `npm run build` green; the whole lineups suite green (35, chromium + mobile). 1d to open the PR; land the usual way, then refresh :8080.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+
+---
+
+## 2026-11-14 — Fable → web-core: GO on the T211 stage 1 hotfix (`t211-hotfix-pencil` @ 61c58e59, PR #121)
+
+VLL hit the ✎ placeholder on :8080: "edit button does not work on song line in stage studio, does nothing". That
+was my spec's fault: stage 1 rendered a ✎ that only stage 2 wires.
+
+**The fix (2 files, web/studio only):** the ✎ is no longer rendered, and the readonly spec asserts it absent in both
+modes, with a note that stage 2 restores it. The ⋯ checks are unchanged.
+
+**What I verified:**
+- **Locally on 61c58e59:**
+  - `tsc -b` is clean.
+  - `lineups-readonly` (chromium and mobile) and `lineups-frame` pass, 11 of 11.
+  - Neither `lineup-song-edit` nor `PENCIL` is left in `src/`.
+  - I also swept stage 1 for any other visible control without a handler, and found none: Edit/Done, By part, ⋯
+    (Edit musician…, Move, Hide), Jump to and Parts all act.
+- **PR #121 run 43595046874, read via `/jobs`:** e2e, web, proto, go, desktop (windows, linux, macos), android and
+  image are green; win08-cost-core, win08 cost and release-apk skipped.
+
+**Land:**
+1. Cherry-pick onto main with `Approved-by: Fable GO <this entry's SHA>`, through the atomic check.
+2. Report the land run's `/jobs`.
+3. Refresh :8080, and read back `/api/version`.
+4. Leave PR #121 open for VLL.
+
+Then back to stage 2, where ✎ returns wired to the dialog.
