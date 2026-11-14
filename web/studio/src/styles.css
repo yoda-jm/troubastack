@@ -2760,7 +2760,8 @@ a.btn-sm { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* The box's sizing adapts to the pointer and the width (prototype values). */
 .lineup-grid-wrap { --lg-row-h: 32px; --lg-cell-w: 60px; --lg-song-w: 248px; --lg-edit: 24px; }
-@media (pointer: coarse) { .lineup-grid-wrap { --lg-row-h: 44px; --lg-cell-w: 56px; --lg-song-w: 210px; --lg-edit: 40px; } }
+/* T211 stage 2 (1d binding): on a coarse pointer the ⋯ button and the ✎ are ≥44px touch targets (was 40). */
+@media (pointer: coarse) { .lineup-grid-wrap { --lg-row-h: 44px; --lg-cell-w: 56px; --lg-song-w: 210px; --lg-edit: 44px; } }
 @media (max-width: 860px) { .lineup-grid-wrap { --lg-song-w: 172px; } }
 
 /* The grid header background follows the new look, for the main grid AND the by-part view (both share the
@@ -2829,6 +2830,8 @@ a.btn-sm { display: inline-flex; align-items: center; text-decoration: none; }
 .lineup-menu { position: fixed; z-index: 30; min-width: 200px; padding: 6px; display: grid; gap: 2px; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--lg-menu-shadow); }
 .lineup-menu button { height: 2.1rem; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; text-align: left; font-weight: 500; }
 .lineup-menu button:hover, .lineup-menu button:focus-visible { background: var(--brand-tint); }
+/* T211 stage 2 (1d binding): the ⋯ menu items are ≥44px with a finger (was ~34px). */
+@media (pointer: coarse) { .lineup-menu button { height: 44px; } }
 .lineup-menu .lineup-menu-hide { color: var(--warn-fg); }
 
 /* A thin status line at the bottom of the frame. */
@@ -2848,3 +2851,62 @@ a.btn-sm { display: inline-flex; align-items: center; text-decoration: none; }
 .shell-fill .topbar { padding-top: .4rem; padding-bottom: .4rem; }
 
 
+
+/* ===== T211 stage 2 — the ✎ song-detail dialog ==========================================================
+   A native <dialog> (modal + backdrop + Escape for free); a bottom sheet on a finger or under 640px. One row
+   per visible musician: a voice chip ‹ value › and the musician's instrument switches. */
+.lineup-sheet { width: min(720px, calc(100vw - 32px)); max-height: min(760px, calc(100dvh - 48px)); padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--fg); box-shadow: var(--lg-menu-shadow); }
+.lineup-sheet::backdrop { background: rgba(16, 14, 22, .45); }
+.lineup-sheet[open] { display: flex; flex-direction: column; }
+.lineup-dlg-head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px 10px; }
+.lineup-dlg-head > div { flex: 1; min-width: 0; }
+.lineup-dlg-pos { margin: 0; color: var(--muted); font-size: .85rem; }
+.lineup-sheet h2 { margin: 2px 0 0; font-family: var(--font-display); font-size: 1.5rem; line-height: 1.15; font-weight: 600; text-wrap: balance; }
+.lineup-dlg-body { flex: 1; min-height: 0; overflow: auto; padding: 0 22px; }
+.lineup-dlg-row { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px 0; border-top: 1px solid var(--lg-grid-line); }
+.lineup-dlg-name { display: flex; align-items: center; gap: 8px; min-height: 40px; font-weight: 700; }
+.lineup-dlg-name i { width: 10px; height: 10px; border-radius: 50%; background: var(--mfg, var(--muted)); }
+.lineup-dlg-togs { display: flex; flex-wrap: wrap; gap: 8px; position: relative; }
+.lineup-togs-break { flex-basis: 100%; height: 0; }
+.lineup-seg-label { align-self: center; color: var(--muted); font-size: .72rem; font-weight: 700; margin-right: 2px; }
+.lineup-dlg-note { margin: 10px 0 14px; padding: 8px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-fg); font-size: .85rem; }
+.lineup-dlg-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 12px 22px 18px; border-top: 1px solid var(--lg-grid-line); }
+
+/* The voice chip ‹ value ›: the arrows step, the middle opens the list. */
+.lineup-vstep { display: inline-flex; align-items: stretch; height: 40px; border: 1.5px solid var(--border-strong); border-radius: 20px; background: var(--surface); overflow: visible; position: relative; }
+.lineup-vstep.on { background: var(--mbg); color: var(--mfg); border-color: var(--mfg); }
+.lineup-vstep button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; }
+.lineup-vstep-arr { width: 32px; font-size: 1rem; line-height: 1; color: var(--muted); border-radius: 20px; }
+.lineup-vstep.on .lineup-vstep-arr { color: inherit; }
+.lineup-vstep-arr:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.lineup-vstep-val { min-width: 84px; padding: 0 6px; display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 650; font-size: .9rem; }
+.lineup-vstep-val::after { content: "▾"; font-size: 10px; opacity: .6; }
+.lineup-vstep-val:hover { background: color-mix(in srgb, currentColor 8%, transparent); border-radius: 20px; }
+
+/* The list opened from the middle of the chip — a CHILD of the dialog (a fixed popover outside it is inert). */
+.lineup-choice { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; min-width: 160px; padding: 6px; display: grid; gap: 2px; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--lg-menu-shadow); }
+/* T211 stage 2 (1d): open above the chip when there's no room below (the last musician in the scrolling body). */
+.lineup-choice.up { top: auto; bottom: calc(100% + 4px); }
+.lineup-choice button { display: flex; align-items: center; height: 2.1rem; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; text-align: left; font-weight: 500; cursor: pointer; }
+.lineup-choice button:hover, .lineup-choice button:focus-visible { background: var(--brand-tint); }
+.lineup-choice button[aria-checked="true"] { background: var(--mbg); color: var(--mfg); font-weight: 650; }
+
+/* Each instrument is an on/off switch. */
+.lineup-tog { min-height: 40px; padding: 0 14px; display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--border-strong); border-radius: 20px; background: var(--surface); color: inherit; font-size: .9rem; font-weight: 600; cursor: pointer; }
+.lineup-tog small { opacity: .7; font-size: .75rem; }
+.lineup-tog[aria-pressed="true"] { background: var(--mbg); color: var(--mfg); border-color: var(--mfg); }
+.lineup-tog[aria-pressed="true"]::before { content: "✓"; }
+
+/* On a finger (or under 640px): the dialog is a bottom sheet, and the chip + its arrows are ≥44px targets. */
+@media (pointer: coarse), (max-width: 640px) {
+  .lineup-sheet { width: 100%; max-width: none; margin: auto 0 0; border-radius: 20px 20px 0 0; max-height: 78dvh; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .lineup-dlg-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .lineup-dlg-foot .btn-sm { flex: 1; height: 48px; }
+  .lineup-vstep { height: 48px; border-radius: 24px; }
+  .lineup-vstep-arr { width: 46px; font-size: 1.1rem; }
+  .lineup-vstep-val { min-width: 96px; font-size: .95rem; }
+  .lineup-tog { min-height: 46px; }
+  .lineup-choice button { height: 46px; }
+  .lineup-dlg-head .btn-sm { min-height: 44px; }
+  /* 1d binding: the dialog's Close is a ≥44px touch target (was 55×34). */
+}
