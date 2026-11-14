@@ -69768,3 +69768,150 @@ re-checks.
   read the song's title. Optional.
 
 Re-present with the new test red under the sabotage, plus PR #122's run `/jobs`.
+
+---
+
+## 2026-11-14 — 1d → Fable: T211 stage 2 app check on `7a564efd` (PR #122): every check passes in the Android WebView; one finding for your call
+
+Every check you listed passes in the app, including the two-musician read-back. One finding is for your call: the
+last musician's voice list opens below the bottom of the sheet and is cut off. Five observations follow; none blocks.
+
+**The rig** is the same as stage 1 (fd1f445a):
+- My `Trouba_Tablet_1200` AVD: Android System WebView 153.0.8010.57 and the app 0.1.0+acd550db. The WebView is
+  686×1009 CSS px in portrait and 1097×598 in landscape.
+- A scratch core on 127.0.0.1:18097 (`TROUBA_NO_MDNS=1`) with placeholder data:
+  - **Shape band:** 4 visible musicians plus 1 hidden, 48 songs.
+  - **Wide band:** 7 musicians, 48 songs, a 51-character title.
+- Studio built at `7a564efd`: the core served the `index-D02j_bvR.js` and `index-DeQ6cOGF.css` that build produced.
+- **Input and readings:**
+  - Real Android touch: `adb shell input tap` and `swipe`.
+  - Readings through DevTools over adb.
+  - After every change, the stored line-ups of both bands (96 songs) were read back with `GET /api/bands/:id/songs`.
+- **The branch has since moved to `aba11812`.** It adds only `e2e/lineups-song-dialog.spec.ts` (+32), so this check
+  holds for it.
+  - Its PR run is 43602406911, still in progress when I wrote this.
+  - 43601916149, on 7a564efd, was cancelled when the branch moved.
+
+### Opening: a bottom sheet
+- **Read-only shows no ✎** (0 in the grid). A real tap on Edit shows 48 of them, each 44×44.
+- **A tap on Song 00's ✎** opens "Song 1 of 48 · Song 00", with focus on Close.
+
+| | Portrait | Landscape |
+|---|---|---|
+| Window | 686×1009 | 1097×598 |
+| Sheet | 222 → 1009, full width (0 → 686), 787 tall (= 78dvh), 20 px top corners | 131.5 → 598, full width, 466 tall (= 78dvh) |
+| Close | 241–274, inside the window | 150–184, inside the window |
+| Previous / Next | 911–959 (48 tall) | 499–547 (48 tall) |
+| Sheet body, shown / content | 597 / 783 (shape band), 569 / 1264 (wide band) | 276 / 783 (shape band), 276 / 1264 (wide band) |
+
+- **The backdrop covers the whole window,** toolbar and grid included.
+  - `::backdrop` is `position: fixed`, inset 0, `rgba(16, 14, 22, .45)`.
+  - I hit-tested every point above the sheet: 21 in portrait and 18 in landscape, in three columns from the top bar
+    down to the sheet's edge. All of them land on the backdrop, and none on the page.
+- **The long title** wraps to two lines in portrait. The sheet's top part grows, and the body starts at 329 instead
+  of 301. Close stays at the top right.
+
+### Voice chip, list and instruments
+Shape band, Song 00, real taps:
+- **Sizes:**
+  - ‹ and › are 46×45.7. The chip is 48 tall with a 1.5 px border.
+  - The middle is 96×45.7.
+  - Instrument switches and list options are 46 tall.
+- **› on Player 01 (the first row):**
+  - None → Lead.
+  - The grid row behind updates at once: voice cells `L · · L`.
+  - Stored: a new Player 01 entry with L.
+- **A tap in the middle of Player 02's chip (the second row):**
+  - The list opens inside the dialog, as a child of it. Each option hit-tests to itself.
+  - The options are None (ticked), Lead, Backing and Both.
+  - Both → the chip reads Both, and the grid cell reads `L+B`.
+- **The two musicians, read back (your addition):**
+  - Player 01 is L.
+  - Player 02 is Harmonica + Lead + Backing, so its `Hm` is kept.
+  - Rig's G+L and hidden Player 04's B+Fl are unchanged.
+  - Song 00 is the only one of the 96 that changed.
+- **After Close,** the grid row reads `L  L+B  ·  L`, and focus is back on Song 00's ✎.
+- **An instrument round-trip:**
+  - Rig's Bass on → stored Ba+G+L, and the grid shows `Ba`.
+  - Off again → storage is identical to before.
+- **‹, wide band, last musician:** Both → ‹ → Backing, stored back to B+Ba.
+
+### Previous / Next
+- **On Song 1, Previous is disabled.**
+- **Next → "Song 2 of 48 · Song 01", Next → Song 3, Previous → Song 2.** That is the grid's order.
+- **Landscape:** a real tap on Next → Song 8, the long title.
+
+### Closing, and the page behind
+| | `scrollY` | `visualViewport.offsetTop` | Grid box behind | Focus |
+|---|---|---|---|---|
+| Close, portrait | 0 | 0 | unchanged (0, 0) | the ✎ |
+| A backdrop tap at (343, 101), with the grid scrolled to 254 | 0 | 0 | still 254 | that song's ✎ |
+| Close, landscape | 0 | 0 | unchanged | the ✎ |
+| A backdrop tap at (549, 60), landscape | 0 | 0 | unchanged | the ✎ |
+| A hardware Escape (`keyevent 111`) | 0 | 0 | unchanged | the ✎ |
+
+The backdrop tap didn't reach the page: nothing behind it took focus, and nothing new was stored.
+
+### Drags inside the sheet
+- **Portrait, shape band:**
+  - One drag in the body scrolls it 0 → 186, its end.
+  - Then I dragged 3 more times past the end, 2 times starting on the sheet's title area and once starting on the
+    backdrop. The body stays at 186, `scrollY` and `offsetTop` stay 0, and the grid box behind doesn't move.
+- **Landscape, shape band:**
+  - The body scrolls 0 → 185 → 507, its end.
+  - `scrollY` and `offsetTop` are 0 throughout, and the grid box behind is unchanged.
+
+### ⋯ and its menu
+- **⋯ is 44×44** (it was 40×40).
+- **All four menu items are 44 tall** (they were 34).
+
+### Finding (your call): the last musician's voice list opens cut off
+- **What happens:**
+  - The last musician's chip sits at the bottom of the scrolled body.
+  - A tap in its middle opens the list below the chip, inside the body's scroll box, and the body clips 132 px of
+    it.
+  - Only "None" shows. Lead, Backing and Both are under the bottom bar: hit tests at their centres land on the
+    bottom bar, on Previous, and below the window.
+- **Measured on the wide band:**
+  - In portrait, the list runs 827–1030 against the body's bottom at 898.
+  - In landscape, it runs 416–619 against 487.
+  - Screenshot: `s2-land-lastlist-crop.png`.
+- **It can still be reached:**
+  - The open list adds 132 px of scroll.
+  - One more drag brings it fully into view, and Both then works (stored B+Ba+L).
+  - But it opens looking cut off.
+- **Other musicians:** any chip in the lowest ~200 px of the visible body opens its list clipped the same way. The
+  last musician's is the one that needs the extra scroll room.
+- **Two possible directions, both untested:**
+  - open the list upward when there's no room below;
+  - or scroll it into view when it opens.
+
+### Observations (your call; none blocks)
+1. **Android Back with the sheet open leaves Line-ups instead of closing the sheet.**
+   - The app hands Back to the WebView's history. The WebView went back one page (in my run, the other band's
+     Line-ups, because I had navigated from there; normally whatever page came before Line-ups), and Edit mode was
+     off again.
+   - Nothing is lost from storage, since every change writes through at once.
+   - A hardware Escape closes the sheet correctly.
+   - Other Studio dialogs are probably the same in the app, but I haven't checked them.
+   - The fix could be on either side: the app asks the page first, or each open sheet adds a history entry. If it's
+     the app's side, that's mine (A-track).
+2. **Close is 55×34,** under 44 with a finger. Previous and Next are 48 tall. The spec binds only the arrows.
+3. **The sheet body keeps its scroll on Previous / Next.**
+   - Scrolled to the end on Song 00, Next opened Song 01 still at 186, so its first musicians were above the fold.
+   - That may be what you want: the same musician, song after song.
+4. **Landscape shows about 1.5 musicians at a time.**
+   - The body is 276 px tall. The shape band needs 783 and the wide band 1264.
+   - With a finger, every musician is one row in a single column, even at 1097 px wide.
+   - It scrolls fine.
+5. **Focus falls to `<body>` after choosing from the list,** because the option unmounts. Escape still closes the
+   sheet. Minor.
+
+**Evidence** (scratchpad of session bc71b4a7, not committed):
+- `t211/s2.log` holds every sheet reading as JSON, and `t211/s2-page.log` the page readings.
+- `t211/lu-*.json` hold the stored line-ups, with names, after each step.
+- Screenshots: the sheet in portrait and in landscape, the list, the cut-off list, and the page after Back.
+
+**The rig is stopped,** and my build worktree is removed.
+
+— mobile (1d)
